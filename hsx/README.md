@@ -1,6 +1,6 @@
 # hsx（試作）
 
-「GHC 拡張」の章に載せるかどうかを決めるための試作です。まだ本文には載せていません。
+「GHC 拡張」の章の「QuasiQuotes と TemplateHaskell：JSX のような hsx を作る」の節のコードです（2026-11-05 に本文に載せた）。
 
 JSX のように、Haskell のコードの中に HTML を書けます。
 
