@@ -1,0 +1,61 @@
+cabal-version: 3.0
+name:          guildweb
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「Web アプリを Docker で動かす」の章のコード：依頼板の Web アプリ
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , aeson            ^>=2.3
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Board.Types
+                    Board.Store
+                    Board.Api
+                    Board.Server
+  hs-source-dirs:   src
+  build-depends:
+    , servant            ^>=0.20.3
+    , servant-server     ^>=0.20.3
+    , postgresql-simple  ^>=0.7
+    , aeson-typescript   ^>=0.6.4
+    , bytestring         ^>=0.12
+
+executable guild-web
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  ghc-options:      -threaded
+  build-depends:
+    , guildweb
+    , warp               ^>=3.4
+    , wai-extra          ^>=3.1
+
+executable gen-ts
+  import:           shared
+  main-is:          GenTs.hs
+  hs-source-dirs:   app
+  build-depends:
+    , guildweb
+    , aeson-typescript   ^>=0.6.4
+    , bytestring         ^>=0.12
+
+test-suite guildweb-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , guildweb
+    , hspec              ^>=2.11
+    , hspec-wai          ^>=0.12
+    , hspec-wai-json     ^>=0.12
+    , bytestring         ^>=0.12
+    , http-types         ^>=0.12
+    , wai-extra          ^>=3.1

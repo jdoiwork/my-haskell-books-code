@@ -1,0 +1,14 @@
+-- 「Web アプリを Docker で動かす」の章のコード（別のプロジェクト）
+-- postgresql-simple 0.7.0.1 は、まだ GHC 9.14（base 4.22）と aeson 2.3 に
+-- 対応していないので、allow-newer で上限を外してビルドする（2026-11-05）
+packages: .
+
+allow-newer:
+  , postgresql-simple:base
+  , postgresql-simple:aeson
+  , postgresql-simple:template-haskell
+
+-- Find libpq with pkg-config (PKG_CONFIG_PATH on macOS).
+-- libpq を pkg-config で探す（macOS では PKG_CONFIG_PATH を設定）
+package postgresql-libpq
+  flags: +use-pkg-config

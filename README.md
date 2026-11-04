@@ -18,7 +18,7 @@ cabal test all
 
 `cabal.project` に、ほとんどのパッケージが入っています。依存の都合で、次のディレクトリーは、それぞれの中に自分の `cabal.project` を持つ別のプロジェクトです。そのディレクトリーに入ってから `cabal build` してください。
 
-- `dbcompare`、`guildapi`、`guilddesign`、`guildpg`、`guildrel8`（GHC 9.10.3）、`guildtyped`
+- `dbcompare`、`guildapi`、`guilddesign`、`guildpg`、`guildrel8`（GHC 9.10.3）、`guildtyped`、`guildweb`（React の画面は `guildweb/frontend` で `npm install`。`docker compose up` でも動かせます）
 - `review3`、`review6`、`review7`、`review8`、`review9`、`upsert`
 
 `wasm` は、ghc-wasm-meta の `wasm32-wasi-ghc` で組み立てます（`wasm/build.sh`）。
@@ -89,6 +89,7 @@ cabal test all
 | DB に縛られない設計：SQLite と PostgreSQL を切り替える | [`guilddesign/`](guilddesign/)、[`langs/db-design/`](langs/db-design/) |
 | Web API を作る：servant で、型が API の設計図になる | [`guildapi/`](guildapi/)、[`langs/web-api/`](langs/web-api/) |
 | セキュリティ：型で守れるもの、守れないもの | [`guildsecure/`](guildsecure/)、[`langs/security/`](langs/security/) |
+| Web アプリを作る：React の画面と Haskell の API を Docker で動かす | [`guildweb/`](guildweb/)、[`hsx/`](hsx/) |
 | 第III部のふりかえり | [`review3/`](review3/) |
 
 ### 第IV部 速く書く・速く動かす

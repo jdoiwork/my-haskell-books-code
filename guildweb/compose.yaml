@@ -1,0 +1,33 @@
+# ANCHOR: all
+# Start the web app and PostgreSQL together: docker compose up
+# Web アプリと PostgreSQL を一緒に起動する：docker compose up
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: guild
+      POSTGRES_DB: guild
+    volumes:
+      - quests:/var/lib/postgresql
+    # Ready when it answers pg_isready.
+    # pg_isready に答えたら、準備ができた
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 2s
+      retries: 15
+
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://postgres:guild@db:5432/guild
+    # Wait until the database is ready.
+    # データベースの準備ができるまで待つ
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  quests:
+# ANCHOR_END: all
