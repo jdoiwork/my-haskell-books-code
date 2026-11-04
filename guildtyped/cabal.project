@@ -1,0 +1,9 @@
+-- The code of the "typed SQL" chapter (selda).
+-- selda-sqlite 0.1.7.3 needs time < 1.13, but GHC 9.14 comes with time 1.15
+-- (which other chapters use), so this is a separate project, not part of
+-- code/cabal.project. Here cabal builds an older time for it.
+-- 「型で SQL を守る」の章のコード（selda）
+-- selda-sqlite 0.1.7.3 は time < 1.13 を求めるが、GHC 9.14 に付いてくるのは
+-- time 1.15（ほかの章で使っている）なので、code/cabal.project には入れず、
+-- 別のプロジェクトにしている。ここでは、cabal が古い time を作って使う
+packages: .

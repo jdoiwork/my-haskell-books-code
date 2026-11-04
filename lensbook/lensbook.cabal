@@ -1,0 +1,36 @@
+cabal-version: 3.0
+name:          lensbook
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「lens：入れ子のデータを自在に操る」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    , aeson            ^>=2.3
+    , lens
+    , lens-aeson
+
+library
+  import:           shared
+  exposed-modules:  Plain
+                    Guild
+                    MiniLens
+                    SaveData
+                    LensAnswers
+  hs-source-dirs:   src answers
+
+test-suite lensbook-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , lensbook
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

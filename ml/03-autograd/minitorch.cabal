@@ -1,0 +1,37 @@
+cabal-version: 3.0
+name:          minitorch
+version:       0.3.0.0
+build-type:    Simple
+
+-- 第VIII部 Python の機械学習ライブラリを Haskell で作る
+-- （3. PyTorch の autograd 風に自動微分を作る）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , vector           ^>=0.13
+    , containers       ^>=0.8
+
+library
+  import:           shared
+  exposed-modules:  MiniNumpy
+                    MiniSklearn.Datasets
+                    MiniSklearn.Linear
+                    MiniSklearn.Logistic
+                    Autograd
+                    Dual
+                    AutogradDemo
+                    Answers
+  hs-source-dirs:   src answers
+
+test-suite minitorch-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minitorch
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

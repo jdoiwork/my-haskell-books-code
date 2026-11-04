@@ -1,0 +1,33 @@
+cabal-version: 3.0
+name:          guildtyped
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「型で SQL を守る」の章のコード（selda）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base          >=4.20 && <5
+    , selda         ^>=0.5.2
+    , selda-sqlite  ^>=0.1.7
+    , sqlite-simple ^>=0.4.19
+    , text          ^>=2.1
+
+-- The guild, with queries written in Haskell.
+-- ギルド。問い合わせを Haskell の式で書く
+library
+  import:           shared
+  exposed-modules:  TypedGuild
+                    TypedAnswers
+  hs-source-dirs:   src
+                    answers
+
+-- Try the guild: add, query, update, delete, and the quest board.
+-- ギルドを試す：登録、問い合わせ、更新、削除、依頼板
+executable typed-guild
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    guildtyped

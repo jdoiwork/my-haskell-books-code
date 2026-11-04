@@ -1,0 +1,34 @@
+cabal-version: 3.0
+name:          minisearch
+version:       0.1.0.0
+build-type:    Simple
+
+-- 第VI部 ミニ全文検索エンジン（1. 設計：型でドメインを描く）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  MiniSearch.Types
+                    MiniSearch.Tokenize
+                    MiniSearch.Index
+                    MiniSearch.Search
+                    MiniSearch.Samples
+                    MiniSearch.Answers
+  hs-source-dirs:   src answers
+
+test-suite minisearch-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minisearch
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

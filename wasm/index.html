@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- ANCHOR: all -->
+<!-- The element chart in the browser, computed by Haskell. -->
+<!-- ブラウザーの相性表。計算するのは Haskell -->
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Element chart</title>
+</head>
+<body>
+  <select id="attacker">
+    <option>fire</option><option>water</option><option>grass</option>
+  </select>
+  →
+  <select id="defender">
+    <option>fire</option><option>water</option><option>grass</option>
+  </select>
+  <button id="go">attack!</button>
+  <p id="result"></p>
+
+  <script type="module">
+    import { WASI, OpenFile, File, ConsoleStdout } from
+      "https://cdn.jsdelivr.net/npm/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js";
+    import ghc_wasm_jsffi from "./build/ghc_wasm_jsffi.js";
+
+    // A small WASI for the browser: no files, stdout goes to the console.
+    // ブラウザー用の小さな WASI：ファイルはなし、標準出力はコンソールへ
+    const wasi = new WASI(["matchup"], [], [
+      new OpenFile(new File([])),
+      ConsoleStdout.lineBuffered((line) => console.log(line)),
+      ConsoleStdout.lineBuffered((line) => console.warn(line)),
+    ]);
+    const exports = {};
+    const { instance } = await WebAssembly.instantiateStreaming(
+      fetch("./build/matchup.wasm"),
+      {
+        wasi_snapshot_preview1: wasi.wasiImport,
+        ghc_wasm_jsffi: ghc_wasm_jsffi(exports),
+      },
+    );
+    Object.assign(exports, instance.exports);
+    wasi.initialize(instance);
+
+    const value = (id) => document.getElementById(id).value;
+    document.getElementById("go").onclick = () => {
+      document.getElementById("result").textContent =
+        instance.exports.matchup(value("attacker"), value("defender"));
+    };
+  </script>
+</body>
+</html>
+<!-- ANCHOR_END: all -->

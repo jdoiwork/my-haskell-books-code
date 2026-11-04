@@ -1,0 +1,4 @@
+# hlint: keep these as they are, for readability (see the cabal chapter).
+# hlint：読みやすさのために、そのままにする（cabal の章を参照）
+- ignore: {name: "Avoid lambda", within: Guild.Board}
+- ignore: {name: "Fuse foldr/map", within: Guild.Board}

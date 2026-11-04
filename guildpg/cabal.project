@@ -1,0 +1,17 @@
+-- 「PostgreSQL へ」の章のコード（別のプロジェクト）
+-- postgresql-simple 0.7.0.1 と postgresql-migration 0.2.1.8 は、
+-- まだ GHC 9.14（base 4.22）と aeson 2.3 に対応していないので、
+-- allow-newer で上限を外してビルドする（2026-11-04 に確認）
+packages: .
+
+allow-newer:
+  , postgresql-simple:base
+  , postgresql-simple:aeson
+  , postgresql-simple:template-haskell
+  , postgresql-migration:base
+  , postgresql-migration:time
+
+-- Find libpq with pkg-config (PKG_CONFIG_PATH on macOS; see the chapter).
+-- libpq を pkg-config で探す（macOS では PKG_CONFIG_PATH を設定。章を参照）
+package postgresql-libpq
+  flags: +use-pkg-config

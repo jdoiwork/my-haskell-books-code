@@ -1,0 +1,38 @@
+cabal-version: 3.0
+name:          textbook
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「Text」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base >=4.20 && <5
+    , text
+
+-- The quest board: reading and formatting notices (pure).
+-- クエスト掲示板：告知を読んで整える（純粋な部分）
+library
+  import:           shared
+  exposed-modules:  QuestBoard
+                    QuestBoardAnswers
+  hs-source-dirs:   src
+                    answers
+
+-- Show the quest board read from standard input.
+-- 標準入力から読んだクエスト掲示板を表示する
+executable board
+  import:           shared
+  main-is:          Board.hs
+  hs-source-dirs:   app
+  build-depends:    textbook
+
+-- wordfreq from the first chapter, rewritten with Text.
+-- 第1章の wordfreq を Text で書き直したもの
+executable wordfreq-text
+  import:           shared
+  main-is:          WordfreqText.hs
+  hs-source-dirs:   app
+  build-depends:    containers

@@ -1,0 +1,41 @@
+cabal-version: 3.16
+name:          jsonbook
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「JSON を扱う」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base         ^>=4.22.0.0
+    , aeson        ^>=2.3
+    , aeson-pretty ^>=0.8
+    , bytestring   ^>=0.12
+    , containers   ^>=0.8
+    , text         ^>=2.1
+    , time         ^>=1.15
+
+library
+  import:           shared
+  exposed-modules:
+    Battle
+    Bounty
+    JsonLog
+    Monster
+    Peek
+    Samples
+    Shop
+    ValueSketch
+    JsonAnswers
+  hs-source-dirs:   src answers
+
+-- 図鑑のツール：cabal run bestiary -- list data/monsters.json
+executable bestiary
+  import:           shared
+  main-is:          BestiaryTool.hs
+  hs-source-dirs:   app
+  build-depends:
+    , jsonbook
+    , directory ^>=1.3

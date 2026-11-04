@@ -1,0 +1,18 @@
+cabal-version: 3.0
+name:          modeling
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「データをモデリングする」の章のコード
+
+library
+  exposed-modules:  Bestiary
+                    Monsters
+                    BestiaryAnswers
+                    MonstersAnswers
+  hs-source-dirs:   src
+                    answers
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base >=4.20 && <5

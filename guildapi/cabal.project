@@ -1,0 +1,8 @@
+-- 「Web API を作る」の章のコード（別のプロジェクト）
+-- openapi3 3.2.5 は、まだ aeson 2.3 に対応していない（aeson < 2.3）ので、
+-- allow-newer で上限を外してビルドする（2026-11-04 に確認）
+packages: .
+
+allow-newer:
+  , openapi3:aeson
+  , servant-openapi3:aeson

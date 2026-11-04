@@ -1,0 +1,28 @@
+cabal-version: 3.0
+name:          review
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第I部のふりかえり」の章のコード（総合トレーニング：戦利品の鑑定所）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , containers
+
+-- The pure core: the rules of appraisal.
+-- 純粋な核：鑑定のルール
+library
+  import:           shared
+  exposed-modules:  Appraisal
+  hs-source-dirs:   src
+
+-- The IO shell: read the lines, print the report.
+-- IO の殻：行を読み、鑑定書を表示する
+executable appraise
+  import:           shared
+  main-is:          Appraise.hs
+  hs-source-dirs:   app
+  build-depends:    review

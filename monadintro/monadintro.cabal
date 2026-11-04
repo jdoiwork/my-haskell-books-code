@@ -1,0 +1,23 @@
+cabal-version: 3.0
+name:          monadintro
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「Monad 入門」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base >=4.20 && <5
+
+library
+  import:           shared
+  exposed-modules:  Shop
+                    ShopEither
+                    Quest
+                    Party
+                    Hero
+                    Greet
+                    Mixed
+                    MonadAnswers
+  hs-source-dirs:   src answers

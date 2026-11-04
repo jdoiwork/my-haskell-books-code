@@ -1,0 +1,59 @@
+cabal-version: 3.0
+name:          concurrency-book
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「並行・並列」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base     >=4.20 && <5
+    , async    ^>=2.2
+    , stm      ^>=2.5
+    , parallel ^>=3.3
+    , deepseq  ^>=1.5
+
+library
+  import:           shared
+  exposed-modules:  Scouts
+                    Treasury
+                    Locks
+                    Primes
+                    ConcurrencyAnswers
+  hs-source-dirs:   src answers
+  build-depends:    concurrency ^>=1.11
+
+executable scouts
+  import:           shared
+  main-is:          ScoutsMain.hs
+  hs-source-dirs:   app
+  build-depends:    concurrency-book
+  ghc-options:      -threaded
+
+executable treasury
+  import:           shared
+  main-is:          TreasuryMain.hs
+  hs-source-dirs:   app
+  build-depends:    concurrency-book
+  ghc-options:      -threaded -rtsopts
+
+executable primes
+  import:           shared
+  main-is:          PrimesMain.hs
+  hs-source-dirs:   app
+  build-depends:    concurrency-book
+  ghc-options:      -threaded -rtsopts
+
+test-suite concurrency-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  ghc-options:      -threaded
+  build-depends:
+    , concurrency-book
+    , concurrency ^>=1.11
+    , dejafu      ^>=2.4
+    , hspec       ^>=2.11

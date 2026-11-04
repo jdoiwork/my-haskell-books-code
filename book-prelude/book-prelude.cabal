@@ -1,0 +1,17 @@
+cabal-version: 3.0
+name:          book-prelude
+version:       0.1.0.0
+build-type:    Simple
+
+-- 本書専用の Prelude（よく使う型と関数をまとめて再エクスポートする）
+-- 名前は、代替 Prelude の relude になるべく合わせてある
+
+library
+  exposed-modules:  BookPrelude
+  hs-source-dirs:   src
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , containers
+    , text

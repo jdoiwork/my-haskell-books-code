@@ -1,0 +1,5 @@
+-- Build compete with GHC 9.8.4, the version on AtCoder (2026-11).
+-- AtCoder と同じ GHC 9.8.4 で compete をビルドして確かめる（2026-11 時点）
+packages: ..
+with-compiler: ghc-9.8.4
+tests: True

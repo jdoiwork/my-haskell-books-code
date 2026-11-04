@@ -1,0 +1,43 @@
+cabal-version: 3.0
+name:          rws
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「Reader・Writer・State：よく使う3つのモナド」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , mtl              ^>=2.3
+
+library
+  import:           shared
+  exposed-modules:  Dice
+                    MyState
+                    Battle
+                    Config
+                    Logged
+                    StRef
+                    RwsAnswers
+  hs-source-dirs:   src answers
+
+-- ANCHOR: measure
+executable rws-measure
+  import:           shared
+  main-is:          Measure.hs
+  hs-source-dirs:   app
+  ghc-options:      -O1 -rtsopts
+-- ANCHOR_END: measure
+
+test-suite rws-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , rws
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

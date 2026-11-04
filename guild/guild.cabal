@@ -1,0 +1,48 @@
+cabal-version: 3.16
+name:          guild
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「cabal プロジェクトと開発環境」の章のコード
+
+-- Settings shared by every component.
+-- すべての部品に共通の設定
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base ^>=4.22.0.0
+
+-- The rules of the guild: gold, quests and the quest board.
+-- ギルドのルール：ゴールド、依頼、依頼板
+library
+  import:           shared
+  exposed-modules:
+    Guild.Board
+    Guild.Gold
+    Guild.Quest
+    -- answers for the training / トレーニングの解答
+    Guild.Report
+    GuildAnswers
+  hs-source-dirs:   src answers
+  build-depends:
+    , containers ^>=0.8
+    , text       ^>=2.1
+
+-- The program that shows the quest board.
+-- 依頼板を表示するプログラム
+executable guild
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:
+    , guild
+    , text  ^>=2.1
+
+-- A tiny test suite (the testing chapter makes it real).
+-- 小さなテスト（本格的なテストはテストの章で）
+test-suite guild-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Main.hs
+  hs-source-dirs:   test
+  build-depends:    guild

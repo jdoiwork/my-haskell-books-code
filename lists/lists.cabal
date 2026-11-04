@@ -1,0 +1,15 @@
+cabal-version: 3.0
+name:          lists
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「リスト」の章のコード
+
+library
+  exposed-modules:  Enemies
+                    EnemiesAnswers
+  hs-source-dirs:   src
+                    answers
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base >=4.20 && <5

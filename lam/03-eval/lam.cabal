@@ -1,0 +1,51 @@
+cabal-version: 3.0
+name:          lam
+version:       0.3.0.0
+build-type:    Simple
+
+-- 第VII部 プログラミング言語を作る（3. 評価器と REPL）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Lam.Syntax
+                    Lam.Pretty
+                    Lam.Examples
+                    Lam.Parser
+                    Lam.Eval
+                    Lam.Repl
+                    Lam.Answers
+  hs-source-dirs:   src answers
+  -- ANCHOR: deps
+  build-depends:
+    , megaparsec         ^>=9.8
+    , parser-combinators ^>=1.3
+  -- ANCHOR_END: deps
+
+-- ANCHOR: exe
+executable lam
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:
+    , lam
+    , haskeline        ^>=0.8
+-- ANCHOR_END: exe
+
+test-suite lam-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , lam
+    , hspec            ^>=2.11
+    , megaparsec       ^>=9.8
+    , QuickCheck       ^>=2.19

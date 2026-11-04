@@ -1,0 +1,55 @@
+cabal-version: 3.0
+name:          guildpg
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「PostgreSQL へ」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base              >=4.20 && <5
+    , bytestring        ^>=0.12
+    , postgresql-simple ^>=0.7
+    , text              ^>=2.1
+
+-- The roster on PostgreSQL, with migrations and a pool.
+-- PostgreSQL の名簿（マイグレーションと接続プール付き）
+library
+  import:           shared
+  exposed-modules:  PgRoster
+                    Migrate
+                    GuildPool
+                    PgAnswers
+  hs-source-dirs:   src
+                    answers
+  build-depends:
+    , postgresql-migration ^>=0.2.1
+    , resource-pool        ^>=0.5
+
+-- A tour: migrate, add, and level up with a pool.
+-- ひととおり動かす：マイグレーション、登録、プール
+executable pg-guild
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:
+    , guildpg
+    , async         ^>=2.2
+    , resource-pool ^>=0.5
+
+-- ANCHOR: testSuite
+-- The tests, on a real PostgreSQL in a container.
+-- テスト（コンテナの中の本物の PostgreSQL で）
+test-suite guildpg-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , guildpg
+    , hspec          ^>=2.11
+    , testcontainers ^>=0.5.4
+    , text           ^>=2.1
+-- ANCHOR_END: testSuite

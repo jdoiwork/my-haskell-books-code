@@ -1,0 +1,19 @@
+[
+    {
+        "name": "Slime",
+        "hp": 30,
+        "element": "Water",
+        "drops": [
+            "jelly"
+        ]
+    },
+    {
+        "name": "Goblin",
+        "hp": 50,
+        "element": "Grass",
+        "drops": [
+            "club",
+            "copper coin"
+        ]
+    }
+]

@@ -1,0 +1,41 @@
+cabal-version: 3.0
+name:          guildrel8
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「hasql と rel8」の章のコード（GHC 9.10.3）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base  >=4.20 && <4.21
+    , hasql ^>=1.9
+    , text  ^>=2.1
+
+-- The roster with hasql and rel8.
+-- hasql と rel8 の名簿
+library
+  import:           shared
+  exposed-modules:  HasqlRoster
+                    Rel8Roster
+                    Rel8Answers
+  hs-source-dirs:   src
+                    answers
+  build-depends:
+    , rel8 ^>=1.8
+
+-- ANCHOR: testSuite
+-- The tests, on a real PostgreSQL in a container.
+-- テスト（コンテナの中の本物の PostgreSQL で）
+test-suite guildrel8-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , guildrel8
+    , hspec          ^>=2.11
+    , rel8           ^>=1.8
+    , testcontainers ^>=0.5.4
+-- ANCHOR_END: testSuite

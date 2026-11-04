@@ -1,0 +1,64 @@
+cabal-version: 3.0
+name:          minitorch
+version:       0.5.0.0
+build-type:    Simple
+
+-- 第VIII部 Python の機械学習ライブラリを Haskell で作る
+-- （5. 型で次元を守る）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , vector           ^>=0.13
+    , containers       ^>=0.8
+
+library
+  import:           shared
+  exposed-modules:  MiniNumpy
+                    MiniSklearn.Datasets
+                    MiniSklearn.Linear
+                    MiniSklearn.Logistic
+                    Autograd
+                    Dual
+                    AutogradDemo
+                    MiniTorch.Random
+                    MiniTorch.Digits
+                    MiniTorch.Tensor
+                    MiniTorch.NN
+                    MiniTorch.Typed
+                    MiniTorch.TypedNN
+                    Answers
+                    TypedAnswers
+  hs-source-dirs:   src answers
+
+-- ANCHOR: exe
+executable train-digits
+  import:           shared
+  main-is:          Train.hs
+  hs-source-dirs:   app
+  ghc-options:      -O2
+  build-depends:
+    , minitorch
+-- ANCHOR_END: exe
+
+-- ANCHOR: typedexe
+executable typed-digits
+  import:           shared
+  main-is:          TypedDigits.hs
+  hs-source-dirs:   app
+  ghc-options:      -O2
+  build-depends:
+    , minitorch
+-- ANCHOR_END: typedexe
+
+test-suite minitorch-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minitorch
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

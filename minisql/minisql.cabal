@@ -1,0 +1,34 @@
+cabal-version: 3.0
+name:          minisql
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「小さな型安全 SQL を作る」の章のコード
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , text             ^>=2.1
+    , sqlite-simple    ^>=0.4
+
+library
+  import:           shared
+  exposed-modules:  MiniSql.Column
+                    MiniSql.Expr
+                    MiniSql.Query
+                    Guild
+                    SqlAnswers
+  hs-source-dirs:   src answers
+
+test-suite minisql-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minisql
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

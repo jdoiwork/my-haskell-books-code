@@ -1,0 +1,17 @@
+cabal-version: 3.0
+name:          expressions
+version:       0.1.0.0
+build-type:    Simple
+
+-- 第2章「式・型・関数：型で考える」のコード
+
+library
+  exposed-modules:  Battle
+                    Luck
+                    Heal
+  hs-source-dirs:   src
+                    answers
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base   >=4.20 && <5
+                  , random >=1.2

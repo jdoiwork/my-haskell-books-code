@@ -1,0 +1,82 @@
+cabal-version: 3.0
+name:          minirpg
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「動くプログラムを書く」「ファイルと引数」「集計する」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base   >=4.20 && <5
+    , random >=1.2
+
+-- The pure part of the game: rules and calculations.
+-- ゲームの純粋な部分：ルールと計算
+library
+  import:           shared
+  exposed-modules:  Arena
+                    Records
+                    Stats
+                    RpgAnswers
+                    RecordsAnswers
+                    StatsAnswers
+  hs-source-dirs:   src
+                    answers
+  build-depends:
+    , containers
+    , text
+
+-- A tiny program that asks for your name.
+-- 名前を聞くだけの小さなプログラム
+executable greet
+  import:           shared
+  main-is:          Greet.hs
+  hs-source-dirs:   app
+
+-- The mini RPG you can play in the terminal.
+-- ターミナルで遊べるミニ RPG
+executable rpg
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    minirpg
+
+-- The hall of fame: battle records kept in a file.
+-- 殿堂：戦いの記録をファイルに残す
+executable hall
+  import:           shared
+  main-is:          Hall.hs
+  hs-source-dirs:   app
+  build-depends:
+    , directory
+    , minirpg
+    , text
+
+-- The same program, written with the book's own Prelude.
+--    The stats chapter adds the stats command to it.
+-- 同じプログラムを、本書専用の Prelude で書いたもの
+-- 集計する章で、stats のコマンドを足す
+executable hall-prelude
+  import:           shared
+  main-is:          HallPrelude.hs
+  hs-source-dirs:   app
+  build-depends:
+    , book-prelude
+    , containers
+    , directory
+    , minirpg
+  mixins:
+    , base hiding (Prelude)
+    , book-prelude (BookPrelude as Prelude)
+
+-- Answer for the training: wordfreq with a number from the arguments.
+-- トレーニングの解答：引数で件数を指定できる wordfreq
+executable wordfreq-top
+  import:           shared
+  main-is:          WordfreqTop.hs
+  hs-source-dirs:   answers
+  build-depends:
+    , containers
+    , text

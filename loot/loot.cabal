@@ -1,0 +1,62 @@
+cabal-version: 3.16
+name:          loot
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「テスト」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base ^>=4.22.0.0
+
+library
+  import:           shared
+  exposed-modules:
+    Bag
+    Loot
+    Monster
+    Party
+    Streak
+    -- answers for the training / トレーニングの解答
+    StreakAnswers
+  hs-source-dirs:   src answers
+  build-depends:
+    , aeson      ^>=2.3
+    , containers ^>=0.8
+    , text       ^>=2.1
+
+-- ANCHOR: testSuite
+-- The tests: examples (hspec) and properties (QuickCheck).
+-- テスト：例（hspec）と性質（QuickCheck）
+test-suite loot-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test answers-test
+  other-modules:
+    AnswersSpec
+    BagSpec
+    LootSpec
+    MonsterSpec
+    PartySpec
+  build-depends:
+    , loot
+    , aeson      ^>=2.3
+    , containers ^>=0.8
+    , hspec      ^>=2.11
+    , QuickCheck ^>=2.19
+    , text       ^>=2.1
+-- ANCHOR_END: testSuite
+
+-- ANCHOR: doctest
+-- The examples in the comments (-- >>>), run as tests.
+-- コメントの中の例（-- >>>）を、テストとして実行する
+test-suite loot-doctest
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          DocTest.hs
+  hs-source-dirs:   test
+  build-depends:
+    , doctest ^>=0.25
+-- ANCHOR_END: doctest

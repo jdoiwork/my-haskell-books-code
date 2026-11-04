@@ -1,0 +1,13 @@
+cabal-version: 3.0
+name:          intro
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「はじめに」に載せているコード
+
+library
+  exposed-modules:  Teaser
+  hs-source-dirs:   src
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base >=4.20 && <5

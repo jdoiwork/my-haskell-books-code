@@ -1,0 +1,33 @@
+[
+    {
+        "drops": [
+            "jelly"
+        ],
+        "element": "Water",
+        "hp": 30,
+        "name": "Slime"
+    },
+    {
+        "drops": [
+            "club",
+            "copper coin"
+        ],
+        "element": "Grass",
+        "hp": 50,
+        "name": "Goblin"
+    },
+    {
+        "drops": [
+            "fire scale"
+        ],
+        "element": "Fire",
+        "hp": 80,
+        "name": "Salamander"
+    },
+    {
+        "drops": [],
+        "element": "Water",
+        "hp": 65,
+        "name": "Kelpie"
+    }
+]

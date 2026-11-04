@@ -1,0 +1,22 @@
+cabal-version: 3.0
+name:          setup-compare
+version:       0.1.0.0
+build-type:    Simple
+
+-- 第1章で、他の言語との比較のために載せている Haskell のコード
+
+executable wordfreq-plain
+  main-is:          WordfreqPlain.hs
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base        >=4.20 && <5
+    , containers
+
+executable wordfreq-master
+  main-is:          WordfreqMaster.hs
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base        >=4.20 && <5
+    , containers

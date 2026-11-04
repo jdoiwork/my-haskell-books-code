@@ -1,0 +1,6 @@
+[
+  {"name": "potion", "price": 50, "count": 4},
+  {"name": "elixir", "price": 300, "count": 1},
+  {"name": "dragon scale", "price": 1200, "count": 2},
+  {"name": "herb", "price": 10, "count": 20}
+]

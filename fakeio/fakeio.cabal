@@ -1,0 +1,40 @@
+cabal-version: 3.0
+name:          fakeio
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「IO の正体：IO モナドもどきを作る」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+
+library
+  import:           shared
+  exposed-modules:  Screen
+                    FakeIO
+                    Console
+                    Programs
+                    FakeAnswers
+  hs-source-dirs:   src answers
+
+-- The same programs with the real IO.
+-- 同じプログラムを、本物の IO で
+executable greet-real
+  import:           shared
+  main-is:          GreetReal.hs
+  hs-source-dirs:   app
+  build-depends:    fakeio
+
+test-suite fakeio-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , fakeio
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

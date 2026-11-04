@@ -1,0 +1,18 @@
+-- Church numerals: numbers made only of functions.
+-- チャーチ数：関数だけで作った数
+--   zero applies f 0 times, one applies f once, two twice, ...
+--   zero は f を0回、one は1回、two は2回使う
+
+let zero f x = x
+let succ n f x = f (n f x)
+let plus m n f x = m f (n f x)
+let times m n f = m (n f)
+
+-- Turn a Church numeral into an Int: count how many times f is used.
+-- チャーチ数を Int にする：f が何回使われるかを数える
+let toInt n = n (\k -> k + 1) 0
+
+let two = succ (succ zero)
+let three = succ two
+
+toInt (times (plus two three) three)

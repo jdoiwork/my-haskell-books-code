@@ -1,0 +1,29 @@
+cabal-version: 3.0
+name:          typelevel
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「型レベルプログラミング入門」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base >=4.20 && <5
+
+library
+  import:           shared
+  exposed-modules:  Chest
+                    Vec
+                    Gate
+                    TypeAnswers
+  hs-source-dirs:   src answers
+
+test-suite typelevel-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , typelevel
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

@@ -1,0 +1,4 @@
+[
+  {"name": "potion", "price": 50, "count": 4},
+  {"name": "cursed ring", "price": 999, "count": -1}
+]

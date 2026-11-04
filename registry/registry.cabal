@@ -1,0 +1,30 @@
+cabal-version: 3.16
+name:          registry
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「エラー処理」の章のコード（冒険者ギルドの登録受付）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base ^>=4.22.0.0
+    , text ^>=2.1
+
+-- The rules of registration (pure).
+-- 登録のルール（純粋な部分）
+library
+  import:           shared
+  exposed-modules:
+    Registry
+    RegistryAnswers
+  hs-source-dirs:   src answers
+
+-- Read a file of applicants and register them (IO).
+-- 申込書のファイルを読んで、登録する（IO の部分）
+executable register
+  import:           shared
+  main-is:          Register.hs
+  hs-source-dirs:   app
+  build-depends:    registry

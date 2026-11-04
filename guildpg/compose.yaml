@@ -1,0 +1,28 @@
+# ANCHOR: all
+# The PostgreSQL for this chapter: docker compose up -d --wait
+# この章の PostgreSQL：docker compose up -d --wait で立ち上げる
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: guild
+      POSTGRES_DB: guild
+    ports:
+      - "5432:5432"
+    # Keep the data in a volume, so it survives "down".
+    # データをボリュームに置いて、down しても消えないようにする
+    volumes:
+      - guild-data:/var/lib/postgresql
+    # Ready when pg_isready says yes over the network
+    #   (PostgreSQL does not listen there while it sets itself up).
+    # ネットワーク越しの pg_isready が「準備できた」と言えば、準備完了
+    # （最初の準備の間は、ネットワークでは受け付けないため）
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-U", "postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  guild-data:
+# ANCHOR_END: all

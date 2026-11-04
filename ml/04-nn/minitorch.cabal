@@ -1,0 +1,65 @@
+cabal-version: 3.0
+name:          minitorch
+version:       0.4.0.0
+build-type:    Simple
+
+-- 第VIII部 Python の機械学習ライブラリを Haskell で作る
+-- （4. PyTorch 風にニューラルネットワークを組む）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , vector           ^>=0.13
+    , containers       ^>=0.8
+    , bytestring       ^>=0.12
+
+library
+  import:           shared
+  exposed-modules:  MiniNumpy
+                    MiniSklearn.Datasets
+                    MiniSklearn.Linear
+                    MiniSklearn.Logistic
+                    Autograd
+                    Dual
+                    AutogradDemo
+                    MiniTorch.Random
+                    MiniTorch.Digits
+                    MiniTorch.Tensor
+                    MiniTorch.NN
+                    MiniTorch.Mnist
+                    Answers
+  hs-source-dirs:   src answers
+
+-- ANCHOR: exe
+executable train-digits
+  import:           shared
+  main-is:          Train.hs
+  hs-source-dirs:   app
+  ghc-options:      -O2
+  build-depends:
+    , minitorch
+-- ANCHOR_END: exe
+
+-- ANCHOR: mnistexe
+executable train-mnist
+  import:           shared
+  main-is:          TrainMnist.hs
+  hs-source-dirs:   app
+  ghc-options:      -O2
+  build-depends:
+    , minitorch
+    , filepath         ^>=1.5
+-- ANCHOR_END: mnistexe
+
+test-suite minitorch-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minitorch
+    , bytestring
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

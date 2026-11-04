@@ -1,0 +1,54 @@
+cabal-version: 3.0
+name:          minikv
+version:       0.3.0.0
+build-type:    Simple
+
+-- 第IX部 総合演習4：型に厳しいインメモリデータベースを作る
+-- （3. TCP サーバーにする）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    , bytestring       ^>=0.12
+    , network          ^>=3.2
+    , stm              ^>=2.5
+
+library
+  import:           shared
+  exposed-modules:  MiniKv.Types
+                    MiniKv.Store
+                    MiniKv.Examples
+                    MiniKv.Wire
+                    MiniKv.Protocol
+                    MiniKv.Server
+                    MiniKv.Client
+                    KvAnswers
+  hs-source-dirs:   src answers
+
+-- ANCHOR: exe
+executable minikv-server
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  ghc-options:      -threaded
+  build-depends:
+    , minikv
+-- ANCHOR_END: exe
+
+test-suite minikv-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  ghc-options:      -threaded
+  build-depends:
+    , minikv
+    , async            ^>=2.2
+    , bytestring
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

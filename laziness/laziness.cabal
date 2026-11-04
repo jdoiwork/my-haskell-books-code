@@ -1,0 +1,47 @@
+cabal-version: 3.0
+name:          laziness
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「遅延評価とパフォーマンスの基本」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , containers ^>=0.8
+    , text       ^>=2.1
+
+-- ANCHOR: measure
+-- Measure memory: measure WHICH +RTS -s
+-- メモリを測る：measure 種類 +RTS -s
+executable measure
+  import:           shared
+  main-is:          Measure.hs
+  hs-source-dirs:   app
+  ghc-options:      -rtsopts
+
+-- The same program, built without optimization.
+-- 同じプログラムを、最適化なしでビルドしたもの
+executable measure-noopt
+  import:           shared
+  main-is:          Measure.hs
+  hs-source-dirs:   app
+  ghc-options:      -rtsopts -O0
+-- ANCHOR_END: measure
+
+-- Read the hall of fame, and write it back (lazy and strict IO).
+-- 殿堂の記録を読んで、書き戻す（遅延 IO と正格な IO）
+executable hallio
+  import:           shared
+  main-is:          HallIO.hs
+  hs-source-dirs:   app
+
+-- Answers for the training.
+-- トレーニングの解答
+library
+  import:           shared
+  exposed-modules:  LazinessAnswers
+                    Memo
+  hs-source-dirs:   answers src

@@ -1,0 +1,13 @@
+-- 「DB に縛られない設計」の章のコード（別のプロジェクト）
+-- PostgreSQL 版のために postgresql-simple を使うので、
+-- 「PostgreSQL へ」の章（code/guildpg）と同じく allow-newer と libpq が要る
+packages: .
+
+allow-newer:
+  , postgresql-simple:base
+  , postgresql-simple:aeson
+  , postgresql-simple:template-haskell
+  , postgresql-simple:containers
+
+package postgresql-libpq
+  flags: +use-pkg-config

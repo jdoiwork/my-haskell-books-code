@@ -1,0 +1,56 @@
+cabal-version: 3.0
+name:          guilddesign
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「DB に縛られない設計」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , containers ^>=0.8
+    , text       ^>=2.1
+
+-- The roster, and three stores to keep it in.
+-- 名簿と、名簿をしまう3つの置き場
+library
+  import:           shared
+  exposed-modules:  Guild.Roster
+                    Guild.Store
+                    Guild.Store.Memory
+                    Guild.Store.Sqlite
+                    Guild.Store.Postgres
+                    Guild.Config
+                    Guild.Service
+  hs-source-dirs:   src
+  build-depends:
+    , bytestring        ^>=0.12
+    , postgresql-simple ^>=0.7
+    , sqlite-simple     ^>=0.4.19
+
+-- The roster command, on the store the settings choose.
+-- 設定で選んだ置き場を使う、名簿のコマンド
+executable guild
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    guilddesign
+
+-- The same tests, on all three stores.
+-- 同じテストを、3つの置き場で
+test-suite guilddesign-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test answers
+  other-modules:    Contract
+                    DesignAnswers
+  build-depends:
+    , guilddesign
+    , bytestring        ^>=0.12
+    , hspec             ^>=2.11
+    , postgresql-simple ^>=0.7
+    , testcontainers    ^>=0.5.4
+    , text              ^>=2.1

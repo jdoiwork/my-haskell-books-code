@@ -1,0 +1,33 @@
+cabal-version: 3.0
+name:          datastructs
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「データ構造の選び方」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base                 >=4.20 && <5
+    , containers           ^>=0.8
+    , unordered-containers ^>=0.2.20
+    , vector               ^>=0.13
+
+-- A tree of our own, a turn queue, and a damage histogram.
+-- 自作の木、行動順の列、ダメージの度数分布
+library
+  import:           shared
+  exposed-modules:  Tree
+                    TurnQueue
+                    Histogram
+                    DataAnswers
+  hs-source-dirs:   src answers
+
+-- A race of data structures: how long do lookups and appends take?
+-- データ構造の競走：取り出しと後ろへの追加に、どれだけかかる？
+executable race
+  import:           shared
+  main-is:          Race.hs
+  hs-source-dirs:   app
+  build-depends:    datastructs

@@ -1,0 +1,42 @@
+cabal-version: 3.0
+name:          hsx-book
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「GHC 拡張」の章の試作：JSX のように HTML を書ける、小さな hsx
+-- （QuasiQuotes と Template Haskell）。まだ本文には載せていない
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Hsx.Html
+                    Hsx.Parse
+                    Hsx.QQ
+                    Hsx
+  hs-source-dirs:   src
+  build-depends:
+    , template-haskell ^>=2.24
+
+executable guild-page
+  import:           shared
+  main-is:          Main.hs
+  other-modules:    GuildPage
+  hs-source-dirs:   app
+  build-depends:
+    , hsx-book
+
+test-suite hsx-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , hsx-book
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

@@ -1,0 +1,83 @@
+# ANCHOR: all
+# Build and test on every push and pull request.
+# push とプルリクエストのたびに、ビルドしてテストする
+name: haskell
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # ANCHOR: build
+  build:
+    # Try two OSes and two GHCs: four runs side by side.
+    # OS を2つ、GHC を2つ。4つを並べて動かす
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        ghc: ["9.10.3", "9.14.1"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: haskell-actions/setup@v2
+        id: setup
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: "3.16"
+          cabal-update: true
+  # ANCHOR_END: build
+
+      # ANCHOR: cache
+      # Make the build plan first; its hash is the cache key.
+      # 先にビルドの計画を作る。そのハッシュを、キャッシュの鍵にする
+      - name: Plan the build
+        run: |
+          cabal configure --enable-tests
+          cabal build all --dry-run
+
+      - name: Restore the dependencies
+        uses: actions/cache/restore@v5
+        id: cache
+        env:
+          key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ env.key }}-${{ hashFiles('**/plan.json') }}
+          restore-keys: ${{ env.key }}-
+
+      - name: Build the dependencies
+        run: cabal build all --only-dependencies
+
+      - name: Save the dependencies
+        uses: actions/cache/save@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+      # ANCHOR_END: cache
+
+      # ANCHOR: test
+      - name: Build
+        run: cabal build all
+
+      - name: Test
+        run: cabal test all --test-show-details=direct
+      # ANCHOR_END: test
+
+  # ANCHOR: hlint
+  hlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: haskell-actions/hlint-setup@v2
+
+      - uses: haskell-actions/hlint-run@v2
+        with:
+          path: '["src/", "app/", "test/"]'
+          fail-on: warning
+  # ANCHOR_END: hlint
+# ANCHOR_END: all

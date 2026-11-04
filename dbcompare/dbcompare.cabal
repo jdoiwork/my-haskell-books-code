@@ -1,0 +1,34 @@
+cabal-version: 3.0
+name:          dbcompare
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「型で SQL を守る」の章の、beam と persistent の例
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base >=4.20 && <5
+    , text ^>=2.1
+
+-- beam: typed queries, with types that describe the tables.
+-- beam：表を型で表して、型安全に問い合わせる
+executable beam-crud
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   beam
+  build-depends:
+    , beam-core     ^>=0.11
+    , beam-sqlite   ^>=0.7
+    , sqlite-simple ^>=0.4.19
+
+-- persistent: the tables and their migrations, made from a short schema.
+-- persistent：短い定義から、型も表もマイグレーションも作る
+executable persistent-crud
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   persistent
+  build-depends:
+    , persistent        ^>=2.18
+    , persistent-sqlite ^>=2.13

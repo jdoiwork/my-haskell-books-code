@@ -1,0 +1,23 @@
+cabal-version: 3.0
+name:          minirpg-compare
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「動くプログラムを書く」の章で、Python 版との比較のために載せている
+-- コメントなしの Haskell のコード
+
+executable rpg-plain
+  main-is:          GamePlain.hs
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base   >=4.20 && <5
+    , random >=1.2
+
+executable rpg-master
+  main-is:          GameMaster.hs
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base   >=4.20 && <5
+    , random >=1.2

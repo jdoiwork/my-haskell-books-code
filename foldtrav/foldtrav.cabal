@@ -1,0 +1,33 @@
+cabal-version: 3.0
+name:          foldtrav
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「Foldable・Traversable と汎用的な部品」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , mtl              ^>=2.3
+
+library
+  import:           shared
+  exposed-modules:  Tree
+                    Derived
+                    Stats
+                    Shop
+                    FoldAnswers
+  hs-source-dirs:   src answers
+
+test-suite foldtrav-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , foldtrav
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

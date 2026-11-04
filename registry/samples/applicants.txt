@@ -1,0 +1,7 @@
+Lambda,20,Mage
+Python,34,Healer
+Rust,13,Warrior
+TS,twenty,Thief
+,25,Mage
+Haskell,30,Ninja
+this line is broken

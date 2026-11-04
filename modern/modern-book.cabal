@@ -1,0 +1,60 @@
+cabal-version: 3.0
+name:          modern-book
+version:       0.1.0.0
+build-type:    Simple
+
+-- 第XII部「いまどきのプログラミングと Haskell」のコード（章ごとにモジュール Modern.*）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , random           >=1.2
+    , async            ^>=2.2
+    , directory        ^>=1.3
+    , filepath         ^>=1.5
+    , aeson            ^>=2.3
+    , bytestring       ^>=0.12
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Modern.Elements
+                    Modern.Outcome
+                    Modern.Effects
+                    Modern.Scouts
+                    Modern.Crdt
+                    Modern.QuestFiles
+                    Modern.Chunks
+                    Modern.Mcp
+                    ModernAnswers
+  hs-source-dirs:   src answers
+
+-- The MCP server of the AI chapter.
+-- AI の章の MCP サーバー
+executable guild-mcp
+  import:           shared
+  main-is:          GuildMcp.hs
+  hs-source-dirs:   app
+  build-depends:
+    , modern-book
+
+test-suite modern-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  other-modules:    ElementsSpec
+                    OutcomeSpec
+                    EffectsSpec
+                    ScoutsSpec
+                    CrdtSpec
+                    QuestFilesSpec
+                    McpSpec
+  hs-source-dirs:   test
+  ghc-options:      -threaded
+  build-depends:
+    , modern-book
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

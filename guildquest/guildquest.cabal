@@ -1,0 +1,33 @@
+cabal-version: 3.0
+name:          guildquest
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「データベースを育てる」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base          >=4.20 && <5
+    , sqlite-simple ^>=0.4.19
+    , text          ^>=2.1
+
+-- The guild: adventurers and quests, kept in SQLite.
+-- ギルド：冒険者と依頼（SQLite に保存する）
+library
+  import:           shared
+  exposed-modules:  Guild.Schema
+                    Guild.Quest
+                    Guild.Store
+                    QuestAnswers
+  hs-source-dirs:   src
+                    answers
+
+-- The quest board: join, post, take, done, board, members.
+-- 依頼板のコマンド
+executable questboard
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    guildquest

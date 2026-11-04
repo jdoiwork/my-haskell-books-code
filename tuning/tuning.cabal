@@ -1,0 +1,48 @@
+cabal-version: 3.0
+name:          tuning
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「計測とチューニング」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , aeson      ^>=2.3
+    , bytestring ^>=0.12
+    , containers ^>=0.8
+    , text       ^>=2.1
+
+-- The battle report: slow first drafts, and faster versions.
+-- バトルの報告：遅い下書きと、速くした版
+library
+  import:           shared
+  exposed-modules:  Report
+                    TuningAnswers
+  hs-source-dirs:   src answers
+
+-- ANCHOR: exe
+-- The report program, to profile.
+-- プロファイルを取る、報告のプログラム
+executable report
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    tuning
+  ghc-options:      -rtsopts
+-- ANCHOR_END: exe
+
+-- ANCHOR: bench
+-- The benchmarks, with tasty-bench.
+-- ベンチマーク（tasty-bench で）
+benchmark tuning-bench
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Bench.hs
+  hs-source-dirs:   bench
+  build-depends:
+    , tuning
+    , tasty-bench ^>=0.5
+-- ANCHOR_END: bench

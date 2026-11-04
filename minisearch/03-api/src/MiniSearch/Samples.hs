@@ -1,0 +1,30 @@
+{-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR: all
+-- | A few documents to try the engine in GHCi.
+-- GHCi で試すための、いくつかの文書。
+module MiniSearch.Samples (sampleDocs) where
+
+import MiniSearch.Types
+
+-- 📜 The guild library: six short notes about monsters and places.
+-- ギルドの書庫：モンスターと場所についての、短い6つの覚え書き
+sampleDocs :: [Document]
+sampleDocs =
+  [ Document (DocId 1) "Red Dragon"
+      "The red dragon sleeps on a mountain of gold. \
+      \Its fire melts iron, and its roar shakes the valley."
+  , Document (DocId 2) "Slime"
+      "A slime is soft and blue. It eats moss in the cave \
+      \and splits in two when you hit it."
+  , Document (DocId 3) "Ice Dragon"
+      "The ice dragon lives at the top of the frozen mountain. \
+      \Fire is its weakness."
+  , Document (DocId 4) "Fire Cave"
+      "Lava flows in the fire cave. Bring water and an ice shield."
+  , Document (DocId 5) "Goblin Camp"
+      "Goblins steal gold from travelers and hide it in the forest."
+  , Document (DocId 6) "Dragon Tamer"
+      "A dragon tamer speaks to a dragon with a flute. \
+      \A calm dragon is a friend, an angry dragon is fire."
+  ]
+-- ANCHOR_END: all

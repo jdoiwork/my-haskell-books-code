@@ -1,0 +1,5 @@
+-- The factorial of 10. Run it with:  cabal run lam -- examples/fact.lam
+-- 10 の階乗
+let fact = \n ->
+  if n == 0 then 1 else n * fact (n - 1)
+in fact 10

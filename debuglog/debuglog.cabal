@@ -1,0 +1,39 @@
+cabal-version: 3.16
+name:          debuglog
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「デバッグとログ」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base ^>=4.22.0.0
+    , text ^>=2.1
+    , time ^>=1.15
+
+-- Leveling rules and a small logger.
+-- レベルの計算と、小さなロガー
+library
+  import:           shared
+  exposed-modules:
+    DebugAnswers
+    Leveling
+    Logger
+  hs-source-dirs:   src answers
+
+-- A hero trains, and the logger tells us what happens.
+-- 勇者が修行して、ロガーが様子を伝える
+executable train
+  import:           shared
+  main-is:          Train.hs
+  hs-source-dirs:   app
+  build-depends:    debuglog
+
+-- Where did it crash? HasCallStack.
+-- どこで落ちた？ HasCallStack
+executable shop
+  import:           shared
+  main-is:          Shop.hs
+  hs-source-dirs:   app

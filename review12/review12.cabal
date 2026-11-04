@@ -1,0 +1,31 @@
+cabal-version: 3.0
+name:          review12
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第XII部のふりかえり」の総合トレーニング：圏外でも使える依頼板
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , async            ^>=2.2
+    , modern-book
+
+library
+  import:           shared
+  exposed-modules:  Review.Board
+  hs-source-dirs:   src
+
+test-suite review12-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  ghc-options:      -threaded
+  build-depends:
+    , review12
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

@@ -1,0 +1,113 @@
+cabal-version: 3.0
+name:          minisearch
+version:       0.5.0.0
+build-type:    Simple
+
+-- 第VI部 ミニ全文検索エンジン（5. 並行化する）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  MiniSearch.Types
+                    MiniSearch.Tokenize
+                    MiniSearch.Index
+                    MiniSearch.Search
+                    MiniSearch.Samples
+                    MiniSearch.Load
+                    MiniSearch.Store
+                    MiniSearch.Snippet
+                    MiniSearch.Report
+                    MiniSearch.Cli
+                    MiniSearch.Query
+                    MiniSearch.Api
+                    MiniSearch.Corpus
+                    MiniSearch.Naive
+                    MiniSearch.Live
+                    MiniSearch.Answers
+  hs-source-dirs:   src answers
+  build-depends:
+    , aeson                ^>=2.3
+    , binary               ^>=0.8
+    , bytestring           ^>=0.12
+    , deepseq              ^>=1.5
+    , directory            ^>=1.3
+    , filepath             ^>=1.5
+    , async                ^>=2.2
+    , optparse-applicative ^>=0.19
+    , parallel             ^>=3.3
+    , servant-server       ^>=0.20.3
+    , stm                  ^>=2.5
+
+-- ANCHOR: exe
+executable minisearch
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:
+    , minisearch
+    , optparse-applicative ^>=0.19
+-- ANCHOR_END: exe
+
+-- ANCHOR: server
+executable minisearch-server
+  import:           shared
+  main-is:          Server.hs
+  hs-source-dirs:   app
+  ghc-options:      -threaded -rtsopts "-with-rtsopts=-N"
+  build-depends:
+    , minisearch
+    , warp                 ^>=3.4
+-- ANCHOR_END: server
+
+-- ANCHOR: measure
+executable minisearch-measure
+  import:           shared
+  main-is:          Measure.hs
+  hs-source-dirs:   app
+  ghc-options:      -threaded -rtsopts
+  build-depends:
+    , minisearch
+    , deepseq              ^>=1.5
+    , directory            ^>=1.3
+    , filepath             ^>=1.5
+    , parallel             ^>=3.3
+-- ANCHOR_END: measure
+
+-- ANCHOR: bench
+benchmark minisearch-bench
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Bench.hs
+  hs-source-dirs:   bench
+  build-depends:
+    , minisearch
+    , tasty-bench          ^>=0.5
+-- ANCHOR_END: bench
+
+test-suite minisearch-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  ghc-options:      -threaded
+  build-depends:
+    , minisearch
+    , aeson                ^>=2.3
+    , binary               ^>=0.8
+    , bytestring           ^>=0.12
+    , directory            ^>=1.3
+    , filepath             ^>=1.5
+    , hspec                ^>=2.11
+    , hspec-wai            ^>=0.12
+    , hspec-wai-json       ^>=0.12
+    , optparse-applicative ^>=0.19
+    , QuickCheck           >=2.18 && <2.20
+    , stm                  ^>=2.5
+

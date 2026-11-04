@@ -1,0 +1,7 @@
+Lambda 120
+Python 80
+Rust 50
+Lambda 30
+Ruby 90
+Python ten
+Rust 70

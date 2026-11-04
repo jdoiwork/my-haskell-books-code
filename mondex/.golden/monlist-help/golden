@@ -1,0 +1,13 @@
+monlist - list the monsters in your bestiary
+
+Usage: monlist [-f|--file FILE] [-e|--element ELEMENT] [--sort KEY] [--json]
+
+  Show the monsters in a JSON bestiary file
+
+Available options:
+  -f,--file FILE           The bestiary file (default: "monsters.json")
+  -e,--element ELEMENT     Show only this element: Fire, Water, Grass
+  --sort KEY               Sort by KEY: name or hp (default: name)
+  --json                   Print the monsters as JSON
+  -h,--help                Show this help text
+  --version                Show version information

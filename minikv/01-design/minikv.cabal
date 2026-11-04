@@ -1,0 +1,34 @@
+cabal-version: 3.0
+name:          minikv
+version:       0.1.0.0
+build-type:    Simple
+
+-- 第IX部 総合演習4：型に厳しいインメモリデータベースを作る
+-- （1. 設計：値とコマンドを型で描く）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  MiniKv.Types
+                    MiniKv.Store
+                    MiniKv.Examples
+                    KvAnswers
+  hs-source-dirs:   src answers
+
+test-suite minikv-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minikv
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

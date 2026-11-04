@@ -1,0 +1,17 @@
+cabal-version: 3.0
+name:          upsert
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「Map：キーで引く辞書」の章のコラム（Map.upsert）のコード
+-- Map.upsert は containers 0.8.1 から。GHC 9.14.1 に付いてくる 0.8 では
+-- 使えないので、本書の cabal.project とは別の、単独のプロジェクトにしている
+
+executable upsert
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base        >=4.20 && <5
+    , containers  >=0.8.1

@@ -1,0 +1,17 @@
+cabal-version: 3.0
+name:          maps
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「Map：キーで引く辞書」の章のコード
+
+library
+  exposed-modules:  Inventory
+                    InventoryAnswers
+  hs-source-dirs:   src
+                    answers
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base        >=4.20 && <5
+    , containers

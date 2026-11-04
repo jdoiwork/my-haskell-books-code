@@ -1,0 +1,6 @@
+5
+Lambda,dragon fang,Legendary
+Python,herb,Common
+Rust,silver ring,Rare
+TS,potion,Common
+Lambda,magic staff,Epc

@@ -1,0 +1,57 @@
+cabal-version: 3.0
+name:          algo-book
+version:       0.1.0.0
+build-type:    Simple
+
+-- 第VI部「アルゴリズムを Haskell らしく」のコード（章ごとにモジュール Algo.*）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , array            ^>=0.5
+    , mtl              ^>=2.3
+
+library
+  import:           shared
+  exposed-modules:  Algo.Thinking
+                    Algo.Search
+                    Algo.Divide
+                    Algo.Dp
+                    Algo.Greedy
+                    Algo.Graphs
+                    Algo.Strings
+                    Algo.Schemes
+                    Algo.Purely
+                    AlgoAnswers
+  hs-source-dirs:   src answers
+
+-- ANCHOR: measure
+executable algo-measure
+  import:           shared
+  main-is:          Measure.hs
+  hs-source-dirs:   app
+  ghc-options:      -O1
+  build-depends:    algo-book
+-- ANCHOR_END: measure
+
+test-suite algo-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  other-modules:    ThinkingSpec
+                    SearchSpec
+                    DivideSpec
+                    DpSpec
+                    GreedySpec
+                    GraphsSpec
+                    StringsSpec
+                    SchemesSpec
+                    PurelySpec
+  hs-source-dirs:   test
+  build-depends:
+    , algo-book
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

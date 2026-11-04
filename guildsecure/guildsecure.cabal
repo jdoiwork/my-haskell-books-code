@@ -1,0 +1,37 @@
+cabal-version: 3.0
+name:          guildsecure
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「セキュリティ：型で守れるもの、守れないもの」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , aeson            ^>=2.3
+    , bytestring       ^>=0.12
+    , scientific       ^>=0.3.8
+    , sqlite-simple    ^>=0.4.19
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Secure.Username
+                    Secure.Secret
+                    Secure.Authz
+                    Secure.Limits
+                    Secure.Holey
+                    Secure.Answers
+  hs-source-dirs:   src answers
+
+test-suite guildsecure-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , guildsecure
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

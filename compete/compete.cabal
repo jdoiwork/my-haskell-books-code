@@ -1,0 +1,77 @@
+cabal-version: 3.0
+name:          compete
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「競技プログラミング」の章のコード
+-- AtCoder（GHC 9.8.4）でも動くように、言語エディションは GHC2021 にする
+
+common shared
+  default-language: GHC2021
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.19 && <5
+    , bytestring >=0.11 && <0.13
+    , containers >=0.6  && <0.9
+    , vector     >=0.13 && <0.14
+
+-- The algorithms, as pure functions (easy to test).
+-- アルゴリズム（テストしやすい、純粋な関数として）
+library
+  import:           shared
+  exposed-modules:  Algo
+                    CompeteAnswers
+  hs-source-dirs:   src answers
+
+-- Problem 1: sums of damage in ranges (prefix sums).
+-- 問題1：区間のダメージの合計（累積和）
+executable cp-ranges
+  import:           shared
+  main-is:          Ranges.hs
+  hs-source-dirs:   app
+  build-depends:    compete
+
+-- Problem 1 again, reading with String (to compare speed).
+-- 問題1をもう一度（String で読んで、速さを比べる）
+executable cp-ranges-string
+  import:           shared
+  main-is:          RangesString.hs
+  hs-source-dirs:   app
+
+-- Problem 2: the weakest attack that is enough (binary search).
+-- 問題2：足りる最小の攻撃力（二分探索）
+executable cp-attack
+  import:           shared
+  main-is:          Attack.hs
+  hs-source-dirs:   app
+  build-depends:    compete
+
+-- Problem 3: the best bag of treasures (dynamic programming).
+-- 問題3：いちばん価値のある袋（動的計画法）
+executable cp-bag
+  import:           shared
+  main-is:          Bag.hs
+  hs-source-dirs:   app
+  build-depends:    compete
+
+-- Problem 4: the shortest way through the dungeon (BFS).
+-- 問題4：ダンジョンの最短経路（幅優先探索）
+executable cp-maze
+  import:           shared
+  main-is:          Maze.hs
+  hs-source-dirs:   app
+  build-depends:    compete
+
+-- ANCHOR: test
+-- Stress tests: the fast answers against simple, slow ones.
+-- ストレステスト：速い解を、素朴で遅い解と比べる
+test-suite compete-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , compete
+    , hspec      >=2.11 && <2.12
+    , QuickCheck >=2.14 && <2.20
+-- ANCHOR_END: test

@@ -1,0 +1,13 @@
+-- Answers to the training of the polish chapter.
+-- 仕上げの章のトレーニングの解答
+
+-- Step 1: 1 + 2 + ... + n, and n!
+-- ステップ1：1 + 2 + ... + n と、n の階乗
+let sumTo n = if n == 0 then 0 else n + sumTo (n - 1)
+let fact n = if n == 0 then 1 else n * fact (n - 1)
+
+-- Step 2: use f n times.  repeat f 3 x = f (f (f x))
+-- ステップ2：f を n 回使う
+let repeat f n x = if n == 0 then x else repeat f (n - 1) (f x)
+
+sumTo 100 + fact 5 + repeat (\x -> x * 2) 10 1

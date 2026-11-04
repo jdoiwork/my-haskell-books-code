@@ -1,0 +1,64 @@
+cabal-version: 3.0
+name:          guildapi
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「Web API を作る」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , aeson            ^>=2.3
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Guild.Types
+                    Guild.Store
+                    Guild.Api
+                    Guild.Server
+                    Guild.ApiAnswers
+  hs-source-dirs:   src answers
+  build-depends:
+    , containers         ^>=0.8
+    , servant            ^>=0.20.3
+    , servant-server     ^>=0.20.3
+    , servant-openapi3   ^>=2.1
+    , openapi3           ^>=3.2
+    , sqlite-simple      ^>=0.4.19
+    , aeson-typescript   ^>=0.6.4
+
+-- ANCHOR: exe
+executable guild-api
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  ghc-options:      -threaded
+  build-depends:
+    , guildapi
+    , servant-server     ^>=0.20.3
+    , warp               ^>=3.4
+    , wai-extra          ^>=3.1
+-- ANCHOR_END: exe
+
+executable gen-ts
+  import:           shared
+  main-is:          GenTs.hs
+  hs-source-dirs:   app
+  build-depends:
+    , guildapi
+    , aeson-typescript   ^>=0.6.4
+
+test-suite guildapi-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , guildapi
+    , hspec              ^>=2.11
+    , hspec-wai          ^>=0.12
+    , hspec-wai-json     ^>=0.12
+    , servant-server     ^>=0.20.3

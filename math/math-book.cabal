@@ -1,0 +1,61 @@
+cabal-version: 3.0
+name:          math-book
+version:       0.1.0.0
+build-type:    Simple
+
+-- 第IX部「プログラマーのための数学」のコード。章ごとにモジュールを分ける
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , random           >=1.2
+
+library
+  import:           shared
+  exposed-modules:  Math.Numbers
+                    Math.Logic
+                    Math.Induction
+                    Math.Growth
+                    Math.Counting
+                    Math.Stats
+                    Math.Modular
+                    Math.Graphs
+                    Math.Vectors
+                    Math.Calculus
+                    Math.Algebra
+                    NumbersAnswers
+                    LogicAnswers
+                    InductionAnswers
+                    GrowthAnswers
+                    CountingAnswers
+                    StatsAnswers
+                    ModularAnswers
+                    GraphsAnswers
+                    VectorsAnswers
+                    CalculusAnswers
+                    AlgebraAnswers
+  hs-source-dirs:   src answers
+
+test-suite math-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  other-modules:    NumbersSpec
+                    LogicSpec
+                    InductionSpec
+                    GrowthSpec
+                    CountingSpec
+                    StatsSpec
+                    ModularSpec
+                    GraphsSpec
+                    VectorsSpec
+                    CalculusSpec
+                    AlgebraSpec
+  hs-source-dirs:   test
+  build-depends:
+    , math-book
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

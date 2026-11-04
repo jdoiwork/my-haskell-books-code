@@ -1,0 +1,40 @@
+cabal-version: 3.0
+name:          appdesign
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「モナド変換子とアプリケーション設計」の章のコード
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    , mtl              ^>=2.3
+    , sqlite-simple    ^>=0.4
+    , effectful-core
+
+library
+  import:           shared
+  exposed-modules:  App.Types
+                    App.ByHand
+                    App.Env
+                    App.Roster
+                    App.Enlist
+                    App.Stacks
+                    App.Class
+                    App.Effect
+                    AppAnswers
+  hs-source-dirs:   src answers
+
+test-suite appdesign-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , appdesign
+    , hspec            ^>=2.11

@@ -1,0 +1,22 @@
+cabal-version: 3.0
+name:          typeclasses
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「型クラス」の章のコード
+
+library
+  exposed-modules:  Treasure
+                    Guild
+                    Loot
+                    TreasureAnswers
+                    GuildAnswers
+                    LootAnswers
+  hs-source-dirs:   src
+                    answers
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , containers
+    , text

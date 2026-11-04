@@ -1,0 +1,63 @@
+cabal-version: 3.0
+name:          cpintro
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「競技プログラミングの入出力」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base >=4.20 && <5
+
+-- Problem 1: the sum and the maximum of N numbers.
+-- 問題1：N 個の数の合計と最大値
+executable cp-sum
+  import:           shared
+  main-is:          Sum.hs
+  hs-source-dirs:   app
+
+-- Problem 2: a ranking from comma-separated lines.
+-- 問題2：カンマ区切りの行から作るランキング
+executable cp-ranking
+  import:           shared
+  main-is:          Ranking.hs
+  hs-source-dirs:   app
+
+-- Problem 3: the average score, with two decimal places.
+-- 問題3：平均点（小数点以下2桁）
+executable cp-average
+  import:           shared
+  main-is:          Average.hs
+  hs-source-dirs:   app
+
+-- Problem 4: pay exactly X gold with some of the coins (recursion).
+-- 問題4：金貨を何枚か選んで、ちょうど X ゴールド払う（再帰）
+executable cp-coins
+  import:           shared
+  main-is:          Coins.hs
+  hs-source-dirs:   app
+
+-- Problem 5: a pipeline of filter, map and sum over boxes 1 to N.
+-- 問題5：1 番から N 番の宝箱を、filter・map・sum のパイプラインで調べる
+executable cp-treasure
+  import:           shared
+  main-is:          Treasure.hs
+  hs-source-dirs:   app
+
+-- Answers for the training.
+-- トレーニングの解答
+executable cp-product
+  import:           shared
+  main-is:          Product.hs
+  hs-source-dirs:   answers
+
+executable cp-grid
+  import:           shared
+  main-is:          Grid.hs
+  hs-source-dirs:   answers
+
+executable cp-queries
+  import:           shared
+  main-is:          Queries.hs
+  hs-source-dirs:   answers

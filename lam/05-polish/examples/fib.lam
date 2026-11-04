@@ -1,0 +1,13 @@
+-- Fibonacci numbers, the slow way and the fast way.
+-- フィボナッチ数。遅いやり方と、速いやり方
+
+-- fib 0 = 0, fib 1 = 1, fib n = fib (n - 1) + fib (n - 2)
+let fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)
+
+-- Carry the last two numbers along: much faster.
+-- 直前の2つを持ち回る：ずっと速い
+let fibFast n =
+  let go a b k = if k == 0 then a else go b (a + b) (k - 1)
+  in go 0 1 n
+
+fib 20 + fibFast 80

@@ -1,0 +1,35 @@
+cabal-version: 3.0
+name:          guildtest
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「データベースをテストする」の章のコード
+-- （テストするのは、「データベース入門」の章の名簿 guilddb）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+
+-- ANCHOR: testSuite
+-- The tests of the roster, on a real SQLite in memory.
+-- 名簿のテスト（メモリー上の本物の SQLite で）
+test-suite guildtest-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test answers
+  other-modules:
+    FirstSpec
+    RosterSpec
+    Model
+    ModelSpec
+    AnswersSpec
+  build-depends:
+    , guilddb
+    , base          >=4.20 && <5
+    , containers    ^>=0.8
+    , hspec         ^>=2.11
+    , QuickCheck    ^>=2.19
+    , sqlite-simple ^>=0.4.19
+    , text          ^>=2.1
+-- ANCHOR_END: testSuite
