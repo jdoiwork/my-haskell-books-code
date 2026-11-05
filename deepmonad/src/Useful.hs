@@ -9,6 +9,7 @@ module Useful
   , halfMaybe
   , halfEither
   , swing
+  , Hero (..)
   , heal
   , pairUp
   , checkout
@@ -61,6 +62,14 @@ halfEither n
 swing :: Int -> [Int]
 swing n = [n + 10, n - 10]
 -- ANCHOR_END: plus10
+
+-- ANCHOR: hero
+-- 🦸 A hero: a name and an HP. The constructor Hero is a function too:
+--    Hero :: String -> Int -> Hero
+-- 勇者：名前と HP。コンストラクターの Hero も、関数の1つ
+data Hero = Hero String Int
+  deriving (Show)
+-- ANCHOR_END: hero
 
 -- ANCHOR: heal
 -- 💚 Heal every HP in the box, whatever the box is.
