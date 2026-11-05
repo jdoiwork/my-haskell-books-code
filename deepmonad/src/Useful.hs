@@ -4,6 +4,7 @@
 -- 3つの型クラスで、何が得をするか：一度書いた関数が、どの箱にも使える
 module Useful
   ( plus10
+  , times10
   , addHp
   , halfMaybe
   , halfEither
@@ -31,6 +32,11 @@ import Text.Read (readMaybe)
 -- 数に 10 を足すだけ。箱のことは何も知らない
 plus10 :: Int -> Int
 plus10 n = n + 10
+
+-- ✖️ Multiply a number by 10. Just as ordinary.
+-- 数を 10 倍にするだけ。これも、ふつうの関数
+times10 :: Int -> Int
+times10 n = n * 10
 
 -- 🧮 Add two HPs. It knows nothing about boxes either.
 -- 2つの HP を足すだけ。これも箱のことは知らない
