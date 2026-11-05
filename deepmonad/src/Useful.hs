@@ -4,6 +4,10 @@
 -- 3つの型クラスで、何が得をするか：一度書いた関数が、どの箱にも使える
 module Useful
   ( plus10
+  , addHp
+  , halfMaybe
+  , halfEither
+  , swing
   , heal
   , pairUp
   , checkout
@@ -18,11 +22,38 @@ import Control.Monad (foldM)
 import Text.Read (readMaybe)
 
 -- ANCHOR: plus10
--- ➕ An ordinary pure function: add 10 to a number.
---    It knows nothing about boxes.
--- ただの純粋な関数。数に 10 を足すだけで、箱のことは何も知らない
+-- Ordinary functions for the examples. They are not the point:
+-- the point is fmap, <*> and >>=, which work the same way on every box.
+-- 例に使う、ふつうの関数。覚えなくてよい。主役は、どの箱にも同じように使える
+-- fmap・<*>・>>= のほう
+
+-- ➕ Add 10 to a number. It knows nothing about boxes.
+-- 数に 10 を足すだけ。箱のことは何も知らない
 plus10 :: Int -> Int
 plus10 n = n + 10
+
+-- 🧮 Add two HPs. It knows nothing about boxes either.
+-- 2つの HP を足すだけ。これも箱のことは知らない
+addHp :: Int -> Int -> Int
+addHp a b = a + b
+
+-- ✂️ Halve an even number. An odd number cannot be halved:
+--    the box says so in its own way.
+-- 偶数を半分にする。奇数は半分にできないので、箱ごとのやり方で、そう伝える
+halfMaybe :: Int -> Maybe Int
+halfMaybe n
+  | even n    = Just (n `div` 2)
+  | otherwise = Nothing
+
+halfEither :: Int -> Either String Int
+halfEither n
+  | even n    = Right (n `div` 2)
+  | otherwise = Left (show n ++ " is odd")
+
+-- 🎲 Two possible futures: healed by 10, or hurt by 10.
+-- 2つの未来：10 回復するか、10 ダメージを受けるか
+swing :: Int -> [Int]
+swing n = [n + 10, n - 10]
 -- ANCHOR_END: plus10
 
 -- ANCHOR: heal
