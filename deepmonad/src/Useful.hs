@@ -3,7 +3,8 @@
 --   for every box.
 -- 3つの型クラスで、何が得をするか：一度書いた関数が、どの箱にも使える
 module Useful
-  ( heal
+  ( plus10
+  , heal
   , pairUp
   , checkout
   , payMaybe
@@ -15,6 +16,14 @@ module Useful
 
 import Control.Monad (foldM)
 import Text.Read (readMaybe)
+
+-- ANCHOR: plus10
+-- ➕ An ordinary pure function: add 10 to a number.
+--    It knows nothing about boxes.
+-- ただの純粋な関数。数に 10 を足すだけで、箱のことは何も知らない
+plus10 :: Int -> Int
+plus10 n = n + 10
+-- ANCHOR_END: plus10
 
 -- ANCHOR: heal
 -- 💚 Heal every HP in the box, whatever the box is.
