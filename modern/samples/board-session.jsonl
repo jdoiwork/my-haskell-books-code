@@ -1,0 +1,7 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"post_quest","arguments":{"title":"Slay the slimes","reward":30}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"post_quest","arguments":{"title":"Find the herbs","reward":10}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"take_quest","arguments":{"id":1,"who":"Lambda"}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"take_quest","arguments":{"id":1,"who":"Python"}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"finish_quest","arguments":{"id":1}}}

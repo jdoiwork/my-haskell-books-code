@@ -29,6 +29,9 @@ library
                     Modern.QuestFiles
                     Modern.Chunks
                     Modern.Mcp
+                    Modern.QuestBoard
+                    Modern.McpKit
+                    Modern.BoardMcp
                     ModernAnswers
   hs-source-dirs:   src answers
 
@@ -37,6 +40,15 @@ library
 executable guild-mcp
   import:           shared
   main-is:          GuildMcp.hs
+  hs-source-dirs:   app
+  build-depends:
+    , modern-book
+
+-- The quest board as an MCP server (the MCP chapter).
+-- MCP サーバーになった依頼板（MCP の章）
+executable board-mcp
+  import:           shared
+  main-is:          BoardMcp.hs
   hs-source-dirs:   app
   build-depends:
     , modern-book
@@ -52,6 +64,7 @@ test-suite modern-test
                     CrdtSpec
                     QuestFilesSpec
                     McpSpec
+                    BoardSpec
   hs-source-dirs:   test
   ghc-options:      -threaded
   build-depends:

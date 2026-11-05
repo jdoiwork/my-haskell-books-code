@@ -14,13 +14,20 @@ module ModernAnswers
   , pnIncrement
   , decrement
   , pnValue
+  , totalRewardTool
+  , applyOpOneEach
   ) where
 
 import Control.Concurrent.Async (concurrently)
 
 import qualified Data.Map.Strict as Map
 
+import qualified Data.Text as T
+
+import Modern.BoardMcp (loadBoard)
 import Modern.Crdt (GCounter (..), counterValue, increment)
+import Modern.McpKit (Tool (..), ToolResult (..))
+import qualified Modern.QuestBoard as QB
 import Modern.Effects (Quest (..))
 import Modern.Elements (Element (..), beats)
 import Modern.Scouts (Report, scout)
@@ -113,4 +120,45 @@ decrement dev (PNCounter p n) = PNCounter p (increment dev n)
 pnValue :: PNCounter -> Int
 pnValue (PNCounter p n) = counterValue p - counterValue n
 -- ANCHOR_END: pn
+
+-- ANCHOR: totalReward
+-- 💰 "Growing an MCP server" step 2: one more tool, the total reward
+--    of the open quests. Only the list of tools changes.
+-- 「MCP サーバーを育てる」ステップ2：募集中の依頼の報酬の合計を答える道具。
+-- 変わるのは、道具のリストだけ
+totalRewardTool :: FilePath -> Tool
+totalRewardTool path =
+  Tool
+    { toolName        = T.pack "total_reward"
+    , toolDescription = T.pack "The total reward of the open quests, in gold."
+    , toolArguments   = []
+    , toolRequired    = []
+    , toolRun         = \_ -> do
+        loaded <- loadBoard path
+        pure $ case loaded of
+          Left err    -> Refuse err
+          Right board ->
+            let open = [ QB.questReward q
+                       | q <- QB.quests board
+                       , QB.questStage q == QB.Open ]
+            in Answer (T.pack (show (sum open) <> " G"))
+    }
+-- ANCHOR_END: totalReward
+
+-- ANCHOR: oneEach
+-- 🧍 "Growing an MCP server" step 3: an adventurer takes one quest at a
+--    time. A new rule goes into the pure core, in front of applyOp.
+-- 「MCP サーバーを育てる」ステップ3：1人が引き受けられるのは、一度に1つまで。
+-- 新しい決まりは、純粋な核の applyOp の手前に置く
+applyOpOneEach :: QB.BoardOp -> QB.Board -> Either T.Text QB.Board
+applyOpOneEach op board =
+  case op of
+    QB.Take _ who
+      | any (busyWith (T.strip who)) (QB.quests board) ->
+          -- 「(名前) は、もう別の依頼を引き受けています」
+          Left (T.strip who <> T.pack " already has a quest")
+    _ -> QB.applyOp op board
+  where
+    busyWith who q = QB.questStage q == QB.TakenBy who
+-- ANCHOR_END: oneEach
 -- ANCHOR_END: all

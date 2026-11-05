@@ -2,6 +2,7 @@ module Main (main) where
 
 import Test.Hspec
 
+import qualified BoardSpec
 import qualified CrdtSpec
 import qualified EffectsSpec
 import qualified ElementsSpec
@@ -19,3 +20,4 @@ main = hspec $ do
   CrdtSpec.spec
   QuestFilesSpec.spec
   McpSpec.spec
+  BoardSpec.spec

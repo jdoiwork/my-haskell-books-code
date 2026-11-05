@@ -89,7 +89,7 @@ cabal test all
 | DB に縛られない設計：SQLite と PostgreSQL を切り替える | [`guilddesign/`](guilddesign/)、[`langs/db-design/`](langs/db-design/) |
 | Web API を作る：servant で、型が API の設計図になる | [`guildapi/`](guildapi/)、[`langs/web-api/`](langs/web-api/) |
 | セキュリティ：型で守れるもの、守れないもの | [`guildsecure/`](guildsecure/)、[`langs/security/`](langs/security/) |
-| Web アプリを作る：React の画面と Haskell の API を Docker で動かす | [`guildweb/`](guildweb/)、[`hsx/`](hsx/) |
+| Web アプリを作る：React の画面と Haskell の API を Docker で動かす | [`guildweb/`](guildweb/) |
 | 第III部のふりかえり | [`review3/`](review3/) |
 
 ### 第IV部 速く書く・速く動かす
@@ -113,7 +113,7 @@ cabal test all
 | Foldable・Traversable と汎用的な部品 | [`foldtrav/`](foldtrav/)、[`langs/foldable-traversable/`](langs/foldable-traversable/) |
 | lens：入れ子のデータを自在に操る | [`lensbook/`](lensbook/)、[`langs/lens/`](langs/lens/) |
 | モナド変換子とアプリケーション設計 | [`appdesign/`](appdesign/)、[`langs/application-architecture/`](langs/application-architecture/) |
-| GHC 拡張 | [`ghcext/`](ghcext/)、[`langs/ghc-extensions/`](langs/ghc-extensions/) |
+| GHC 拡張 | [`ghcext/`](ghcext/)、[`hsx/`](hsx/)、[`langs/ghc-extensions/`](langs/ghc-extensions/) |
 | 小さな型安全 SQL を作る | [`minisql/`](minisql/)、[`langs/typed-sql/`](langs/typed-sql/) |
 | 型レベルプログラミング入門 | [`typelevel/`](typelevel/)、[`langs/type-level/`](langs/type-level/) |
 | 第V部のふりかえり | [`review5/`](review5/) |
@@ -209,6 +209,7 @@ cabal test all
 | WebAssembly：Haskell をブラウザーで動かす | [`wasm/`](wasm/) |
 | CI と再現できる環境：みんなの手元で同じに動く | [`modern/`](modern/)、[`ci/`](ci/) |
 | AI と書くプログラミング：型とテストを手綱に | [`modern/`](modern/)、[`langs/modern-ai/`](langs/modern-ai/) |
+| MCP サーバーを育てる：チャットから依頼板を動かす | [`modern/`](modern/)、[`langs/modern-mcp/`](langs/modern-mcp/) |
 | 第XII部のふりかえり | [`review12/`](review12/) |
 <!-- chapter-index: end -->
 
