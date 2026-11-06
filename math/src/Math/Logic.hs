@@ -10,6 +10,9 @@ module Math.Logic
   , truthTable
   , sameForAll
   , implies
+  , keyRuleOk
+  , keyRuleDraft
+  , pickedLock
   , Skill
   , partySkills
   , missingSkills
@@ -71,6 +74,25 @@ sameForAll rule1 rule2 =
 implies :: Bool -> Bool -> Bool
 implies a b = not a || b
 -- ANCHOR_END: implies
+
+-- ANCHOR: keyRule
+-- 🔑 The guild's rule: "if a hero carries a key, the level is 10 or more".
+--    It says nothing about heroes without a key, so they keep it.
+-- ギルドの決まり：「鍵を持っているならば、レベル 10 以上」。
+-- 鍵を持っていない人の話はしていないので、その人たちは決まりを守っている
+keyRuleOk :: Hero -> Bool
+keyRuleOk h = hasKey h `implies` (level h >= 10)
+
+-- 🐛 A draft that read "if" in the everyday way: "exactly when".
+-- 下書き：「ならば」を、ふだんの言葉の感覚で「ちょうどそのとき」と読んだ
+keyRuleDraft :: Hero -> Bool
+keyRuleDraft h = hasKey h == (level h >= 10)
+
+-- 🗝 Who got in without a key? (They picked the lock.)
+-- 鍵なしで入れた人（錠前を開けた人）
+pickedLock :: Hero -> Bool
+pickedLock h = canEnter h && not (hasKey h)
+-- ANCHOR_END: keyRule
 
 -- ANCHOR: sets
 -- 🎒 Skills are names; a party has the skills of all its members.
