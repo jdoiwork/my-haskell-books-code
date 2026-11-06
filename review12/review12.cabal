@@ -3,7 +3,7 @@ name:          review12
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第XII部のふりかえり」の総合トレーニング：圏外でも使える依頼板
+-- 「第XIII部のふりかえり」の総合トレーニング：圏外でも使える依頼板
 
 common shared
   default-language: GHC2024

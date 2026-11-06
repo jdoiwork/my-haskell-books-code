@@ -188,7 +188,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 型に厳しいクライアント | [`minikv/07-client/`](minikv/07-client/)、[`langs/kv-typed-client/`](langs/kv-typed-client/) |
 | 第X部のふりかえり | [`minikv/07-client/`](minikv/07-client/)、[`review9/`](review9/) |
 
-### 第XI部 プログラマーのための数学
+### 第XII部 プログラマーのための数学
 
 | 章 | コード |
 |---|---|
@@ -203,9 +203,9 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | ベクトルと行列：たくさんの数をまとめて動かす | [`math/`](math/)、[`langs/math-vectors/`](langs/math-vectors/) |
 | 微分と勾配：坂道を下って答えを探す | [`math/`](math/)、[`langs/math-calculus/`](langs/math-calculus/) |
 | 結合法則とモノイド：分けて計算してよい理由 | [`math/`](math/)、[`langs/math-algebra/`](langs/math-algebra/) |
-| 第XI部のふりかえり | [`math/`](math/)、[`review10/`](review10/) |
+| 第XII部のふりかえり | [`math/`](math/)、[`review10/`](review10/) |
 
-### 第XII部 いまどきのプログラミングと Haskell
+### 第XIII部 いまどきのプログラミングと Haskell
 
 | 章 | コード |
 |---|---|
@@ -218,7 +218,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | CI と再現できる環境：みんなの手元で同じに動く | [`modern/`](modern/)、[`ci/`](ci/) |
 | AI と書くプログラミング：型とテストを手綱に | [`modern/`](modern/)、[`langs/modern-ai/`](langs/modern-ai/) |
 | MCP サーバーを育てる：チャットから依頼板を動かす | [`modern/`](modern/)、[`langs/modern-mcp/`](langs/modern-mcp/) |
-| 第XII部のふりかえり | [`review12/`](review12/) |
+| 第XIII部のふりかえり | [`review12/`](review12/) |
 <!-- chapter-index: end -->
 
 ## ライセンス

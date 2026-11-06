@@ -1,6 +1,6 @@
 -- ANCHOR: all
 -- | Answers to the training of Part XII.
--- 第XII部のトレーニングの解答
+-- 第XIII部のトレーニングの解答
 module ModernAnswers
   ( Element6 (..)
   , beats6
