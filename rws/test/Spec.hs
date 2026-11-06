@@ -7,6 +7,7 @@ import Test.Hspec
 import Test.QuickCheck
 
 import Battle
+import BattleType
 import Config
 import Dice
 import Logged
@@ -30,6 +31,9 @@ main = hspec $ do
             "hero" -> goblinHp arena <= 0
             _      -> heroHp arena <= 0
     -- 振っても、HP は変わらない。種だけが進む
+    -- 別名 Battle で書いた rollTwice も、ふつうの State として動く
+    it "rollTwice adds two rolls" $ property $ \s ->
+      evalState rollTwice (start s) == sum (evalState (replicateRolls 2) (start s))
     it "rolling only moves the seed" $
       execState (replicateRolls 3) (start 1) `shouldBe`
         (start 1) { seed = snd (threeRolls 1) }
