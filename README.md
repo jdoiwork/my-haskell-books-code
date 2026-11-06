@@ -104,6 +104,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 遅延評価とパフォーマンスの基本 | [`laziness/`](laziness/)、[`langs/laziness/`](langs/laziness/) |
 | データ構造の選び方 | [`datastructs/`](datastructs/)、[`langs/data-structures/`](langs/data-structures/) |
 | 計測とチューニング | [`tuning/`](tuning/)、[`langs/measuring/`](langs/measuring/) |
+| 書き換えて速くする：ST・IORef・書き換えられる配列 | [`mutable-perf/`](mutable-perf/)、[`langs/mutable-performance/`](langs/mutable-performance/) |
 | 競技プログラミング | [`compete/`](compete/)、[`langs/competitive/`](langs/competitive/) |
 | 並行・並列 | [`concurrency/`](concurrency/)、[`langs/concurrency/`](langs/concurrency/) |
 | 第IV部のふりかえり | [`review4/`](review4/) |

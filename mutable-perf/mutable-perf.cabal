@@ -1,0 +1,59 @@
+cabal-version: 3.0
+name:          mutable-perf
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「書き換えて速くする」の章のコード
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , array      ^>=0.5
+    , containers ^>=0.8
+    , mtl        ^>=2.3
+    , primitive  ^>=0.9
+    , vector     ^>=0.13
+
+-- Counting monsters, the sieve, boxes and frozen vectors.
+-- モンスターを数える、ふるい、箱、凍らせた Vector
+library
+  import:           shared
+  exposed-modules:  Tally
+                    Sieve
+                    Boxes
+                    Frozen
+                    MutableAnswers
+  hs-source-dirs:   src answers
+
+-- ANCHOR: exe
+-- Count with a box, to measure the memory with +RTS -s.
+-- 箱で数えて、+RTS -s でメモリーを測る
+executable boxes
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    mutable-perf
+  ghc-options:      -rtsopts
+-- ANCHOR_END: exe
+
+-- The sieve race with other languages.
+-- 他の言語との、ふるいの競走
+executable sieve-race
+  import:           shared
+  main-is:          Race.hs
+  hs-source-dirs:   app
+  build-depends:    mutable-perf
+
+-- The benchmarks, with tasty-bench.
+-- ベンチマーク（tasty-bench で）
+benchmark mutable-bench
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Bench.hs
+  hs-source-dirs:   bench
+  build-depends:
+    , mutable-perf
+    , deepseq     ^>=1.5
+    , tasty-bench ^>=0.5
