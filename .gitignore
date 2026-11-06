@@ -2,6 +2,7 @@
 dist-newstyle/
 dist-prof/
 dist-984/
+dist-werror/
 node_modules/
 target/
 

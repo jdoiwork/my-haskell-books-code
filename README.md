@@ -1,5 +1,7 @@
 # モダン Haskell 入門〜中級：サンプルコード
 
+[![ci](https://github.com/jdoiwork/my-haskell-books-code/actions/workflows/ci.yml/badge.svg)](https://github.com/jdoiwork/my-haskell-books-code/actions/workflows/ci.yml)
+
 技術書『モダン Haskell 入門〜中級』のサンプルコードです。本文に載っているコードは、すべてここから取りこんでいます。
 
 Sample code for the Japanese book on modern Haskell. Every code listing in the book is included from these files.
@@ -22,6 +24,8 @@ cabal test all
 - `review3`、`review6`、`review7`、`review8`、`review9`、`upsert`
 
 `wasm` は、ghc-wasm-meta の `wasm32-wasi-ghc` で組み立てます（`wasm/build.sh`）。
+
+GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケージを `-Werror` でビルドし、テストを流しています（push のたびと、週に1回）。
 
 ## ディレクトリー
 

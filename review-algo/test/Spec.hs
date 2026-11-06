@@ -38,7 +38,7 @@ main = hspec $ do
   describe "properties" $ do
     -- 貪欲法は、報酬では負けることがある（失敗するのが正解）
     it "greedy can lose (expected to fail)" $ expectFailure $
-      withMaxSuccess 2000 $ forAllShrink genQuests shrinkQuests $ \qs ->
+      withNumTests 2000 $ forAllShrink genQuests shrinkQuests $ \qs ->
         greedyReward qs === bestRewardSpec qs
     -- 遅い DP は、仕様と同じ
     it "bestRewardSlow == bestRewardSpec" $

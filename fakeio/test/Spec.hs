@@ -37,7 +37,7 @@ main = hspec $ do
     -- 環境変数がなければ stranger
     it "greet without USER" $ do
       let (_, world) = runIn [] ["x"] greet
-      head (shownRows world) `shouldBe` "Welcome, stranger!"
+      take 1 (shownRows world) `shouldBe` ["Welcome, stranger!"]
     -- あふれた行は流れて消える
     it "countdown scrolls" $ do
       let (_, world) = runIn [] [] (countdown 12)

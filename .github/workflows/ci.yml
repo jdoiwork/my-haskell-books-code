@@ -1,0 +1,167 @@
+# Build every package in cabal.project with -Werror and run the tests,
+#    on a clean machine (not the author's Mac).
+#    It adds to scripts/check-code.sh of the book; it does not replace it.
+# cabal.project の全パッケージを -Werror でビルドし、テストを流す。
+# 著者の Mac ではない、きれいな環境で確かめるため。
+# 本の scripts/check-code.sh の置きかえではなく、補い
+name: ci
+
+on:
+  push:
+    branches: [main]
+  # Once a week, so a new version of a dependency or of the runner
+  #    is noticed even when the code does not change.
+  # 週に1回。コードが変わらなくても、依存やランナーの変化に気づけるように
+  # （月曜 03:00 UTC = 日本時間の正午）
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+# A newer push cancels the run that is still going.
+# 新しい push が来たら、まだ動いている実行は止める
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Two jobs side by side:
+    #    werror: the libraries and programs, with warnings as errors
+    #      (the same as scripts/check-code.sh)
+    #    test:   all the test suites, warnings allowed. The tests in the
+    #      book use orphan Arbitrary instances and names such as before,
+    #      after and total, which are easy to read but warn with -Wall.
+    # 2つのジョブを並べて動かす：
+    #    werror：ライブラリとプログラムを、警告もエラー扱いでビルド
+    #      （scripts/check-code.sh と同じ）
+    #    test：全部のテストを流す（警告は許す）。本のテストは、orphan の
+    #      Arbitrary や、before・after・total のような名前を使う。
+    #      読みやすいが、-Wall では警告が出る
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - check: werror
+            flags: --enable-tests --ghc-options=-Werror
+            run: cabal build all:libs all:exes --enable-tests --ghc-options=-Werror
+          - check: test
+            flags: --enable-tests
+            run: cabal test all --enable-tests --test-show-details=direct
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    env:
+      LANG: C.UTF-8
+    steps:
+      # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # The versions the book is checked with.
+      # 本書の動作確認環境と同じ版
+      # v2.12.1
+      - uses: haskell-actions/setup@0f8e8c99d88aeb3fbfd523f1ef2c6f762d10d64d
+        id: setup
+        with:
+          ghc-version: "9.14.1"
+          cabal-version: "3.16.1.0"
+          cabal-update: true
+
+      # Make the build plan first; its hash is the key of the cache.
+      #    --ghc-options on the command line is only for our own packages
+      #    (cabal configure would write it to cabal.project.local).
+      # 先にビルドの計画を作る。そのハッシュを、キャッシュの鍵にする。
+      # コマンドラインの --ghc-options は本書のパッケージにだけかかる
+      # （cabal configure だと cabal.project.local に書かれてしまう）
+      - name: Plan the build
+        run: cabal build all ${{ matrix.flags }} --dry-run
+
+      # The dependencies (~/.cabal/store), keyed by the plan.
+      #    Both jobs have the same plan, so they share it.
+      # 依存（~/.cabal/store）。鍵は計画のハッシュ。
+      # 2つのジョブは計画が同じなので、共有する
+      - name: Restore the dependencies
+        # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        id: store
+        env:
+          key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-store
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ env.key }}-${{ hashFiles('dist-newstyle/cache/plan.json') }}
+          restore-keys: ${{ env.key }}-
+
+      # Our own packages (dist-newstyle), one for each job, keyed by
+      #    the plan and the sources. An older one is still worth
+      #    restoring: cabal builds again only what changed.
+      # 本書のパッケージ（dist-newstyle）。ジョブごとに持つ。鍵は計画と
+      # ソースのハッシュ。古いものでも戻す価値がある
+      # （cabal は変わったものだけを組み直す）
+      - name: Restore our build
+        # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        id: dist
+        env:
+          key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-${{ matrix.check }}
+        with:
+          path: dist-newstyle
+          key: ${{ env.key }}-${{ hashFiles('dist-newstyle/cache/plan.json') }}-${{ hashFiles('**/*.hs', '**/*.cabal', 'cabal.project') }}
+          restore-keys: |
+            ${{ env.key }}-${{ hashFiles('dist-newstyle/cache/plan.json') }}-
+            ${{ env.key }}-
+
+      - name: Build the dependencies
+        run: cabal build all ${{ matrix.flags }} --only-dependencies
+
+      - name: Save the dependencies
+        if: steps.store.outputs.cache-hit != 'true'
+        # The other job may have saved it first; that is fine.
+        # もう一方のジョブが先に保存していることもある（それでよい）
+        continue-on-error: true
+        # v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ steps.store.outputs.cache-primary-key }}
+
+      - name: Build and check (${{ matrix.check }})
+        run: ${{ matrix.run }}
+
+      # Save our build even when the check fails, so the next run is quick.
+      # 失敗しても、ビルドは保存する（次の実行が速くなるように）
+      - name: Save our build
+        if: always() && steps.dist.outputs.cache-hit != 'true'
+        # v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: dist-newstyle
+          key: ${{ steps.dist.outputs.cache-primary-key }}
+
+  # Not checked here yet: the projects outside cabal.project.
+  #    Candidates to add later, as jobs of their own:
+  # まだ確かめていないもの：cabal.project の外にある別プロジェクト。
+  # あとで、それぞれ別のジョブとして足す候補：
+  #
+  #   Easy (only GHC 9.14 and allow-newer): dbcompare, guildapi,
+  #     guildtyped, upsert, review3, review6, review7, review8, review9
+  #   足しやすい（GHC 9.14 と allow-newer だけ）：上のもの
+  #
+  #   The parts of minisearch, lam, ml and minikv (one project per step):
+  #     only GHC 9.14, but there are many; a matrix over the directories
+  #   minisearch・lam・ml・minikv の段階ごとのプロジェクト：
+  #     GHC 9.14 だけでよいが数が多いので、ディレクトリーの matrix にする
+  #
+  #   compete/atcoder: GHC 9.8.4 (the AtCoder environment)
+  #   compete/atcoder：GHC 9.8.4（AtCoder の環境）
+  #
+  #   guildrel8: GHC 9.10.3. guildpg, guilddesign: libpq, and the tests
+  #     start PostgreSQL with Testcontainers (Docker; ubuntu-latest has it)
+  #   guildrel8：GHC 9.10.3。guildpg・guilddesign：libpq が要り、テストは
+  #     Testcontainers で PostgreSQL を立てる（ubuntu-latest には Docker がある）
+  #
+  #   guildweb: also npm for the React front end
+  #   guildweb：React の画面のために npm も要る
+  #
+  #   wasm: ghc-wasm-meta (wasm32-wasi-ghc and cabal 3.14)
+  #   wasm：ghc-wasm-meta（wasm32-wasi-ghc と cabal 3.14）

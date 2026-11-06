@@ -71,7 +71,7 @@ spec = describe "Modern.Crdt" $ do
     property $ \a -> (a :: AddCounter) <> a === a
   -- 左を残す下書きは、交換法則が破れる（失敗するのが正解）
   it "LwwDraft is not commutative (expected to fail)" $ expectFailure $
-    withMaxSuccess 1000 $ property $ \a b ->
+    withNumTests 1000 $ property $ \a b ->
       (a :: LwwDraft Int) <> b === b <> a
   -- ANCHOR_END: draftSpecs
   -- 2台で別々に増やして、合わせる

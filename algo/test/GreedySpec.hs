@@ -24,13 +24,13 @@ spec = describe "Algo.Greedy" $ do
       length (mostQuests qs) === mostQuestsSpec qs
   -- 短い順の貪欲は、まちがうことがある（QuickCheck が反例を見つける）
   it "greedy by length can be wrong" $
-    property $ withMaxSuccess 2000 $ expectFailure $
+    property $ withNumTests 2000 $ expectFailure $
     forAllShrink genQuests (shrinkList (const [])) $ \qs ->
       length (mostQuestsBy (\q -> end q - start q) qs) === mostQuestsSpec qs
   -- ANCHOR_END: questProps
   -- 始まる順の貪欲も、まちがうことがある
   it "greedy by start can be wrong" $
-    property $ withMaxSuccess 2000 $ expectFailure $
+    property $ withNumTests 2000 $ expectFailure $
     forAllShrink genQuests (shrinkList (const [])) $ \qs ->
       length (mostQuestsBy start qs) === mostQuestsSpec qs
   -- 例の依頼
