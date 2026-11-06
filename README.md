@@ -119,6 +119,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | Foldable・Traversable と汎用的な部品 | [`foldtrav/`](foldtrav/)、[`langs/foldable-traversable/`](langs/foldable-traversable/) |
 | lens：入れ子のデータを自在に操る | [`lensbook/`](lensbook/)、[`langs/lens/`](langs/lens/) |
 | モナド変換子とアプリケーション設計 | [`appdesign/`](appdesign/)、[`langs/application-architecture/`](langs/application-architecture/) |
+| 書き換えられる箱の使い分け：IORef・MVar・TVar・キュー | [`mutable-toolbox/`](mutable-toolbox/)、[`langs/mutable-toolbox/`](langs/mutable-toolbox/) |
 | GHC 拡張 | [`ghcext/`](ghcext/)、[`hsx/`](hsx/)、[`langs/ghc-extensions/`](langs/ghc-extensions/) |
 | 小さな型安全 SQL を作る | [`minisql/`](minisql/)、[`langs/typed-sql/`](langs/typed-sql/) |
 | 型レベルプログラミング入門 | [`typelevel/`](typelevel/)、[`langs/type-level/`](langs/type-level/) |

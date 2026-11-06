@@ -1,0 +1,56 @@
+cabal-version: 3.0
+name:          mutable-toolbox
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「書き換えられる箱の使い分け」の章のコード
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , async      ^>=2.2
+    , containers ^>=0.8
+    , mtl        ^>=2.3
+    , stm        ^>=2.5
+    , text       ^>=2.1
+    , time       ^>=1.15
+    , unliftio   ^>=0.2
+
+-- The guild's front desk: tickets, the cache, locks, the board.
+-- ギルドの受付：通し番号、キャッシュ、錠、掲示板
+library
+  import:           shared
+  exposed-modules:  Tickets
+                    Appraise
+                    Handoff
+                    Debounce
+                    Core
+                    Gather
+                    Board
+                    Global
+                    Stumble
+                    Guild
+                    ToolboxAnswers
+  hs-source-dirs:   src answers
+
+-- Run the demos that need threads, and measure memory with +RTS -s.
+-- スレッドの要るデモを動かす。+RTS -s でメモリーも測る
+executable toolbox
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    mutable-toolbox
+  ghc-options:      -threaded -rtsopts
+
+test-suite toolbox-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  ghc-options:      -threaded -with-rtsopts=-N4
+  build-depends:
+    , mutable-toolbox
+    , hspec ^>=2.11
