@@ -13,9 +13,11 @@ module Math.Numbers
   , addStatus
   , hasStatus
   , withTax
+  , fastInvSqrt
   ) where
 
-import Data.Bits (setBit, testBit)
+import Data.Bits (setBit, shiftR, testBit)
+import GHC.Float (castFloatToWord32, castWord32ToFloat)
 
 -- ANCHOR: digits
 -- 🔢 The digits of n in a base, from the top: toDigits 2 6 == [1, 1, 0].
@@ -80,4 +82,22 @@ hasStatus which s = testBit s which
 withTax :: Int -> Int
 withTax cents = (cents * 110 + 50) `div` 100
 -- ANCHOR_END: money
+
+-- ANCHOR: fastInvSqrt
+-- 🪄 1 / sqrt x, from the bits of a Float and a magic number
+--    (the famous trick from the source code of Quake III Arena).
+-- Float のビットと魔法の数で 1 / sqrt x を求める
+-- （Quake III Arena のソースコードで有名になった技）
+fastInvSqrt :: Float -> Float
+fastInvSqrt x =
+  let -- Read the bits of the Float as a whole number.
+      -- Float のビットを、そのまま整数として読む
+      bits  = castFloatToWord32 x
+      -- The magic number minus half of the bits: a rough guess.
+      -- 魔法の数から、ビットの半分を引く（大まかな当て推量）
+      guess = castWord32ToFloat (0x5f3759df - bits `shiftR` 1)
+  in  -- One step of Newton's method makes it much closer.
+      -- ニュートン法で1回だけ磨くと、ぐっと近くなる
+      guess * (1.5 - 0.5 * x * guess * guess)
+-- ANCHOR_END: fastInvSqrt
 -- ANCHOR_END: all

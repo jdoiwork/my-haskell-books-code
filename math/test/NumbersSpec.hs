@@ -32,6 +32,13 @@ spec = do
     map withTax [100, 105, 104] `shouldBe` [110, 116, 114]
   -- ANCHOR_END: spec
 
+  -- ANCHOR: fastInvSqrt
+  -- 魔法の数の答えは、本当の 1 / sqrt x と 0.2% もちがわない
+  it "fastInvSqrt is within 0.2% of 1 / sqrt x" $
+    forAll (choose (1.0e-3, 1.0e6)) $ \x ->
+      abs (fastInvSqrt x * sqrt x - 1) < 0.002
+  -- ANCHOR_END: fastInvSqrt
+
   -- 「トレーニング」
   describe "answers" $ do
     it "removeStatus cures only one status" $
