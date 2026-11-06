@@ -13,6 +13,7 @@ packages:
   textbook
   modeling
   typeclasses
+  numeric
   minirpg
   book-prelude
   cpintro

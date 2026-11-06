@@ -1,0 +1,15 @@
+cabal-version: 3.0
+name:          numeric
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「数の型と変換」の章のコード
+
+library
+  exposed-modules:  Party
+                    PartyAnswers
+  hs-source-dirs:   src
+                    answers
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:    base >=4.20 && <5

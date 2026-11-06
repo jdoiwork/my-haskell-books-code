@@ -52,6 +52,7 @@ cabal test all
 | データをモデリングする：選択肢を型にする | [`modeling/`](modeling/)、[`langs/data-modeling/`](langs/data-modeling/) |
 | レコードと newtype：データに名前とラベルを付ける | [`modeling/`](modeling/)、[`langs/records/`](langs/records/) |
 | 型クラス入門：Show・Eq・Ord | [`typeclasses/`](typeclasses/) |
+| 数の型と変換：Num・Integral・Fractional | [`numeric/`](numeric/)、[`langs/numeric-types/`](langs/numeric-types/) |
 | deriving を使いこなす：Enum・Bounded・Read・Num | [`typeclasses/`](typeclasses/) |
 | 型クラスを作る：自分だけの資格 | [`typeclasses/`](typeclasses/)、[`langs/custom-type-classes/`](langs/custom-type-classes/) |
 | 動くプログラムを書く：IO と do でミニ RPG | [`minirpg/`](minirpg/)、[`minirpg/compare/`](minirpg/compare/)、[`langs/real-programs/`](langs/real-programs/) |
