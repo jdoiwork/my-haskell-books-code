@@ -71,6 +71,50 @@ typeOf :: Expr -> Text
 typeOf e = either renderTypeError renderType (inferType Map.empty e)
 -- ANCHOR_END: gen
 
+-- ANCHOR: naive
+-- ✅ The answer does not change.
+-- 答えは変わらない
+propSameAnswer :: Property
+propSameAnswer =
+  forAll genProgram $ \e ->
+    run (optimize e) === run e
+
+-- 🏷️ The type does not change.
+-- 型は変わらない
+propSameType :: Property
+propSameType =
+  forAll genProgram $ \e ->
+    typeOf (optimize e) === typeOf e
+-- ANCHOR_END: naive
+
+-- ANCHOR: general
+-- 🔍 Is  specific  one of the types that  general  stands for?
+--    (Fill the type variables of  general  to get  specific.)
+--    Bool -> Bool  is one of  a -> a ;  Int -> Bool  is not.
+-- specific は、general が表す型の1つ？（general の型変数を埋めると
+-- specific になる？）Bool -> Bool は a -> a の1つ。Int -> Bool は違う
+isInstanceOf :: Type -> Type -> Bool
+isInstanceOf specific general = go Map.empty [(general, specific)]
+  where
+    go _ [] = True
+    go seen ((g, s) : rest) = case (g, s) of
+      (TVar v, _) -> case Map.lookup v seen of
+        Nothing -> go (Map.insert v s seen) rest
+        Just t  -> t == s && go seen rest
+      (TInt, TInt)             -> go seen rest
+      (TBool, TBool)           -> go seen rest
+      (TFun g1 g2, TFun s1 s2) -> go seen ((g1, s1) : (g2, s2) : rest)
+      _                        -> False
+
+-- 🏷️ The type after optimizing is the same, or more general.
+-- 最適化した後の型は、同じか、もっと一般的
+sameOrMoreGeneral :: Expr -> Expr -> Bool
+sameOrMoreGeneral before after =
+  case (inferType Map.empty before, inferType Map.empty after) of
+    (Right t, Right t') -> t `isInstanceOf` t'
+    _                   -> False
+-- ANCHOR_END: general
+
 parseOrDie :: Text -> Expr
 parseOrDie src = either (error . show) id (parseExpr src)
 
@@ -86,17 +130,33 @@ main = hspec $ do
         , "1 / 0" ]
         `shouldBe` ["7", "10", "\\x -> x", "1 / 0"]
 
-    -- ANCHOR: props
     -- 「最適化しても、答えは変わらない」
-    it "keeps the same answer" $
-      property $ forAll genProgram $ \e ->
-        run (optimize e) === run e
+    it "keeps the same answer" propSameAnswer
 
-    -- 「最適化しても、型は変わらない」
-    it "keeps the same type" $
+    -- 「型がいつもまったく同じとは限らない（propSameType は落ちる）」
+    it "does NOT always keep exactly the same type" $
+      expectFailure (withMaxSuccess 5000 propSameType)
+
+    -- ANCHOR: props
+    -- 「最適化しても、型は同じか、もっと一般的になるだけ」
+    it "keeps the type, or makes it more general" $
       property $ forAll genProgram $ \e ->
-        typeOf (optimize e) === typeOf e
+        counterexample (show (typeOf e, typeOf (optimize e))) $
+          sameOrMoreGeneral e (optimize e)
     -- ANCHOR_END: props
+
+    -- ANCHOR: generalex
+    -- 「型がもっと一般的になる例」
+    it "can make the type more general" $
+      let before src = typeOf (parseOrDie src)
+          after  src = typeOf (optimize (parseOrDie src))
+      in map (\src -> (before src, after src))
+        [ "\\x -> x * 1"
+        , "\\x -> if false then false else x" ]
+        `shouldBe`
+        [ ("Int -> Int"  , "a -> a")
+        , ("Bool -> Bool", "a -> a") ]
+    -- ANCHOR_END: generalex
 
     -- ANCHOR: draftprop
     -- 「x * 0 -> 0 の下書きは、0 で割るまちがいを消してしまう」
