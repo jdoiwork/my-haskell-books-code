@@ -6,6 +6,7 @@ here = os.path.dirname(os.path.abspath(__file__))
 run = os.path.join(here, "run")
 node = os.environ.get("BOOK_NODE", "node")
 rustc = os.environ.get("BOOK_RUSTC", "rustc")
+dotnet = os.environ.get("BOOK_DOTNET", "dotnet")
 
 
 def count(cmd):
@@ -25,4 +26,6 @@ with tempfile.TemporaryDirectory() as tmp:
     subprocess.run([rustc, "-O", "--edition", "2024", "-o", exe,
                     os.path.join(run, "race.rs")], check=True)
     assert count([exe, n]) == primes
+race_cs = os.path.join(run, "race.cs")
+assert count([dotnet, "run", "-c", "Release", race_cs, n]) == primes
 print("ok")
