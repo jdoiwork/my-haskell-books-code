@@ -1,0 +1,51 @@
+cabal-version: 3.0
+name:          lifting-io
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「IO を持ち上げる：liftIO・MonadIO・MonadUnliftIO」の章のコード
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base       >=4.20 && <5
+    , async      ^>=2.2
+    , mtl        ^>=2.3
+    , text       ^>=2.1
+    , unliftio   ^>=0.2
+
+-- The guild's office: App, the floors of a stack, the ledger.
+-- ギルドの事務室：App、モナドの階、帳簿
+library
+  import:           shared
+  exposed-modules:  Lift.App
+                    Lift.Stack
+                    Lift.Anywhere
+                    Lift.Ledger
+                    Lift.Unlift
+                    Lift.Lost
+                    LiftAnswers
+  hs-source-dirs:   src answers
+
+-- Time the appraisals: one after another, and at the same time.
+-- 鑑定の時間を測る：1つずつと、同時に
+executable lifting-io
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    lifting-io, time ^>=1.15
+  ghc-options:      -threaded
+
+test-suite lifting-io-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  ghc-options:      -threaded
+  build-depends:
+    , lifting-io
+    , directory ^>=1.3
+    , filepath  ^>=1.5
+    , hspec     ^>=2.11

@@ -43,6 +43,7 @@ packages:
   foldtrav
   lensbook
   appdesign
+  lifting-io
   ghcext
   minisql
   typelevel
