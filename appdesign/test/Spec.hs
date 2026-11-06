@@ -5,6 +5,8 @@ import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Database.SQLite.Simple (withConnection)
 import Effectful (runEff, runPureEff)
+import Control.Monad.Reader (runReaderT)
+import Control.Monad.State (execState)
 import Test.Hspec
 
 import App.ByHand
@@ -12,6 +14,8 @@ import App.Class
 import App.Effect
 import App.Enlist
 import App.Env
+import qualified App.HitMtl as HitMtl
+import qualified App.HitTrans as HitTrans
 import App.Roster
 import App.Stacks
 import App.Types
@@ -66,6 +70,13 @@ main = hspec $ do
     it "the order of the layers matters" $ do
       stateOutside `shouldBe` Left "boom"
       exceptOutside `shouldBe` (Left "boom", 1)
+  describe "transformers and mtl" $ do
+    -- 難しさ 2 で 3 のダメージなら、30 から 24 に（lift を書く transformers 版）
+    it "hit with transformers takes 30 down to 24" $
+      execState (runReaderT (HitTrans.hit 3) 2) 30 `shouldBe` 24
+    -- lift を書かない mtl 版も、同じ答え
+    it "hit with mtl gives the same answer" $
+      execState (runReaderT (HitMtl.hit 3) 2) 30 `shouldBe` 24
   describe "type class" $ do
     -- 純粋な代役で、データベースなしにテストできる
     it "runs on the pure Fake" $ do

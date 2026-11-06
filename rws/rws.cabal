@@ -12,7 +12,6 @@ common shared
     , base             >=4.20 && <5
     , containers       ^>=0.8
     , mtl              ^>=2.3
-    , transformers     ^>=0.6
 
 library
   import:           shared
@@ -22,8 +21,6 @@ library
                     Config
                     Logged
                     StRef
-                    HitTrans
-                    HitMtl
                     RwsAnswers
   hs-source-dirs:   src answers
 

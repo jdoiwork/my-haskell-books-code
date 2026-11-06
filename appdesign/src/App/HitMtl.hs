@@ -1,7 +1,7 @@
 -- ANCHOR: all
 -- | Reader and State stacked, with mtl: no lift.
 -- Reader と State を重ねる。mtl で：lift はいらない
-module HitMtl (hit) where
+module App.HitMtl (hit) where
 
 -- ANCHOR: hit
 -- The classes MonadReader and MonadState (and the same types)

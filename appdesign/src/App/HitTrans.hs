@@ -1,7 +1,7 @@
 -- ANCHOR: all
 -- | Reader and State stacked, with transformers: lift by hand.
 -- Reader と State を重ねる。transformers で：lift を手で書く
-module HitTrans (hit) where
+module App.HitTrans (hit) where
 
 -- ANCHOR: hit
 -- The types and functions for each layer

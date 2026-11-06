@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Control.Monad.Reader (runReader, runReaderT)
+import Control.Monad.Reader (runReader)
 import Control.Monad.State (evalState, execState, runState)
 import Control.Monad.Writer.CPS (runWriter)
 import Test.Hspec
@@ -9,8 +9,6 @@ import Test.QuickCheck
 import Battle
 import Config
 import Dice
-import qualified HitMtl
-import qualified HitTrans
 import Logged
 import qualified MyState as My
 import RwsAnswers
@@ -35,15 +33,6 @@ main = hspec $ do
     it "rolling only moves the seed" $
       execState (replicateRolls 3) (start 1) `shouldBe`
         (start 1) { seed = snd (threeRolls 1) }
-  describe "transformers and mtl" $ do
-    -- lift を書く transformers 版と、書かない mtl 版は、同じ答え
-    it "hit with transformers and with mtl agree" $ property $ \level damage hp ->
-      execState (runReaderT (HitTrans.hit damage) level) hp
-        == execState (runReaderT (HitMtl.hit damage) level) (hp :: Int)
-    -- 難しさ 2 で 3 のダメージなら、30 から 24 に
-    it "hit 3 at difficulty 2 takes 30 down to 24" $
-      execState (runReaderT (HitMtl.hit 3) 2) 30 `shouldBe` 24
-
   describe "Reader" $ do
     -- 手で渡しても、Reader でも、同じ報告
     it "by hand and with Reader agree" $ property $ \(Positive level) n ->

@@ -14,6 +14,7 @@ common shared
     , containers       ^>=0.8
     , text             ^>=2.1
     , mtl              ^>=2.3
+    , transformers     ^>=0.6
     , sqlite-simple    ^>=0.4
     , effectful-core
 
@@ -25,6 +26,8 @@ library
                     App.Roster
                     App.Enlist
                     App.Stacks
+                    App.HitTrans
+                    App.HitMtl
                     App.Class
                     App.Effect
                     AppAnswers
