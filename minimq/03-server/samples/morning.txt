@@ -1,0 +1,8 @@
+QUEUE jobs
+EXCHANGE quests topic
+BIND quests quest.dragon.* jobs
+PUBLISH quests quest.dragon.north 14
+Red dragon!!!!
+PUBLISH quests quest.herb.east 4
+mint
+HELLO

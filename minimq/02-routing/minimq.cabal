@@ -1,0 +1,36 @@
+cabal-version: 3.0
+name:          minimq
+version:       0.2.0.0
+build-type:    Simple
+
+-- 総合演習：RabbitMQ 風のメッセージブローカーを作る
+-- （2. 配り方の規則：全員に・宛先どおりに・模様で）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    , transformers     ^>=0.6
+
+library
+  import:           shared
+  exposed-modules:  MiniMq.Types
+                    MiniMq.Routing
+                    MiniMq.Broker
+                    MiniMq.Examples
+                    MqAnswers
+  hs-source-dirs:   src answers
+
+test-suite minimq-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minimq
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

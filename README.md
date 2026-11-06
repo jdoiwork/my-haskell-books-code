@@ -21,7 +21,7 @@ cabal test all
 `cabal.project` に、ほとんどのパッケージが入っています。依存の都合で、次のディレクトリーは、それぞれの中に自分の `cabal.project` を持つ別のプロジェクトです。そのディレクトリーに入ってから `cabal build` してください。
 
 - `dbcompare`、`guildapi`、`guilddesign`、`guildpg`、`guildrel8`（GHC 9.10.3）、`guildtyped`、`guildweb`（React の画面は `guildweb/frontend` で `npm install`。`docker compose up` でも動かせます）
-- `review3`、`review6`、`review7`、`review8`、`review9`、`upsert`
+- `review-db-web`、`review-search`、`review-interpreter`、`review-ml`、`review-minikv`、`upsert`
 
 `wasm` は、ghc-wasm-meta の `wasm32-wasi-ghc` で組み立てます（`wasm/build.sh`）。
 
@@ -63,7 +63,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | ファイルと引数：プログラムを外の世界とつなぐ | [`minirpg/`](minirpg/)、[`book-prelude/`](book-prelude/) |
 | 集計する：Map で殿堂の成績表を作る | [`minirpg/`](minirpg/) |
 | 競技プログラミングの入出力：読んで、解いて、書く | [`cpintro/`](cpintro/)、[`langs/cp-io/`](langs/cp-io/) |
-| 第I部のふりかえり：ベースキャンプで地図を広げる | [`review/`](review/) |
+| 第I部のふりかえり：ベースキャンプで地図を広げる | [`review-first-steps/`](review-first-steps/) |
 
 ### 第II部 実戦の道具箱
 
@@ -79,7 +79,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | CLI ツールを作る | [`mondex/`](mondex/)、[`langs/cli-tool/`](langs/cli-tool/)、[`langs/cargo/`](langs/cargo/) |
 | サブコマンドのある CLI ツール | [`mondex/`](mondex/)、[`langs/cli-subcommands/`](langs/cli-subcommands/)、[`langs/cargo/`](langs/cargo/) |
 | Monad 入門 | [`monadintro/`](monadintro/)、[`langs/monad-intro/`](langs/monad-intro/) |
-| 第II部のふりかえり | [`review2/`](review2/) |
+| 第II部のふりかえり | [`review-toolbox/`](review-toolbox/) |
 
 ### 第III部 データベースと Web サービス
 
@@ -95,7 +95,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | Web API を作る：servant で、型が API の設計図になる | [`guildapi/`](guildapi/)、[`langs/web-api/`](langs/web-api/) |
 | セキュリティ：型で守れるもの、守れないもの | [`guildsecure/`](guildsecure/)、[`langs/security/`](langs/security/) |
 | Web アプリを作る：React の画面と Haskell の API を Docker で動かす | [`guildweb/`](guildweb/) |
-| 第III部のふりかえり | [`review3/`](review3/) |
+| 第III部のふりかえり | [`review-db-web/`](review-db-web/) |
 
 ### 第IV部 速く書く・速く動かす
 
@@ -107,7 +107,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 書き換えて速くする：ST・IORef・書き換えられる配列 | [`mutable-perf/`](mutable-perf/)、[`langs/mutable-performance/`](langs/mutable-performance/) |
 | 競技プログラミング | [`compete/`](compete/)、[`langs/competitive/`](langs/competitive/) |
 | 並行・並列 | [`concurrency/`](concurrency/)、[`langs/concurrency/`](langs/concurrency/) |
-| 第IV部のふりかえり | [`review4/`](review4/) |
+| 第IV部のふりかえり | [`review-performance/`](review-performance/) |
 
 ### 第V部 抽象の力
 
@@ -124,7 +124,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | GHC 拡張 | [`ghcext/`](ghcext/)、[`hsx/`](hsx/)、[`langs/ghc-extensions/`](langs/ghc-extensions/) |
 | 小さな型安全 SQL を作る | [`minisql/`](minisql/)、[`langs/typed-sql/`](langs/typed-sql/) |
 | 型レベルプログラミング入門 | [`typelevel/`](typelevel/)、[`langs/type-level/`](langs/type-level/) |
-| 第V部のふりかえり | [`review5/`](review5/) |
+| 第V部のふりかえり | [`review-abstraction/`](review-abstraction/) |
 
 ### 第VI部 アルゴリズムを Haskell らしく
 
@@ -139,7 +139,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 文字列のアルゴリズム | [`algo/`](algo/)、[`langs/algo-strings/`](langs/algo-strings/) |
 | 再帰スキーム：fold と unfold を組み立てる | [`algo/`](algo/)、[`langs/algo-schemes/`](langs/algo-schemes/) |
 | 純粋なデータ構造を作る | [`algo/`](algo/)、[`langs/algo-purely/`](langs/algo-purely/) |
-| 第VI部のふりかえり | [`algo/`](algo/)、[`review-algo/`](review-algo/) |
+| 第VI部のふりかえり | [`algo/`](algo/)、[`review-algorithms/`](review-algorithms/) |
 
 ### 第VII部 総合演習1：ミニ全文検索エンジンを育てる
 
@@ -151,7 +151,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 速くする | [`minisearch/04-fast/`](minisearch/04-fast/)、[`langs/project-performance/`](langs/project-performance/) |
 | 並行化する | [`minisearch/05-concurrent/`](minisearch/05-concurrent/)、[`langs/project-concurrency/`](langs/project-concurrency/) |
 | 設計を磨く | [`minisearch/06-architecture/`](minisearch/06-architecture/)、[`langs/project-architecture/`](langs/project-architecture/) |
-| 第VII部のふりかえり | [`minisearch/06-architecture/`](minisearch/06-architecture/)、[`review6/`](review6/) |
+| 第VII部のふりかえり | [`minisearch/06-architecture/`](minisearch/06-architecture/)、[`review-search/`](review-search/) |
 
 ### 第VIII部 総合演習2：プログラミング言語を作る
 
@@ -162,7 +162,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 評価器と REPL | [`lam/03-eval/`](lam/03-eval/)、[`langs/interp-evaluator/`](langs/interp-evaluator/) |
 | 型検査器を作る | [`lam/04-types/`](lam/04-types/)、[`langs/interp-typechecker/`](langs/interp-typechecker/) |
 | 言語を仕上げる | [`lam/05-polish/`](lam/05-polish/)、[`lam/02-parser/`](lam/02-parser/)、[`langs/interp-polish/`](langs/interp-polish/) |
-| 第VIII部のふりかえり | [`lam/05-polish/`](lam/05-polish/)、[`review7/`](review7/) |
+| 第VIII部のふりかえり | [`lam/05-polish/`](lam/05-polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第IX部 総合演習3：Python の機械学習ライブラリを Haskell で作る
 
@@ -173,7 +173,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | PyTorch の autograd 風に自動微分を作る | [`ml/03-autograd/`](ml/03-autograd/)、[`langs/ml-autodiff/`](langs/ml-autodiff/) |
 | PyTorch 風にニューラルネットワークを組む | [`ml/04-nn/`](ml/04-nn/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
 | 型で次元を守る | [`ml/05-typed/`](ml/05-typed/)、[`langs/ml-typed-tensors/`](langs/ml-typed-tensors/) |
-| 第IX部のふりかえり | [`ml/05-typed/`](ml/05-typed/)、[`review8/`](review8/)、[`langs/part8-review/`](langs/part8-review/) |
+| 第IX部のふりかえり | [`ml/05-typed/`](ml/05-typed/)、[`review-ml/`](review-ml/)、[`langs/review-ml/`](langs/review-ml/) |
 
 ### 第X部 総合演習4：型に厳しいインメモリデータベースを作る
 
@@ -186,7 +186,20 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 永続化：落ちても戻れる | [`minikv/05-persist/`](minikv/05-persist/)、[`langs/kv-persistence/`](langs/kv-persistence/) |
 | Pub/Sub とブロッキング | [`minikv/06-pubsub/`](minikv/06-pubsub/)、[`langs/kv-pubsub/`](langs/kv-pubsub/) |
 | 型に厳しいクライアント | [`minikv/07-client/`](minikv/07-client/)、[`langs/kv-typed-client/`](langs/kv-typed-client/) |
-| 第X部のふりかえり | [`minikv/07-client/`](minikv/07-client/)、[`review9/`](review9/) |
+| 第X部のふりかえり | [`minikv/07-client/`](minikv/07-client/)、[`review-minikv/`](review-minikv/) |
+
+### 第XI部 総合演習5：RabbitMQ 風のメッセージブローカーを作る
+
+| 章 | コード |
+|---|---|
+| 設計：メッセージ・キュー・配り方を型で描く | [`minimq/01-design/`](minimq/01-design/)、[`langs/mq-design/`](langs/mq-design/) |
+| 配り方の規則：全員に・宛先どおりに・模様で | [`minimq/02-routing/`](minimq/02-routing/)、[`langs/mq-routing/`](langs/mq-routing/) |
+| 手順書きと TCP サーバー | [`minimq/03-server/`](minimq/03-server/)、[`langs/mq-server/`](langs/mq-server/) |
+| 受け取りの確認と配り直し | [`minimq/04-ack/`](minimq/04-ack/)、[`langs/mq-ack/`](langs/mq-ack/) |
+| 監督役：落ちても立ち直る | [`minimq/05-supervisor/`](minimq/05-supervisor/)、[`langs/mq-supervisor/`](langs/mq-supervisor/) |
+| 永続化：届いていないメッセージを失わない | [`minimq/06-persist/`](minimq/06-persist/)、[`langs/mq-persistence/`](langs/mq-persistence/) |
+| 型に厳しいクライアント：Erlang くん・Elixir くんと並べて | [`minimq/07-client/`](minimq/07-client/)、[`langs/mq-typed-client/`](langs/mq-typed-client/) |
+| 第XI部のふりかえり：手紙を一通も落とさない伝令所 | [`review-minimq/`](review-minimq/) |
 
 ### 第XII部 プログラマーのための数学
 
@@ -203,7 +216,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | ベクトルと行列：たくさんの数をまとめて動かす | [`math/`](math/)、[`langs/math-vectors/`](langs/math-vectors/) |
 | 微分と勾配：坂道を下って答えを探す | [`math/`](math/)、[`langs/math-calculus/`](langs/math-calculus/) |
 | 結合法則とモノイド：分けて計算してよい理由 | [`math/`](math/)、[`langs/math-algebra/`](langs/math-algebra/) |
-| 第XII部のふりかえり | [`math/`](math/)、[`review10/`](review10/) |
+| 第XII部のふりかえり | [`math/`](math/)、[`review-math/`](review-math/) |
 
 ### 第XIII部 いまどきのプログラミングと Haskell
 
@@ -218,7 +231,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | CI と再現できる環境：みんなの手元で同じに動く | [`modern/`](modern/)、[`ci/`](ci/) |
 | AI と書くプログラミング：型とテストを手綱に | [`modern/`](modern/)、[`langs/modern-ai/`](langs/modern-ai/) |
 | MCP サーバーを育てる：チャットから依頼板を動かす | [`modern/`](modern/)、[`langs/modern-mcp/`](langs/modern-mcp/) |
-| 第XIII部のふりかえり | [`review12/`](review12/) |
+| 第XIII部のふりかえり | [`review-modern/`](review-modern/) |
 <!-- chapter-index: end -->
 
 ## ライセンス

@@ -1,0 +1,5 @@
+-- 「第XI部のふりかえり」の総合トレーニングのコード（別のプロジェクト）。
+-- 最後の段階の minimq（minimq/07-client）を使う
+packages:
+  .
+  ../minimq/07-client

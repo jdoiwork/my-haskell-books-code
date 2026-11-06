@@ -1,0 +1,34 @@
+cabal-version: 3.0
+name:          review-minimq
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第XI部のふりかえり」の総合トレーニング：ギルドの依頼の割り振り
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , minimq
+    , aeson            ^>=2.3
+    , async            ^>=2.2
+    , containers       ^>=0.8
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Review.Dispatch
+  hs-source-dirs:   src
+
+test-suite review-minimq-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  ghc-options:      -threaded
+  build-depends:
+    , review-minimq
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

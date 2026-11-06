@@ -1,0 +1,30 @@
+cabal-version: 3.0
+name:          review-interpreter
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第VIII部のふりかえり」の総合トレーニング：Lam の最適化
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , lam
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Review.Optimize
+  hs-source-dirs:   src
+
+test-suite review-interpreter-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , review-interpreter
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

@@ -1,0 +1,29 @@
+cabal-version: 3.0
+name:          review-math
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第XII部のふりかえり」の総合トレーニング：公平なくじ引き
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , random           >=1.2
+
+library
+  import:           shared
+  exposed-modules:  Review.Shuffle
+  hs-source-dirs:   src
+
+test-suite review-math-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , review-math
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

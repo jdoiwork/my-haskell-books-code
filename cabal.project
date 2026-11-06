@@ -17,7 +17,7 @@ packages:
   minirpg
   book-prelude
   cpintro
-  review
+  review-first-steps
   guild
   registry
   debuglog
@@ -35,7 +35,7 @@ packages:
   mutable-toolbox
   compete
   concurrency
-  review4
+  review-performance
   monadintro
   deepmonad
   rws
@@ -47,13 +47,13 @@ packages:
   ghcext
   minisql
   typelevel
-  review5
-  review-algo
+  review-abstraction
+  review-algorithms
   modern
-  review12
+  review-modern
   algo
   guildsecure
-  review2
+  review-toolbox
   hsx
   math
-  review10
+  review-math

@@ -1,0 +1,39 @@
+cabal-version: 3.0
+name:          review-search
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第VII部のふりかえり」の総合トレーニング：もしかして（did you mean）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , minisearch
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Review.Suggest
+  hs-source-dirs:   src
+
+executable suggest-measure
+  import:           shared
+  main-is:          Measure.hs
+  hs-source-dirs:   app
+  ghc-options:      -rtsopts
+  build-depends:
+    , review-search
+    , deepseq          ^>=1.5
+
+test-suite review-search-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , review-search
+    , hspec            ^>=2.11
+    , QuickCheck       >=2.18 && <2.20

@@ -1,0 +1,30 @@
+cabal-version: 3.0
+name:          review-abstraction
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第V部のふりかえり」の総合トレーニング：ギルドの帳簿
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , mtl              ^>=2.3
+    , lens
+
+library
+  import:           shared
+  exposed-modules:  Review.Ledger
+  hs-source-dirs:   src
+
+test-suite review-abstraction-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , review-abstraction
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

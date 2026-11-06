@@ -144,7 +144,7 @@ jobs:
   # あとで、それぞれ別のジョブとして足す候補：
   #
   #   Easy (only GHC 9.14 and allow-newer): dbcompare, guildapi,
-  #     guildtyped, upsert, review3, review6, review7, review8, review9
+  #     guildtyped, upsert, review-db-web, review-search, review-interpreter, review-ml, review-minikv
   #   足しやすい（GHC 9.14 と allow-newer だけ）：上のもの
   #
   #   The parts of minisearch, lam, ml and minikv (one project per step):

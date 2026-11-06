@@ -1,0 +1,35 @@
+cabal-version: 3.0
+name:          review-algorithms
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第VI部のふりかえり」の総合トレーニング：報酬の多い依頼の選び方
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , array            ^>=0.5
+
+library
+  import:           shared
+  exposed-modules:  Review.Quests
+  hs-source-dirs:   src
+
+executable quests-measure
+  import:           shared
+  main-is:          Measure.hs
+  hs-source-dirs:   app
+  ghc-options:      -O1
+  build-depends:    review-algorithms
+
+test-suite review-algorithms-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , review-algorithms
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

@@ -1,0 +1,38 @@
+cabal-version: 3.0
+name:          review-ml
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第IX部のふりかえり」の総合トレーニング：Momentum と Adam
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , minitorch
+
+library
+  import:           shared
+  exposed-modules:  Review.Optim
+                    Review.AdamDraft
+  hs-source-dirs:   src
+
+executable review-ml-optim
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  ghc-options:      -O2
+  build-depends:
+    , review-ml
+
+test-suite review-ml-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , review-ml
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19
