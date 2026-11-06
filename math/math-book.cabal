@@ -59,3 +59,15 @@ test-suite math-test
     , math-book
     , hspec            ^>=2.11
     , QuickCheck       ^>=2.19
+
+-- The benchmark of the fast inverse square root (the chapter "Numbers").
+-- 高速逆平方根のベンチマーク（「数の正体」の章）
+benchmark math-bench
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Bench.hs
+  hs-source-dirs:   bench
+  ghc-options:      -O2
+  build-depends:
+    , math-book
+    , tasty-bench ^>=0.5
