@@ -17,6 +17,7 @@ import Board
 import Core
 import Debounce (debounceDemo)
 import Gather
+import Shift (shiftDemo)
 import Stumble (stumbleDemo)
 import Tickets
 import ToolboxAnswers
@@ -118,6 +119,11 @@ main = hspec $ do
       takeWithin 100000 queue `shouldReturn` Nothing
       atomically (writeTQueue queue "herbs")
       takeWithin 100000 queue `shouldReturn` Just "herbs"
+
+  describe "State and boxes" $
+    -- 「受付係めいめいの集計を、最後に足し合わせる」
+    it "adds up each clerk's tally at the end" $
+      shiftDemo `shouldReturn` (9, [1 .. 9])
 
   describe "exceptions" $
     -- 「途中で転んだら、箱には何が残る？」

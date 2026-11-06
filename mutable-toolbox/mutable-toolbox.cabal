@@ -33,6 +33,7 @@ library
                     Global
                     Stumble
                     Guild
+                    Shift
                     ToolboxAnswers
   hs-source-dirs:   src answers
 
