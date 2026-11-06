@@ -24,6 +24,12 @@ library
                     RwsAnswers
   hs-source-dirs:   src answers
 
+executable rws-demo
+  import:           shared
+  main-is:          Demo.hs
+  hs-source-dirs:   app
+  build-depends:    rws
+
 -- ANCHOR: measure
 executable rws-measure
   import:           shared
