@@ -11,6 +11,7 @@ common shared
   build-depends:
     , base       >=4.20 && <5
     , array      ^>=0.5
+    , bitvec     ^>=1.1
     , containers ^>=0.8
     , mtl        ^>=2.3
     , primitive  ^>=0.9

@@ -8,6 +8,7 @@ module Sieve
   , sieveUnsafe
   , sieveArray
   , sieveLoop
+  , sieveBits
   ) where
 
 -- ANCHOR: imports
@@ -21,6 +22,7 @@ import Control.Monad.ST (ST, runST)
 import Data.Array.ST               (newArray, readArray, runSTUArray)
 import Data.Array.ST               (writeArray)
 import Data.Array.Unboxed          (UArray)
+import Data.Bit                    (Bit (..))
 import Data.Vector.Unboxed         qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as MVU
 -- ANCHOR_END: imports
@@ -121,4 +123,20 @@ crossOut isPrime n p m
       MVU.unsafeWrite isPrime m False
       crossOut isPrime n p (m + p)
 -- ANCHOR_END: loop
+
+-- ANCHOR: bits
+-- 🧩 The same sieve with bitvec's Bit: 8 of them packed in one byte.
+-- 同じふるいを、bitvec の Bit で。1バイトに8つ詰める
+sieveBits :: Int -> VU.Vector Bit
+sieveBits n = runST $ do
+  isPrime <- MVU.replicate (n + 1) (Bit True)
+  MVU.write isPrime 0 (Bit False)
+  MVU.write isPrime 1 (Bit False)
+  forM_ (takeWhile (\p -> p * p <= n) [2 ..]) $ \p -> do
+    Bit stillPrime <- MVU.read isPrime p
+    when stillPrime $
+      forM_ [p * p, p * p + p .. n] $ \m ->
+        MVU.write isPrime m (Bit False)
+  VU.freeze isPrime
+-- ANCHOR_END: bits
 -- ANCHOR_END: all

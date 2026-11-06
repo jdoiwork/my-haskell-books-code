@@ -16,35 +16,43 @@ import Text.Printf        (printf)
 
 import Data.Vector.Unboxed qualified as VU
 
-import Sieve (sieveLoop, sieveUnsafe, sieveVector)
+import Data.Bit (countBits)
+
+import Sieve (sieveBits, sieveLoop, sieveUnsafe, sieveVector)
 
 -- ⏱️ Sieve once, and return the number of primes and the milliseconds.
 -- 1回ふるって、素数の数とかかったミリ秒を返す
-timeOnce :: (Int -> VU.Vector Bool) -> Int -> IO (Int, Double)
-timeOnce sieve n = do
+timeOnce :: (Int -> Int) -> Int -> IO (Int, Double)
+timeOnce countPrimes n = do
   start <- getMonotonicTime
-  count <- evaluate (VU.length (VU.filter id (sieve n)))
+  count <- evaluate (countPrimes n)
   end   <- getMonotonicTime
   pure (count, (end - start) * 1000)
 
+-- ✅ Count the Trues.
+-- True の数を数える
+countTrue :: VU.Vector Bool -> Int
+countTrue v = VU.length (VU.filter id v)
+
 -- 🏁 The runners.
 -- 走る人たち
-sieves :: [(String, Int -> VU.Vector Bool)]
+sieves :: [(String, Int -> Int)]
 sieves =
-  [ ("vector", sieveVector)
-  , ("unsafe", sieveUnsafe)
-  , ("loop"  , sieveLoop)
+  [ ("vector", \n -> countTrue (sieveVector n))
+  , ("unsafe", \n -> countTrue (sieveUnsafe n))
+  , ("loop"  , \n -> countTrue (sieveLoop n))
+  , ("bits"  , \n -> countBits (sieveBits n))
   ]
 
 main :: IO ()
 main = do
   args <- getArgs
   case args of
-    [name, arg] | Just sieve <- lookup name sieves -> do
-      runs <- replicateM 3 (timeOnce sieve (read arg))
+    [name, arg] | Just countPrimes <- lookup name sieves -> do
+      runs <- replicateM 3 (timeOnce countPrimes (read arg))
       let counts = map fst runs
           best   = minimum (map snd runs)
       printf "%d %.1f\n" (maximum counts) best
-    -- 「使い方：sieve-race vector|unsafe|loop N」
-    _ -> putStrLn "usage: sieve-race vector|unsafe|loop N"
+    -- 「使い方：sieve-race vector|unsafe|loop|bits N」
+    _ -> putStrLn "usage: sieve-race vector|unsafe|loop|bits N"
 -- ANCHOR_END: all
