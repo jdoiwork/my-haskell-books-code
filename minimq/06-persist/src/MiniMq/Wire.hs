@@ -34,9 +34,10 @@ import qualified Network.Socket.ByteString.Lazy as Lazy
 -- ANCHOR: class
 -- 🔌 A thing that can travel: it knows how to be written, and how to be
 --    read back. The tests check that reading what was written gives
---    the same thing back.
+--    the same thing back (for values that keep the rule of the wire).
 -- 回線を通れるもの：書き方と、読み戻し方を知っている。
 -- 「書いたものを読むと、元に戻る」ことを、テストで確かめる
+-- （手順書きの決まりを守った値なら）
 class Wire a where
   render :: a -> Builder
   parser :: Parser a

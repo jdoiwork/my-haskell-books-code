@@ -20,9 +20,9 @@ module MiniMq.Server
   ) where
 
 import Control.Concurrent (forkFinally, forkIO, killThread)
-import Control.Concurrent.Async (async, cancel, race_, withAsync)
+import Control.Concurrent.Async (async, cancel, concurrently_, withAsync)
 import Control.Concurrent.STM
-import Control.Exception (bracket, finally)
+import Control.Exception (bracket, finally, mask)
 import System.IO (IOMode (..), withFile)
 import Control.Monad (forever)
 import Data.IORef
@@ -136,17 +136,28 @@ refuse err = Refused $ case err of
 -- 受け手：次の手紙を取って送り箱へ。1つの取引で。もう limit 通
 -- 持っていたら、takeNext が「何もない」と言うので、await は ACK で
 -- 空きができるまで眠る
-consumer :: Env -> ConsumerId -> Int -> QueueName -> TQueue Response -> IO ()
+consumer :: Env -> ConsumerId -> Int -> QueueName -> Outbox -> IO ()
 consumer env who limit q outbox = forever $ atomically $ do
   delivery <- await env (takeNext who limit q)
-  writeTQueue outbox (Deliver delivery)
+  post outbox (Deliver delivery)
 -- ANCHOR_END: consumer
 
 -- ANCHOR: serve
+-- 📦 The outbox: what to say, and at the very end, `Nothing` ("that is
+--    all"). Only the writer takes from it.
+-- 送り箱：言うことと、いちばん最後に Nothing（「これでおしまい」）。
+-- 取り出すのは、書き係だけ
+type Outbox = TQueue (Maybe Response)
+
+post :: Outbox -> Response -> STM ()
+post outbox = writeTQueue outbox . Just
+
 -- 🧑‍💻 One connection. When the client hangs up, first its consumers
---    stop; then every letter they held without an answer goes back.
+--    stop; the writer says what is left; then every letter they held
+--    without an answer goes back.
 -- 1つのつながり。クライアントが切ったら、まず受け手たちが止まり、
--- そのあとで、返事をしないまま持っていた手紙が、全部戻る
+-- 書き係が残りを言い終える。そのあとで、返事をしないまま持っていた
+-- 手紙が、全部戻る
 serveClient :: Env -> Conn -> IO ()
 serveClient env conn = do
   mine <- newIORef []
@@ -155,10 +166,10 @@ serveClient env conn = do
     giveBack mine = do
       ids <- readIORef mine
       atomically (modify env (\broker -> foldr abandon broker ids))
-    serve mine = withScope $ \spawn -> do
+    serve mine = do
       outbox <- newTQueueIO
-      let tell = atomically . writeTQueue outbox
-          readLoop = receive conn >>= \case
+      let tell = atomically . post outbox
+          readLoop spawn = receive conn >>= \case
             Got request -> do
               reply <- atomically (answer env request)
               safelyWritten env      -- 💾 say nothing before it is on disk
@@ -169,19 +180,29 @@ serveClient env conn = do
                   tell Ok
                   modifyIORef mine (who :)
                   spawn (consumer env who limit q outbox)
-              readLoop
+              readLoop spawn
             Garbled bad -> tell (Refused ("cannot read: " <> bad))
             Closed      -> pure ()
-          writeLoop = forever (atomically (readTQueue outbox) >>= send conn)
-      race_ readLoop writeLoop
-      atomically (flushTQueue outbox) >>= mapM_ (send conn)
+          writeLoop = atomically (readTQueue outbox) >>= \case
+            Just response -> send conn response >> writeLoop
+            Nothing       -> pure ()                  -- that is all
+          reader = do
+            withScope readLoop            -- the consumers stop here
+            atomically (writeTQueue outbox Nothing)   -- the last words
+      concurrently_ reader writeLoop
 
 -- 🧵 Threads started inside stop when the scope ends, however it ends.
--- 中で始めたスレッドは、範囲が終わると（どう終わっても）止まる
+--    Starting one and writing it down happen under `mask`, so no
+--    exception can slip in between; the job itself runs unmasked.
+-- 中で始めたスレッドは、範囲が終わると（どう終わっても）止まる。
+-- 始めることと書き留めることは mask の中でするので、そのあいだに
+-- 例外は割りこめない。仕事そのものは、mask を外して動く
 withScope :: ((IO () -> IO ()) -> IO a) -> IO a
 withScope body =
   bracket (newIORef []) (\started -> readIORef started >>= mapM_ cancel) $
-    \started -> body (\job -> async job >>= \a -> modifyIORef started (a :))
+    \started -> body $ \job -> mask $ \restore -> do
+      thread <- async (restore job)
+      modifyIORef started (thread :)
 -- ANCHOR_END: serve
 
 -- ANCHOR: listen

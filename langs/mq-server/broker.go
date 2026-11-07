@@ -4,10 +4,13 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 // One mailbox, shared by every connection (competing consumers).
@@ -18,17 +21,45 @@ var jobs = make(chan string, 100)
 // Go (a reader, one writer, and an outbox channel between them)
 // Go（読み係と、ただ1人の書き係。そのあいだに outbox のチャネル）
 
-// 🔌 Serve one connection.
-// 1本の接続の相手をする
+// 🔌 Serve one connection. When the client hangs up, the consumers
+// stop first, then the writer says what is left, and then we close.
+// 1本の接続の相手をする。客が切ったら、まず受け手が止まり、
+// 書き係が残りを言い終えてから、閉じる
 func handle(conn net.Conn) {
+	defer conn.Close()
+	// ctx is cancelled when this connection ends.
+	// ctx は、この接続が終わるときに取り消される
+	ctx, stop := context.WithCancel(context.Background())
 	outbox := make(chan string, 16)
+	var consumers sync.WaitGroup
+
 	// The writer: the only one who writes to the socket.
 	// 書き係：ソケットに書くのは、このゴルーチンだけ
+	written := make(chan struct{})
 	go func() {
+		defer close(written)
 		for line := range outbox {
-			fmt.Fprint(conn, line+"\n")
+			if _, err := fmt.Fprint(conn, line+"\n"); err != nil {
+				// The client is gone: stop everyone, wake the reader.
+				// 客がいない。みんなを止め、読み係を起こす
+				stop()
+				conn.Close()
+				return
+			}
 		}
 	}()
+
+	// Put a line in the outbox, unless the connection is ending.
+	// 行を outbox に入れる。ただし、接続が終わるところなら、やめる
+	say := func(line string) bool {
+		select {
+		case outbox <- line:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+
 	// The reader: reads commands and puts answers into the outbox.
 	// 読み係：コマンドを読み、答えを outbox に入れる
 	lines := bufio.NewScanner(conn)
@@ -37,18 +68,37 @@ func handle(conn net.Conn) {
 		switch command {
 		case "PUBLISH":
 			jobs <- body
-			outbox <- "OK"
+			say("OK")
 		case "CONSUME":
-			outbox <- "OK"
-			// Deliver letters, through the same outbox.
-			// 手紙を届ける。これも同じ outbox を通す
+			say("OK")
+			consumers.Add(1)
+			// Deliver letters through the same outbox, until the end.
+			// 手紙を届ける。これも同じ outbox を通す。終わりまで
 			go func() {
-				for letter := range jobs {
-					outbox <- "DELIVER " + letter
+				defer consumers.Done()
+				for {
+					select {
+					case letter := <-jobs:
+						// If say gives up here, the letter is lost.
+						// ここで say があきらめると、手紙は消える
+						if !say("DELIVER " + letter) {
+							return
+						}
+					case <-ctx.Done():
+						return
+					}
 				}
 			}()
 		}
 	}
+	// The client hung up: stop the consumers, and wait for them.
+	// 客が切った。受け手を止めて、止まるまで待つ
+	stop()
+	consumers.Wait()
+	// The last words: the writer says what is left, and ends.
+	// 最後の言葉：書き係が残りを言い終えて、終わる
+	close(outbox)
+	<-written
 }
 // ANCHOR_END: server
 
@@ -106,6 +156,34 @@ func main() {
 	for _, letter := range letters {
 		if !conLines.Scan() || conLines.Text() != "DELIVER "+letter {
 			fail("deliver " + letter)
+		}
+	}
+
+	// A consumer that hangs up takes no more letters: every letter
+	// sent after that goes to the next consumer.
+	// 切った受け手は、もう手紙を取らない。そのあとに送った手紙は、
+	// 全部、次の受け手に届く
+	consumer.Close()
+	time.Sleep(100 * time.Millisecond)
+	later := []string{"Wolves in the west", "A lost cat", "Pick herbs"}
+	for _, letter := range later {
+		fmt.Fprint(publisher, "PUBLISH "+letter+"\n")
+		if !pubLines.Scan() || pubLines.Text() != "OK" {
+			fail("publish")
+		}
+	}
+	next, err := net.Dial("tcp", addr)
+	if err != nil {
+		fail(err.Error())
+	}
+	nextLines := bufio.NewScanner(next)
+	fmt.Fprint(next, "CONSUME\n")
+	if !nextLines.Scan() || nextLines.Text() != "OK" {
+		fail("consume again")
+	}
+	for _, letter := range later {
+		if !nextLines.Scan() || nextLines.Text() != "DELIVER "+letter {
+			fail("deliver after hang-up " + letter)
 		}
 	}
 	fmt.Println("ok")

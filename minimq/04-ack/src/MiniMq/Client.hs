@@ -1,9 +1,18 @@
 -- ANCHOR: all
--- | A plain client: send a request, read what comes back.
--- ふつうのクライアント：頼みごとを送り、返ってきたものを読む
+-- | A plain client: send a request, read what comes back. Keep two
+--   connections: one to ask (declare, bind, publish), and one to
+--   receive. After CONSUME, letters may come at any time, so on that
+--   connection, only wait for letters and answer them (ACK and friends
+--   get no reply when all is well).
+-- ふつうのクライアント：頼みごとを送り、返ってきたものを読む。
+-- つながりは2本に分ける：頼む（作る・結ぶ・送る）ための1本と、
+-- 受け取るための1本。CONSUME したあとは、いつ手紙が来るかわからない
+-- ので、そのつながりでは、手紙を待って、返事をすることだけをする
+-- （ACK などは、まちがいがなければ、答えが返らない）
 module MiniMq.Client
   ( withClient
   , request
+  , sendRequest
   , expect
   , nextDelivery
   , answerWith
@@ -26,10 +35,21 @@ withClient port = bracket open (close . connSocket)
       connect sock (SockAddrInet port (tupleToHostAddress (127, 0, 0, 1)))
       newConn sock
 
--- 📮 Send one request and wait for its answer.
--- 頼みごとを1つ送り、その答えを待つ
+-- 📮 Send one request and wait for its answer: the next thing that
+--    comes. (On a connection that sent CONSUME, that might be a letter.)
+-- 頼みごとを1つ送り、その答えを待つ。答えとは、次に来るもののこと
+-- （CONSUME したつながりでは、それが手紙かもしれない）
 request :: Conn -> Request -> IO Response
-request conn r = send conn r >> expect conn
+request conn r = sendRequest conn r >> expect conn
+
+-- 🚧 Send one request, after checking the rule of the wire. A name
+--    with a space or a newline would be read as a different request.
+-- 手順書きの決まりを確かめてから、頼みごとを1つ送る。空白や改行の入った
+-- 名前は、別の頼みごととして読まれてしまう
+sendRequest :: Conn -> Request -> IO ()
+sendRequest conn r = case brokenNames r of
+  []  -> send conn r
+  bad -> fail ("a name must be one word: " <> show bad)
 
 -- 📨 The next thing the broker says.
 -- ブローカーが次に言うこと

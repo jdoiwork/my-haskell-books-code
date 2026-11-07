@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (forConcurrently)
 import Data.Attoparsec.ByteString (IResult (..), feed, parse)
 import qualified Data.ByteString as BS
@@ -7,6 +8,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce (Coercible, coerce)
 import Data.List (sort)
+import Network.Socket.ByteString (sendAll)
 import qualified Data.Text as T
 import System.Timeout (timeout)
 import Test.Hspec
@@ -20,9 +22,11 @@ import MiniMq.Wire
 import MqAnswers
 
 -- 🎲 Random requests and responses. Bodies may hold spaces, newlines
---    and Japanese: the length in front keeps them apart.
+--    and Japanese: the length in front keeps them apart. Names keep the
+--    rule of the wire: one word, no space, no newline.
 -- でたらめな頼みごとと答え。本文には空白も改行も日本語も入る。
--- 先に書いた長さが、それを区切ってくれる
+-- 先に書いた長さが、それを区切ってくれる。名前は手順書きの決まりを守る：
+-- 1語で、空白も改行も入れない
 instance Arbitrary Request where
   arbitrary = oneof
     [ DeclareQueue    <$> name
@@ -93,6 +97,29 @@ main = hspec $ do
           `shouldReturn` Refused "no such queue: nobody"
         request c (Publish "kitchen" (Message "x" "y"))
           `shouldReturn` Refused "no such exchange: kitchen"
+    -- 長い手紙のあとでも、最後の言葉（REFUSED）まで、全部届けてから切る
+    it "says its last words in full before hanging up" $
+      withServer $ \port -> do
+        setUp port
+        let long = Message "job" (T.replicate 4000000 "a")
+        withClient port $ \c ->
+          request c (Publish "post" long) `shouldReturn` RoutedTo 1
+        withClient port $ \c -> do
+          request c (Consume "jobs") `shouldReturn` Ok
+          -- Wait a little: the writer is busy with the long letter now.
+          -- 少し待つ。書き係は今、長い手紙を書いている最中
+          threadDelay 100000
+          sendAll (connSocket c) "HELLO\n"
+          expect c `shouldReturn` Deliver long
+          expect c `shouldReturn` Refused "cannot read: HELLO"
+          receive c `shouldReturn` (Closed :: Received Response)
+    -- 1語でない名前は、送る前に止める
+    it "will not send a name that is not one word" $ withServer $ \port ->
+      withClient port $ \c -> do
+        request c (DeclareQueue "two words") `shouldThrow` anyIOException
+        request c (DeclareQueue "jobs\nCONSUME jobs")
+          `shouldThrow` anyIOException
+        request c (DeclareQueue "jobs") `shouldReturn` Ok
     -- 3人の受け手が、1つのキューを分け合う。どの手紙も、ちょうど1回
     it "shares a queue among consumers, each letter exactly once" $
       withServer $ \port -> do
@@ -126,6 +153,8 @@ main = hspec $ do
           `shouldReturn` replicate 3 (RoutedTo 1)
       withClient port $ \c ->
         fmap (map body) (takeLetters c "jobs" 2) `shouldReturn` ["1", "2"]
+      withClient port $ \c ->
+        takeLetters c "nobody" 1 `shouldThrow` anyIOException
   where
     setUp port = withClient port $ \c -> do
       _ <- request c (DeclareQueue "jobs")

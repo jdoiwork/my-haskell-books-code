@@ -17,9 +17,9 @@ module MiniMq.Server
   ) where
 
 import Control.Concurrent (forkFinally, forkIO, killThread)
-import Control.Concurrent.Async (async, cancel, race_)
+import Control.Concurrent.Async (async, cancel, concurrently_)
 import Control.Concurrent.STM
-import Control.Exception (bracket)
+import Control.Exception (bracket, mask)
 import Control.Monad (forever)
 import Data.IORef
 import Network.Socket hiding (bind)
@@ -87,43 +87,63 @@ refuse (NoSuchExchange (ExchangeName e)) = Refused ("no such exchange: " <> e)
 --    both in one transaction. A letter is never half taken.
 -- 受け手：次の手紙を取って、送り箱に入れる。これを、ずっと。
 -- 2つは1つの取引なので、手紙が「取られたのに、どこにもない」ことはない
-consumer :: TVar Broker -> QueueName -> TQueue Response -> IO ()
+consumer :: TVar Broker -> QueueName -> Outbox -> IO ()
 consumer var q outbox = forever $ atomically $ do
   letter <- await var (takeNext q)
-  writeTQueue outbox (Deliver letter)
+  post outbox (Deliver letter)
 -- ANCHOR_END: consumer
 
 -- ANCHOR: serve
+-- 📦 The outbox: what to say, and at the very end, `Nothing` ("that is
+--    all"). Only the writer takes from it.
+-- 送り箱：言うことと、いちばん最後に Nothing（「これでおしまい」）。
+-- 取り出すのは、書き係だけ
+type Outbox = TQueue (Maybe Response)
+
+post :: Outbox -> Response -> STM ()
+post outbox = writeTQueue outbox . Just
+
 -- 🧑‍💻 One connection: a reader that answers, a writer that is the only
 --    one to touch the socket, and the consumers it started. When the
---    client hangs up, everything started here stops with it.
+--    client hangs up, the consumers stop first, then the writer says
+--    everything left in the outbox, and only then do we close.
 -- 1つのつながり：答える読み係、ソケットにさわる唯一の書き係、
--- そして始めた受け手たち。クライアントが切ったら、ここで始めたものは
--- 全部いっしょに止まる
+-- そして始めた受け手たち。クライアントが切ったら、まず受け手たちが
+-- 止まり、書き係が送り箱の残りを全部言い終えてから、閉じる
 serveClient :: Env -> Conn -> IO ()
-serveClient (Env var) conn = withScope $ \spawn -> do
+serveClient (Env var) conn = do
   outbox <- newTQueueIO
-  let tell = atomically . writeTQueue outbox
-      readLoop = receive conn >>= \case
+  let tell = atomically . post outbox
+      readLoop spawn = receive conn >>= \case
         Got request -> do
           reply <- atomically (answer var request)
           tell reply
           case (request, reply) of
             (Consume q, Ok) -> spawn (consumer var q outbox)
             _               -> pure ()
-          readLoop
+          readLoop spawn
         Garbled bad -> tell (Refused ("cannot read: " <> bad))
         Closed      -> pure ()
-      writeLoop = forever (atomically (readTQueue outbox) >>= send conn)
-  race_ readLoop writeLoop
-  atomically (flushTQueue outbox) >>= mapM_ (send conn)   -- the last words
+      writeLoop = atomically (readTQueue outbox) >>= \case
+        Just response -> send conn response >> writeLoop
+        Nothing       -> pure ()                      -- that is all
+      reader = do
+        withScope readLoop                -- the consumers stop here
+        atomically (writeTQueue outbox Nothing)       -- the last words
+  concurrently_ reader writeLoop
 
 -- 🧵 Threads started inside stop when the scope ends, however it ends.
--- 中で始めたスレッドは、範囲が終わると（どう終わっても）止まる
+--    Starting one and writing it down happen under `mask`, so no
+--    exception can slip in between; the job itself runs unmasked.
+-- 中で始めたスレッドは、範囲が終わると（どう終わっても）止まる。
+-- 始めることと書き留めることは mask の中でするので、そのあいだに
+-- 例外は割りこめない。仕事そのものは、mask を外して動く
 withScope :: ((IO () -> IO ()) -> IO a) -> IO a
 withScope body =
   bracket (newIORef []) (\started -> readIORef started >>= mapM_ cancel) $
-    \started -> body (\job -> async job >>= \a -> modifyIORef started (a :))
+    \started -> body $ \job -> mask $ \restore -> do
+      thread <- async (restore job)
+      modifyIORef started (thread :)
 -- ANCHOR_END: serve
 
 -- ANCHOR: listen

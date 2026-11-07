@@ -6,6 +6,8 @@
 module MiniMq.Protocol
   ( Request (..)
   , Response (..)
+  , oneWord
+  , brokenNames
   ) where
 
 import Control.Applicative (optional)
@@ -16,6 +18,7 @@ import Data.ByteString.Builder (Builder, byteString, intDec)
 import Data.Coerce (Coercible, coerce)
 import Data.List (intersperse)
 import Data.Text (Text)
+import qualified Data.Text as T
 
 import MiniMq.Types
 import MiniMq.Wire
@@ -44,6 +47,33 @@ data Response
   | Deliver Delivery
   deriving (Show, Eq)
 -- ANCHOR_END: request
+
+-- ANCHOR: rule
+-- 🚧 The rule of the wire: a name or a key is one word, with no space
+--    and no newline in it (it may be empty, like the key of a letter to
+--    a fanout desk). A body may hold anything, and the reason of
+--    REFUSED anything but a newline. Only values that keep the rule
+--    read back as they were written.
+-- 手順書きの決まり：名前と札は1語。中に空白も改行も入れない（空でもよい。
+-- fanout の仕分け台への手紙の札のように）。本文には何を入れてもよく、
+-- REFUSED の理由には、改行以外なら何を入れてもよい。書いて読み戻すと
+-- 元に戻るのは、決まりを守った値だけ
+oneWord :: Text -> Bool
+oneWord = T.all (\c -> c /= ' ' && c /= '\n')
+
+-- 🔍 The names and keys in a request that break the rule.
+-- 頼みごとの中の、決まりを破っている名前と札
+brokenNames :: Request -> [Text]
+brokenNames request = filter (not . oneWord) $ case request of
+  DeclareQueue q how    -> coerce q : deadDesk how
+  DeclareExchange e _   -> [coerce e]
+  Bind e key q          -> [coerce e, coerce key, coerce q]
+  Publish e m           -> [coerce e, coerce (routingKey m)]
+  Consume q _           -> [coerce q]
+  Settle _ _            -> []
+  where
+    deadDesk how = [coerce e | Just e <- [deadLetterTo how]]
+-- ANCHOR_END: rule
 
 -- ANCHOR: request-wire
 -- ✍️ Writing and reading mirror each other, line by line:
@@ -141,9 +171,10 @@ settleWord Reject  = "REJECT"
 -- 設定は、なくてもよい単語：
 -- 「QUEUE jobs dead=undeliverable limit=3」「QUEUE scratch transient」
 settingsP :: Parser QueueSettings
-settingsP = QueueSettings <$> optional (string " dead="  *> (coerce <$> word))
-                          <*> optional (string " limit=" *> decimal)
-                          <*> option Durable (Transient <$ string " transient")
+settingsP =
+  QueueSettings <$> optional (string " dead="  *> (coerce <$> word))
+                <*> optional (string " limit=" *> decimal)
+                <*> option Durable (Transient <$ string " transient")
 
 settingsB :: QueueSettings -> [Builder]
 settingsB (QueueSettings dead limit lasting) =
