@@ -95,12 +95,16 @@ runDay memory workers todo falls = withServer $ \port -> do
         when (cursed order) (throwIO (userError "cursed"))
         done <- readIORef doneRef
         let already = Map.member (orderNo order) done
+            tally   = Map.insertWith (+) (orderNo order) 1
+        -- Three workers write in this book at once: change it in one step.
+        -- 3人が同時に書く帳面なので、1回で書き換える
         when (memory == Forgetful || not already) $
-          modifyIORef' doneRef (Map.insertWith (+) (orderNo order) 1)
+          atomicModifyIORef' doneRef (\counts -> (tally counts, ()))
         unlucky <- atomicModifyIORef' tape nextLuck
         when unlucky (throwIO (userError "tripped before the ACK"))
       -- ANCHOR_END: job
-      bury order = modifyIORef' buriedRef (orderNo order :)
+      bury order =
+        atomicModifyIORef' buriedRef (\dead -> (orderNo order : dead, ()))
       consumeAt box handle = withClient port (\c -> consume c box handle)
       plan = Plan OneForOne (Intensity 1000 10)
         [ Child (T.pack ("worker " <> show i)) (consumeAt orderBox job)
