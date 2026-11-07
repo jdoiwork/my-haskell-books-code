@@ -67,8 +67,19 @@ main = hspec $
           monadicIO $ do
             got <- run (timeout 10000000 (runDay Forgetful 1 todo falls))
             let bad = [orderNo o | o <- todo, cursed o]
-            assert (fmap (sort . buried) got == Just bad)
+            case got of
+              -- A timeout is another trouble, and step 2 watches for it.
+              -- 時間切れは別の困りごと。見張るのはステップ2のテスト
+              Nothing     -> pure ()
+              Just report -> assert (sort (buried report) == bad)
     -- ANCHOR_END: draft
+    -- ANCHOR: grave
+    -- 3回転んだ良い依頼は、3回こなされて、墓場へ
+    it "a good order that falls three times is done and buried" $ do
+      report <- runDay Forgetful 1 [Order 1 False] [True, True, True]
+      doneCount report `shouldBe` Map.fromList [(1, 3)]
+      buried report `shouldBe` [1]
+    -- ANCHOR_END: grave
     -- ANCHOR: remember
     -- 覚えている働き手なら、どの依頼も、こなすのは1回だけ
     it "a remembering worker does each order only once" $
@@ -76,5 +87,9 @@ main = hspec $
         forAll genOrders $ \todo -> forAll (listOf arbitrary) $ \falls ->
           monadicIO $ do
             got <- run (timeout 10000000 (runDay Remembering 3 todo falls))
-            assert (fmap (all (== 1) . doneCount) got == Just True)
+            -- Every good order, each exactly once (an empty Map fails).
+            -- 良い依頼が全部、1回ずつ（空の Map では通らない）
+            let good = [orderNo o | o <- todo, not (cursed o)]
+                exactlyOnce = Map.fromList [(n, 1) | n <- good]
+            assert (fmap doneCount got == Just exactlyOnce)
     -- ANCHOR_END: remember

@@ -12,7 +12,7 @@ module Review.Dispatch
   ) where
 
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async (withAsync)
+import Control.Concurrent.Async (link, withAsync)
 import Control.Exception (throwIO)
 import Control.Monad (forM_, when)
 import Data.Aeson (FromJSON, ToJSON)
@@ -87,9 +87,10 @@ runDay memory workers todo falls = withServer $ \port -> do
     bindTo c orders "order" orderBox
     bindTo c graveyard "" graves
     forM_ todo (publishTo c orders "order")
-  doneRef   <- newIORef Map.empty
-  buriedRef <- newIORef []
-  tape      <- newIORef (falls <> repeat False)
+  doneRef    <- newIORef Map.empty
+  settledRef <- newIORef Set.empty
+  buriedRef  <- newIORef []
+  tape       <- newIORef (falls <> repeat False)
   -- ANCHOR: job
   let job order = do
         when (cursed order) (throwIO (userError "cursed"))
@@ -102,6 +103,10 @@ runDay memory workers todo falls = withServer $ \port -> do
           atomicModifyIORef' doneRef (\counts -> (tally counts, ()))
         unlucky <- atomicModifyIORef' tape nextLuck
         when unlucky (throwIO (userError "tripped before the ACK"))
+        -- Past the last chance to fall: only the ACK is left.
+        -- もう転ばない。残るのは ACK だけ
+        atomicModifyIORef' settledRef
+          (\settled -> (Set.insert (orderNo order) settled, ()))
       -- ANCHOR_END: job
       bury order =
         atomicModifyIORef' buriedRef (\dead -> (orderNo order : dead, ()))
@@ -110,12 +115,19 @@ runDay memory workers todo falls = withServer $ \port -> do
         [ Child (T.pack ("worker " <> show i)) (consumeAt orderBox job)
         | i <- [1 .. workers] ]
       everyone = Set.fromList (map orderNo todo)
+      -- Done means "settled for good", not "the work was written down".
+      -- 終わりの合図は「仕事を記録した」ではなく「もう動かない」
       finished = do
-        done <- readIORef doneRef
-        dead <- readIORef buriedRef
-        pure (Set.fromList (Map.keys done <> dead) == everyone)
-  withAsync (supervise plan) $ \_ ->
-    withAsync (consumeAt graves bury) $ \_ ->
+        settled <- readIORef settledRef
+        dead    <- readIORef buriedRef
+        pure (Set.union settled (Set.fromList dead) == everyone)
+  -- If the supervisor gives up, or the keeper of the graves falls, say so
+  -- now instead of waiting forever.
+  -- 監督役があきらめたり、墓場の番人が倒れたりしたら、待ち続けずに伝える
+  withAsync (supervise plan) $ \boss ->
+    withAsync (consumeAt graves bury) $ \keeper -> do
+      link boss
+      link keeper
       waitUntil finished
   Report <$> readIORef doneRef <*> readIORef buriedRef
 -- ANCHOR_END: runDay
