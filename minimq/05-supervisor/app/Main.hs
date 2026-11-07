@@ -2,10 +2,10 @@
 -- minimq のサーバー。受付係は監督役の下で動く
 module Main (main) where
 
+-- ANCHOR: main
 import MiniMq.Server
 import MiniMq.Supervisor
 
--- ANCHOR: main
 main :: IO ()
 main = do
   env <- newEnv

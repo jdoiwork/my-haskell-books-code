@@ -40,7 +40,7 @@ main = hspec $
     -- ANCHOR: lossless
     -- どんなに倒れても：良い依頼は1回以上こなされ、呪いの依頼は墓場へ
     it "loses nothing, however often workers fall" $
-      withMaxSuccess 30 $
+      withNumTests 30 $
         forAll genOrders $ \todo -> forAll (listOf arbitrary) $ \falls ->
           monadicIO $ do
             got <- run (timeout 10000000 (runDay Forgetful 3 todo falls))
@@ -61,7 +61,7 @@ main = hspec $
     -- ANCHOR: draft
     -- 下書きの性質「墓場には呪いの依頼だけ」は、まちがっている
     it "draft: only cursed orders are buried (QuickCheck breaks it)" $
-      expectFailure $ withMaxSuccess 200 $
+      expectFailure $ withNumTests 200 $
         forAllShrink genOrders shrinkOrders $ \todo ->
         forAllShrink (listOf arbitrary) shrink $ \falls ->
           monadicIO $ do
@@ -72,7 +72,7 @@ main = hspec $
     -- ANCHOR: remember
     -- 覚えている働き手なら、どの依頼も、こなすのは1回だけ
     it "a remembering worker does each order only once" $
-      withMaxSuccess 30 $
+      withNumTests 30 $
         forAll genOrders $ \todo -> forAll (listOf arbitrary) $ \falls ->
           monadicIO $ do
             got <- run (timeout 10000000 (runDay Remembering 3 todo falls))

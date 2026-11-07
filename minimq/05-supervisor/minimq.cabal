@@ -21,6 +21,7 @@ common shared
     , stm              ^>=2.5
     , async            ^>=2.2
 
+-- ANCHOR: library
 library
   import:           shared
   exposed-modules:  MiniMq.Types
@@ -35,6 +36,7 @@ library
                     MiniMq.Worker
                     MqAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: library
 
 -- ANCHOR: exe
 executable minimq-server
