@@ -3,6 +3,8 @@ dist-newstyle/
 dist-prof/
 dist-984/
 dist-werror/
+# The times of scripts/check-code.sh / check-code.sh の項目ごとの時間
+.check-times/
 node_modules/
 target/
 
