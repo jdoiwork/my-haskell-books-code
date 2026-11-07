@@ -16,6 +16,7 @@ common shared
     , text             ^>=2.1
     , transformers     ^>=0.6
 
+-- ANCHOR: library
 library
   import:           shared
   exposed-modules:  MiniMq.Types
@@ -24,6 +25,7 @@ library
                     MiniMq.Examples
                     MqAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: library
 
 test-suite minimq-test
   import:           shared
