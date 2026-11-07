@@ -56,8 +56,8 @@ play w event = case event of
     (Just d,  b) -> w { broker = b, held = (i, tag d) : held w }
     (Nothing, _) -> w
   Answer how k | not (null (held w)) ->
-    let (_, t) = held w !! (k `mod` length (held w))
-    in  w { broker = surely (settle how t (broker w))
+    let (i, t) = held w !! (k `mod` length (held w))
+    in  w { broker = surely (settle [who i] how t (broker w))
           , held   = filter ((/= t) . snd) (held w)
           , done   = done w + (if how == Ack then 1 else 0) }
   Answer _ _ -> w
@@ -68,8 +68,10 @@ play w event = case event of
     who i = readers w !! i
 
 -- 📏 Every letter sent is somewhere: waiting, held, dead, or done.
+--    ("dead-letters" is one of the queues, so `waiting` counts it.)
 -- 送った手紙は、どれもどこかにある：待っている、持たれている、
--- 配れなかった部屋にある、終わった
+-- 配れなかった部屋にある、終わった（dead-letters もキューの1つなので、
+-- waiting が数える）
 accounted :: World -> Int
 accounted w =
   sum (map snd (waiting (broker w))) + unsettled (broker w) + done w
@@ -90,10 +92,19 @@ main = hspec $ do
     it "refuses a second answer to the same tag" $ do
       let (got, later) = surely (answerEach [Ack] (surely cursedPost))
       case got of
-        [Just d] -> settle Ack (tag d) later
+        -- ConsumerId 1 is the one who took it / 受け取った本人
+        [Just d] -> settle [ConsumerId 1] Ack (tag d) later
                       `shouldBe` Left (UnknownTag (tag d))
         _        -> expectationFailure "expected one letter"
-    -- 何が起きても、手紙はなくならない
+    -- 持っていない受け手の返事は、断られる
+    it "refuses an answer from a consumer without the letter" $ do
+      let (me, b1)    = surely (subscribe "jobs" (surely cursedPost))
+          (other, b2) = surely (subscribe "jobs" b1)
+      case surely (takeNext me 1 "jobs" b2) of
+        (Just d, b3) -> settle [other] Ack (tag d) b3
+                          `shouldBe` Left (UnknownTag (tag d))
+        _            -> expectationFailure "expected one letter"
+    -- 行き先の部屋がある伝令所なら、何が起きても、手紙はなくならない
     it "never loses a letter, whatever happens" $
       forAll (listOf arbitrary) $ \events ->
         let end = foldl' play morning events
@@ -127,6 +138,19 @@ main = hspec $ do
           timeout 200000 (nextDelivery c) `shouldReturn` Nothing
           answerWith Ack c first
           fmap (body . message) (nextDelivery c) `shouldReturn` "Second"
+    -- ほかのつながりが持っている手紙には、返事ができない
+    it "refuses an answer to a letter held by another connection" $
+      withServer $ \port -> do
+        setUp port
+        withClient port $ \a -> do
+          _ <- request a (Consume "jobs" 1)
+          d <- nextDelivery a
+          withClient port $ \b ->
+            timeout 1000000 (request b (Settle Ack (tag d)))
+              `shouldReturn` Just (Refused "unknown tag: 1")
+        withClient port $ \c -> do             -- A hung up, no answer
+          _ <- request c (Consume "jobs" 1)
+          fmap redelivered (nextDelivery c) `shouldReturn` True
     -- 3回 REQUEUE された手紙は、dead-letters に届く
     it "moves a letter that keeps failing to dead-letters" $
       withServer $ \port -> do
@@ -143,11 +167,22 @@ main = hspec $ do
 
   -- 「トレーニング」
   describe "answers" $ do
+    -- 配れなかった手紙を、仕事に戻す
     it "revive sends the dead letters back to work" $ do
       let (_, dead) = surely (answerEach (replicate 3 Requeue)
                                          (surely cursedPost))
       fmap waiting (revive dead)
         `shouldBe` Right [("dead-letters", 0), ("jobs", 1)]
+    -- 送り直す先がない手紙は、部屋に残す
+    it "revive keeps a letter that has nowhere to go" $ do
+      let lost = do
+            b1 <- bind "side" "" "dead-letters"
+                    ( declareExchange "side" Fanout
+                    $ declareExchange "quests" Direct
+                    $ declareQueue "dead-letters" plainQueue emptyBroker )
+            snd <$> publish "side" (Message "lost" "Find the ring") b1
+      fmap waiting (lost >>= revive) `shouldBe` Right [("dead-letters", 1)]
+    -- 同じ手紙が2回来ても、仕事は1回
     it "onlyOnce does a job once" $ do
       doneRef <- newIORef Set.empty
       count <- newIORef (0 :: Int)

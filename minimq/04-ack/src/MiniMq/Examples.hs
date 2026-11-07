@@ -52,7 +52,7 @@ answerOnce how broker = do
   case got of
     Nothing       -> pure (Nothing, broker2)
     Just delivery -> do
-      broker3 <- settle how (tag delivery) broker2
+      broker3 <- settle [who] how (tag delivery) broker2
       pure (got, broker3)
 
 -- 🔁 One consumer after another, each answering as told.

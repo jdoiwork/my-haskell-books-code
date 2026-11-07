@@ -17,8 +17,16 @@ import MiniMq.Types
 -- ANCHOR: onlyOnce
 -- 🔂 Step 2: a letter may come twice, so remember what was done and do
 --    each job only once. (Here the body itself is the job's name.)
+--    It keeps this promise only in one process, one letter at a time,
+--    for jobs that finished. It breaks if the job throws after its work
+--    is done (the job runs again), if two threads ask at once (both see
+--    "not yet"), or if the consumer restarts (the set is gone).
 -- ステップ2：同じ手紙が2回来ることがあるので、終えた仕事を覚えておき、
--- 1つの仕事は1回だけする（ここでは、本文そのものが仕事の名前）
+-- 1つの仕事は1回だけする（ここでは、本文そのものが仕事の名前）。
+-- この約束を守れるのは、1つのプロセスで、1通ずつ順に、最後まで
+-- 終わった仕事だけ。仕事が済んだあとで例外が出たら（もう一度動く）、
+-- 2つのスレッドが同時に来たら（どちらも「まだ」と読む）、受け手が
+-- 起動し直したら（集合ごと消える）、守れない
 onlyOnce :: IORef (Set Text) -> (Text -> IO ()) -> Delivery -> IO ()
 onlyOnce doneRef job delivery = do
   let name = body (message delivery)
@@ -32,9 +40,11 @@ onlyOnce doneRef job delivery = do
 
 -- ANCHOR: revive
 -- 🧪 Step 3: take every letter out of "dead-letters" and send it to the
---    "quests" desk again, answering Ack for each one.
+--    "quests" desk again. Only when it got somewhere, answer Ack. When
+--    it would go nowhere, stop and leave it (and the rest) in the room.
 -- ステップ3：dead-letters の手紙を全部取り出し、quests の仕分け台へ
--- もう一度送る。1通ごとに Ack と返事をする
+-- もう一度送る。どこかに届いたときだけ、Ack と返事をする。どこにも
+-- 届かないなら、そこでやめて、その手紙（と残り）を部屋に残す
 revive :: Broker -> Either BrokerError Broker
 revive broker = do
   (who, start) <- subscribe "dead-letters" broker
@@ -43,9 +53,10 @@ revive broker = do
         case got of
           Nothing -> pure b1
           Just d  -> do
-            b2 <- settle Ack (tag d) b1
-            (_, b3) <- publish "quests" (message d) b2
-            loop b3
+            (outcome, b2) <- publish "quests" (message d) b1
+            case outcome of
+              Routed _   -> settle [who] Ack (tag d) b2 >>= loop
+              Unroutable -> pure b      -- before it was taken out
   loop start
 -- ANCHOR_END: revive
 -- ANCHOR_END: all

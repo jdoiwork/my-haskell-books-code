@@ -105,10 +105,12 @@ data Reply
   | Quiet
   | Joined ConsumerId QueueName Int
 
--- 📬 Answer one request, in one transaction.
--- 頼みごとに1つ答える。1つの取引で
-answer :: Env -> Request -> STM Reply
-answer env request = attempt `catchSTM` (pure . Say . refuse)
+-- 📬 Answer one request, in one transaction. `mine` are this line's
+--    consumers: an answer may only settle a letter one of them holds.
+-- 頼みごとに1つ答える。1つの取引で。mine は、このつながりの受け手たち。
+-- 返事で片付けられるのは、その誰かが持っている手紙だけ
+answer :: Env -> [ConsumerId] -> Request -> STM Reply
+answer env mine request = attempt `catchSTM` (pure . Say . refuse)
   where
     attempt = case request of
       DeclareQueue q how    -> Say Ok <$ modify env (declareQueue q how)
@@ -117,7 +119,7 @@ answer env request = attempt `catchSTM` (pure . Say . refuse)
       Publish e m           -> Say . sent <$> step env (publish e m)
       Consume q limit       -> (\who -> Joined who q limit)
                                  <$> step env (subscribe q)
-      Settle how number     -> Quiet <$ change (settle how number)
+      Settle how number     -> Quiet <$ change (settle mine how number)
     change core = step env (fmap ((),) . core)
     sent (Routed qs) = RoutedTo (length qs)
     sent Unroutable  = NoRoute
@@ -171,7 +173,8 @@ serveClient env conn = do
       let tell = atomically . post outbox
           readLoop spawn = receive conn >>= \case
             Got request -> do
-              reply <- atomically (answer env request)
+              ids   <- readIORef mine       -- only this reader writes it
+              reply <- atomically (answer env ids request)
               safelyWritten env      -- 💾 say nothing before it is on disk
               case reply of
                 Say response -> tell response

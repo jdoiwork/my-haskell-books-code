@@ -72,10 +72,12 @@ data Reply
   | Quiet
   | Joined ConsumerId QueueName Int
 
--- 📬 Answer one request, in one transaction.
--- 頼みごとに1つ答える。1つの取引で
-answer :: TVar Broker -> Request -> STM Reply
-answer var request = attempt `catchSTM` (pure . Say . refuse)
+-- 📬 Answer one request, in one transaction. `mine` are this line's
+--    consumers: an answer may only settle a letter one of them holds.
+-- 頼みごとに1つ答える。1つの取引で。mine は、このつながりの受け手たち。
+-- 返事で片付けられるのは、その誰かが持っている手紙だけ
+answer :: TVar Broker -> [ConsumerId] -> Request -> STM Reply
+answer var mine request = attempt `catchSTM` (pure . Say . refuse)
   where
     attempt = case request of
       DeclareQueue q how    -> Say Ok <$ modifyTVar' var (declareQueue q how)
@@ -85,7 +87,7 @@ answer var request = attempt `catchSTM` (pure . Say . refuse)
       Publish e m           -> Say . sent <$> step var (publish e m)
       Consume q limit       -> (\who -> Joined who q limit)
                                  <$> step var (subscribe q)
-      Settle how number     -> Quiet <$ change (settle how number)
+      Settle how number     -> Quiet <$ change (settle mine how number)
     change core = step var (fmap ((),) . core)
     sent (Routed qs) = RoutedTo (length qs)
     sent Unroutable  = NoRoute
@@ -140,7 +142,8 @@ serveClient (Env var) conn = do
       let tell = atomically . post outbox
           readLoop spawn = receive conn >>= \case
             Got request -> do
-              reply <- atomically (answer var request)
+              ids   <- readIORef mine       -- only this reader writes it
+              reply <- atomically (answer var ids request)
               case reply of
                 Say response -> tell response
                 Quiet        -> pure ()

@@ -166,16 +166,20 @@ holding who = length . filter ((== who) . holder) . Map.elems . pending
 -- ANCHOR_END: take
 
 -- ANCHOR: settle
--- ✅ A consumer answers. The letter leaves the book, and then:
---    Ack forgets it; Requeue puts it back at the front, unless it has
---    used up its tries; Reject gives it up at once.
--- 受け手が返事をする。手紙は帳面から出て、それから：
--- Ack なら忘れる。Requeue なら先頭に戻す（試せる回数を使い切って
--- いなければ）。Reject なら、すぐにあきらめる
-settle :: Settlement -> Tag -> Broker -> Either BrokerError Broker
-settle how number broker = do
-  held <- maybe (Left (UnknownTag number)) Right
-                (Map.lookup number (pending broker))
+-- ✅ A consumer answers. `mine` are the consumers on the line that
+--    answers: only a letter one of them holds can be answered. Then the
+--    letter leaves the book, and: Ack forgets it; Requeue puts it back
+--    at the front, unless it has used up its tries; Reject gives it up.
+-- 受け手が返事をする。mine は、返事をしたつながりの受け手たち。その
+-- 誰かが持っている手紙にだけ、返事ができる。手紙は帳面から出て、
+-- それから：Ack なら忘れる。Requeue なら先頭に戻す（試せる回数を
+-- 使い切っていなければ）。Reject なら、すぐにあきらめる
+settle :: [ConsumerId] -> Settlement -> Tag -> Broker
+       -> Either BrokerError Broker
+settle mine how number broker = do
+  held <- case Map.lookup number (pending broker) of
+    Just p | holder p `elem` mine -> Right p
+    _                             -> Left (UnknownTag number)
   let broker' = broker { pending = Map.delete number (pending broker) }
   pure $ case how of
     Ack                          -> finish held broker'
@@ -189,10 +193,10 @@ settle how number broker = do
 -- 受け手がいなくなった：持っていた手紙は全部、Requeue と言われたように
 -- 戻る（受け手を何度も倒す手紙も、いずれ回数を使い切る）
 abandon :: ConsumerId -> Broker -> Broker
-abandon who broker = foldl' requeue broker (reverse (Map.keys mine))
+abandon who broker = foldl' requeue broker (reverse (Map.keys theirs))
   where
-    mine = Map.filter ((== who) . holder) (pending broker)
-    requeue b number = either (const b) id (settle Requeue number b)
+    theirs = Map.filter ((== who) . holder) (pending broker)
+    requeue b number = either (const b) id (settle [who] Requeue number b)
 -- ANCHOR_END: settle
 
 -- ANCHOR: deadletter
@@ -206,9 +210,12 @@ usedUp held broker =
     _ -> False
 
 -- 🪦 Give a letter up: send it to the queue's dead-letter exchange, as
---    a fresh letter. With no such exchange, it is simply dropped.
+--    a fresh letter. It is dropped, just as in RabbitMQ, when the queue
+--    names no such exchange, when that exchange does not exist, or when
+--    the exchange sends it nowhere (no binding fits).
 -- 手紙をあきらめる：キューの「配れなかった手紙」の交換所へ、新しい手紙と
--- して送る。その交換所がなければ、ただ捨てる
+-- して送る。次の3つのときは、RabbitMQ と同じく、捨てる：キューに
+-- 行き先の設定がない、その交換所がない、結び付けがなく、どこにも届かない
 giveUp :: Pending -> Broker -> Broker
 giveUp held broker =
   case lookupQueue (fromQ held) broker of

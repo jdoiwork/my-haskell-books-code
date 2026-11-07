@@ -44,7 +44,7 @@ day events = go events [] start []
         (Just d, b) -> go es (tag d : held) b written
         (Nothing, b) -> go es held b written
       Answer how -> case held of
-        t : rest -> go es rest (surely (settle how t broker)) written
+        t : rest -> go es rest (surely (settle [who] how t broker)) written
         []       -> go es held broker written
       Leave -> go es [] (abandon who broker) written
     job = Message "job" "Slay the slime"
