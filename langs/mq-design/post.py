@@ -1,7 +1,6 @@
 # The guild's post office in Python, for the chapter
 # "Design: a message broker as types".
 # 「設計：メッセージブローカーを型で描く」の章の、ギルドの伝令所を Python で
-from collections import deque
 
 morning = [
     ("dragon", "A red dragon at the north gate"),
@@ -42,6 +41,8 @@ assert queues["herb-team"] == ["Ten moon herbs, please"]
 # ANCHOR: functional
 # Python (functional style: a comprehension, and deque for the queues)
 # Python（関数型スタイル：内包表記と、キューには deque）
+from collections import deque
+
 bindings = [("dragon", "dragon-team"), ("herb", "herb-team")]
 queues = {"dragon-team": deque(), "herb-team": deque()}
 
