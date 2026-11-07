@@ -3,7 +3,7 @@ name:          review-search
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第VII部のふりかえり」の総合トレーニング：もしかして（did you mean）
+-- 「第7部のふりかえり」の総合トレーニング：もしかして（did you mean）
 
 common shared
   default-language: GHC2024

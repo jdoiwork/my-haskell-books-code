@@ -20,7 +20,7 @@ spec = describe "Algo.Divide" $ do
   it "inversions agrees with the spec" $ property $ \xs ->
     inversions xs === inversionsSpec (xs :: [Int])
   -- ANCHOR: monoidProps
-  -- Monoid でまとめても、第VI部の最初の章の仕様と同じ答え
+  -- Monoid でまとめても、第6部の最初の章の仕様と同じ答え
   it "bestRunDC agrees with the spec" $ property $ \xs ->
     bestRunDC xs === bestRun0 xs
   -- どこで分けても、まとめた答えは同じ（結合法則）

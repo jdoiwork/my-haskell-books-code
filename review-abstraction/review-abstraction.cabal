@@ -3,7 +3,7 @@ name:          review-abstraction
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第V部のふりかえり」の総合トレーニング：ギルドの帳簿
+-- 「第5部のふりかえり」の総合トレーニング：ギルドの帳簿
 
 common shared
   default-language: GHC2024

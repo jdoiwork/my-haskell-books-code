@@ -3,7 +3,7 @@ name:          review-performance
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第IV部のふりかえり」の総合トレーニングのコード
+-- 「第4部のふりかえり」の総合トレーニングのコード
 
 common shared
   default-language: GHC2024

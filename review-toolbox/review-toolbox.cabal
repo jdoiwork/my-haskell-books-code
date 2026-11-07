@@ -3,7 +3,7 @@ name:          review-toolbox
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第II部のふりかえり」の総合トレーニングのコード
+-- 「第2部のふりかえり」の総合トレーニングのコード
 
 common shared
   default-language: GHC2024

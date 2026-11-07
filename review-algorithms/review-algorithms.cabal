@@ -3,7 +3,7 @@ name:          review-algorithms
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第VI部のふりかえり」の総合トレーニング：報酬の多い依頼の選び方
+-- 「第6部のふりかえり」の総合トレーニング：報酬の多い依頼の選び方
 
 common shared
   default-language: GHC2024

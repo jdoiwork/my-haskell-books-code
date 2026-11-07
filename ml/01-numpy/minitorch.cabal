@@ -3,7 +3,7 @@ name:          minitorch
 version:       0.1.0.0
 build-type:    Simple
 
--- 第VIII部 Python の機械学習ライブラリを Haskell で作る
+-- 第8部 Python の機械学習ライブラリを Haskell で作る
 -- （1. NumPy 風の配列ライブラリを作る）
 
 common shared

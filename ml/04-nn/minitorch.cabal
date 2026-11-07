@@ -3,7 +3,7 @@ name:          minitorch
 version:       0.4.0.0
 build-type:    Simple
 
--- 第VIII部 Python の機械学習ライブラリを Haskell で作る
+-- 第8部 Python の機械学習ライブラリを Haskell で作る
 -- （4. PyTorch 風にニューラルネットワークを組む）
 
 common shared

@@ -3,7 +3,7 @@ name:          review-interpreter
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第VIII部のふりかえり」の総合トレーニング：Lam の最適化
+-- 「第8部のふりかえり」の総合トレーニング：Lam の最適化
 
 common shared
   default-language: GHC2024

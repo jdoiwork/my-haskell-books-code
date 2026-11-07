@@ -3,7 +3,7 @@ name:          minitorch
 version:       0.3.0.0
 build-type:    Simple
 
--- 第VIII部 Python の機械学習ライブラリを Haskell で作る
+-- 第8部 Python の機械学習ライブラリを Haskell で作る
 -- （3. PyTorch の autograd 風に自動微分を作る）
 
 common shared

@@ -3,7 +3,7 @@ name:          review-modern
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第XIII部のふりかえり」の総合トレーニング：圏外でも使える依頼板
+-- 「第13部のふりかえり」の総合トレーニング：圏外でも使える依頼板
 
 common shared
   default-language: GHC2024

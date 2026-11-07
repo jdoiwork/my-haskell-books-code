@@ -3,7 +3,7 @@ name:          review-first-steps
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第I部のふりかえり」の章のコード（総合トレーニング：戦利品の鑑定所）
+-- 「第1部のふりかえり」の章のコード（総合トレーニング：戦利品の鑑定所）
 
 common shared
   default-language: GHC2024

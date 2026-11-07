@@ -3,7 +3,7 @@ name:          algo-book
 version:       0.1.0.0
 build-type:    Simple
 
--- 第VI部「アルゴリズムを Haskell らしく」のコード（章ごとにモジュール Algo.*）
+-- 第6部「アルゴリズムを Haskell らしく」のコード（章ごとにモジュール Algo.*）
 
 common shared
   default-language: GHC2024

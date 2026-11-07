@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 -- ANCHOR: all
 -- | Answers to the training of Part VI.
--- 第VI部のトレーニングの解答
+-- 第6部のトレーニングの解答
 module AlgoAnswers
   ( bestRunNonEmpty
   , bestRunWhere

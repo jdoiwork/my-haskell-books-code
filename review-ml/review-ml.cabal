@@ -3,7 +3,7 @@ name:          review-ml
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第IX部のふりかえり」の総合トレーニング：Momentum と Adam
+-- 「第9部のふりかえり」の総合トレーニング：Momentum と Adam
 
 common shared
   default-language: GHC2024

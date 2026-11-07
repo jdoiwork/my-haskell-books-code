@@ -3,7 +3,7 @@ name:          review-db-web
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第III部のふりかえり」の総合トレーニングのコード
+-- 「第3部のふりかえり」の総合トレーニングのコード
 
 common shared
   default-language: GHC2024

@@ -1,7 +1,7 @@
 # The Python code of the Part VIII review: the digit network trained for
 # 100 steps with torch.optim's SGD, SGD with momentum, and Adam.
 # The data and the first weights are the same as the Haskell version.
-# 第VIII部のふりかえりの Python のコード：数字のネットワークを、
+# 第8部のふりかえりの Python のコード：数字のネットワークを、
 # torch.optim の SGD、Momentum 付きの SGD、Adam で 100 歩ずつ学ばせる。
 # データと最初の重みは、Haskell 版と同じ
 import math

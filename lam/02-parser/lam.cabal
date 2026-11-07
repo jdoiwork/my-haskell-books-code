@@ -3,7 +3,7 @@ name:          lam
 version:       0.2.0.0
 build-type:    Simple
 
--- 第VII部 プログラミング言語を作る（2. パーサーを書く）
+-- 第7部 プログラミング言語を作る（2. パーサーを書く）
 
 common shared
   default-language: GHC2024

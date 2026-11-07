@@ -3,7 +3,7 @@ name:          minikv
 version:       0.3.0.0
 build-type:    Simple
 
--- 第IX部 総合演習4：型に厳しいインメモリデータベースを作る
+-- 第9部 総合演習4：型に厳しいインメモリデータベースを作る
 -- （3. TCP サーバーにする）
 
 common shared

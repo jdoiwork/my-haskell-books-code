@@ -3,7 +3,7 @@ name:          review-minimq
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第XI部のふりかえり」の総合トレーニング：ギルドの依頼の割り振り
+-- 「第11部のふりかえり」の総合トレーニング：ギルドの依頼の割り振り
 
 common shared
   default-language: GHC2024
