@@ -1,7 +1,6 @@
 -- Sharing gold, checked by Liquid Haskell, for the chapter
 -- "Type-level programming".
 -- ゴールドの山分けを、Liquid Haskell で確かめる。「型レベルプログラミング入門」の章
-{-# OPTIONS_GHC -fplugin=LiquidHaskell #-}
 module Share where
 
 -- ANCHOR: share

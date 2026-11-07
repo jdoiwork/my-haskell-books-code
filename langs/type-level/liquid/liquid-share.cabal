@@ -1,0 +1,16 @@
+cabal-version:   3.0
+name:            liquid-share
+version:         0.1.0.0
+synopsis:        Liquid Haskell, for the chapter "Type-level programming"
+license:         MIT
+build-type:      Simple
+
+-- Liquid Haskell runs as a GHC plugin while this library compiles.
+-- ShareZero.hs is not listed: check-langs.sh checks that it is rejected.
+-- このライブラリをコンパイルするとき、Liquid Haskell が GHC のプラグインとして動く。
+-- ShareZero.hs は入れない（止められることを、check-langs.sh が確かめる）
+library
+  exposed-modules:  Share
+  build-depends:    base, liquidhaskell ^>=0.9.14
+  ghc-options:      -Wall -fplugin=LiquidHaskell
+  default-language: GHC2024

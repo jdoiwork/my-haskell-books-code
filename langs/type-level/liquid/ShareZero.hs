@@ -3,7 +3,6 @@
 -- check-langs.sh expects this file to fail.
 -- Liquid Haskell が止めるはずの呼び出し（0 > 0 ではない）。
 -- check-langs.sh は、このファイルが失敗することを確かめる
-{-# OPTIONS_GHC -fplugin=LiquidHaskell #-}
 module ShareZero where
 
 import Share
