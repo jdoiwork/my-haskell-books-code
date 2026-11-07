@@ -1,3 +1,4 @@
+-- ANCHOR: header
 {-# LANGUAGE DeriveAnyClass #-}
 -- ANCHOR: all
 -- | The types of minimq: names, messages, bindings, and what can happen.
@@ -29,6 +30,7 @@ import GHC.Generics (Generic)
 import Data.List.NonEmpty (NonEmpty)
 import Data.String (IsString)
 import Data.Text (Text)
+-- ANCHOR_END: header
 
 -- ANCHOR: names
 -- 📛 Three kinds of names. All of them are text inside, but the compiler

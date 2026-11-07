@@ -166,6 +166,7 @@ settleWord Ack     = "ACK"
 settleWord Requeue = "REQUEUE"
 settleWord Reject  = "REJECT"
 
+-- ANCHOR: settingsP
 -- ⚙️ Settings are optional words:
 --    "QUEUE jobs dead=undeliverable limit=3", "QUEUE scratch transient".
 -- 設定は、なくてもよい単語：
@@ -181,6 +182,7 @@ settingsB (QueueSettings dead limit lasting) =
   [ "dead="  <> nameB e  | Just e <- [dead]  ] ++
   [ "limit=" <> intDec n | Just n <- [limit] ] ++
   [ "transient"          | lasting == Transient ]
+-- ANCHOR_END: settingsP
 
 -- 📨 "DELIVER 7 again quest.dragon 5\nhello": the tag, whether it is
 --    a second try, and the letter.

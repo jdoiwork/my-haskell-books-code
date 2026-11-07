@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | The pure core, now with answers: a handed-out letter is kept until
 --   its consumer says it is done.
 -- 純粋な核。返事つきになった：渡した手紙は、受け手が「終わった」と
@@ -34,6 +35,7 @@ import qualified Data.Set as Set
 
 import MiniMq.Routing
 import MiniMq.Types
+-- ANCHOR_END: header
 
 -- ANCHOR: broker
 -- 🏤 The post office. New: each queue has its settings, and there is
@@ -78,11 +80,12 @@ data Pending = Pending
   , envelope :: Envelope
   }
   deriving (Show, Eq)
--- ANCHOR_END: broker
 
 emptyBroker :: Broker
 emptyBroker = Broker Map.empty Map.empty Map.empty 1 1 1 []
+-- ANCHOR_END: broker
 
+-- ANCHOR: declare
 -- 🏗️ Declaring is safe to repeat: what already exists is kept as it is.
 -- 作るのは、何度やってもよい。もうあるものは、そのまま残す
 declareQueue :: QueueName -> QueueSettings -> Broker -> Broker
@@ -108,6 +111,7 @@ bind name key queue broker = do
       addRule exchange = exchange { rules = rules exchange ++ [rule] }
   pure $ noteFor queue (Bound name key queue)
          broker { exchanges = Map.adjust addRule name (exchanges broker) }
+-- ANCHOR_END: declare
 
 -- 🔍 Find a desk or a mailbox, or say which one is missing.
 -- 仕分け台か郵便受けを探す。なければ、どれがないかを言う
@@ -122,6 +126,7 @@ findQueue name = maybe (Left (NoSuchQueue name)) Right
 lookupQueue :: QueueName -> Broker -> Either BrokerError QueueSettings
 lookupQueue name broker = settings <$> findQueue name broker
 
+-- ANCHOR: publish
 -- 📮 Sort one letter: a fresh envelope for each queue it goes to.
 -- 手紙を1通仕分ける：届くキューごとに、新しい封筒に入れて
 publish :: ExchangeName -> Message -> Broker
@@ -131,6 +136,7 @@ publish name message broker = do
   pure $ case nonEmpty (route exchange (routingKey message)) of
     Nothing -> (Unroutable, broker)
     Just qs -> (Routed qs, foldr (store message) broker qs)
+-- ANCHOR_END: publish
 
 -- ANCHOR: take
 -- 🙋 A new consumer for a queue gets its own number.
@@ -320,7 +326,6 @@ letters broker = [ (q, letter env) | (q, env) <- letters' broker ]
 
 -- 📥 Put an envelope back at the front of its queue.
 -- 封筒を、キューの先頭に戻す
-
 atFront :: Pending -> Broker -> Broker
 atFront held = overReady (fromQ held) (envelope held <|)
 

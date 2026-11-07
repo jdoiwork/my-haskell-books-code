@@ -6,6 +6,7 @@ build-type:    Simple
 -- 総合演習：RabbitMQ 風のメッセージブローカーを作る
 -- （6. 永続化：届いていないメッセージを失わない）
 
+-- ANCHOR: library
 common shared
   default-language: GHC2024
   default-extensions: OverloadedStrings
@@ -38,6 +39,7 @@ library
                     MiniMq.Journal
                     MqAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: library
 
 -- ANCHOR: exe
 executable minimq-server
@@ -49,6 +51,7 @@ executable minimq-server
     , minimq
 -- ANCHOR_END: exe
 
+-- ANCHOR: test
 test-suite minimq-test
   import:           shared
   type:             exitcode-stdio-1.0
@@ -63,3 +66,4 @@ test-suite minimq-test
     , process          ^>=1.6
     , hspec            ^>=2.11
     , QuickCheck       ^>=2.19
+-- ANCHOR_END: test

@@ -19,22 +19,25 @@ module MiniMq.Server
   , withServerAt
   ) where
 
+-- ANCHOR: imports
 import Control.Concurrent (forkFinally, forkIO, killThread)
-import Control.Concurrent.Async (async, cancel, concurrently_, withAsync)
+import Control.Concurrent.Async (async, cancel, concurrently_, link,
+                                 withAsync)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally, mask)
-import System.IO (IOMode (..), withFile)
 import Control.Monad (forever)
 import Data.IORef
 import qualified Data.Text as T
 import Network.Socket hiding (bind)
 import qualified Network.Socket as Socket
+import System.IO (IOMode (..), withFile)
 
 import MiniMq.Broker
 import MiniMq.Journal
 import MiniMq.Protocol
 import MiniMq.Types
 import MiniMq.Wire
+-- ANCHOR_END: imports
 
 -- ANCHOR: env
 -- 🎒 What the server carries: the broker, and now its journal.
@@ -45,15 +48,22 @@ data Env = Env
   }
 
 -- 📂 Read the journal (if any), build the broker from it, write it again
---    short, and keep a writer running while the server lives.
+--    short, and keep a writer running while the server lives. If the
+--    writer falls (a full disk, say), `link` makes the server fall too,
+--    with the reason, instead of waiting for the disk forever.
 -- 日誌（があれば）を読んでブローカーを作り直し、短く書き直してから、
--- サーバーが動いているあいだ、書き係を動かし続ける
+-- サーバーが動いているあいだ、書き係を動かし続ける。書き係が倒れたら
+-- （ディスクがいっぱい、など）、link で、サーバーも理由つきで倒れる。
+-- 来ない書き込みを、いつまでも待ったりしない
 withEnv :: Maybe FilePath -> (Env -> IO a) -> IO a
 withEnv path action = do
   broker <- maybe (pure emptyBroker) (fmap replay . loadJournal) path
   mapM_ (\file -> rewriteJournal file (compact broker)) path
   env <- Env <$> newTVarIO broker <*> newJournal
-  let run target = withAsync (writer target (journal env)) $ \_ -> action env
+  let run target =
+        withAsync (writer target (journal env)) $ \scribe -> do
+          link scribe
+          action env
   case path of
     Nothing   -> run Nothing
     Just file -> withFile file AppendMode (run . Just)
@@ -61,7 +71,8 @@ withEnv path action = do
 
 -- ANCHOR: step
 -- ⚛️ Run one step of the pure core on the shared broker, and hand the
---    notes it wrote to the journal, in the same transaction. If the core
+--    notes it wrote to the journal (as one line), in the same
+--    transaction. If the core
 --    says no, throw the error: the whole transaction is undone.
 -- 純粋な核の一歩を、みんなのブローカーで動かし、核が書いた覚え書きを、
 -- 同じ取引の中で日誌に手渡す。核が「だめ」と言ったら、エラーを投げる。
@@ -226,9 +237,12 @@ acceptLoop env server = forever $ do
   forkFinally (serveClient env conn) (\_ -> close client)
 
 -- 🧪 For tests: a server on a free port, stopped when the test ends.
---    With a journal file, stopping it is like pulling the plug.
+--    Stopping it cleans up as usual (the journal file is closed), so
+--    starting it again is a restart, not a pulled plug.
 -- テスト用：空いているポートで動き、テストが終わると止まるサーバー。
--- 日誌のファイルがあれば、止めるのは、電源を抜くのと同じ
+-- 止めるときは、いつもどおり後片付けをする（日誌のファイルも閉じる）。
+-- だから、もう一度起動するのは、電源を抜いたあとではなく、再起動
+
 withServerAt :: Maybe FilePath -> (PortNumber -> IO a) -> IO a
 withServerAt path action =
   withEnv path $ \env ->
