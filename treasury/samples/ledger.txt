@@ -1,0 +1,3 @@
+Lambda,120
+Python,300
+Rust,80

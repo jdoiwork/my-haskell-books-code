@@ -20,6 +20,7 @@ packages:
   review-first-steps
   guild
   registry
+  treasury
   debuglog
   libtour
   jsonbook

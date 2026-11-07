@@ -71,6 +71,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 |---|---|
 | cabal プロジェクトと開発環境 | [`guild/`](guild/)、[`cabal.project`](cabal.project) |
 | エラー処理 | [`registry/`](registry/)、[`langs/error-handling/`](langs/error-handling/) |
+| IO の例外をちゃんと扱う：bracket・finally・非同期例外 | [`treasury/`](treasury/)、[`langs/exceptions/`](langs/exceptions/) |
 | デバッグとログ：プログラムの中をのぞく | [`debuglog/`](debuglog/) |
 | 関数とドキュメントの探し方：Hoogle・Hackage・GHCi、そして AI | [`finding/`](finding/) |
 | よく使うライブラリ | [`libtour/`](libtour/) |

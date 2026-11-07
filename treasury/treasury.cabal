@@ -1,0 +1,43 @@
+cabal-version: 3.16
+name:          treasury
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「IO の例外をちゃんと扱う」の章のコード（ギルドの宝物庫の当番）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base       ^>=4.22.0.0
+    , containers ^>=0.8
+    , directory  ^>=1.3
+    , text       ^>=2.1
+
+-- The vault, the door, and the night watch.
+-- 宝物庫、扉、夜の見張り
+library
+  import:           shared
+  exposed-modules:
+    Door
+    TreasuryAnswers
+    Vault
+    Watch
+  hs-source-dirs:   src answers
+
+-- Close the books of the day.
+-- 1日の帳簿を締める
+executable close-books
+  import:           shared
+  main-is:          CloseBooks.hs
+  hs-source-dirs:   app
+  build-depends:    treasury
+
+-- Appraise the night's treasures, within a time limit.
+-- 夜の宝物を、時間を区切って鑑定する
+executable night-watch
+  import:           shared
+  ghc-options:      -threaded
+  main-is:          NightWatch.hs
+  hs-source-dirs:   app
+  build-depends:    treasury
