@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedRecordDot #-}
 -- replicateM: do the same IO action n times, and collect the results.
 -- replicateM：同じ IO を n 回くり返して、結果をリストにする
 import Control.Monad (replicateM)

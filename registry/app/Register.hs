@@ -1,6 +1,6 @@
+-- ANCHOR: all
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
--- ANCHOR: all
 module Main (main) where
 
 -- try: run an IO action, and turn its exception into a Left.

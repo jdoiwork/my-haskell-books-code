@@ -1,5 +1,5 @@
-{-# LANGUAGE QuasiQuotes #-}
 -- ANCHOR: all
+{-# LANGUAGE QuasiQuotes #-}
 -- | The smallest hsx: a greeting.
 -- いちばん小さな hsx：あいさつ
 module Hello (greeting) where

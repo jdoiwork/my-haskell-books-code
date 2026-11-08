@@ -1,6 +1,6 @@
+-- ANCHOR: all
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
--- ANCHOR: all
 module Main (main) where
 
 import Control.Exception

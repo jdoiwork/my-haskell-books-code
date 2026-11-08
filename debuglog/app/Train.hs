@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
 import Data.Text (Text)

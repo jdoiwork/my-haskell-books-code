@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | board-mcp: the quest board as an MCP server.
 --   The file of the board is the first argument (board.json if none).
 -- board-mcp：MCP サーバーになった依頼板。
