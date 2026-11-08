@@ -3,7 +3,7 @@ name:          modern-book
 version:       0.1.0.0
 build-type:    Simple
 
--- 第13部「いまどきのプログラミングと Haskell」のコード（章ごとにモジュール Modern.*）
+-- 第14部「いまどきのプログラミングと Haskell」のコード（章ごとにモジュール Modern.*）
 
 common shared
   default-language: GHC2024

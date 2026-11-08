@@ -3,7 +3,7 @@ name:          math-book
 version:       0.1.0.0
 build-type:    Simple
 
--- 第12部「プログラマーのための数学」のコード。章ごとにモジュールを分ける
+-- 第13部「プログラマーのための数学」のコード。章ごとにモジュールを分ける
 
 common shared
   default-language: GHC2024

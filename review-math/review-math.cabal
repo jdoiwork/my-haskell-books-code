@@ -3,7 +3,7 @@ name:          review-math
 version:       0.1.0.0
 build-type:    Simple
 
--- 「第12部のふりかえり」の総合トレーニング：公平なくじ引き
+-- 「第13部のふりかえり」の総合トレーニング：公平なくじ引き
 
 common shared
   default-language: GHC2024

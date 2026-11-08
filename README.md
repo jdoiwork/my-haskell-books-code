@@ -60,7 +60,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | deriving を使いこなす：Enum・Bounded・Read・Num | [`typeclasses/`](typeclasses/) |
 | 型クラスを作る：自分だけの資格 | [`typeclasses/`](typeclasses/)、[`langs/custom-type-classes/`](langs/custom-type-classes/) |
 | 動くプログラムを書く：IO と do でミニ RPG | [`minirpg/`](minirpg/)、[`minirpg/compare/`](minirpg/compare/)、[`langs/real-programs/`](langs/real-programs/) |
-| ファイルと引数：プログラムを外の世界とつなぐ | [`minirpg/`](minirpg/)、[`book-prelude/`](book-prelude/) |
+| ファイルと引数：プログラムを外の世界とつなぐ | [`minirpg/`](minirpg/)、[`cabal.project`](cabal.project)、[`book-prelude/`](book-prelude/) |
 | 集計する：Map で殿堂の成績表を作る | [`minirpg/`](minirpg/) |
 | 競技プログラミングの入出力：読んで、解いて、書く | [`cpintro/`](cpintro/)、[`langs/cp-io/`](langs/cp-io/) |
 | 第1部のふりかえり：ベースキャンプで地図を広げる | [`review-first-steps/`](review-first-steps/) |
@@ -89,7 +89,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | データベース入門：SQLite と sqlite-simple で CRUD | [`guilddb/`](guilddb/)、[`langs/database/`](langs/database/)、[`langs/cargo/`](langs/cargo/) |
 | データベースを育てる：表の関係、マイグレーション、トランザクション | [`guildquest/`](guildquest/)、[`langs/db-schema/`](langs/db-schema/) |
 | 型で SQL を守る：selda と ORM の世界 | [`guildtyped/`](guildtyped/)、[`dbcompare/`](dbcompare/)、[`langs/db-typed/`](langs/db-typed/)、[`langs/cargo/`](langs/cargo/) |
-| データベースをテストする | [`guildtest/`](guildtest/)、[`langs/db-testing/`](langs/db-testing/) |
+| データベースをテストする | [`guildtest/`](guildtest/)、[`guilddb/`](guilddb/)、[`cabal.project`](cabal.project)、[`langs/db-testing/`](langs/db-testing/) |
 | PostgreSQL へ：サーバーの DB とコンテナ | [`guildpg/`](guildpg/)、[`langs/db-postgres/`](langs/db-postgres/) |
 | hasql と rel8：PostgreSQL を型で使い倒す | [`guildrel8/`](guildrel8/)、[`langs/db-hasql/`](langs/db-hasql/) |
 | DB に縛られない設計：SQLite と PostgreSQL を切り替える | [`guilddesign/`](guilddesign/)、[`langs/db-design/`](langs/db-design/) |
@@ -147,11 +147,11 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 章 | コード |
 |---|---|
 | 設計：型でドメインを描く | [`minisearch/`](minisearch/)、[`minisearch/01-design/`](minisearch/01-design/)、[`langs/project-design/`](langs/project-design/) |
-| インデクサーを CLI ツールにする | [`minisearch/02-cli/`](minisearch/02-cli/)、[`langs/project-indexer-cli/`](langs/project-indexer-cli/) |
-| 検索 Web API を公開する | [`minisearch/03-api/`](minisearch/03-api/)、[`langs/project-search-api/`](langs/project-search-api/) |
-| 速くする | [`minisearch/04-fast/`](minisearch/04-fast/)、[`langs/project-performance/`](langs/project-performance/) |
-| 並行化する | [`minisearch/05-concurrent/`](minisearch/05-concurrent/)、[`langs/project-concurrency/`](langs/project-concurrency/) |
-| 設計を磨く | [`minisearch/06-architecture/`](minisearch/06-architecture/)、[`langs/project-architecture/`](langs/project-architecture/) |
+| インデクサーを CLI ツールにする | [`minisearch/02-cli/`](minisearch/02-cli/)、[`minisearch/01-design/`](minisearch/01-design/)、[`langs/project-indexer-cli/`](langs/project-indexer-cli/) |
+| 検索 Web API を公開する | [`minisearch/03-api/`](minisearch/03-api/)、[`minisearch/02-cli/`](minisearch/02-cli/)、[`langs/project-search-api/`](langs/project-search-api/) |
+| 速くする | [`minisearch/04-fast/`](minisearch/04-fast/)、[`minisearch/03-api/`](minisearch/03-api/)、[`langs/project-performance/`](langs/project-performance/) |
+| 並行化する | [`minisearch/05-concurrent/`](minisearch/05-concurrent/)、[`minisearch/04-fast/`](minisearch/04-fast/)、[`langs/project-concurrency/`](langs/project-concurrency/) |
+| 設計を磨く | [`minisearch/06-architecture/`](minisearch/06-architecture/)、[`minisearch/05-concurrent/`](minisearch/05-concurrent/)、[`langs/project-architecture/`](langs/project-architecture/) |
 | 第7部のふりかえり | [`minisearch/06-architecture/`](minisearch/06-architecture/)、[`review-search/`](review-search/) |
 
 ### 第8部 総合演習2：プログラミング言語を作る
@@ -172,7 +172,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | NumPy 風の配列ライブラリを作る | [`ml/`](ml/)、[`ml/01-numpy/`](ml/01-numpy/)、[`langs/ml-numerics/`](langs/ml-numerics/) |
 | scikit-learn 風に回帰と分類を作る | [`ml/02-sklearn/`](ml/02-sklearn/)、[`langs/ml-regression/`](langs/ml-regression/) |
 | PyTorch の autograd 風に自動微分を作る | [`ml/03-autograd/`](ml/03-autograd/)、[`langs/ml-autodiff/`](langs/ml-autodiff/) |
-| PyTorch 風にニューラルネットワークを組む | [`ml/04-nn/`](ml/04-nn/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
+| PyTorch 風にニューラルネットワークを組む | [`ml/04-nn/`](ml/04-nn/)、[`ml/`](ml/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
 | 型で次元を守る | [`ml/05-typed/`](ml/05-typed/)、[`langs/ml-typed-tensors/`](langs/ml-typed-tensors/) |
 | 第9部のふりかえり | [`ml/05-typed/`](ml/05-typed/)、[`review-ml/`](review-ml/)、[`langs/review-ml/`](langs/review-ml/) |
 
@@ -181,12 +181,12 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 章 | コード |
 |---|---|
 | 設計：値とコマンドを型で描く | [`minikv/01-design/`](minikv/01-design/)、[`langs/kv-design/`](langs/kv-design/) |
-| プロトコルとパーサー | [`minikv/02-protocol/`](minikv/02-protocol/)、[`langs/kv-protocol/`](langs/kv-protocol/) |
-| TCP サーバーにする | [`minikv/03-server/`](minikv/03-server/)、[`langs/kv-server/`](langs/kv-server/) |
+| プロトコルとパーサー | [`minikv/02-protocol/`](minikv/02-protocol/)、[`minikv/01-design/`](minikv/01-design/)、[`langs/kv-protocol/`](langs/kv-protocol/) |
+| TCP サーバーにする | [`minikv/03-server/`](minikv/03-server/)、[`minikv/02-protocol/`](minikv/02-protocol/)、[`langs/kv-server/`](langs/kv-server/) |
 | 期限切れと時計 | [`minikv/04-expiry/`](minikv/04-expiry/)、[`langs/kv-expiry/`](langs/kv-expiry/) |
 | 永続化：落ちても戻れる | [`minikv/05-persist/`](minikv/05-persist/)、[`langs/kv-persistence/`](langs/kv-persistence/) |
-| Pub/Sub とブロッキング | [`minikv/06-pubsub/`](minikv/06-pubsub/)、[`langs/kv-pubsub/`](langs/kv-pubsub/) |
-| 型に厳しいクライアント | [`minikv/07-client/`](minikv/07-client/)、[`langs/kv-typed-client/`](langs/kv-typed-client/) |
+| Pub/Sub とブロッキング | [`minikv/06-pubsub/`](minikv/06-pubsub/)、[`minikv/05-persist/`](minikv/05-persist/)、[`langs/kv-pubsub/`](langs/kv-pubsub/) |
+| 型に厳しいクライアント | [`minikv/07-client/`](minikv/07-client/)、[`minikv/06-pubsub/`](minikv/06-pubsub/)、[`langs/kv-typed-client/`](langs/kv-typed-client/) |
 | 第10部のふりかえり | [`minikv/07-client/`](minikv/07-client/)、[`review-minikv/`](review-minikv/) |
 
 ### 第11部 総合演習5：RabbitMQ 風のメッセージブローカーを作る
@@ -199,10 +199,10 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 受け取りの確認と配り直し | [`minimq/04-ack/`](minimq/04-ack/)、[`langs/mq-ack/`](langs/mq-ack/) |
 | 監督役：落ちても立ち直る | [`minimq/05-supervisor/`](minimq/05-supervisor/)、[`langs/mq-supervisor/`](langs/mq-supervisor/) |
 | 永続化：届いていないメッセージを失わない | [`minimq/06-persist/`](minimq/06-persist/)、[`langs/mq-persistence/`](langs/mq-persistence/) |
-| 型に厳しいクライアント：Erlang くん・Elixir くんと並べて | [`minimq/07-client/`](minimq/07-client/)、[`langs/mq-typed-client/`](langs/mq-typed-client/) |
-| 第11部のふりかえり：手紙を一通も落とさない伝令所 | [`review-minimq/`](review-minimq/) |
+| 型に厳しいクライアント：Erlang くん・Elixir くんと並べて | [`minimq/07-client/`](minimq/07-client/)、[`minimq/06-persist/`](minimq/06-persist/)、[`langs/mq-typed-client/`](langs/mq-typed-client/) |
+| 第11部のふりかえり：手紙を一通も落とさない伝令所 | [`minimq/01-design/`](minimq/01-design/)、[`review-minimq/`](review-minimq/) |
 
-### 第12部 プログラマーのための数学
+### 第13部 プログラマーのための数学
 
 | 章 | コード |
 |---|---|
@@ -217,22 +217,22 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | ベクトルと行列：たくさんの数をまとめて動かす | [`math/`](math/)、[`langs/math-vectors/`](langs/math-vectors/) |
 | 微分と勾配：坂道を下って答えを探す | [`math/`](math/)、[`langs/math-calculus/`](langs/math-calculus/) |
 | 結合法則とモノイド：分けて計算してよい理由 | [`math/`](math/)、[`langs/math-algebra/`](langs/math-algebra/) |
-| 第12部のふりかえり | [`math/`](math/)、[`review-math/`](review-math/) |
+| 第13部のふりかえり | [`math/`](math/)、[`review-math/`](review-math/) |
 
-### 第13部 いまどきのプログラミングと Haskell
+### 第14部 いまどきのプログラミングと Haskell
 
 | 章 | コード |
 |---|---|
-| 言語の地図：Haskell の親戚と、新しい言語たち | [`modern/`](modern/) |
+| 言語の地図：Haskell の親戚と、新しい言語たち | [`modern/`](modern/)、[`langs/modern-language-map/`](langs/modern-language-map/) |
 | 代数的データ型とパターンマッチは、どこにでもある | [`modern/`](modern/)、[`langs/modern-adt/`](langs/modern-adt/) |
 | エフェクト：副作用に名前を付ける | [`modern/`](modern/)、[`langs/modern-effects/`](langs/modern-effects/) |
 | 構造化された並行性：迷子のタスクを出さない | [`modern/`](modern/)、[`langs/modern-structured/`](langs/modern-structured/) |
 | CRDT とローカルファースト：ぶつからない共同編集 | [`modern/`](modern/)、[`langs/modern-crdt/`](langs/modern-crdt/) |
-| WebAssembly：Haskell をブラウザーで動かす | [`wasm/`](wasm/) |
+| WebAssembly：Haskell をブラウザーで動かす | [`wasm/`](wasm/)、[`modern/`](modern/) |
 | CI と再現できる環境：みんなの手元で同じに動く | [`modern/`](modern/)、[`ci/`](ci/) |
 | AI と書くプログラミング：型とテストを手綱に | [`modern/`](modern/)、[`langs/modern-ai/`](langs/modern-ai/) |
 | MCP サーバーを育てる：チャットから依頼板を動かす | [`modern/`](modern/)、[`langs/modern-mcp/`](langs/modern-mcp/) |
-| 第13部のふりかえり | [`review-modern/`](review-modern/) |
+| 第14部のふりかえり | [`review-modern/`](review-modern/) |
 <!-- chapter-index: end -->
 
 ## ライセンス
