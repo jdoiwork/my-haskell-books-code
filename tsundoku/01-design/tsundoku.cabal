@@ -24,7 +24,7 @@ library
                     Tsundoku.Card
                     Tsundoku.Examples
                     ShelfAnswers.Podcast
-                    ShelfAnswers.TenthStars
+                    ShelfAnswers.Grades
                     ShelfAnswers.LookBack
   hs-source-dirs:   src answers
 

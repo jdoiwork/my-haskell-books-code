@@ -3,22 +3,40 @@
 # 「設計：作品・目次・感想・評価を型で描く」の章の、本棚の型を Python で
 
 # ANCHOR: procedural
-# Python (procedural style: plain numbers, strings and a dict)
-# Python（手続き型スタイル：ただの数と文字列と dict）
+# Python (procedural style: a plain number and style names as strings)
+# Python（手続き型スタイル：ただの数と、文字列の見せ方の名前）
 
-# ⭐ Check the stars: 1 to 5, by halves. Keep them as half stars.
-# ★を確かめる：1〜5 で、0.5刻み。半分の★の数で持つ
-def make_stars(x):
-    if x < 1 or x > 5 or x * 2 != int(x * 2):
-        raise ValueError(f"bad stars: {x}")
-    return int(x * 2)
+# 💯 Check a score: a whole number from 0 to 100.
+# 点を確かめる：0〜100 の整数
+def make_score(n):
+    if n < 0 or n > 100:
+        raise ValueError(f"bad score: {n}")
+    return n
 
 
-# 🔁 A score to stars: round halves up, never below 1 star.
-# 点を★に：真ん中は切り上げ。★1 より下にはしない
-def score_to_stars(n):
-    return min(max((n + 5) // 10, 2), 10)
+# 🖼️ Show a score: "hundred", "stars", "ten" or "ten1" (7.3/10).
+# 点を見せる："hundred"、"stars"、"ten"、"ten1"（7.3/10）
+def render(score, style):
+    if style == "hundred":
+        return f"{score}点"
+    elif style == "stars":
+        halves = (score + 5) // 10        # halves go up / 真ん中は切り上げ
+        if halves % 2 == 0:
+            return f"★{halves // 2}"
+        else:
+            return f"★{halves // 2}.5"
+    elif style == "ten":
+        return f"{(score + 5) // 10}/10"
+    elif style == "ten1":
+        return f"{score // 10}.{score % 10}/10"
+    else:
+        raise ValueError(f"bad style: {style}")
+# ANCHOR_END: procedural
 
+
+# ANCHOR: moves
+# Python (procedural style: the map of reading as a dict)
+# Python（手続き型スタイル：読書の地図を dict で）
 
 # 🗺️ The map of reading: (state, event) -> next state.
 # 読書の地図：(状態, できごと) → 次の状態
@@ -37,19 +55,30 @@ def advance(event, state):
     if (state, event) not in MOVES:
         raise ValueError(f"not allowed: {event} from {state}")
     return MOVES[(state, event)]
-# ANCHOR_END: procedural
+# ANCHOR_END: moves
 
 
-assert make_stars(3.5) == 7
-for bad in [6, 3.3, -3]:
+def refused(f):
     try:
-        make_stars(bad)
-        assert False, bad
+        f()
+        return False
     except ValueError:
-        pass
-assert score_to_stars(25) == 3
-assert score_to_stars(24) == 2
-assert all(score_to_stars(h * 10) == h for h in range(2, 11))
+        return True
+
+
+assert make_score(73) == 73
+assert all(refused(lambda: make_score(n)) for n in [-1, 101])
+assert [render(73, s) for s in ["hundred", "stars", "ten", "ten1"]] == [
+    "73点", "★3.5", "7/10", "7.3/10"]
+assert render(75, "stars") == "★4"
+assert render(25, "stars") == "★1.5"
+assert render(4, "stars") == "★0"
+assert render(75, "ten") == "8/10"
+assert render(80, "ten1") == "8.0/10"
+assert refused(lambda: render(73, "starz"))
+# The language's round() rounds halves to even: not what we want.
+# 言語の round() は、真ん中を偶数に丸める。ここで欲しいものではない
+assert round(2.5) == 2 and round(7.5) == 8
 assert advance("start", "piled") == "reading"
 assert advance("stop", "rereading") == "finished"
 try:
@@ -60,44 +89,169 @@ except ValueError as e:
 
 
 # ANCHOR: functional
-# Python (functional style: a frozen dataclass that checks itself)
-# Python（関数型スタイル：自分を確かめる、変えられない dataclass）
+# Python (functional style: frozen dataclasses for the model and styles)
+# Python（関数型スタイル：モデルと見せ方を、変えられない dataclass で）
 from dataclasses import dataclass
 
 
-# ⭐ Stars kept as half stars (2 to 10). Checked when made.
-# ★は半分の★の数（2〜10）で持つ。作るときに確かめる
-@dataclass(frozen=True)
-class Stars:
-    halves: int
-
-    def __post_init__(self):
-        if not 2 <= self.halves <= 10:
-            raise ValueError(f"bad stars: {self.halves / 2}")
-
-    @staticmethod
-    def of(x: float) -> "Stars":
-        if x * 2 != int(x * 2):
-            raise ValueError(f"bad stars: {x}")
-        return Stars(int(x * 2))
-# ANCHOR_END: functional
-
-
+# 💯 The model: a score from 0 to 100. Checked when made.
+# モデル：0〜100 の点。作るときに確かめる
 @dataclass(frozen=True)
 class Score:
-    value: int
+    points: int
 
     def __post_init__(self):
-        if not 0 <= self.value <= 100:
-            raise ValueError(f"bad score: {self.value}")
+        if not 0 <= self.points <= 100:
+            raise ValueError(f"bad score: {self.points}")
 
 
-def stars_to_score(s: Stars) -> Score:
-    return Score(s.halves * 10)
+# 🎨 Ways to show a score. None of them is the score itself.
+# 点の見せ方。どれも、点そのものではない
+@dataclass(frozen=True)
+class Hundred:          # 73点
+    pass
 
 
-def to_stars(p: Score) -> Stars:
-    return Stars(min(max((p.value + 5) // 10, 2), 10))
+@dataclass(frozen=True)
+class FiveStars:        # ★3.5
+    pass
+
+
+@dataclass(frozen=True)
+class OutOfTen:         # 7/10, 7.3/10
+    one_decimal: bool
+
+
+Style = Hundred | FiveStars | OutOfTen
+# ANCHOR_END: functional
+
+ALL_STYLES: list[Style] = [
+    Hundred(), FiveStars(), OutOfTen(False), OutOfTen(True)]
+
+
+# ANCHOR: render
+# Python (functional style: render with match)
+# Python（関数型スタイル：match で見せる）
+from typing import assert_never
+
+
+# 📏 How many points one step of the style is worth.
+# その見せ方の1目盛りが、何点ぶんか
+def step(style: Style) -> int:
+    match style:
+        case Hundred() | OutOfTen(True):
+            return 1
+        case FiveStars() | OutOfTen(False):
+            return 10
+        case _:
+            assert_never(style)
+
+
+# 🖼️ Show a score; a coarse style rounds halves up (75 is ★4).
+# 点を見せる。粗い見せ方は、真ん中を切り上げる（75 点は★4）
+def render(style: Style, score: Score) -> str:
+    n = score.points
+    steps = (n + step(style) // 2) // step(style)
+    match style:
+        case Hundred():
+            return f"{n}点"
+        case FiveStars():
+            return "★" + tenths(steps * 5)
+        case OutOfTen(False):
+            return f"{steps}/10"
+        case OutOfTen(True):
+            return f"{n // 10}.{n % 10}/10"
+        case _:
+            assert_never(style)
+
+
+# 🔢 35 tenths is "3.5"; 40 is "4".
+# 0.1 が 35 個なら "3.5"、40 個なら "4"
+def tenths(t: int) -> str:
+    whole, decimal = divmod(t, 10)
+    return f"{whole}" if decimal == 0 else f"{whole}.{decimal}"
+# ANCHOR_END: render
+
+
+# ANCHOR: parse
+# Python (functional style: read typed text back into the model)
+# Python（関数型スタイル：打ちこまれた文字を、モデルに読み戻す）
+import re
+
+
+# 📥 Read text in a style back into a score. Marks may be left out.
+# その見せ方の文字を、点に読み戻す。印は省いてもよい
+def parse(style: Style, text: str) -> Score:
+    t = read_tenths(drop_mark(style, text.strip()).strip())
+    if t is not None:
+        match style:
+            case Hundred() if t % 10 == 0 and t <= 1000:
+                return Score(t // 10)
+            case FiveStars() if t % 5 == 0 and t <= 50:
+                return Score(t * 2)
+            case OutOfTen(False) if t % 10 == 0 and t <= 100:
+                return Score(t)
+            case OutOfTen(True) if t <= 100:
+                return Score(t)
+    raise ValueError(f"bad rating: {text}")
+
+
+# ✂️ Take off the style's own mark, if it is there.
+# その見せ方の印があれば、取る
+def drop_mark(style: Style, text: str) -> str:
+    match style:
+        case Hundred():
+            return text.removesuffix("点")
+        case FiveStars():
+            return text.removeprefix("★")
+        case OutOfTen():
+            return text.removesuffix("/10")
+
+
+# 🔢 "7" is 70 tenths, "7.3" is 73; [0-9], since \d takes "７" too.
+# "7" は 0.1 が 70 個、"7.3" は 73 個。\d は "７" も通すので [0-9]
+def read_tenths(text: str) -> int | None:
+    m = re.fullmatch(r"([0-9]{1,4})(?:\.([0-9]))?", text)
+    if m is None:
+        return None
+    return int(m[1]) * 10 + int(m[2] or 0)
+# ANCHOR_END: parse
+
+
+assert Score(73).points == 73
+assert all(refused(lambda: Score(n)) for n in [-1, 101])
+assert [render(s, Score(73)) for s in ALL_STYLES] == [
+    "73点", "★3.5", "7/10", "7.3/10"]
+assert render(FiveStars(), Score(75)) == "★4"
+assert render(FiveStars(), Score(25)) == "★1.5"
+assert render(FiveStars(), Score(4)) == "★0"
+assert render(FiveStars(), Score(100)) == "★5"
+assert render(OutOfTen(False), Score(75)) == "8/10"
+assert render(OutOfTen(True), Score(80)) == "8.0/10"
+assert parse(FiveStars(), "★4.5") == Score(90)
+assert parse(FiveStars(), " 4 ") == Score(80)
+assert parse(Hundred(), "73点") == Score(73)
+assert parse(OutOfTen(True), "7.5") == Score(75)
+assert parse(OutOfTen(True), "8.0/10") == Score(80)
+assert parse(OutOfTen(False), "7/10") == Score(70)
+bad = [(FiveStars(), "★6"), (FiveStars(), "★3.3"),
+       (OutOfTen(False), "7.5"), (OutOfTen(True), "10.1"),
+       (Hundred(), "101"), (Hundred(), "7.5"), (Hundred(), "-3"),
+       (Hundred(), "７３"), (FiveStars(), "3.25"), (Hundred(), "")]
+for style, text in bad:
+    try:
+        parse(style, text)
+        assert False, (style, text)
+    except ValueError as e:
+        assert str(e).startswith("bad rating"), e
+for style in ALL_STYLES:
+    for n in range(101):
+        shown = parse(style, render(style, Score(n))).points
+        # A shadow is near the model; on a step, it is the model itself.
+        # 影はモデルの近く。目盛りの上なら、モデルそのもの
+        assert abs(shown - n) <= step(style) // 2, (style, n)
+        if n % step(style) == 0:
+            assert shown == n, (style, n)
 
 
 # ANCHOR: states
@@ -128,23 +282,6 @@ def advance(event: Event, state: State) -> State:
 # ANCHOR_END: states
 
 
-assert Stars.of(3.5) == Stars(7)
-for bad in [6, 3.3, -3]:
-    try:
-        Stars.of(bad)
-        assert False, bad
-    except ValueError:
-        pass
-for bad in [-3, 101]:
-    try:
-        Score(bad)
-        assert False, bad
-    except ValueError:
-        pass
-assert to_stars(Score(25)) == Stars(3)
-assert to_stars(Score(24)) == Stars(2)
-everyone = [Stars(h) for h in range(2, 11)]
-assert [to_stars(stars_to_score(s)) for s in everyone] == everyone
 assert advance(E.STOP, S.REREADING) == S.FINISHED
 try:
     advance(E.START, S.FINISHED)

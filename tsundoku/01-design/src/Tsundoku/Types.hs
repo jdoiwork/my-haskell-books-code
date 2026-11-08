@@ -48,7 +48,7 @@ newtype Episodes = Episodes Int deriving (Show, Eq, Ord)
 data Contents
   = Book   (Toc Pages)      -- parts, chapters, sections / 部・章・節
   | Serial (Toc Episodes)   -- arcs and episodes / 章・話。話が増えていく
-  | Series (Toc Minutes)    -- seasons and episodes / シーズン・話
+  | Series (Toc Minutes)    -- dramas, anime / ドラマ・アニメ：シーズン・話
   | Film   Minutes          -- just one piece / 1本だけ
   | Game                    -- no table of contents / 目次なし
   deriving (Show, Eq)
@@ -168,8 +168,8 @@ data Event
 -- 🚫 Everything the core can refuse, with what was wrong.
 -- 核が断ることのすべて。何がまずかったかを持つ
 data Mistake
-  = BadStars    Double             -- not 1-5 by halves / 1〜5、0.5刻みでない
-  | BadScore    Int                -- not 0 to 100 / 0〜100 でない
+  = BadScore    Int                -- not 0 to 100 / 0〜100 でない
+  | BadRating   Text               -- cannot read it / 評価として読めない
   | NotAllowed  Event ReadingState -- no such move / その遷移はない
   | NoSuchEntry EntryId            -- not in the table / 目次にない
   | EmptyNote                      -- nothing written / 何も書いていない

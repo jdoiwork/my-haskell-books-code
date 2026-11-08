@@ -6,7 +6,7 @@ module Tsundoku.Examples
   ( dragonBook
   , dragonToc
   , librarianSerial
-  , kitchenSeries
+  , detectiveDrama
   , lastDragonFilm
   , dungeonGame
   , onDay
@@ -73,16 +73,22 @@ librarianSerial = Work
       ])
   }
 
--- 📺 A series: a season of episodes.
--- シリーズ：シーズンごとに話が並ぶ
-kitchenSeries :: Work
-kitchenSeries = Work
-  { title    = "ギルド食堂の四季"
-  , creator  = "食堂アニメ班"
+-- 📺 A streaming drama: seasons of episodes. Season 2 is still
+--    coming out, a new episode every week.
+-- 配信の連続ドラマ：シーズンごとに話が並ぶ。シーズン2は配信中で、
+-- 毎週1話ずつ増える
+detectiveDrama :: Work
+detectiveDrama = Work
+  { title    = "王都の路地裏探偵"
+  , creator  = "王都配信"
   , contents = Series (numbered
       [ Node ("シーズン1", Minutes 0)
-          [ Node ("第1話 春のスープ", Minutes 24) []
-          , Node ("第2話 夏のかき氷", Minutes 24) []
+          [ Node ("第1話 消えた写本", Minutes 52) []
+          , Node ("第2話 閉館後の足音", Minutes 48) []
+          , Node ("第3話 司書は知っていた", Minutes 55) []
+          ]
+      , Node ("シーズン2", Minutes 0)
+          [ Node ("第1話 帰ってきた探偵", Minutes 50) []
           ]
       ])
   }
@@ -102,15 +108,15 @@ dungeonGame = Work "ダンジョン司書" "地下書庫ゲームズ" Game
 onDay :: Integer -> Int -> Int -> UTCTime
 onDay y m d = UTCTime (fromGregorian y m d) 0
 
--- 🗂️ The dragon book: started, two notes, rated 4.5 stars.
--- ドラゴン学の本：読み始めて、感想を2つ書き、★4.5 を付けた
+-- 🗂️ The dragon book: started, two notes, rated ★4.5 (kept as 90).
+-- ドラゴン学の本：読み始めて、感想を2つ書き、★4.5 を付けた（90 点で残る）
 dragonCard :: Card
 dragonCard = surely $ do
   started <- applyEvent Start (newCard dragonBook)
   noted   <- addNote firstNote started
   noted'  <- addNote secondNote noted
-  half    <- stars 4.5
-  pure (rate (ByStars half) noted')
+  given   <- parse FiveStars "★4.5"
+  pure (rate given noted')
   where
     firstNote  = Note OnWork "絵が多くて読みやすい" (onDay 2026 11 1) False
     secondNote = Note (OnEntry (EntryId 4)) "火を吐かない種もいるとは！"

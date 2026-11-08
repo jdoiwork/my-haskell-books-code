@@ -18,7 +18,7 @@ module Tsundoku.Card
 import Control.Monad (when)
 import Data.Text qualified as T
 
-import Tsundoku.Rating (Rating)
+import Tsundoku.Rating (Score)
 import Tsundoku.Reading (advance)
 import Tsundoku.Types
 -- ANCHOR_END: header
@@ -30,7 +30,7 @@ import Tsundoku.Types
 data Card = Card
   { work    :: Work
   , reading :: ReadingState
-  , rating  :: Maybe Rating
+  , rating  :: Maybe Score
   , notes   :: [Note]
   }
   deriving (Show, Eq)
@@ -72,9 +72,11 @@ applyEvent event card = do
   next <- advance event (reading card)
   pure card { reading = next }
 
--- ⭐ Rate the work (a new rating replaces the old one).
--- 評価を付ける（付け直したら、新しいほうにする）
-rate :: Rating -> Card -> Card
+-- ⭐ Rate the work (a new rating replaces the old one). Always a
+--    score: how it was typed in, in stars or out of ten, is forgotten.
+-- 評価を付ける（付け直したら、新しいほうにする）。いつも点で持つ。
+-- ★で打ったか、10点満点で打ったかは、覚えない
+rate :: Score -> Card -> Card
 rate r card = card { rating = Just r }
 -- ANCHOR_END: applyEvent
 
