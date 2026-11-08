@@ -13,9 +13,11 @@ module RosterGeneric
   , NewAdventurer (..)
   ) where
 
+-- ANCHOR: imports
 import Database.SQLite.Simple (FromRow, ToRow)
 import Data.Text              (Text)
 import GHC.Generics           (Generic)
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- 🧙 An adventurer, as read from the table.

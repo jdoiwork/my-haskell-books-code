@@ -1,5 +1,6 @@
 -- Answers for the training of the database chapter.
 -- データベース入門の章のトレーニングの解答
+-- ANCHOR: header
 {-# LANGUAGE OverloadedStrings #-}
 module RosterAnswers where
 
@@ -7,6 +8,7 @@ import Database.SQLite.Simple
 import Data.Text (Text)
 
 import Roster (Adventurer)
+-- ANCHOR_END: header
 
 -- ANCHOR: count
 -- 🔢 How many adventurers are in the roster?
