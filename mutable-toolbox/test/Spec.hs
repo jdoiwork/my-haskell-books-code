@@ -2,7 +2,9 @@
 -- 「書き換えられる箱の使い分け」の章のテスト
 module Main (main) where
 
-import Control.Concurrent.Async (forConcurrently, replicateConcurrently_)
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async
+  (async, cancel, forConcurrently, replicateConcurrently_, wait)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Exception (ErrorCall (..), throwIO, try)
@@ -10,6 +12,7 @@ import Control.Monad.State.Strict (evalState)
 import Data.IORef
 import Data.List (sort)
 import qualified Data.Text as T
+import System.Timeout (timeout)
 import Test.Hspec
 
 import Appraise
@@ -61,6 +64,38 @@ main = hspec $ do
       r <- try (cachedOnce cache (\_ -> throwIO (ErrorCall "cursed")) "ring")
       r `shouldBe` Left (ErrorCall "cursed")
       cachedOnce cache (pure . T.length) "ring" `shouldReturn` 4
+    -- 「エラーの値段も失敗。覚えない」
+    it "does not remember a price that is an error" $ do
+      cache <- newCache
+      r <- try (cachedOnce cache (\_ -> pure (error "bad price")) "gem")
+      r `shouldBe` Left (ErrorCall "bad price")
+      cachedOnce cache (pure . T.length) "gem" `shouldReturn` 3
+    -- 「鑑定した人が止められても、空の枠は残らない」
+    it "leaves no empty slot when the appraiser is stopped" $ do
+      cache   <- newCache
+      started <- newEmptyMVar
+      let stuck _ = putMVar started () >> threadDelay 10000000 >> pure 1
+      appraiser <- async (cachedOnce cache stuck "orb")
+      takeMVar started
+      cancel appraiser
+      timeout 1000000 (cachedOnce cache (pure . T.length) "orb")
+        `shouldReturn` Just 3
+    -- 「鑑定した人が止められたら、待っていた人は並び直して答えをもらう」
+    it "lets a waiter get in line again when the appraiser is stopped" $ do
+      cache   <- newCache
+      started <- newEmptyMVar
+      calls   <- newIORef (0 :: Int)
+      let firstStuck item = do
+            n <- atomicModifyIORef' calls (\k -> (k + 1, k))
+            if n == 0
+              then putMVar started () >> threadDelay 10000000 >> pure 0
+              else pure (T.length item)
+      appraiser <- async (cachedOnce cache firstStuck "orb")
+      takeMVar started
+      waiter <- async (cachedOnce cache firstStuck "orb")
+      threadDelay 50000
+      cancel appraiser
+      timeout 1000000 (wait waiter) `shouldReturn` Just 3
 
   describe "debounce" $
     -- 「続けて来た変更は、1回の保存にまとまる」

@@ -15,9 +15,13 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (forConcurrently_)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
-import Control.Exception (SomeException, throwIO, try)
+import Control.Exception
+  ( SomeAsyncException, SomeException, evaluate, fromException, mask
+  , throwIO, try )
+import Control.Monad (when)
 import Data.IORef
 import Data.Map.Strict (Map)
+import Data.Maybe (isJust)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -73,19 +77,16 @@ newCache = newTVarIO Map.empty
 -- 品物ごとに1回だけ鑑定する。ほかの人は、枠が埋まるのを待つ
 cachedOnce :: Cache -> (Text -> IO Int) -> Text -> IO Int
 cachedOnce cache appraise item = do
-  -- Find the slot, or make one and say "I will appraise it".
-  -- 枠を探す。なければ作って「わたしが鑑定します」と名乗る
-  (slot, mine) <- atomically $ do
-    known <- readTVar cache
-    case Map.lookup item known of
-      Just slot -> pure (slot, False)
-      Nothing   -> do
-        slot <- newEmptyTMVar
-        writeTVar cache (Map.insert item slot known)
-        pure (slot, True)
-  if mine
-    then do
-      result <- try (appraise item)
+  -- From making the slot to filling it, no "stop!" can cut in (mask).
+  -- 枠を作ってから埋めるまで、「止まれ」に割り込ませない（mask）
+  (slot, mine) <- mask $ \restore -> do
+    (slot, mine) <- atomically (findOrClaim cache item)
+    when mine $ do
+      -- Only the appraisal itself can be stopped (restore).
+      --   evaluate: a price that is an error is a failure, too.
+      -- 止められるのは、鑑定そのものだけ（restore）。
+      -- evaluate：値段がエラーなら、それも失敗にする
+      result <- try (restore (appraise item >>= evaluate))
       atomically $ do
         putTMVar slot result
         -- A failure is not remembered: the next one tries again.
@@ -93,9 +94,38 @@ cachedOnce cache appraise item = do
         case result of
           Left _  -> modifyTVar' cache (Map.delete item)
           Right _ -> pure ()
-    else pure ()
+    pure (slot, mine)
+  -- Everyone (the appraiser, too) reads the slot.
+  -- 全員（鑑定した人も）が、枠を読む
   result <- atomically (readTMVar slot)
-  either throwIO pure result
+  case result of
+    Right price -> pure price
+    Left err
+      -- The appraiser was stopped from outside: that "stop!" was meant
+      --   for them, not for us. Get in line again.
+      -- 鑑定した人が外から止められた。その「止まれ」は、その人あて。
+      -- わたしたちは、もう一度並び直す
+      | not mine, stoppedFromOutside err -> cachedOnce cache appraise item
+      | otherwise                        -> throwIO err
+
+-- 🛑 Was it a "stop!" from outside (cancel, timeout, Ctrl-C)?
+-- 外からの「止まれ」（cancel・timeout・Ctrl-C）だったか
+stoppedFromOutside :: SomeException -> Bool
+stoppedFromOutside err =
+  isJust (fromException err :: Maybe SomeAsyncException)
+
+-- 🔎 Find the slot, or make one and say "I will appraise it" (True).
+-- 枠を探す。なければ作って「わたしが鑑定します」（True）と名乗る
+findOrClaim
+  :: Cache -> Text -> STM (TMVar (Either SomeException Int), Bool)
+findOrClaim cache item = do
+  known <- readTVar cache
+  case Map.lookup item known of
+    Just slot -> pure (slot, False)
+    Nothing   -> do
+      slot <- newEmptyTMVar
+      writeTVar cache (Map.insert item slot known)
+      pure (slot, True)
 -- ANCHOR_END: once
 
 -- ANCHOR: rush
