@@ -65,6 +65,11 @@ prefixTable pat = table
 -- 文を1回だけたどり、パターンのどこまで合っているかを持ち回る。
 -- 合わなければ、最初からやり直さずに、表を見て戻る
 findAll :: String -> String -> [Int]
+-- The empty pattern is found at every position, the end included
+--    (just like findAllSpec).
+-- 空のパターンは、どの位置にも（最後の位置にも）見つかる
+-- （findAllSpec と同じ）
+findAll [] text = [0 .. length text]
 findAll pat text =
   [ i - m + 1 | (i, k) <- zip [0 ..] (drop 1 (scanl step 0 text)), k == m ]
   where

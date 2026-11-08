@@ -21,7 +21,7 @@ spec = describe "Algo.Strings" $ do
   -- ANCHOR: kmpProps
   -- KMP は、仕様と同じ位置を見つける
   it "findAll agrees with the spec" $ property $
-    forAll ((,) <$> small `suchThat` (not . null) <*> small) $ \(pat, text) ->
+    forAll ((,) <$> small <*> small) $ \(pat, text) ->
       findAll pat text === findAllSpec pat text
   -- ANCHOR_END: kmpProps
   -- 表の例
