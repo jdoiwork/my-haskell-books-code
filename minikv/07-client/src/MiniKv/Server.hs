@@ -23,7 +23,7 @@ import Control.Concurrent (MVar, forkFinally, forkIO, killThread,
                            newMVar, threadDelay, withMVar)
 import Control.Concurrent.Async (race_)
 import Control.Concurrent.STM
-import Control.Exception (bracket, finally)
+import Control.Exception (bracket)
 import Control.Monad (forM_, forever, unless, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
@@ -67,6 +67,7 @@ data Env = Env
   }
 -- ANCHOR_END: env
 
+-- ANCHOR: openEnv
 -- 📂 Read the log (if any) and open it to append more.
 -- ログ（があれば）を読み、続きを足せるように開く
 openEnv :: Clock -> Maybe FilePath -> IO (Env, Replayed)
@@ -82,25 +83,33 @@ openEnv clk logPath = do
   channel <- newBroadcastTChanIO
   counts <- newTVarIO Map.empty
   pure (Env clk var lock channel counts, replayed)
+-- ANCHOR_END: openEnv
 
+-- ANCHOR: run
 -- ⚛️ Run one plain command (logging it if it changes the store).
 -- ふつうのコマンドを1つ動かす（ストアを変えるなら、ログに書く）
 runCommand :: Env -> Command -> IO Wire
 runCommand env command = do
   now <- clock env
-  reply <- case (journal env, toLogged now command) of
-    (Just lock, Just logged) -> withMVar lock $ \handle -> do
-      reply <- change now
-      unless (failed reply) $ do
-        BS.hPut handle (encodeEntry logged)
-        hFlush handle
-      pure reply
-    _ -> change now
+  reply <- case toLogged now command of
+    Nothing -> fst . apply now command <$> readTVarIO (storeVar env)
+    Just _  -> changeAndLog env (logStep now command)
   pure (replyWire reply)
-  where
-    change now = atomically (stateTVar (storeVar env) (apply now command))
-    failed (Failed _) = True
-    failed _          = False
+-- ANCHOR_END: run
+
+-- ✍️ Change the store, and write what the step says, holding the
+--    log's lock: the store and the log change in the same order.
+-- ストアを変え、step が言うものをログに書く。ログの錠をとったまま。
+-- ストアとログが、同じ順番で変わるように
+changeAndLog :: Env -> (Store -> ((a, [Command]), Store)) -> IO a
+changeAndLog env step = case journal env of
+  Nothing   -> fst <$> atomically (stateTVar (storeVar env) step)
+  Just lock -> withMVar lock $ \handle -> do
+    (a, entries) <- atomically (stateTVar (storeVar env) step)
+    unless (null entries) $ do
+      BS.hPut handle (foldMap encodeEntry entries)
+      hFlush handle
+    pure a
 
 -- ANCHOR: blpop
 -- ⏳ BLPOP: wait until the list has something (or the time is up),
@@ -145,21 +154,23 @@ publish env channel message = atomically $ do
   pure (WInt (Map.findWithDefault 0 channel counts))
 
 -- 👂 SUBSCRIBE: from now on this connection only receives messages.
---    Two things run side by side; when the client hangs up, `race_`
---    stops the other, and `finally` takes us off the listener counts.
+--    `bracket` puts us on the listener counts and takes us off again,
+--    however we end. Inside, two things run side by side; when the
+--    client hangs up, `race_` stops the other.
 -- SUBSCRIBE：このつながりは、これからメッセージを受け取るだけになる。
--- 2つのことを同時に動かし、クライアントが切ったら race_ がもう片方を止め、
--- finally が人数から外す
+-- bracket が人数に足し、どんな終わり方でも、人数から外す。中では
+-- 2つのことを同時に動かし、クライアントが切ったら race_ がもう片方を止める
 subscribe :: Env -> Socket -> [Text] -> IO ()
-subscribe env sock channels = do
-  mine <- atomically $ do
-    forM_ channels $ \c ->
-      modifyTVar' (listeners env) (Map.insertWith (+) c 1)
-    dupTChan (hub env)
-  forM_ (zip [1 :: Int ..] channels) $ \(i, c) ->
-    sendAll sock (render (WArray [bulk "subscribe", bulk' c, WInt i]))
-  race_ (deliver mine) waitForHangUp `finally` leave
+subscribe env sock channels =
+  bracket enter (const leave) $ \mine -> do
+    forM_ (zip [1 :: Int ..] channels) $ \(i, c) ->
+      sendAll sock (render (WArray [bulk "subscribe", bulk' c, WInt i]))
+    race_ (deliver mine) waitForHangUp
   where
+    enter = atomically $ do
+      forM_ channels $ \c ->
+        modifyTVar' (listeners env) (Map.insertWith (+) c 1)
+      dupTChan (hub env)
     deliver mine = forever $ do
       (c, m) <- atomically (readTChan mine)
       when (c `elem` channels) $
@@ -220,13 +231,13 @@ acceptLoop env server = forever $ do
   (client, _) <- accept server
   forkFinally (serveClient env client) (\_ -> close client)
 
--- 🧹 Forget expired keys now and then.
--- ときどき、期限切れのキーを忘れる
+-- 🧹 Forget expired keys now and then, and write them in the log.
+-- ときどき、期限切れのキーを忘れ、ログにも書く
 sweeper :: Env -> IO ()
 sweeper env = forever $ do
   threadDelay 100000
   now <- clock env
-  atomically (stateTVar (storeVar env) (sweep now))
+  changeAndLog env (sweepStep now)
 
 -- 🧪 For tests.
 -- テスト用

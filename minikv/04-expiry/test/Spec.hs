@@ -157,13 +157,16 @@ main = hspec $ do
       let commands = [Set "k" "a", Expire "k" 5, Set "k" "b"]
           (_, s)   = applyAll 0 commands emptyStore
       fst (apply 60000 (Get "k") s) `shouldBe` Bulk "b"
-    -- 掃除のあと、同じ時刻にもう一度掃除しても、何も見つからない
-    it "sweep leaves no key whose time has come" $
-      forAll (listOf genCommand) $ \commands ->
-        forAll (choose (0, 9000)) $ \t ->
-          let (_, s)  = applyAll 0 commands emptyStore
-              (_, s') = sweep t s
-          in  fst (sweep t s') == 0
+    -- 掃除は、時刻 t に KEYS が忘れるのと同じキーを忘れ、その数を答える
+    it "sweep forgets just the keys whose time has come" $
+      checkCoverage $
+        forAll (listOf genCommand) $ \commands ->
+          forAll (choose (0, 9000)) $ \t ->
+            let (_, s)  = applyAll 0 commands emptyStore
+                (n, s') = sweep t s
+                gone    = length (storedKeys s) - length (storedKeys s')
+            in  cover 5 (n > 0) "some key was swept" $
+                  (n, s') === (gone, snd (apply t Keys s))
     -- サーバーでも、手で進める時計で、待たずに確かめる
     it "expires keys on the server, with a clock moved by hand" $ do
       clock <- newIORef 0

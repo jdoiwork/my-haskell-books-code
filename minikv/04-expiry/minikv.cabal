@@ -6,6 +6,7 @@ build-type:    Simple
 -- 第9部 総合演習4：型に厳しいインメモリデータベースを作る
 -- （4. 期限切れと時計）
 
+-- ANCHOR: shared
 common shared
   default-language: GHC2024
   default-extensions: OverloadedStrings
@@ -18,6 +19,7 @@ common shared
     , network          ^>=3.2
     , stm              ^>=2.5
     , time             >=1.12
+-- ANCHOR_END: shared
 
 library
   import:           shared

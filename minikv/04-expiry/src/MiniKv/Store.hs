@@ -170,6 +170,7 @@ run now command store = case command of
   _ -> valueCommand command store
 -- ANCHOR_END: time
 
+-- ANCHOR: value
 -- 🧺 The commands about values (as in the earlier chapters).
 -- 値についてのコマンド（前の章までと同じ）
 valueCommand :: Command -> Store -> (Reply, Store)
@@ -254,6 +255,7 @@ valueCommand command store = case command of
     change :: Either KvError v -> (v -> (Reply, Store)) -> (Reply, Store)
     change (Left err) _ = (Failed err, store)
     change (Right v)  k = k v
+-- ANCHOR_END: value
 
 -- 📏 LRANGE's indexes (negative counts from the end).
 -- LRANGE の位置（マイナスは後ろから）
@@ -278,6 +280,7 @@ kindName KList   = "list"
 kindName KSet    = "set"
 kindName KHash   = "hash"
 
+-- ANCHOR: applyAll
 -- ▶️ Run many commands at the same time `now`.
 -- たくさんのコマンドを、同じ時刻 now に動かす
 applyAll :: Millis -> [Command] -> Store -> ([Reply], Store)
@@ -286,4 +289,5 @@ applyAll now (c : cs) store =
   let (reply, store')    = apply now c store
       (replies, store'') = applyAll now cs store'
   in  (reply : replies, store'')
+-- ANCHOR_END: applyAll
 -- ANCHOR_END: all

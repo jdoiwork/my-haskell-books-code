@@ -7,6 +7,8 @@
 module MiniKv.Persist
   ( toLogged
   , encodeEntry
+  , logStep
+  , sweepStep
   , replay
   , Replayed (..)
   , rewriteLog
@@ -51,6 +53,39 @@ encodeEntry :: Command -> ByteString
 encodeEntry command =
   render (WArray [ WBulk (Just w) | w <- commandWords command ])
 -- ANCHOR_END: logged
+
+-- ANCHOR: step
+-- 👣 Run a command at `now`, and say what to write in the log.
+--    A command that only reads leaves the store as it was. When a
+--    write forgets a key because its time has come, a DEL for it is
+--    written first: reading the log back does not know what time it
+--    was, so it would not forget the key by itself.
+-- 時刻 now にコマンドを動かし、ログに何を書くかを答える。読むだけの
+-- コマンドは、ストアを変えない。書くコマンドが、時刻が来たのでキーを
+-- 忘れたら、先にそのキーの DEL を書く。読み戻すときには、そのときの
+-- 時刻がわからないので、ひとりでには忘れてくれないから
+logStep :: Millis -> Command -> Store -> ((Reply, [Command]), Store)
+logStep now command store = case toLogged now command of
+  Nothing     -> ((reply, []), store)
+  Just logged -> ((reply, forgotten ++ [ logged | succeeded ]), store')
+  where
+    (reply, store') = apply now command store
+    gone            = expiring now command store
+    forgotten       = [ Del gone | not (null gone) ]
+    succeeded       = case reply of
+      Failed _ -> False
+      _        -> True
+
+-- 🧹 The sweeper's turn: forget the keys whose time has come, and
+--    write them as one DEL. Says how many it forgot.
+-- 掃除係の番：時刻が来たキーを忘れ、1つの DEL として書く。
+-- いくつ忘れたかを答える
+sweepStep :: Millis -> Store -> ((Int, [Command]), Store)
+sweepStep now store =
+  let gone        = dueKeys now store
+      (n, store') = sweep now store
+  in  ((n, [ Del gone | not (null gone) ]), store')
+-- ANCHOR_END: step
 
 -- ANCHOR: replay
 -- 📖 What reading a log gives back.

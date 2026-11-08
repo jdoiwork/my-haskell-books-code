@@ -8,6 +8,8 @@ module MiniKv.Store
   , apply
   , applyAll
   , sweep
+  , dueKeys
+  , expiring
   , storedValues
   , storedKeys
   , snapshot
@@ -60,7 +62,7 @@ dropIfExpired now key store = case Map.lookup key (deadlines store) of
 -- だれも触らないキーのために、サーバーがときどき呼ぶ
 sweep :: Millis -> Store -> (Int, Store)
 sweep now store =
-  let due = [ k | (k, t) <- Map.toList (deadlines store), t <= now ]
+  let due = dueKeys now store
   in  (length due, foldr forget store due)
 
 -- 🗑️ Forget a key and its deadline.
@@ -122,6 +124,20 @@ apply :: Millis -> Command -> Store -> (Reply, Store)
 apply now command store0 =
   let store = foldr (dropIfExpired now) store0 (touched command store0)
   in  run now command store
+
+-- ANCHOR: expiring
+-- 🪦 The keys `apply now command` forgets because their time has come.
+-- apply now command が、時刻が来たので忘れるキー
+expiring :: Millis -> Command -> Store -> [Key]
+expiring now command store = filter due (touched command store)
+  where
+    due key = maybe False (<= now) (Map.lookup key (deadlines store))
+
+-- ⏰ The keys whose time has come.
+-- 時刻が来たキー
+dueKeys :: Millis -> Store -> [Key]
+dueKeys now store = [ k | (k, t) <- Map.toList (deadlines store), t <= now ]
+-- ANCHOR_END: expiring
 
 -- 🔑 The keys a command looks at (KEYS looks at all of them).
 -- コマンドが見るキー（KEYS は全部を見る）

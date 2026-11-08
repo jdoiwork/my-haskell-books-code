@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | The types of minikv: what we store, what we are asked, what we answer.
 -- minikv の型：しまうもの、頼まれること、答えるもの
+-- ANCHOR: exports
 module MiniKv.Types
   ( Key
   , Value (..)
@@ -11,6 +12,7 @@ module MiniKv.Types
   , KvError (..)
   , Millis
   ) where
+-- ANCHOR_END: exports
 
 import Data.Map.Strict (Map)
 import Data.Sequence (Seq)

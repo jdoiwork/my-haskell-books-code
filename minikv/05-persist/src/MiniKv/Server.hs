@@ -19,7 +19,8 @@ module MiniKv.Server
 
 import Control.Concurrent (MVar, forkFinally, forkIO, killThread,
                            newMVar, threadDelay, withMVar)
-import Control.Concurrent.STM (TVar, atomically, newTVarIO, stateTVar)
+import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVarIO,
+                               stateTVar)
 import Control.Exception (bracket)
 import Control.Monad (forever, unless)
 import Data.ByteString (ByteString)
@@ -35,7 +36,7 @@ import System.IO (Handle, IOMode (..), hClose, hFlush, openFile)
 import MiniKv.Persist
 import MiniKv.Protocol
 import MiniKv.Store
-import MiniKv.Types (Command, Millis, Reply (..))
+import MiniKv.Types (Command, Millis)
 import MiniKv.Wire
 
 -- 🕰️ A clock: where "now" comes from.
@@ -74,34 +75,38 @@ openEnv clk logPath = do
 -- ANCHOR_END: env
 
 -- ANCHOR: run
--- ⚛️ Run one command. A command that changes the store takes the log's
---    lock, so that the store and the log change in the same order.
---    Reads never wait for the disk.
--- コマンドを1つ動かす。ストアを変えるコマンドは、ログの錠をとる。
--- ストアとログが、同じ順番で変わるように。読むだけなら、ディスクを待たない
+-- ⚛️ Run one command. Reads look at the store and change nothing, so
+--    they never wait for the disk. A command that changes the store
+--    takes the log's lock.
+-- コマンドを1つ動かす。読むだけなら、ストアを見るだけで何も変えないので、
+-- ディスクを待たない。ストアを変えるコマンドは、ログの錠をとる
 runCommand :: Env -> [ByteString] -> IO Wire
 runCommand env words' =
   case toCommand words' of
     Left message -> pure (WError ("ERR " <> encodeUtf8 message))
     Right command -> do
       now <- clock env
-      reply <- case (journal env, toLogged now command) of
-        (Just lock, Just logged) -> withMVar lock $ \handle -> do
-          reply <- change now command
-          unless (failed reply) $ do
-            BS.hPut handle (encodeEntry logged)
-            hFlush handle
-          pure reply
-        _ -> change now command
+      reply <- case toLogged now command of
+        Nothing -> fst . apply now command <$> readTVarIO (storeVar env)
+        Just _  -> changeAndLog env (logStep now command)
       pure (replyWire reply)
-  where
-    change :: Millis -> Command -> IO Reply
-    change now command =
-      atomically (stateTVar (storeVar env) (apply now command))
-    failed (Failed _) = True
-    failed _          = False
+
+-- ✍️ Change the store, and write what the step says, holding the
+--    log's lock: the store and the log change in the same order.
+-- ストアを変え、step が言うものをログに書く。ログの錠をとったまま。
+-- ストアとログが、同じ順番で変わるように
+changeAndLog :: Env -> (Store -> ((a, [Command]), Store)) -> IO a
+changeAndLog env step = case journal env of
+  Nothing   -> fst <$> atomically (stateTVar (storeVar env) step)
+  Just lock -> withMVar lock $ \handle -> do
+    (a, entries) <- atomically (stateTVar (storeVar env) step)
+    unless (null entries) $ do
+      BS.hPut handle (foldMap encodeEntry entries)
+      hFlush handle
+    pure a
 -- ANCHOR_END: run
 
+-- ANCHOR: client
 -- 🧑‍💻 Talk to one client.
 -- クライアント1人と話す
 serveClient :: Env -> Socket -> IO ()
@@ -120,6 +125,7 @@ serveClient env sock = loop BS.empty
         reply <- runCommand env words'
         sendAll sock (render reply)
         answerAll rest
+-- ANCHOR_END: client
 
 -- 👂 Listen on 127.0.0.1.
 -- 127.0.0.1 で待ち受ける
@@ -131,23 +137,26 @@ listenOn port = do
   listen sock 64
   pure sock
 
+-- ANCHOR: accept
 -- 🔁 Accept clients forever.
 -- クライアントを受け付け続ける
 acceptLoop :: Env -> Socket -> IO ()
 acceptLoop env server = forever $ do
   (client, _) <- accept server
   forkFinally (serveClient env client) (\_ -> close client)
+-- ANCHOR_END: accept
 
--- 🧹 Forget expired keys now and then. (Not logged: the log has the
---    absolute deadlines, so replaying it forgets the same keys.)
--- ときどき、期限切れのキーを忘れる。（ログには書かない：ログには絶対の
--- 期限が書いてあるので、読み戻せば同じキーを忘れる）
+-- ANCHOR: sweeper
+-- 🧹 Forget expired keys now and then, and write them in the log.
+-- ときどき、期限切れのキーを忘れ、ログにも書く
 sweeper :: Env -> IO ()
 sweeper env = forever $ do
   threadDelay 100000
   now <- clock env
-  atomically (stateTVar (storeVar env) (sweep now))
+  changeAndLog env (sweepStep now)
+-- ANCHOR_END: sweeper
 
+-- ANCHOR: withServer
 -- 🧪 For tests: a server on a free port, with the given clock and an
 --    optional log file.
 -- テスト用：空いているポートに、渡された時計と、ログのファイル（任意）で
@@ -167,4 +176,5 @@ withServerAt clk = withServerLog clk Nothing
 
 withServer :: (PortNumber -> IO a) -> IO a
 withServer = withServerAt systemClock
+-- ANCHOR_END: withServer
 -- ANCHOR_END: all

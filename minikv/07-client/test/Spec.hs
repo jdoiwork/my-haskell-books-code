@@ -41,18 +41,30 @@ genWire depth = oneof (leaves ++ deeper)
 
 -- 🎲 Random commands on a few keys, so that kinds collide often.
 -- 少ないキーへの、でたらめなコマンド（種類がよくぶつかるように）
--- 📝 Run commands at time 0, and write the log a server would write.
--- 時刻 0 にコマンドを動かし、サーバーが書くはずのログを作る
-runAndLog :: [Command] -> (Store, [Command])
+-- 📝 Run commands, each at its own time (Nothing is the sweeper's
+--    turn), and write the log a server would write.
+-- コマンドを、それぞれの時刻に動かし（Nothing は掃除係の番）、
+-- サーバーが書くはずのログを作る
+runAndLog :: [(Millis, Maybe Command)] -> (Store, [Command])
 runAndLog = go emptyStore []
   where
-    go store logged [] = (store, reverse logged)
-    go store logged (c : cs) =
-      let (reply, store') = apply 0 c store
-          entry = case reply of
-            Failed _ -> Nothing
-            _        -> toLogged 0 c
-      in  go store' (maybe logged (: logged) entry) cs
+    go store logged [] = (store, concat (reverse logged))
+    go store logged ((now, turn) : rest) =
+      let (entries, store') = case turn of
+            Just c  -> logOf (logStep now c store)
+            Nothing -> logOf (sweepStep now store)
+      in  go store' (entries : logged) rest
+    logOf ((_, entries), store') = (entries, store')
+
+-- 🎲 Commands at times that go forward, now and then the sweeper.
+-- 進んでいく時刻に動かすコマンドと、ときどき掃除係
+genTimed :: Gen [(Millis, Maybe Command)]
+genTimed = do
+  turns <- listOf $ (,) <$> choose (0, 3000)
+                        <*> frequency [ (5, Just <$> genCommand)
+                                      , (1, pure Nothing) ]
+  let times = drop 1 (scanl (+) 1000 (map fst turns))
+  pure (zip times (map snd turns))
 
 genCommand :: Gen Command
 genCommand = oneof
@@ -178,13 +190,16 @@ main = hspec $ do
       let commands = [Set "k" "a", Expire "k" 5, Set "k" "b"]
           (_, s)   = applyAll 0 commands emptyStore
       fst (apply 60000 (Get "k") s) `shouldBe` Bulk "b"
-    -- 掃除のあと、同じ時刻にもう一度掃除しても、何も見つからない
-    it "sweep leaves no key whose time has come" $
-      forAll (listOf genCommand) $ \commands ->
-        forAll (choose (0, 9000)) $ \t ->
-          let (_, s)  = applyAll 0 commands emptyStore
-              (_, s') = sweep t s
-          in  fst (sweep t s') == 0
+    -- 掃除は、時刻 t に KEYS が忘れるのと同じキーを忘れ、その数を答える
+    it "sweep forgets just the keys whose time has come" $
+      checkCoverage $
+        forAll (listOf genCommand) $ \commands ->
+          forAll (choose (0, 9000)) $ \t ->
+            let (_, s)  = applyAll 0 commands emptyStore
+                (n, s') = sweep t s
+                gone    = length (storedKeys s) - length (storedKeys s')
+            in  cover 5 (n > 0) "some key was swept" $
+                  (n, s') === (gone, snd (apply t Keys s))
     -- サーバーでも、手で進める時計で、待たずに確かめる
     it "expires keys on the server, with a clock moved by hand" $ do
       clock <- newIORef 0
@@ -198,28 +213,32 @@ main = hspec $ do
 
   -- ANCHOR: persistSpec
   describe "persistence" $ do
-    -- ログを読み戻すと、見える中身は、そのまま動かしたのと同じ
-    it "replaying the log gives the same visible store" $
-      forAll (listOf genCommand) $ \commands ->
-        let (direct, logged) = runAndLog commands
+    -- ログを読み戻すと、そのまま動かしたのと同じストアになる
+    -- （時刻が進み、期限が切れ、掃除係も動く並びで）
+    it "replaying the log gives the very same store" $
+      forAll genTimed $ \turns ->
+        let (direct, logged) = runAndLog turns
             bytes = foldMap encodeEntry logged
-            back  = replayedStore (replay bytes)
-        in  snd (sweep 0 back) == snd (sweep 0 direct)
+        in  replayedStore (replay bytes) === direct
     -- 途中で切れたログは、そろった件数だけ使う
     it "a log cut anywhere gives a prefix of the entries" $
-      forAll (listOf1 genCommand) $ \commands ->
-        let (_, logged) = runAndLog commands
+      forAll genTimed $ \turns ->
+        let (_, logged) = runAndLog turns
+            sizes = map (BS.length . encodeEntry) logged
             bytes = foldMap encodeEntry logged
         in  forAll (choose (0, BS.length bytes)) $ \k ->
-              let r     = replay (BS.take k bytes)
-                  first = take (entries r) logged
-              in  replayedStore r
-                    == snd (applyAll 0 first emptyStore)
+              let r        = replay (BS.take k bytes)
+                  -- How many entries end within the first k bytes.
+                  -- 先頭の k バイトの中で終わっている件数
+                  complete = length (takeWhile (<= k) (scanl1 (+) sizes))
+                  first    = take complete logged
+              in  (entries r, replayedStore r)
+                    === (complete, snd (applyAll 0 first emptyStore))
     -- スナップショットから作り直すと、まったく同じストア
     it "a rewritten log rebuilds the very same store" $
-      forAll (listOf genCommand) $ \commands ->
-        let (store, _) = runAndLog commands
-        in  replayedStore (replay (rewriteLog store)) == store
+      forAll genTimed $ \turns ->
+        let (store, _) = runAndLog turns
+        in  replayedStore (replay (rewriteLog store)) === store
     -- サーバーを止めて、また立てても、データは残っている
     it "keeps the data across a restart" $ do
       dir <- getTemporaryDirectory
@@ -235,6 +254,22 @@ main = hspec $ do
           request conn ["LRANGE", "party", "0", "-1"]
       removeFile path
       reply `shouldBe` WArray [WBulk (Just "Lambda"), WBulk (Just "Python")]
+    -- 期限が切れたあとに書いた値も、立て直したあとに残っている
+    it "keeps a value written after its key expired" $ do
+      dir <- getTemporaryDirectory
+      let path = dir </> "minikv-expired.log"
+      writeFile path ""
+      clock <- newIORef 1000
+      withServerLog (readIORef clock) (Just path) $ \port ->
+        withConnection port $ \conn -> do
+          _ <- request conn ["SET", "k", "5"]
+          _ <- request conn ["EXPIRE", "k", "2"]
+          writeIORef clock 10000       -- k is gone / k はもう忘れた
+          request conn ["INCR", "k"] `shouldReturn` WInt 1
+      reply <- withServerLog (readIORef clock) (Just path) $ \port ->
+        withConnection port $ \conn -> request conn ["GET", "k"]
+      removeFile path
+      reply `shouldBe` WBulk (Just "1")
   -- ANCHOR_END: persistSpec
 
   -- ANCHOR: pubsubSpec
@@ -276,6 +311,23 @@ main = hspec $ do
             , WArray [ WBulk (Just "message"), WBulk (Just "news")
                      , WBulk (Just "dragon spotted") ] )
   -- ANCHOR_END: pubsubSpec
+    -- 購読してすぐ切った人は、人数から外れる。（返事を送る途中で切られる
+    -- すき間は、このテストではまず起きない。bracket で閉じたのは、読んで確かめた）
+    it "takes subscribers who hang up at once off the count" $
+      withServer $ \port -> do
+        let channels = [ BC.pack ("ch" <> show i) | i <- [1 .. 50 :: Int] ]
+        forConcurrently_ [1 .. 20 :: Int] $ \_ ->
+          withConnection port $ \c -> request c ("SUBSCRIBE" : channels)
+        withConnection port $ \c -> do
+          -- Leaving takes a moment; ask again until nobody is counted.
+          -- 外れるのには少し時間がかかるので、0 人になるまで聞き直す
+          let settle :: Int -> IO Wire
+              settle tries = do
+                heard <- request c ["PUBLISH", "ch50", "anyone?"]
+                if heard == WInt 0 || tries == 0
+                  then pure heard
+                  else threadDelay 10000 >> settle (tries - 1)
+          settle 300 `shouldReturn` WInt 0
 
   -- ANCHOR: typedSpec
   describe "typed client" $ do
