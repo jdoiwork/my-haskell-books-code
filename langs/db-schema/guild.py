@@ -3,7 +3,7 @@
 import sqlite3
 
 MIGRATIONS = [
-    "CREATE TABLE adventurers (id INTEGER PRIMARY KEY,"
+    "CREATE TABLE IF NOT EXISTS adventurers (id INTEGER PRIMARY KEY,"
     " name TEXT NOT NULL UNIQUE, job TEXT NOT NULL, level INTEGER NOT NULL)",
     "CREATE TABLE quests (id INTEGER PRIMARY KEY, title TEXT NOT NULL,"
     " reward INTEGER NOT NULL, taken_by INTEGER REFERENCES adventurers (id),"
@@ -46,7 +46,14 @@ def complete_quest(conn, quest_id):
         return reward
 # ANCHOR_END: complete
 
-conn = sqlite3.connect(":memory:")
+# ANCHOR: connect
+# Python
+# autocommit=False: a transaction is always open,
+#    so `with conn:` covers every statement in it (Python 3.12+).
+# autocommit=False：いつもトランザクションが開いているので、
+# with conn: の中の文が全部、1つのトランザクションに入る（Python 3.12 から）
+conn = sqlite3.connect(":memory:", autocommit=False)
+# ANCHOR_END: connect
 assert migrate(conn) == 3
 assert migrate(conn) == 3
 conn.execute("INSERT INTO adventurers (name, job, level) VALUES (?, ?, 1)",
@@ -72,4 +79,44 @@ try:
 except RuntimeError:
     pass
 assert conn.execute("SELECT gold FROM adventurers").fetchone()[0] == 50
+
+# A table made in a failed `with conn:` is rolled back too.
+# 失敗した with conn: の中で作った表も、元に戻る
+try:
+    with conn:
+        conn.execute("CREATE TABLE ghosts (id INTEGER)")
+        conn.execute("PRAGMA user_version = 99")
+        raise RuntimeError("the guild caught fire")
+except RuntimeError:
+    pass
+assert conn.execute(
+    "SELECT name FROM sqlite_master WHERE name = 'ghosts'").fetchall() == []
+assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+
+# Two connections that both read "not done" pay only once.
+# 2つの接続が、どちらも「まだ」と読んでも、払うのは1回だけ
+import os
+import tempfile
+path = os.path.join(tempfile.mkdtemp(), "guild.db")
+first = sqlite3.connect(path, autocommit=False, timeout=0.2)
+second = sqlite3.connect(path, autocommit=False, timeout=0.2)
+migrate(first)
+first.execute("INSERT INTO adventurers (name, job, level) VALUES (?, ?, 1)",
+              ("Lambda", "Mage"))
+first.execute("INSERT INTO quests (title, reward, taken_by) VALUES (?, ?, 1)",
+              ("Slay the slime", 50))
+first.commit()
+for c in (first, second):
+    c.execute("SELECT done FROM quests WHERE id = 1").fetchone()
+paid = 0
+for c in (first, second):
+    try:
+        with c:
+            c.execute("UPDATE quests SET done = 1 WHERE id = 1")
+            c.execute("UPDATE adventurers SET gold = gold + 50 WHERE id = 1")
+        paid += 1
+    except sqlite3.OperationalError:  # database is locked
+        pass
+assert paid == 1
+assert first.execute("SELECT gold FROM adventurers").fetchone()[0] == 50
 print("ok")

@@ -1,14 +1,14 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
--- ANCHOR: imports
 -- 📋 questboard: the guild's quest board on the command line.
 -- questboard：ギルドの依頼板を、コマンドラインから
 module Main (main) where
 
 -- SQLite.
 -- SQLite
-import Database.SQLite.Simple (Connection, withConnection)
+import Database.SQLite.Simple (Connection, execute_, withConnection)
 
 -- Text, reading numbers, and stopping with an error.
 -- テキスト、数の読み取り、エラーで止める
@@ -34,6 +34,9 @@ main :: IO ()
 main = do
   args <- getArgs
   withConnection "guild.db" $ \conn -> do
+    -- SQLite checks REFERENCES only when we ask, for each connection.
+    -- SQLite は、頼んだ接続でだけ REFERENCES を守らせる
+    execute_ conn "PRAGMA foreign_keys = ON"
     _ <- migrate conn
     run conn args
 

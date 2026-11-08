@@ -42,6 +42,8 @@ data PayError
   = NoSuchMember Text
   -- they have only this much / これだけしか持っていない
   | NotEnoughGold Text Int
+  -- the amount must be more than 0 / 額は 0 より大きくないといけない
+  | BadAmount Int
   deriving (Show, Eq)
 
 -- 💰 How much gold this member has, if they are a member.
@@ -56,21 +58,22 @@ goldOf conn who = do
 -- 🤝 Pay gold from one member to another, all or nothing.
 -- ある冒険者から別の冒険者へゴールドを払う。全部か無しか
 pay :: Connection -> Text -> Text -> Int -> IO (Either PayError ())
-pay conn from to amount =
-  withTransaction conn $ do
-    payer <- goldOf conn from
-    payee <- goldOf conn to
-    case (payer, payee) of
-      (Nothing, _) -> pure (Left (NoSuchMember from))
-      (_, Nothing) -> pure (Left (NoSuchMember to))
-      (Just g, Just _)
-        | g < amount -> pure (Left (NotEnoughGold from g))
-        | otherwise  -> do
-            execute conn
-              "UPDATE adventurers SET gold = gold - ? WHERE name = ?"
-              (amount, from)
-            execute conn
-              "UPDATE adventurers SET gold = gold + ? WHERE name = ?"
-              (amount, to)
-            pure (Right ())
+pay conn from to amount
+  | amount <= 0 = pure (Left (BadAmount amount))
+  | otherwise   = withTransaction conn $ do
+      payer <- goldOf conn from
+      payee <- goldOf conn to
+      case (payer, payee) of
+        (Nothing, _) -> pure (Left (NoSuchMember from))
+        (_, Nothing) -> pure (Left (NoSuchMember to))
+        (Just g, Just _)
+          | g < amount -> pure (Left (NotEnoughGold from g))
+          | otherwise  -> do
+              execute conn
+                "UPDATE adventurers SET gold = gold - ? WHERE name = ?"
+                (amount, from)
+              execute conn
+                "UPDATE adventurers SET gold = gold + ? WHERE name = ?"
+                (amount, to)
+              pure (Right ())
 -- ANCHOR_END: pay

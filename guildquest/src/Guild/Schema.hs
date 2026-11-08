@@ -31,9 +31,10 @@ import Data.Text     qualified as T
 -- 一度使った段は書き換えない。変えたいときは、新しい段を足す
 migrations :: [Query]
 migrations =
-  [ -- 1: the roster of adventurers / 冒険者の名簿
+  [ -- 1: the roster of adventurers (the same as the last chapter)
+    --    冒険者の名簿（前の章と同じ形）
     """
-    CREATE TABLE adventurers
+    CREATE TABLE IF NOT EXISTS adventurers
       ( id    INTEGER PRIMARY KEY
       , name  TEXT    NOT NULL UNIQUE
       , job   TEXT    NOT NULL
