@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 {-# LANGUAGE OverloadedRecordDot #-}
 
 -- ANCHOR: module
@@ -20,6 +21,7 @@ import Database.SQLite.Simple (FromRow (..), field)
 -- テキスト
 import Data.Text (Text)
 -- ANCHOR_END: module
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 📜 A quest, as read from the quests table.

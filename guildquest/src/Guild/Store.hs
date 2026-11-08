@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
 
@@ -28,6 +29,7 @@ import Data.Maybe (listToMaybe)
 -- ギルドの型と規則
 import Guild.Quest
 -- ANCHOR_END: module
+-- ANCHOR_END: head
 
 -- ANCHOR: create
 -- 🧙 A new member joins the guild (level 1, no gold yet).

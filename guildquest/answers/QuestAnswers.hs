@@ -1,5 +1,6 @@
 -- Answers for the training of the "growing the database" chapter.
 -- 「データベースを育てる」の章のトレーニングの解答
+-- ANCHOR: header
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
 module QuestAnswers where
@@ -9,6 +10,7 @@ import Data.Text (Text)
 
 import Guild.Quest  (Quest)
 import Guild.Schema (migrations)
+-- ANCHOR_END: header
 
 -- ANCHOR: questsOf
 -- 📜 The quests this adventurer took, in order.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
 
@@ -21,6 +22,7 @@ import Database.SQLite.Simple
 import Control.Monad (forM_)
 import Data.Text     qualified as T
 -- ANCHOR_END: module
+-- ANCHOR_END: head
 
 -- ANCHOR: migrations
 -- 📜 The steps that grow the database, from version 1 on.
