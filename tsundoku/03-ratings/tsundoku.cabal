@@ -1,0 +1,49 @@
+cabal-version: 3.0
+name:          tsundoku
+version:       0.1.0.0
+build-type:    Simple
+
+-- 総合演習：読書メモのレビューサイトを作る
+-- （3. ★を集める：件数の少ない★5にだまされないランキング）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    , time             >=1.12 && <1.16
+
+library
+  import:           shared
+  exposed-modules:  Tsundoku.Types
+                    Tsundoku.Rating
+                    Tsundoku.Reading
+                    Tsundoku.Card
+                    Tsundoku.Progress
+                    Tsundoku.Bar
+                    Tsundoku.Ranking
+                    Tsundoku.Chart
+                    Tsundoku.Examples
+                    ShelfAnswers.Podcast
+                    ShelfAnswers.Grades
+                    ShelfAnswers.LookBack
+                    ShelfAnswers.HalfRead
+                    ShelfAnswers.FirstUnread
+                    ShelfAnswers.ColorBar
+                    ShelfAnswers.Weights
+                    ShelfAnswers.Recent
+                    ShelfAnswers.ByKind
+  hs-source-dirs:   src answers
+
+test-suite tsundoku-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , tsundoku
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19
