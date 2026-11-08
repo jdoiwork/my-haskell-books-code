@@ -43,14 +43,14 @@ import MiniMq.Types
 -- 伝令所。新しく：キューごとの設定と、「渡したけれど、まだ返事の
 -- ない手紙」の帳面
 data Broker = Broker
-  { exchanges :: Map ExchangeName Exchange
-  , queues    :: Map QueueName Queue
-  , pending   :: Map Tag Pending
-  , nextTag   :: Int
-  , nextId    :: Int
-  , nextNo    :: Int        -- ^ new: the next letter's number
+  { exchanges :: !(Map ExchangeName Exchange)
+  , queues    :: !(Map QueueName Queue)
+  , pending   :: !(Map Tag Pending)
+  , nextTag   :: !Int
+  , nextId    :: !Int
+  , nextNo    :: !Int       -- ^ new: the next letter's number
                             --   次の手紙の番号
-  , notes     :: [Entry]    -- ^ new: what to write down, newest first
+  , notes     :: ![Entry]   -- ^ new: what to write down, newest first
                             --   日誌に書くこと（新しい順）
   }
   deriving (Show, Eq)

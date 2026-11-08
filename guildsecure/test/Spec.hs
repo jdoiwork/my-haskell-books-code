@@ -64,6 +64,10 @@ main = hspec $ do
     -- 「書き換えられるのは、マスターか、依頼主だけ」
     prop "lets only the master or the owner edit" $
       \m q -> canEdit m q ==> m.role == Master || m.name == q.owner
+    -- 「マスターと、冒険者の依頼主は、本当に書き換えられる」
+    prop "lets the master and the owner edit" $
+      \m q -> m.role == Master || (m.role == Adventurer && m.name == q.owner)
+               ==> canEdit m q
     -- 「下書きは、この決まりを破る（QuickCheck が見つける）」
     prop "the draft breaks the rule (QuickCheck finds it)" $
       expectFailure $

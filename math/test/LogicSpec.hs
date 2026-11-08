@@ -39,14 +39,18 @@ spec = do
   it "not (all p) is any (not . p)" $
     property $ \xs ->
       not (all even xs) == any (not . even) (xs :: [Int])
-  -- 足りないスキルと、パーティーのスキルは重ならない
-  it "missing skills and party skills never overlap" $
+  -- 足りないスキルは、パーティーのスキルと重ならず、
+  -- 必要なのに誰も持っていないものが、ひとつ残らず入っている
+  it "missing skills are exactly the needed ones nobody has" $
     property $ \needed members ->
       let neededSet  = Set.fromList (needed :: [String])
           memberSets = map Set.fromList (members :: [[String]])
-      in  Set.null (Set.intersection
-                      (missingSkills neededSet memberSets)
-                      (partySkills memberSets))
+          missing    = missingSkills neededSet memberSets
+          -- Check each needed skill one by one, without set difference.
+          -- 集合の引き算を使わずに、必要なスキルを1つずつ調べる
+          nobodyHas s = not (any (Set.member s) memberSets)
+      in  Set.null (Set.intersection missing (partySkills memberSets))
+            .&&. missing === Set.filter nobodyHas neededSet
   -- ANCHOR_END: spec
 
   -- ANCHOR: rules

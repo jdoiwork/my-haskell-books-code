@@ -29,8 +29,8 @@ import MiniMq.Types
 -- 伝令所の全体：仕分け台（交換所。配り方と決まり）と、
 -- 郵便受け（キュー。手紙の行列）
 data Broker = Broker
-  { exchanges :: Map ExchangeName Exchange
-  , queues    :: Map QueueName (Seq Message)
+  { exchanges :: !(Map ExchangeName Exchange)
+  , queues    :: !(Map QueueName (Seq Message))
   }
   deriving (Show, Eq)
 

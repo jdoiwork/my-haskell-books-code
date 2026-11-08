@@ -18,10 +18,16 @@ genQuests = do
 spec :: Spec
 spec = describe "Algo.Greedy" $ do
   -- ANCHOR: questProps
-  -- 終わる順の貪欲は、全部試す仕様と同じ数を取れる
+  -- 終わる順の貪欲は、全部試す仕様と同じ数を取れる。
+  -- 取った依頼は、どれも入力にあって、重ならない
   it "greedy by end agrees with the spec" $ property $
     forAllShrink genQuests (shrinkList (const [])) $ \qs ->
-      length (mostQuests qs) === mostQuestsSpec qs
+      let picked = mostQuests qs
+      in  length picked === mostQuestsSpec qs
+            .&&. all (`elem` qs) picked
+            .&&. and [ not (overlaps a b)
+                     | (i, a) <- zip [0 :: Int ..] picked
+                     , (j, b) <- zip [0 ..] picked, i < j ]
   -- 短い順の貪欲は、まちがうことがある（QuickCheck が反例を見つける）
   it "greedy by length can be wrong" $
     property $ withNumTests 2000 $ expectFailure $

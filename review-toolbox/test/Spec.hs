@@ -40,12 +40,18 @@ main = hspec $ do
       parseBook "[{\"name\": \"ring\", \"price\": -9, \"count\": 1}]"
         `shouldSatisfy` either isBadJson (const False)
 
-  describe "totalValue" $
+  describe "totalValue" $ do
+    -- 「例：3つの品物の値打ちを足す」
+    it "adds up the value of a small book" $
+      goldAmount (totalValue sampleBook) `shouldBe` 140
     -- 「2つの目録を合わせた値打ちは、値打ちの和」
     prop "of two books is the sum of their values" $
       \xs ys -> totalValue (xs ++ ys) == totalValue xs <> totalValue ys
 
-  describe "topItems" $
+  describe "topItems" $ do
+    -- 「例：値打ちの高い順に 2 つ」
+    it "picks the most valuable items first" $
+      map name (topItems 2 sampleBook) `shouldBe` ["elixir", "potion"]
     -- 「n 種類より多くは返さない」
     prop "returns at most n items" $
       \(NonNegative n) xs -> length (topItems n xs) <= n
@@ -62,5 +68,14 @@ main = hspec $ do
   where
     isBadJson (BadJson _) = True
     isBadJson _           = False
+    -- ANCHOR: sample
+    -- potion: 10 G x 3 = 30, elixir: 100 G x 1 = 100, herb: 2 G x 5 = 10
+    sampleBook =
+      [ Item "potion" (gold 10)  3
+      , Item "elixir" (gold 100) 1
+      , Item "herb"   (gold 2)   5
+      ]
+    gold = fromJust . mkGold
+    -- ANCHOR_END: sample
     parse args = getParseResult (execParserPure defaultPrefs optionsInfo args)
 -- ANCHOR_END: all

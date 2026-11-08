@@ -85,7 +85,9 @@ step env core = do
     Left err -> throwSTM err
     Right (a, changed) -> do
       let (entries, clean) = takeNotes changed
-      writeTVar (brokerVar env) clean
+      -- Work out the new broker before it goes in ($!).
+      -- 新しいブローカーを計算してから入れる（$!）
+      writeTVar (brokerVar env) $! clean
       handIn (journal env) entries
       pure a
 
@@ -234,10 +236,14 @@ listenOn port = do
   pure sock
 
 acceptLoop :: Env -> Socket -> (IO () -> IO ()) -> IO ()
-acceptLoop env server welcome = forever $ do
+acceptLoop env server welcome = forever $ mask $ \restore -> do
+  -- From accept to the finally, nothing can stop us (mask), so the
+  -- client's socket is always closed. Only serving can be stopped.
+  -- accept から finally を付けるまでは止められない（mask）ので、
+  -- 客のソケットは必ず閉じる。止めてよいのは、相手をするところだけ
   (client, _) <- accept server
-  conn <- newConn client
-  welcome (serveClient env conn `finally` close client)
+  let serve = newConn client >>= serveClient env
+  welcome (restore serve `finally` close client)
 
 -- 🚪 Like `withScope`, for guests who come and go. When the scope ends,
 --    every guest still here is stopped (and its socket closed). A guest

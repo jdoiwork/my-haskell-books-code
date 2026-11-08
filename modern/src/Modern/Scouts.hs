@@ -13,7 +13,7 @@ module Modern.Scouts
   ) where
 
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Concurrent.Async (mapConcurrently, withAsync)
+import Control.Concurrent.Async (link, mapConcurrently, withAsync)
 import Control.Exception (SomeException, throwIO, try)
 import Control.Monad (forever, void)
 import Data.IORef (IORef, atomicModifyIORef')
@@ -68,12 +68,13 @@ structuredParty report =
 
 -- ANCHOR: lookout
 -- 🔭 A lookout keeps watching while we work; when the work ends,
---    withAsync calls the lookout back too.
+--    withAsync calls the lookout back too. If the lookout falls,
+--    link tells us at once.
 -- 仕事のあいだ、見張りが見張り続ける。仕事が終わると、
--- withAsync が見張りも呼び戻す
+-- withAsync が見張りも呼び戻す。見張りが倒れたら、link ですぐ知らせる
 withLookout :: Report -> IO a -> IO a
 withLookout report work =
-  withAsync lookout (\_ -> work)
+  withAsync lookout (\watching -> link watching >> work)
   where
     lookout = forever $ do
       threadDelay 20000

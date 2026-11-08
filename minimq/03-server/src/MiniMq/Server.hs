@@ -16,10 +16,10 @@ module MiniMq.Server
   , withServer
   ) where
 
-import Control.Concurrent (forkFinally, forkIO, killThread)
+import Control.Concurrent (forkIO, killThread)
 import Control.Concurrent.Async (async, cancel, concurrently_)
 import Control.Concurrent.STM
-import Control.Exception (bracket, mask)
+import Control.Exception (bracket, finally, mask)
 import Control.Monad (forever)
 import Data.IORef
 import Network.Socket hiding (bind)
@@ -49,7 +49,9 @@ step var core = do
   broker <- readTVar var
   case core broker of
     Left err             -> throwSTM err
-    Right (a, broker') -> a <$ writeTVar var broker'
+    -- Work out the new broker before it goes in ($!).
+    -- 新しいブローカーを計算してから入れる（$!）
+    Right (a, broker') -> a <$ (writeTVar var $! broker')
 
 -- ⏳ The same, but "nothing yet" means: sleep until the broker changes,
 --    and try again. That is all `retry` does.
@@ -158,10 +160,14 @@ listenOn port = do
   pure sock
 
 acceptLoop :: Env -> Socket -> IO ()
-acceptLoop env server = forever $ do
+acceptLoop env server = forever $ mask $ \restore -> do
+  -- From accept to the finally, nothing can stop us (mask), so the
+  -- client's socket is always closed. Only serving can be stopped.
+  -- accept から finally を付けるまでは止められない（mask）ので、
+  -- 客のソケットは必ず閉じる。止めてよいのは、相手をするところだけ
   (client, _) <- accept server
-  conn <- newConn client
-  forkFinally (serveClient env conn) (\_ -> close client)
+  let serve = newConn client >>= serveClient env
+  forkIO (restore serve `finally` close client)
 
 -- 🧪 For tests: a server on a free port, stopped when the test ends.
 -- テスト用：空いているポートで動き、テストが終わると止まるサーバー

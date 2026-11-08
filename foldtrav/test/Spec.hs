@@ -37,11 +37,13 @@ main = hspec $ do
     it "traverse Identity changes nothing" $ property $ \xs ->
       let t = fromList (xs :: [Int])
       in  runIdentity (traverse Identity t) == t
-    -- 手で書いた traverse と、deriving の traverse は同じ
+    -- 手で書いた traverse と、deriving の traverse は同じ（たどる順番も）
     it "agrees with the derived instance" $ property $ \xs ->
       let t = fromList (xs :: [Int])
-          f x = if x > 0 then Just (x * 2) else Nothing
-      in  fmap toDerived (traverse f t) == traverse f (toDerived t)
+          -- The pair keeps a log of the visits, so the order shows.
+          -- 組が、たどった順の記録を残すので、順番が見える
+          visit x = ([x], x * 2)
+      in  fmap toDerived (traverse visit t) == traverse visit (toDerived t)
   describe "Stats" $ do
     -- 1回の foldMap で、4つの答え
     it "report agrees with length, sum, minimum and maximum" $

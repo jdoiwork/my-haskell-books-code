@@ -3,7 +3,14 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
 -- ANCHOR: module
-module Shop where
+-- Gold without (..): other modules cannot write Gold (-5).
+-- Gold には (..) を付けない：ほかのモジュールでは Gold (-5) と書けない
+module Shop
+  ( Gold
+  , mkGold
+  , Kind (..)
+  , Item (..)
+  ) where
 
 -- JSON: the classes and the tools to write instances by hand.
 -- JSON の型クラスと、instance を手で書くための道具

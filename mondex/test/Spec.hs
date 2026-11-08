@@ -73,9 +73,13 @@ monlistSpec =
       parseWith monlistInfo [] `shouldBe`
         Just (MonlistInput "monsters.json" (MonlistRequest Nothing ByName False))
     -- 「オプションは、どの順番で書いてもよい」
-    it "takes the options in any order" $
+    it "takes the options in any order" $ do
+      let expected = Just (MonlistInput "monsters.json"
+                             (MonlistRequest (Just Water) ByHp False))
       parseWith monlistInfo ["--sort", "hp", "-e", "water"]
-        `shouldBe` parseWith monlistInfo ["-e", "water", "--sort", "hp"]
+        `shouldBe` expected
+      parseWith monlistInfo ["-e", "water", "--sort", "hp"]
+        `shouldBe` expected
     -- 「知らない属性は断る」
     it "rejects an unknown element" $
       parseWith monlistInfo ["--element", "thunder"] `shouldBe` Nothing
@@ -84,7 +88,10 @@ monlistSpec =
       let args = ["-e", "water", "--sort", "hp", "--json"]
           viaDo = parseWith (info monlistRequestParserDo mempty) args
           viaAp = parseWith (info monlistRequestParser mempty) args
-      in  viaDo `shouldBe` viaAp
+          -- Compare with the answer too: both Nothing must not pass.
+          -- 答えとも比べる：両方 Nothing で通らないように
+          expected = Just (MonlistRequest (Just Water) ByHp True)
+      in  (viaDo, viaAp) `shouldBe` (expected, expected)
 -- ANCHOR_END: monlistSpec
 
 -- ANCHOR: goldenSpec

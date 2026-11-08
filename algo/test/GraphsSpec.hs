@@ -1,6 +1,6 @@
 module GraphsSpec (spec) where
 
-import Data.List (sort, subsequences)
+import Data.List (partition, sort, subsequences)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Test.Hspec
@@ -50,12 +50,23 @@ spec = describe "Algo.Graphs" $ do
         cheapest = minimum [ sum (map cost rs) | rs <- subsequences roads
                                                , connects rs ]
     sum (map cost (kruskal roads)) `shouldBe` cheapest
-  -- ユニオン・ファインド：つないだものは、同じグループ
+  -- ユニオン・ファインド：つないだものは同じグループで、
+  -- つながっていないものは、別のグループ
   it "union joins groups" $ property $ \pairs ->
     let towns = [ (show (a `mod` 5 :: Int), show (b `mod` 5 :: Int))
                 | (a, b) <- pairs ]
         uf = foldl (\u (a, b) -> union u a b) emptyUF towns
-    in  all (\(a, b) -> find uf a == find uf b) towns
+        names = Set.toList (Set.fromList [ t | (a, b) <- towns, t <- [a, b] ])
+        -- The groups, worked out the slow way with lists.
+        -- グループを、リストで素朴に求める
+        groups = foldl joinPair [] towns
+        joinPair gs (a, b) =
+          let touches g         = a `elem` g || b `elem` g
+              (touched, others) = partition touches gs
+          in  (a : b : concat touched) : others
+        together x y = any (\g -> x `elem` g && y `elem` g) groups
+    in  and [ (find uf x == find uf y) == together x y
+            | x <- names, y <- names ]
   -- 依頼の輪を見つける
   it "finds the cycle" $
     map sort (cycles questBoard) `shouldBe` [["ask-sage", "find-tome"]]

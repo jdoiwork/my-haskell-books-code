@@ -5,6 +5,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (elements, forAll, listOf)
 
 import Hsx
 import Hsx.Parse
@@ -85,7 +86,22 @@ main = hspec $ do
 
   -- 「エスケープ」
   describe "escapeText" $
-    -- 「どんな文字でも、エスケープした後にタグの文字は残らない」
-    prop "leaves no tag characters" $ \s ->
+    -- 「どんな文字でも、エスケープした後にタグの文字は残らず、
+    --   元の文字に戻せる（& も正しく扱う）」
+    --   Glue pieces of the escapes, so that "&lt;" is often made.
+    --   エスケープの部品をつなぐ（"&lt;" のような並びがよく出るように）
+    prop "leaves no tag characters, and can be read back" $
+     forAll (concat <$> listOf (elements pieces)) $ \s ->
       let out = escapeText (T.pack s)
-      in T.any (`elem` ("<>\"'" :: String)) out `shouldBe` False
+          -- Undo the escapes; &amp; last, so "&amp;lt;" becomes "&lt;".
+          -- エスケープを戻す。&amp; は最後に（"&amp;lt;" は "&lt;" に戻る）
+          back = T.replace "&amp;" "&"
+               . T.replace "&#39;" "'"
+               . T.replace "&quot;" "\""
+               . T.replace "&gt;" ">"
+               . T.replace "&lt;" "<"
+      in (T.any (`elem` ("<>\"'" :: String)) out, back out)
+           `shouldBe` (False, T.pack s)
+  where
+    pieces = ["<", ">", "&", "\"", "'", "lt;", "gt;", "amp;", "quot;"
+             , "#39;", "a", " "]

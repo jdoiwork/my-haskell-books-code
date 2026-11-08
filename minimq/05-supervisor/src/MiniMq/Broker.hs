@@ -35,11 +35,11 @@ import MiniMq.Types
 -- 伝令所。新しく：キューごとの設定と、「渡したけれど、まだ返事の
 -- ない手紙」の帳面
 data Broker = Broker
-  { exchanges :: Map ExchangeName Exchange
-  , queues    :: Map QueueName Queue
-  , pending   :: Map Tag Pending
-  , nextTag   :: Int
-  , nextId    :: Int
+  { exchanges :: !(Map ExchangeName Exchange)
+  , queues    :: !(Map QueueName Queue)
+  , pending   :: !(Map Tag Pending)
+  , nextTag   :: !Int
+  , nextId    :: !Int
   }
   deriving (Show, Eq)
 

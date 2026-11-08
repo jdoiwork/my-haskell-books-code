@@ -101,9 +101,11 @@ type Tag = (String, Int)
 -- 📋 A set where adding wins: an item is in the set while it has
 --    a tag that has not been removed.
 -- 追加が勝つ集合：消されていない札が1枚でもあれば、集合に入っている
+--    The fields are strict (!): making an OrSet computes its maps.
+-- フィールドは正格（!）：OrSet を作ると、中の Map も計算される
 data OrSet a = OrSet
-  { tags    :: Map a (Set Tag)
-  , removed :: Set Tag
+  { tags    :: !(Map a (Set Tag))
+  , removed :: !(Set Tag)
   }
   deriving (Show, Eq)
 
