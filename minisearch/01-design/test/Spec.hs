@@ -1,8 +1,8 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
 import Data.List (sortOn)
-import qualified Data.Map as Map
 import qualified Data.Text as T
 import Test.Hspec
 import Test.QuickCheck
@@ -13,6 +13,7 @@ import MiniSearch.Samples
 import MiniSearch.Search
 import MiniSearch.Tokenize
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: gen
 -- 🎲 A random small library: words come from a tiny vocabulary,
@@ -68,14 +69,17 @@ main = hspec $ do
   -- ANCHOR: props
   -- 「性質」
   describe "properties" $ do
-    -- 「当たった文書は、どれも問い合わせの単語を全部含む」
-    it "every hit has all the query tokens" $
+    -- 「当たるのは、問い合わせの単語を全部含む文書で、そのすべて」
+    it "hits are exactly the documents with all the query tokens" $
       property $ forAll genDocs $ \docs -> forAll genQuery $ \q ->
-        let index  = buildIndex docs
-            tokens = tokenize q
-            hasAll h = all (\t -> Map.member (hitDoc h) (postingsOf t index))
-                           tokens
-        in all hasAll (search index q)
+        let tokens   = tokenize q
+            -- Read each document itself, not the index.
+            -- インデックスではなく、文書そのものを読む
+            wordsOf d = tokenize (docTitle d <> " " <> docBody d)
+            expected = [ docId d | d <- docs
+                                 , all (`elem` wordsOf d) tokens ]
+            actual   = map hitDoc (search (buildIndex docs) q)
+        in sortOn idOf' actual === sortOn idOf' expected
 
     -- 「結果は、点の高い順に並ぶ」
     it "hits are sorted by score, high first" $
@@ -98,4 +102,5 @@ main = hspec $ do
         in all finds docs
     -- ANCHOR_END: answer3
   where
-    idOf d = let DocId i = docId d in i
+    idOf d = idOf' (docId d)
+    idOf' (DocId i) = i

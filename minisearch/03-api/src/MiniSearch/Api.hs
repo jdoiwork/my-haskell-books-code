@@ -1,7 +1,8 @@
+-- ANCHOR: head
+-- ANCHOR: all
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
--- ANCHOR: all
 -- | The search engine as a JSON Web API.
 -- 検索エンジンを、JSON の Web API にする。
 module MiniSearch.Api
@@ -23,6 +24,7 @@ import MiniSearch.Query
 import MiniSearch.Search (searchTokens)
 import MiniSearch.Snippet (snippet)
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: views
 -- 🎯 One hit, as the client sees it.

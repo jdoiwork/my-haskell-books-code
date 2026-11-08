@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+-- ANCHOR: head
+{-# LANGUAGE OverloadedStrings #-}
 -- | Search the index and rank the results.
 -- インデックスを引いて、結果に順位を付ける。
 module MiniSearch.Search
@@ -18,6 +19,7 @@ import Data.Text (Text)
 import MiniSearch.Index (documentCount, postingsOf)
 import MiniSearch.Tokenize (tokenize)
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: matching
 -- 🤝 Documents that have ALL the tokens (AND search).

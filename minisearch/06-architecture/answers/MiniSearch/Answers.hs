@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Answers to the training of the architecture chapter.
 -- 設計を磨く章のトレーニングの解答。
 module MiniSearch.Answers

@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Japanese: cut the text into pieces of two characters (bigrams).
 -- 日本語：文章を2文字ずつ（bigram）に切る。
 module MiniSearch.Bigram
@@ -12,6 +13,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import MiniSearch.Types (Token (..))
+-- ANCHOR_END: head
 
 -- ANCHOR: kind
 -- 🈁 What kind of character: Japanese, a letter or digit, or other.

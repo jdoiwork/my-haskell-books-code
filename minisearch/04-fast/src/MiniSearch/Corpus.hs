@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | A big, made-up library to measure with. Always the same documents.
 -- 測るための、大きな作りものの書庫。いつも同じ文書になる。
 module MiniSearch.Corpus
@@ -14,6 +15,7 @@ import qualified Data.Text as T
 import Data.Word (Word64)
 
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: words
 -- 🔤 Word number i, made of syllables: 0 -> "ka", 17 -> "riri", ...

@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+-- ANCHOR: head
+{-# LANGUAGE OverloadedStrings #-}
 -- | Cut a text into tokens.
 -- 文章を、単語（トークン）に切り分ける。
 module MiniSearch.Tokenize
@@ -14,6 +15,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import MiniSearch.Types (Token (..))
+-- ANCHOR_END: head
 
 -- ANCHOR: tokenize
 -- ✂️ "The red Dragon, of fire!" -> [red, dragon, fire]

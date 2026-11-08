@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Main (main) where
@@ -36,6 +37,7 @@ genDocs = do
     genDoc i = do
       ws <- listOf (elements vocabulary)
       pure (Document (DocId i) (T.pack (show i)) (T.unwords ws))
+-- ANCHOR_END: head
 
 -- ANCHOR: parse
 -- 🧪 Read the arguments the same way as the real command.

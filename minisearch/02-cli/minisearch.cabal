@@ -5,6 +5,7 @@ build-type:    Simple
 
 -- 第7部 ミニ全文検索エンジン（2. インデクサーを CLI ツールにする）
 
+-- ANCHOR: lib
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
@@ -33,6 +34,7 @@ library
     , directory            ^>=1.3
     , filepath             ^>=1.5
     , optparse-applicative ^>=0.19
+-- ANCHOR_END: lib
 
 -- ANCHOR: exe
 executable minisearch
@@ -44,6 +46,7 @@ executable minisearch
     , optparse-applicative ^>=0.19
 -- ANCHOR_END: exe
 
+-- ANCHOR: test
 test-suite minisearch-test
   import:           shared
   type:             exitcode-stdio-1.0
@@ -55,3 +58,4 @@ test-suite minisearch-test
     , hspec                ^>=2.11
     , optparse-applicative ^>=0.19
     , QuickCheck           ^>=2.19
+-- ANCHOR_END: test

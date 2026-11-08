@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | A live index: searches keep going while a new index is built
 --   in the background, then the new one is swapped in at once.
@@ -15,12 +16,13 @@ module MiniSearch.Live
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.DeepSeq (force)
-import Control.Exception (evaluate, finally)
+import Control.Exception (evaluate, finally, mask)
 import Control.Monad (void, when)
 
 import MiniSearch.Index (buildIndexParallelWith)
 import MiniSearch.Tokenizer (Tokenizer)
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 🌱 The index now, whether a rebuild is running,
@@ -53,7 +55,9 @@ currentIndex live = readTVarIO (liveIndex live)
 -- 裏で作り直しを始める。
 -- もう走っていれば False（2つ同時には始めない）
 startReindex :: Live -> IO Bool
-startReindex live = do
+startReindex live = mask $ \restore -> do
+  -- From "busy" to the finally, nothing can stop us (mask).
+  -- 「使用中」にしてから finally を付けるまで、止められない（mask）
   started <- atomically $ do
     busy <- readTVar (liveBusy live)
     if busy
@@ -61,8 +65,10 @@ startReindex live = do
       else do
         writeTVar (liveBusy live) True
         pure True
+  -- Only the rebuild itself can be stopped (restore).
+  -- 止めてよいのは、作り直しそのものだけ（restore）
   when started $
-    void (forkIO (rebuild `finally` done))
+    void (forkIO (restore rebuild `finally` done))
   pure started
   where
     -- Whether it worked or failed, the rebuild is over.

@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | The gatekeepers for what comes from outside: the query and the limit.
 -- 外から来るものの門番：問い合わせと、件数。
 module MiniSearch.Query

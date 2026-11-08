@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | The first, simple version of building and searching, kept as the
 --   reference: the fast version must give the same answers.
 -- 最初の素朴な版。お手本として残す：

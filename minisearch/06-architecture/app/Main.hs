@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | minisearch: build an index, then search it.
 -- minisearch：インデックスを作って、引く。
@@ -16,6 +17,7 @@ import MiniSearch.Report (formatResults)
 import MiniSearch.Search (searchWith)
 import MiniSearch.Store (loadIndex, saveIndex)
 import MiniSearch.Tokenizer (english, tokenizerByName)
+-- ANCHOR_END: head
 
 main :: IO ()
 main = do

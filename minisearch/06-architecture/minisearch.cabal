@@ -5,6 +5,7 @@ build-type:    Simple
 
 -- 第7部 ミニ全文検索エンジン（6. 設計を磨く）
 
+-- ANCHOR: lib
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
@@ -47,6 +48,7 @@ library
     , parallel             ^>=3.3
     , servant-server       ^>=0.20.3
     , stm                  ^>=2.5
+-- ANCHOR_END: lib
 
 -- ANCHOR: exe
 executable minisearch
@@ -95,6 +97,7 @@ benchmark minisearch-bench
     , tasty-bench          ^>=0.5
 -- ANCHOR_END: bench
 
+-- ANCHOR: test
 test-suite minisearch-test
   import:           shared
   type:             exitcode-stdio-1.0
@@ -114,4 +117,4 @@ test-suite minisearch-test
     , optparse-applicative ^>=0.19
     , QuickCheck           >=2.18 && <2.20
     , stm                  ^>=2.5
-
+-- ANCHOR_END: test

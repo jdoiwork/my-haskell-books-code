@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
@@ -13,6 +14,7 @@ import Review.Suggest
 -- 少ない文字で作る短い単語（近いものが多くなるように）
 genWord :: Gen T.Text
 genWord = T.pack <$> resize 6 (listOf (elements "abcd"))
+-- ANCHOR_END: head
 
 main :: IO ()
 main = hspec $ do

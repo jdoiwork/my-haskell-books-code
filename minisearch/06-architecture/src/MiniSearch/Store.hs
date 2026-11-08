@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveAnyClass #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE DeriveAnyClass #-}
 -- | Save the index to a file, and read it back.
 --   index.json -> JSON (easy to read), anything else -> binary (fast).
 -- インデックスをファイルに保存し、読み戻す。
@@ -22,6 +23,7 @@ import System.FilePath (takeExtension)
 
 import MiniSearch.Tokenizer (Tokenizer (..), tokenizerByName)
 import MiniSearch.Types (Index)
+-- ANCHOR_END: head
 
 -- ANCHOR: saved
 -- 🏷️ What goes into the file: the index, and the name of the

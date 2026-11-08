@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Search the index and rank the results.
 -- インデックスを引いて、結果に順位を付ける。
 module MiniSearch.Search

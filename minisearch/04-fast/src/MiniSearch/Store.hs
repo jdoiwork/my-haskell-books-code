@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Save the index to a file, and read it back.
 --   index.json -> JSON (easy to read), anything else -> binary (fast).
@@ -16,6 +17,7 @@ import qualified Data.ByteString.Lazy as BL
 import System.FilePath (takeExtension)
 
 import MiniSearch.Types (Index)
+-- ANCHOR_END: head
 
 -- ANCHOR: format
 -- 🗂️ Which format to use, from the file name.

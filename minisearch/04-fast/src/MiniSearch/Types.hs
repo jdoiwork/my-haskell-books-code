@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveAnyClass #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE DeriveAnyClass #-}
 -- | The words of the search engine, as types.
 -- 検索エンジンの言葉を、型にする。
 module MiniSearch.Types
@@ -17,6 +18,7 @@ import Data.Binary (Binary)
 import Data.Map (Map)
 import Data.Text (Text)
 import GHC.Generics (Generic)
+-- ANCHOR_END: head
 
 -- ANCHOR: document
 -- 🔢 The number of a document. Not just an Int:

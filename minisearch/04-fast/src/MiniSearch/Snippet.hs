@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | A short piece of the body around the first hit.
 -- 最初に当たったところのまわりの、本文の短い抜粋。
 module MiniSearch.Snippet (snippet) where

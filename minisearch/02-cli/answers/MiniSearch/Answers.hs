@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Answers to the training of the CLI chapter.
 -- CLI の章のトレーニングの解答。
 module MiniSearch.Answers

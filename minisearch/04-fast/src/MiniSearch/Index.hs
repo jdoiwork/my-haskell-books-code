@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Build the inverted index (the faster version).
 -- 転置インデックスを作る（速くした版）。
 module MiniSearch.Index
@@ -28,12 +28,12 @@ emptyIndex = Index
   , indexLengths  = Map.empty
   }
 
+-- ANCHOR: add
 -- 🔢 How many times each token appears.
 -- それぞれの単語が何回出てくるか
 countTokens :: [Token] -> Map.Map Token Int
 countTokens tokens = Map.fromListWith (+) [ (t, 1) | t <- tokens ]
 
--- ANCHOR: add
 -- ➕ Put one document into the index (for adding later, one by one).
 -- 文書をひとつ入れる（あとから1つずつ足すとき用）
 addDocument :: Document -> Index -> Index

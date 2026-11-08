@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | The gatekeepers for what comes from outside: the query and the limit.
 -- 外から来るものの門番：問い合わせと、件数。
 module MiniSearch.Query
@@ -23,6 +24,7 @@ import qualified Data.Text as T
 
 import MiniSearch.Tokenize (tokenize)
 import MiniSearch.Types (Token)
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 🎫 A query that passed the gate. The constructor is not exported:

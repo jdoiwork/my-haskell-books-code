@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | The server's settings, read from the environment variables.
 --   A pure function: easy to test, and every mistake found at start.
@@ -13,6 +14,7 @@ import qualified Data.Text as T
 import Text.Read (readMaybe)
 
 import MiniSearch.Tokenizer (Tokenizer, tokenizerByName)
+-- ANCHOR_END: head
 
 -- ANCHOR: config
 -- ⚙️ Everything the server needs to start.

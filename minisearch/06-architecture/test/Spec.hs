@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Main (main) where
@@ -56,6 +57,7 @@ genDocs = do
     genDoc i = do
       ws <- listOf (elements vocabulary)
       pure (Document (DocId i) (T.pack (show i)) (T.unwords ws))
+-- ANCHOR_END: head
 
 -- ANCHOR: parse
 -- 🧪 Read the arguments the same way as the real command.
@@ -111,8 +113,12 @@ outsideModulesWithTrace =
   , "MiniSearch.Api" ]
 -- ANCHOR_END: answer3
 
+-- ANCHOR: name
+-- 🏷️ The name of the tokenizer in a config.
+-- 設定の中のトークナイザーの名前
 name :: Config -> T.Text
 name = tokenizerName . configTokenizer
+-- ANCHOR_END: name
 
 main :: IO ()
 main = hspec $ do

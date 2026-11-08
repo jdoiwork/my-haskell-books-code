@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Build an index of a big library and search it, to measure.
 --   Run with:  cabal run minisearch-measure -- 20000 +RTS -s
@@ -27,7 +28,9 @@ import MiniSearch.Store (loadIndex, saveIndex)
 import System.Directory (getFileSize, getTemporaryDirectory)
 import System.FilePath ((</>))
 import MiniSearch.Types
+-- ANCHOR_END: head
 
+-- ANCHOR: args
 main :: IO ()
 main = do
   args <- getArgs
@@ -42,6 +45,7 @@ main = do
         | "parallel" `elem` args = buildIndexParallel 1000
         | otherwise           = buildIndex
       searchWith   = if naive then searchNaive else search
+-- ANCHOR_END: args
   -- Make the documents first, so that we measure only the index.
   -- 先に文書を作っておき、インデックスだけを測る
   docs <- evaluate (force (corpus n 100))

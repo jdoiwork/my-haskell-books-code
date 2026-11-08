@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Read the documents from a folder.
 -- フォルダーから文書を読む。
 module MiniSearch.Load

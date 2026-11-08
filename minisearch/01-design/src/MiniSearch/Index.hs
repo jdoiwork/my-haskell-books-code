@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+-- ANCHOR: head
+{-# LANGUAGE OverloadedStrings #-}
 -- | Build the inverted index.
 -- 転置インデックスを作る。
 module MiniSearch.Index
@@ -14,6 +15,7 @@ import qualified Data.Map as Map
 
 import MiniSearch.Tokenize (tokenize)
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: empty
 -- 📭 An index with nothing in it.

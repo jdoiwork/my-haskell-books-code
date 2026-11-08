@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | The command line: what the user asked for, as types.
 -- コマンドライン：ユーザーが頼んだことを、型にする。
@@ -11,6 +12,7 @@ module MiniSearch.Cli
 import Data.Text (Text)
 import qualified Data.Text as T
 import Options.Applicative
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 🧭 The two things the command can do.

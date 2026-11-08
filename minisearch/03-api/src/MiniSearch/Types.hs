@@ -1,5 +1,5 @@
-{-# LANGUAGE DeriveAnyClass #-}
 -- ANCHOR: all
+{-# LANGUAGE DeriveAnyClass #-}
 -- | The words of the search engine, as types.
 -- 検索エンジンの言葉を、型にする。
 module MiniSearch.Types

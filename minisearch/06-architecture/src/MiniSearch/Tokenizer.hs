@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Everything that changes with the language, in one record.
 -- 言語によって変わるものを、1つのレコードに集める。
 module MiniSearch.Tokenizer
@@ -17,6 +18,7 @@ import MiniSearch.Bigram (bigramTokenize, charSnippet)
 import MiniSearch.Snippet (snippet)
 import MiniSearch.Tokenize (tokenize)
 import MiniSearch.Types (Token)
+-- ANCHOR_END: head
 
 -- ANCHOR: record
 -- 🔧 A tokenizer: a name, how to cut a text into tokens,

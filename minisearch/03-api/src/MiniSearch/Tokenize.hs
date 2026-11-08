@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Cut a text into tokens.
 -- 文章を、単語（トークン）に切り分ける。
 module MiniSearch.Tokenize

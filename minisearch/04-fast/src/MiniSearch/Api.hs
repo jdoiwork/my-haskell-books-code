@@ -1,7 +1,7 @@
+-- ANCHOR: all
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
--- ANCHOR: all
 -- | The search engine as a JSON Web API.
 -- 検索エンジンを、JSON の Web API にする。
 module MiniSearch.Api

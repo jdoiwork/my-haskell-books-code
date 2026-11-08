@@ -5,6 +5,7 @@ build-type:    Simple
 
 -- 第7部 ミニ全文検索エンジン（3. 検索 Web API を公開する）
 
+-- ANCHOR: lib
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
@@ -36,6 +37,7 @@ library
     , filepath             ^>=1.5
     , optparse-applicative ^>=0.19
     , servant-server       ^>=0.20.3
+-- ANCHOR_END: lib
 
 -- ANCHOR: exe
 executable minisearch
@@ -58,6 +60,7 @@ executable minisearch-server
     , warp                 ^>=3.4
 -- ANCHOR_END: server
 
+-- ANCHOR: test
 test-suite minisearch-test
   import:           shared
   type:             exitcode-stdio-1.0
@@ -72,3 +75,4 @@ test-suite minisearch-test
     , hspec-wai-json       ^>=0.12
     , optparse-applicative ^>=0.19
     , QuickCheck           >=2.18 && <2.20
+-- ANCHOR_END: test

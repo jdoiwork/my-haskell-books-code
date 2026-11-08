@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | "Did you mean ...?": suggest a known word for a mistyped one.
 -- 「もしかして」：打ちまちがえた単語に、知っている単語を勧める。
 module Review.Suggest
@@ -18,6 +19,7 @@ import qualified Data.Text as T
 
 import MiniSearch.Search (search)
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: distance
 -- 📏 The edit distance: how many one-letter changes (add, remove,

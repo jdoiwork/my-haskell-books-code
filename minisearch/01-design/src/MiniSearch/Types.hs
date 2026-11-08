@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | The words of the search engine, as types.
 -- 検索エンジンの言葉を、型にする。
@@ -12,6 +13,7 @@ module MiniSearch.Types
 
 import Data.Map (Map)
 import Data.Text (Text)
+-- ANCHOR_END: head
 
 -- ANCHOR: document
 -- 🔢 The number of a document. Not just an Int:

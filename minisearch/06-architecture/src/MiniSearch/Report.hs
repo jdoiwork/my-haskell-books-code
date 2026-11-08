@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Turn search results into the text the command prints.
 -- 検索結果を、コマンドが表示する文字にする。
 module MiniSearch.Report (formatResults) where

@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Read the documents from a folder.
 -- フォルダーから文書を読む。
 module MiniSearch.Load
@@ -15,6 +16,7 @@ import System.Directory (listDirectory)
 import System.FilePath (takeExtension, (</>))
 
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: toDocument
 -- 📄 The first line is the title, the rest is the body.

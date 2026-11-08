@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Build the inverted index.
 -- 転置インデックスを作る。
 module MiniSearch.Index

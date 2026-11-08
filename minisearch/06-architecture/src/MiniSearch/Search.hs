@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR: head
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | Search the index and rank the results.
 -- インデックスを引いて、結果に順位を付ける。
 module MiniSearch.Search
@@ -21,6 +22,7 @@ import MiniSearch.Index (documentCount, postingsOf)
 import MiniSearch.Tokenize (tokenize)
 import MiniSearch.Tokenizer (Tokenizer (..))
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: matching
 -- 🤝 Documents that have ALL the tokens (AND search).
@@ -69,10 +71,12 @@ score tokens doc index =
 search :: Index -> Text -> [Hit]
 search index query = searchTokens index (nub (tokenize query))
 
+-- ANCHOR: searchWith
 -- 🔍 The same, with any tokenizer.
 -- 同じことを、どのトークナイザーでも
 searchWith :: Tokenizer -> Index -> Text -> [Hit]
 searchWith tok index query = searchTokens index (nub (cut tok query))
+-- ANCHOR_END: searchWith
 
 -- 🔍 The same, for tokens that are already cut.
 --    Each token is looked up only once.

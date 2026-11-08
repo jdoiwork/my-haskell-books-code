@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | A few documents to try the engine in GHCi.
 -- GHCi で試すための、いくつかの文書。
 module MiniSearch.Samples (sampleDocs) where
