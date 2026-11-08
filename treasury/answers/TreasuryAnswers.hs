@@ -49,8 +49,11 @@ stiffDoor n = do
 retry :: Int -> IO a -> IO a
 retry times work
   | times <= 1 = work
-  | otherwise  =
-      work `catch` \ (e :: VaultAccident) -> do
-        putStrLn ("  again, after " <> show e)
-        retry (times - 1) work
+  | otherwise  = do
+      result <- try @VaultAccident work
+      case result of
+        Right a -> pure a
+        Left e  -> do
+          putStrLn ("  again, after " <> show e)
+          retry (times - 1) work
 -- ANCHOR_END: retry

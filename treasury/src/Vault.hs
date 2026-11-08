@@ -18,7 +18,7 @@ import System.IO
 
 -- Text.
 -- テキスト
-import Data.Maybe (mapMaybe)
+import Data.Maybe (isNothing, mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
@@ -45,10 +45,25 @@ parseEntry line =
         Nothing -> Nothing
     _ -> Nothing
 
--- 📚 The whole ledger, line by line.
--- 帳簿の全体を、1行ずつ読む
-parseLedger :: Text -> [Entry]
-parseLedger text = mapMaybe parseEntry (T.lines text)
+-- 📚 The whole ledger, line by line. A broken line: Left that line.
+--    (We do not drop it quietly: a dropped line is lost gold.)
+-- 帳簿の全体を、1行ずつ読む。壊れた行があれば、その行を Left で返す
+-- （黙って捨てない。捨てた行の金貨は、消えてしまう）
+parseLedger :: Text -> Either Text [Entry]
+parseLedger text =
+  case [ line | line <- rows, isNothing (parseEntry line) ] of
+    (broken : _) -> Left broken
+    []           -> Right (mapMaybe parseEntry rows)
+  where
+    rows = T.lines text
+
+-- 📒 Text → entries, in IO. A broken line becomes an accident.
+-- テキストから帳簿へ（IO の中で）。壊れた行は、事故にする
+entriesOf :: Text -> IO [Entry]
+entriesOf text =
+  case parseLedger text of
+    Right entries -> pure entries
+    Left line     -> throwIO (BrokenLine line)
 
 -- ✍️ Entry "Lambda" 120 → "Lambda,120"
 renderEntry :: Entry -> Text
@@ -65,7 +80,7 @@ loadLedgerCareless path = do
   result <- try @IOException (TIO.readFile path)
   case result of
     Left _     -> pure []
-    Right text -> pure (parseLedger text)
+    Right text -> entriesOf text
 -- ANCHOR_END: careless
 
 -- ANCHOR: load
@@ -78,7 +93,7 @@ loadLedger path = do
   result <- tryJust missing (TIO.readFile path)
   case result of
     Left ()    -> pure []
-    Right text -> pure (parseLedger text)
+    Right text -> entriesOf text
   where
     -- Pick out only "the file does not exist".
     -- 「ファイルがない」だけを選び出す
@@ -101,6 +116,9 @@ data VaultAccident
   -- Someone keeps less than zero gold: the books are broken.
   -- 金貨がマイナスの人がいる。帳簿が壊れている
   | NegativeGold Text Int
+  -- A line of the ledger we cannot read.
+  -- 帳簿に、読めない行がある
+  | BrokenLine Text
   deriving Show
 
 instance Exception VaultAccident
@@ -148,15 +166,29 @@ saveLedgerCareless path entries =
 -- ANCHOR_END: write
 
 -- ANCHOR: save
--- 💾 Write a draft first, then swap it in. If anything goes wrong,
---    throw the draft away: the old ledger stays as it was.
--- まず下書きに書いて、できたら差し替える。途中で何かあったら、
--- 下書きを捨てる。前の帳簿は、そのまま残る
+-- 💾 Write a draft first, then swap it in. If anything goes wrong
+--    (swapping included), throw the draft away: the old ledger stays
+--    as it was.
+-- まず下書きに書いて、できたら差し替える。途中で何かあったら
+-- （差し替えも含めて）、下書きを捨てる。前の帳簿は、そのまま残る
 saveLedger :: FilePath -> [Entry] -> IO ()
-saveLedger path entries = do
-  let draft = path <> ".draft"
-  withFile draft WriteMode (\ h -> writeEntries h entries)
-    `onException` removeFile draft
-  renameFile draft path
+saveLedger path entries =
+  writeAndSwap `onException` throwDraftAway
+  where
+    draft = path <> ".draft"
+
+    -- Write everything to the draft, then give it the ledger's name.
+    -- 下書きに全部書いてから、帳簿の名前に付け替える
+    writeAndSwap = do
+      withFile draft WriteMode (\ h -> writeEntries h entries)
+      renameFile draft path
+
+    -- Throw the draft away, if it is there. If even that fails, keep
+    --    quiet: the first accident is the one to report.
+    -- 下書きがあれば捨てる。それすら失敗しても黙っておく。
+    -- 知らせるべきなのは、最初の事故のほう
+    throwDraftAway = do
+      _ <- try @IOException (removeFile draft)
+      pure ()
 -- ANCHOR_END: save
 -- ANCHOR_END: all

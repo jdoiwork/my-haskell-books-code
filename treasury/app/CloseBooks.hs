@@ -47,9 +47,10 @@ vaultTrouble e = do
 -- 読んで、足して、保存して、日誌に1行書く
 closeBooks :: FilePath -> FilePath -> IO ()
 closeBooks ledger depositsPath = do
-  entries <- loadLedger ledger
-  text    <- TIO.readFile depositsPath
-  let merged  = addUp (entries ++ parseLedger text)
+  entries  <- loadLedger ledger
+  text     <- TIO.readFile depositsPath
+  deposits <- entriesOf text
+  let merged  = addUp (entries ++ deposits)
       total   = sum [ e.gold | e <- merged ]
       summary = "closed: " <> T.pack (show (length merged)) <> " owners, "
                 <> T.pack (show total) <> " gold"
