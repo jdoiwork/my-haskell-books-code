@@ -1,7 +1,9 @@
 -- ANCHOR: all
+-- ANCHOR: imports
+{-# LANGUAGE OverloadedStrings #-}
+
 -- 🏊 A pool of connections, shared by many tasks.
 -- たくさんの仕事で使い回す、接続のプール
--- ANCHOR: imports
 module GuildPool (newGuildPool) where
 
 import Database.PostgreSQL.Simple
@@ -17,6 +19,11 @@ newGuildPool url =
   newPool (setNumStripes (Just 1) config)
   where
     config = defaultPoolConfig open close 30 5
-    open   = connectPostgreSQL url
+    -- Name the pool's connections, so that we can count them.
+    -- 数えられるように、プールの接続に名前を付ける
+    open = do
+      conn <- connectPostgreSQL url
+      _ <- execute_ conn "SET application_name = 'guild-pool'"
+      pure conn
 -- ANCHOR_END: pool
 -- ANCHOR_END: all

@@ -27,9 +27,10 @@ databaseUrl = do
   pure (fromMaybe localDb fromEnv)
   where
     localDb =
-      "postgresql://postgres:guild@localhost:5432/guild"
+      "postgresql://postgres:guild@127.0.0.1:5432/guild"
 -- ANCHOR_END: url
 
+-- ANCHOR: mainTour
 main :: IO ()
 main = do
   url <- databaseUrl
@@ -46,6 +47,7 @@ main = do
   levelUp conn "Lambda" >>= print
   listAdventurers conn >>= mapM_ print
   -- ANCHOR_END: tour
+  -- ANCHOR_END: mainTour
   -- ANCHOR: poolTour
   pool <- newGuildPool (B.pack url)
   mapConcurrently_ (\_ -> withResource pool (\c -> levelUp c "Lambda"))
@@ -53,9 +55,11 @@ main = do
   findAdventurer conn "Lambda" >>= print
   [Only used] <- query_ conn
     "SELECT count(*) FROM pg_stat_activity \
-    \WHERE datname = current_database() AND pid <> pg_backend_pid()"
+    \WHERE application_name = 'guild-pool'"
   print (used :: Int)
   destroyAllResources pool
   -- ANCHOR_END: poolTour
+  -- ANCHOR: mainEnd
   close conn
+  -- ANCHOR_END: mainEnd
 -- ANCHOR_END: all

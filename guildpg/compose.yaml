@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: guild
       POSTGRES_DB: guild
     ports:
-      - "5432:5432"
+      # Only this machine can connect (127.0.0.1).
+      # この Mac からだけつなげる（127.0.0.1）
+      - "127.0.0.1:5432:5432"
     # Keep the data in a volume, so it survives "down".
     # データをボリュームに置いて、down しても消えないようにする
     volumes:
