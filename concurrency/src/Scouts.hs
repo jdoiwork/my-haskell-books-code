@@ -3,8 +3,10 @@
 -- 戻るのに時間がかかる偵察隊：いくつもを同時に待つ
 module Scouts (scout, scoutsOneByOne, scoutsAtOnce, scoutWithin) where
 
+-- ANCHOR: imports
 import Control.Concurrent       (threadDelay)
 import Control.Concurrent.Async (mapConcurrently, race)
+-- ANCHOR_END: imports
 
 -- ANCHOR: scout
 -- 🔭 A scout goes out, and comes back after some milliseconds.

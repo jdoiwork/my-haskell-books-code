@@ -1,6 +1,6 @@
 -- ANCHOR: all
--- 🧪 Tests of the concurrent code, and dejafu trying every order.
--- 並行なコードのテストと、すべての順番を試す dejafu
+-- 🧪 Tests of the concurrent code, and dejafu trying the orders one by one.
+-- 並行なコードのテストと、順番を1つずつ試す dejafu
 module Main (main) where
 
 import Control.Concurrent.STM

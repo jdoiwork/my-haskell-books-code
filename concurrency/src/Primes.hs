@@ -3,7 +3,9 @@
 -- 素数を数える：CPU の重い仕事を、いくつかに分ける
 module Primes (isPrime, countPrimes, countPrimesParallel) where
 
+-- ANCHOR: imports
 import Control.Parallel.Strategies (parMap, rdeepseq)
+-- ANCHOR_END: imports
 
 -- ANCHOR: primes
 -- 🔢 Is n a prime? Try dividing by 2, 3, 4, ... up to its square root.

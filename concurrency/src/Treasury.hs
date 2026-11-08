@@ -8,10 +8,12 @@ module Treasury
   , payDay
   ) where
 
+-- ANCHOR: imports
 import Control.Concurrent.Async (forConcurrently_, replicateConcurrently_)
 import Control.Concurrent.STM
 import Control.Monad            (replicateM_, when)
 import Data.IORef
+-- ANCHOR_END: imports
 
 -- ANCHOR: ioref
 -- 🐞 Ten clerks each add 1 to the count 100,000 times, at the same time.

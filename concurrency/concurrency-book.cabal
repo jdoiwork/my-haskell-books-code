@@ -8,12 +8,14 @@ build-type:    Simple
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
+-- ANCHOR: deps
   build-depends:
     , base     >=4.20 && <5
     , async    ^>=2.2
     , stm      ^>=2.5
     , parallel ^>=3.3
     , deepseq  ^>=1.5
+-- ANCHOR_END: deps
 
 library
   import:           shared

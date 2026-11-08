@@ -1,11 +1,13 @@
 -- ANCHOR: all
 -- 🔒 Two purses, each with its own lock (an MVar).
---    Written with MonadConc, so that dejafu can try every order.
+--    Written with MonadConc, so that dejafu can try the orders one by one.
 -- 錠（MVar）の付いた、2つの財布。
--- dejafu がすべての順番を試せるように、MonadConc で書く
+-- dejafu が順番を1つずつ試せるように、MonadConc で書く
 module Locks (lockedTransfer, swapGifts, swapGiftsSafe) where
 
+-- ANCHOR: imports
 import Control.Concurrent.Classy
+-- ANCHOR_END: imports
 
 -- ANCHOR: locked
 -- 🔒 Lock the first purse, then the second, and move the gold.
