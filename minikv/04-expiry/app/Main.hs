@@ -3,7 +3,7 @@
 -- minikv のサーバー
 module Main (main) where
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent.Async (link, withAsync)
 import Control.Concurrent.STM (newTVarIO)
 import System.Environment (getArgs)
 import System.IO (BufferMode (..), hSetBuffering, stdout)
@@ -23,6 +23,7 @@ main = do
   server <- listenOn (fromInteger port)
   -- 「minikv が待ち受けています」
   putStrLn ("minikv is listening on 127.0.0.1:" <> show port)
-  _ <- forkIO (sweeper systemClock storeVar)
-  acceptLoop systemClock storeVar server
+  withAsync (sweeper systemClock storeVar) $ \sweeping -> do
+    link sweeping
+    acceptLoop systemClock storeVar server
 -- ANCHOR_END: all

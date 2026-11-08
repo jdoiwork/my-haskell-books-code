@@ -3,12 +3,17 @@ module Main (main) where
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
-import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async (concurrently, forConcurrently_)
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
+import Control.Concurrent.Async (cancel, concurrently, forConcurrently_,
+                                 poll, wait, withAsync)
+import Control.Exception (IOException, try)
+import Data.Either (isLeft)
 import Data.IORef
+import Data.Maybe (isNothing)
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
-import Control.Monad (replicateM_)
+import System.Timeout (timeout)
+import Control.Monad (forever, replicateM_)
 import Test.Hspec
 import Test.QuickCheck hiding (replay)
 
@@ -267,18 +272,36 @@ main = hspec $ do
         withConnection port $ \conn -> request conn ["GET", "k"]
       removeFile path
       reply `shouldBe` WBulk (Just "1")
+    -- サーバーが止まったら、つながっている客にも電話を切る
+    it "hangs up on its clients when it stops" $ do
+      started <- newEmptyMVar
+      let server = withServer $ \port -> do
+            putMVar started port
+            forever (threadDelay 1000000)
+      withAsync server $ \running -> do
+        port <- takeMVar started
+        withConnection port $ \conn -> do
+          request conn ["SET", "hero", "Lambda"] `shouldReturn` WSimple "OK"
+          cancel running
+          -- Not answered by a guest left behind: told it is over, at once.
+          -- 置いていかれた客に答えられず、すぐに切れたとわかる
+          late <- timeout 5000000 $
+            try @IOException (request conn ["GET", "hero"])
+          fmap isLeft late `shouldBe` Just True
   -- ANCHOR_END: persistSpec
 
   -- ANCHOR: pubsubSpec
   describe "blocking and pub/sub" $ do
     -- BLPOP は、ほかのクライアントが RPUSH するまで待つ
-    it "BLPOP waits for another client's RPUSH" $ withServer $ \port -> do
-      (popped, _) <- concurrently
-        (withConnection port $ \c -> request c ["BLPOP", "jobs", "5"])
-        (withConnection port $ \c -> do
-           threadDelay 100000              -- 0.1 s later / 0.1 秒後
-           request c ["RPUSH", "jobs", "slay goblins"])
-      popped `shouldBe` WBulk (Just "slay goblins")
+    it "BLPOP waits for another client's RPUSH" $ withServer $ \port ->
+      withConnection port $ \waiter ->
+        withAsync (request waiter ["BLPOP", "jobs", "5"]) $ \popping -> do
+          threadDelay 200000                -- 0.2 s later / 0.2 秒後
+          -- Still waiting: nothing has come yet. / まだ待っている
+          isNothing <$> poll popping `shouldReturn` True
+          _ <- withConnection port $ \c ->
+            request c ["RPUSH", "jobs", "slay goblins"]
+          wait popping `shouldReturn` WBulk (Just "slay goblins")
     -- 時間切れなら、何もない答え
     it "BLPOP gives nil when the time is up" $ withServer $ \port ->
       withConnection port $ \c ->
@@ -301,12 +324,14 @@ main = hspec $ do
           joined <- request listener ["SUBSCRIBE", "news"]
           heard <- withConnection port $ \c ->
             request c ["PUBLISH", "news", "dragon spotted"]
-          message <- receive listener
+          -- Not forever: a message that never comes fails in 5 s.
+          -- いつまでも待たない：届かなければ 5 秒で失敗
+          message <- timeout 5000000 (receive listener)
           (joined, heard, message) `shouldBe`
             ( WArray [WBulk (Just "subscribe"), WBulk (Just "news"), WInt 1]
             , WInt 1
-            , WArray [ WBulk (Just "message"), WBulk (Just "news")
-                     , WBulk (Just "dragon spotted") ] )
+            , Just (WArray [ WBulk (Just "message"), WBulk (Just "news")
+                           , WBulk (Just "dragon spotted") ]) )
   -- ANCHOR_END: pubsubSpec
     -- 購読してすぐ切った人は、人数から外れる。（返事を送る途中で切られる
     -- すき間は、このテストではまず起きない。bracket で閉じたのは、読んで確かめた）

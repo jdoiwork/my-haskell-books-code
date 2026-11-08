@@ -1,5 +1,5 @@
--- 「第VI部のふりかえり」の総合トレーニングのコード（別のプロジェクト）。
--- 第VI部の最後の段階の検索エンジン（minisearch/06-architecture）を使う
+-- 「第7部のふりかえり」の総合トレーニングのコード（別のプロジェクト）。
+-- 第7部の最後の段階の検索エンジン（minisearch/06-architecture）を使う
 packages:
   .
   ../minisearch/06-architecture

@@ -4,6 +4,7 @@
 --   or they change what the connection is doing).
 -- サーバーが頼まれること：純粋な核に任せるコマンドか、サーバーにしか
 -- 扱えない要求（待つ、つながりの役目を変える）か
+-- ANCHOR: head
 module MiniKv.Request
   ( Request (..)
   , toRequest
@@ -17,6 +18,7 @@ import Data.Text.Encoding (decodeUtf8')
 
 import MiniKv.Protocol (toCommand)
 import MiniKv.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: request
 -- 📮 The four kinds of requests. The type keeps the core pure: the core

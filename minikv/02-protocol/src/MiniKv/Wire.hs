@@ -3,6 +3,7 @@
 --   is and how long it is, so a reader always knows where it ends.
 -- 回線の上の形式（Redis の RESP が手本）：どの値も、何なのかと長さを
 -- 先に言うので、読む側は、どこで終わるかがいつもわかる
+-- ANCHOR: head
 module MiniKv.Wire
   ( Wire (..)
   , Parsed (..)
@@ -16,6 +17,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
+-- ANCHOR_END: head
 
 -- ANCHOR: wire
 -- 📡 What travels on the wire.

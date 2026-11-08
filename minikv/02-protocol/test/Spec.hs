@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: imports
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
@@ -11,7 +12,9 @@ import MiniKv.Protocol
 import MiniKv.Store
 import MiniKv.Types
 import MiniKv.Wire
+-- ANCHOR_END: imports
 
+-- ANCHOR: gens
 -- 🎲 Random wire values, any depth. / どんな深さでも、でたらめな回線の値
 genWire :: Int -> Gen Wire
 genWire depth = oneof (leaves ++ deeper)
@@ -44,6 +47,7 @@ genCommand = oneof
     key   = elements ["a", "b", "c"]
     text  = elements ["x", "y", "z", "1", "2"]
     small = choose (-3, 3)
+-- ANCHOR_END: gens
 
 main :: IO ()
 main = hspec $ do

@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | A small client: send words, wait for one whole reply.
 -- 小さなクライアント：単語を送り、答えが1つそろうまで待つ
+-- ANCHOR: head
 module MiniKv.Client
   ( Connection
   , connectTo
@@ -17,6 +18,7 @@ import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: client
 -- 🔌 A connection: the socket, and the bytes read but not used yet.

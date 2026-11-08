@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | The types of minikv: what we store, what we are asked, what we answer.
 -- minikv の型：しまうもの、頼まれること、答えるもの
+-- ANCHOR: head
 module MiniKv.Types
   ( Key
   , Value (..)
@@ -15,6 +16,7 @@ import Data.Map.Strict (Map)
 import Data.Sequence (Seq)
 import Data.Set (Set)
 import Data.Text (Text)
+-- ANCHOR_END: head
 
 -- ANCHOR: value
 -- 🔑 Keys are text.

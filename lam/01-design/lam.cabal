@@ -3,7 +3,7 @@ name:          lam
 version:       0.1.0.0
 build-type:    Simple
 
--- 第7部 プログラミング言語を作る（1. 言語を設計する）
+-- 第8部 プログラミング言語を作る（1. 言語を設計する）
 
 common shared
   default-language: GHC2024

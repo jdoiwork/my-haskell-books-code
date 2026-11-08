@@ -3,9 +3,10 @@ name:          minikv
 version:       0.5.0.0
 build-type:    Simple
 
--- 第9部 総合演習4：型に厳しいインメモリデータベースを作る
+-- 第10部 総合演習4：型に厳しいインメモリデータベースを作る
 -- （5. 永続化：落ちても戻れる）
 
+-- ANCHOR: lib
 common shared
   default-language: GHC2024
   default-extensions: OverloadedStrings
@@ -19,6 +20,7 @@ common shared
     , stm              ^>=2.5
     , time             >=1.12
     , directory        ^>=1.3
+    , async            ^>=2.2
 
 library
   import:           shared
@@ -32,23 +34,25 @@ library
                     MiniKv.Persist
                     KvAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: lib
 
 -- ANCHOR: exe
 executable minikv-server
   import:           shared
   main-is:          Main.hs
   hs-source-dirs:   app
-  ghc-options:      -threaded
+  ghc-options:      -threaded "-with-rtsopts=-N"
   build-depends:
     , minikv
 -- ANCHOR_END: exe
 
+-- ANCHOR: test
 test-suite minikv-test
   import:           shared
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test
-  ghc-options:      -threaded
+  ghc-options:      -threaded "-with-rtsopts=-N"
   build-depends:
     , minikv
     , async            ^>=2.2
@@ -57,3 +61,4 @@ test-suite minikv-test
     , filepath
     , hspec            ^>=2.11
     , QuickCheck       ^>=2.19
+-- ANCHOR_END: test

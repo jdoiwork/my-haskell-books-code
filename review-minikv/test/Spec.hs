@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: imports
 import Data.IORef
 import Test.Hspec
 import Test.QuickCheck
@@ -9,6 +10,7 @@ import MiniKv.Server (withServerAt)
 import Review.Gate
 
 import GateProps
+-- ANCHOR_END: imports
 
 main :: IO ()
 main = hspec $ do

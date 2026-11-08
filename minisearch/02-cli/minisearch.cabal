@@ -3,7 +3,7 @@ name:          minisearch
 version:       0.2.0.0
 build-type:    Simple
 
--- 第6部 ミニ全文検索エンジン（2. インデクサーを CLI ツールにする）
+-- 第7部 ミニ全文検索エンジン（2. インデクサーを CLI ツールにする）
 
 common shared
   default-language: GHC2024

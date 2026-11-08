@@ -3,6 +3,7 @@
 --   and every command knows what its answer is.
 -- 型に厳しいクライアント：どのキーも、何をしまうかを知っていて、
 -- どのコマンドも、答えが何かを知っている
+-- ANCHOR: head
 module MiniKv.Typed
   ( Key (..)
   , ListKey (..)
@@ -22,6 +23,7 @@ import Text.Read (readMaybe)
 
 import MiniKv.Client (Connection, request)
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: keys
 -- 🔑 A key that holds a value of type a (Key Int holds numbers).

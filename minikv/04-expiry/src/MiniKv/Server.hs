@@ -13,8 +13,10 @@ module MiniKv.Server
   , withServerAt
   ) where
 
-import Control.Concurrent (forkFinally, forkIO, killThread, threadDelay)
-import Control.Concurrent.STM (TVar, atomically, newTVarIO, stateTVar)
+import Control.Concurrent (forkFinally, threadDelay)
+import Control.Concurrent.Async (link, withAsync)
+import Control.Concurrent.STM (STM, TVar, atomically, newTVarIO, readTVar,
+                               writeTVar)
 import Control.Exception (bracket)
 import Control.Monad (forever, unless)
 import Data.ByteString (ByteString)
@@ -51,9 +53,19 @@ runCommand clock storeVar words' =
     Left message -> pure (WError ("ERR " <> encodeUtf8 message))
     Right command -> do
       now <- clock
-      reply <- atomically (stateTVar storeVar (apply now command))
+      reply <- atomically (stateTVar' storeVar (apply now command))
       pure (replyWire reply)
 -- ANCHOR_END: run
+
+-- 🧮 Like stateTVar, but the new state is worked out before it goes
+--    into the TVar (stateTVar puts in the recipe, not the result).
+-- stateTVar と同じだが、新しい状態を計算してから TVar に入れる
+-- （stateTVar は、計算した結果ではなく、作り方のまま入れる）
+stateTVar' :: TVar s -> (s -> (a, s)) -> STM a
+stateTVar' var f = do
+  (a, new) <- f <$> readTVar var
+  writeTVar var $! new
+  pure a
 
 -- ANCHOR: client
 -- 🧑‍💻 Talk to one client: read bytes, answer every complete request,
@@ -108,7 +120,7 @@ sweeper :: Clock -> TVar Store -> IO ()
 sweeper clock storeVar = forever $ do
   threadDelay 100000
   now <- clock
-  atomically (stateTVar storeVar (sweep now))
+  atomically (stateTVar' storeVar (sweep now))
 -- ANCHOR_END: sweeper
 
 -- ANCHOR: withServer
@@ -121,9 +133,10 @@ withServerAt clock action = do
   storeVar <- newTVarIO emptyStore
   bracket (listenOn 0) close $ \server -> do
     port <- socketPort server
-    let start = forkIO (acceptLoop clock storeVar server)
-    bracket start killThread $ \_ ->
-      bracket (forkIO (sweeper clock storeVar)) killThread $ \_ ->
+    withAsync (acceptLoop clock storeVar server) $ \acceptor ->
+      withAsync (sweeper clock storeVar) $ \sweeping -> do
+        link acceptor
+        link sweeping
         action port
 
 withServer :: (PortNumber -> IO a) -> IO a

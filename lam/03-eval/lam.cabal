@@ -3,7 +3,7 @@ name:          lam
 version:       0.3.0.0
 build-type:    Simple
 
--- 第7部 プログラミング言語を作る（3. 評価器と REPL）
+-- 第8部 プログラミング言語を作る（3. 評価器と REPL）
 
 common shared
   default-language: GHC2024

@@ -3,6 +3,7 @@
 --   store out. No sockets, no threads, no clock here.
 -- ストアと純粋な核：コマンドを1つ受け取り、答えと新しいストアを返す。
 -- ソケットもスレッドも時計も、ここにはない
+-- ANCHOR: head
 module MiniKv.Store
   ( Store
   , emptyStore
@@ -22,6 +23,7 @@ import qualified Data.Text as T
 import Text.Read (readMaybe)
 
 import MiniKv.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: store
 -- 🗄️ The whole database: a Map from keys to values.

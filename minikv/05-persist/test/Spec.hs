@@ -1,13 +1,18 @@
 module Main (main) where
 
+-- ANCHOR: imports
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
-import Control.Concurrent.Async (forConcurrently_)
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
+import Control.Concurrent.Async (cancel, forConcurrently_, withAsync)
+import Control.Exception (IOException, try)
+import Data.Either (isLeft)
 import Data.IORef
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
-import Control.Monad (replicateM_)
+import System.Timeout (timeout)
+import Control.Monad (forever, replicateM_)
 import Test.Hspec
 import Test.QuickCheck hiding (replay)
 
@@ -19,6 +24,7 @@ import MiniKv.Server
 import MiniKv.Store
 import MiniKv.Types
 import MiniKv.Wire
+-- ANCHOR_END: imports
 
 -- 🎲 Random wire values, any depth. / どんな深さでも、でたらめな回線の値
 genWire :: Int -> Gen Wire
@@ -268,6 +274,22 @@ main = hspec $ do
         withConnection port $ \conn -> request conn ["GET", "k"]
       removeFile path
       reply `shouldBe` WBulk (Just "1")
+    -- サーバーが止まったら、つながっている客にも電話を切る
+    it "hangs up on its clients when it stops" $ do
+      started <- newEmptyMVar
+      let server = withServer $ \port -> do
+            putMVar started port
+            forever (threadDelay 1000000)
+      withAsync server $ \running -> do
+        port <- takeMVar started
+        withConnection port $ \conn -> do
+          request conn ["SET", "hero", "Lambda"] `shouldReturn` WSimple "OK"
+          cancel running
+          -- Not answered by a guest left behind: told it is over, at once.
+          -- 置いていかれた客に答えられず、すぐに切れたとわかる
+          late <- timeout 5000000 $
+            try @IOException (request conn ["GET", "hero"])
+          fmap isLeft late `shouldBe` Just True
   -- ANCHOR_END: persistSpec
 
   -- 「トレーニング」

@@ -3,6 +3,7 @@
 --   every window of `windowSeconds` seconds (a rate limiter).
 -- ギルドの門番：どの冒険者も、windowSeconds 秒ごとに limit 回まで通す
 -- （レート制限）
+-- ANCHOR: head
 module Review.Gate
   ( Rule (..)
   , gateKey
@@ -19,6 +20,7 @@ import MiniKv.Store (Store, apply, emptyStore)
 import MiniKv.Typed (ClientError, run)
 import qualified MiniKv.Typed as Typed
 import MiniKv.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: rule
 -- 📏 How many times, in how many seconds.

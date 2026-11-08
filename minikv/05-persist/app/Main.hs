@@ -4,7 +4,7 @@
 -- ログ付きの minikv のサーバー
 module Main (main) where
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent.Async (link, withAsync)
 import System.Environment (getArgs)
 import System.IO (BufferMode (..), hSetBuffering, stdout)
 import Text.Read (readMaybe)
@@ -29,6 +29,8 @@ main = do
   server <- listenOn (fromInteger port)
   -- 「minikv が待ち受けています」
   putStrLn ("minikv is listening on 127.0.0.1:" <> show port)
-  _ <- forkIO (sweeper env)
-  acceptLoop env server
+  withGuests $ \welcome ->
+    withAsync (sweeper env) $ \sweeping -> do
+      link sweeping
+      acceptLoop env server welcome
 -- ANCHOR_END: all

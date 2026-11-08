@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | Between the wire and the core: words to commands, replies to wire.
 -- 回線と核のあいだ：単語の列をコマンドに、答えを回線の形式に
+-- ANCHOR: head
 module MiniKv.Protocol
   ( readRequest
   , toCommand
@@ -17,6 +18,7 @@ import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 
 import MiniKv.Types
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: request
 -- 📮 One request from the buffer: an array of bulk strings, or (to be

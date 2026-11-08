@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | Properties of the gate.
 -- 門番の性質
+-- ANCHOR: head
 module GateProps
   ( Knocks (..)
   , rule
@@ -14,6 +15,7 @@ import Test.QuickCheck
 
 import MiniKv.Types (Millis)
 import Review.Gate
+-- ANCHOR_END: head
 
 -- ANCHOR: knocks
 -- 🎲 Times of knocks, sorted, within the first two minutes.

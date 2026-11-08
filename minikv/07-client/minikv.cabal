@@ -3,9 +3,10 @@ name:          minikv
 version:       0.7.0.0
 build-type:    Simple
 
--- 第9部 総合演習4：型に厳しいインメモリデータベースを作る
+-- 第10部 総合演習4：型に厳しいインメモリデータベースを作る
 -- （7. 型に厳しいクライアント）
 
+-- ANCHOR: lib
 common shared
   default-language: GHC2024
   default-extensions: OverloadedStrings
@@ -36,13 +37,14 @@ library
                     KvAnswers
                     TypedAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: lib
 
 -- ANCHOR: exe
 executable minikv-server
   import:           shared
   main-is:          Main.hs
   hs-source-dirs:   app
-  ghc-options:      -threaded
+  ghc-options:      -threaded "-with-rtsopts=-N"
   build-depends:
     , minikv
 -- ANCHOR_END: exe
@@ -62,7 +64,7 @@ test-suite minikv-test
   type:             exitcode-stdio-1.0
   main-is:          Spec.hs
   hs-source-dirs:   test
-  ghc-options:      -threaded
+  ghc-options:      -threaded "-with-rtsopts=-N"
   build-depends:
     , minikv
     , async            ^>=2.2

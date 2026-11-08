@@ -33,6 +33,7 @@ genWire depth = oneof (leaves ++ deeper)
       vectorOf n g
 
 -- 🎲 Random commands on a few keys, so that kinds collide often.
+-- ANCHOR: gens
 -- 少ないキーへの、でたらめなコマンド（種類がよくぶつかるように）
 genCommand :: Gen Command
 genCommand = oneof
@@ -50,6 +51,7 @@ genCommand = oneof
     key   = elements ["a", "b", "c"]
     text  = elements ["x", "y", "z", "1", "2"]
     small = choose (-3, 3)
+-- ANCHOR_END: gens
 
 main :: IO ()
 main = hspec $ do

@@ -11,21 +11,24 @@ module MiniKv.Server
   , serveClient
   , listenOn
   , acceptLoop
+  , withGuests
   , sweeper
   , withServer
   , withServerAt
   , withServerLog
   ) where
 
-import Control.Concurrent (MVar, forkFinally, forkIO, killThread,
-                           newMVar, threadDelay, withMVar)
-import Control.Concurrent.STM (TVar, atomically, newTVarIO, readTVarIO,
-                               stateTVar)
-import Control.Exception (bracket)
+import Control.Concurrent (MVar, newMVar, threadDelay, withMVar)
+import Control.Concurrent.Async (async, cancel, link, withAsync)
+import Control.Concurrent.STM (STM, TVar, atomically, check, modifyTVar',
+                               newTVarIO, readTVar, readTVarIO, writeTVar)
+import Control.Exception (bracket, finally, mask)
 import Control.Monad (forever, unless)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+import Data.IORef (atomicModifyIORef', newIORef)
+import qualified Data.Map.Strict as Map
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Network.Socket
@@ -97,14 +100,25 @@ runCommand env words' =
 -- ストアとログが、同じ順番で変わるように
 changeAndLog :: Env -> (Store -> ((a, [Command]), Store)) -> IO a
 changeAndLog env step = case journal env of
-  Nothing   -> fst <$> atomically (stateTVar (storeVar env) step)
+  Nothing   -> fst <$> atomically (stateTVar' (storeVar env) step)
   Just lock -> withMVar lock $ \handle -> do
-    (a, entries) <- atomically (stateTVar (storeVar env) step)
+    (a, entries) <- atomically (stateTVar' (storeVar env) step)
     unless (null entries) $ do
       BS.hPut handle (foldMap encodeEntry entries)
       hFlush handle
     pure a
 -- ANCHOR_END: run
+
+-- 🧮 Like stateTVar, but the new state is worked out before it goes
+--    into the TVar (stateTVar puts in the recipe, not the result).
+-- stateTVar と同じだが、新しい状態を計算してから TVar に入れる
+-- （stateTVar は、計算した結果ではなく、作り方のまま入れる）
+stateTVar' :: TVar s -> (s -> (a, s)) -> STM a
+stateTVar' var f = do
+  (a, new) <- f <$> readTVar var
+  writeTVar var $! new
+  pure a
+
 
 -- ANCHOR: client
 -- 🧑‍💻 Talk to one client.
@@ -138,12 +152,38 @@ listenOn port = do
   pure sock
 
 -- ANCHOR: accept
--- 🔁 Accept clients forever.
--- クライアントを受け付け続ける
-acceptLoop :: Env -> Socket -> IO ()
-acceptLoop env server = forever $ do
+-- 🔁 Accept clients forever. Each client's thread is started by
+--    `welcome`, so it lives in the server's scope.
+-- クライアントを受け付け続ける。客のスレッドは welcome で始めるので、
+-- サーバーの範囲の中で動く
+acceptLoop :: Env -> Socket -> (IO () -> IO ()) -> IO ()
+acceptLoop env server welcome = forever $ do
   (client, _) <- accept server
-  forkFinally (serveClient env client) (\_ -> close client)
+  welcome (serveClient env client `finally` close client)
+
+-- 🚪 Start each guest in a scope. When the scope ends, every guest
+--    still here is stopped (and its socket closed). A guest who leaves
+--    crosses itself out, so a server that runs for weeks does not keep
+--    a list of everyone who ever came. It waits until the door has
+--    written it down (under `mask`, that comes right away).
+-- 客を、範囲の中で始める。範囲が終わると、まだいる客を全部止める
+-- （ソケットも閉じる）。帰る客は自分で名前を消すので、何週間も動く
+-- サーバーが、来た客全員の一覧を抱えこまない。消す前に、戸口が
+-- 書き留めるのを待つ（mask の中なので、すぐに書かれる）
+withGuests :: ((IO () -> IO ()) -> IO a) -> IO a
+withGuests body = do
+  guests  <- newTVarIO Map.empty
+  tickets <- newIORef (0 :: Int)
+  let leave n = atomically $ do
+        here <- readTVar guests
+        check (Map.member n here)
+        writeTVar guests (Map.delete n here)
+      welcome job = mask $ \restore -> do
+        n <- atomicModifyIORef' tickets (\k -> (k + 1, k))
+        guest <- async (restore job `finally` leave n)
+        atomically (modifyTVar' guests (Map.insert n guest))
+      stopAll = readTVarIO guests >>= mapM_ cancel
+  body welcome `finally` stopAll
 -- ANCHOR_END: accept
 
 -- ANCHOR: sweeper
@@ -165,9 +205,12 @@ withServerLog clk logPath action =
   bracket (openEnv clk logPath) (closeEnv . fst) $ \(env, _) ->
     bracket (listenOn 0) close $ \server -> do
       port <- socketPort server
-      bracket (forkIO (acceptLoop env server)) killThread $ \_ ->
-        bracket (forkIO (sweeper env)) killThread $ \_ ->
-          action port
+      withGuests $ \welcome ->
+        withAsync (acceptLoop env server welcome) $ \acceptor ->
+          withAsync (sweeper env) $ \sweeping -> do
+            link acceptor
+            link sweeping
+            action port
   where
     closeEnv env = traverse (\lock -> withMVar lock hClose) (journal env)
 

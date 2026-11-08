@@ -3,7 +3,7 @@ name:          lam
 version:       0.4.0.0
 build-type:    Simple
 
--- 第7部 プログラミング言語を作る（4. 型検査器を作る）
+-- 第8部 プログラミング言語を作る（4. 型検査器を作る）
 
 common shared
   default-language: GHC2024

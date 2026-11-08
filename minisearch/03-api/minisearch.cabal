@@ -3,7 +3,7 @@ name:          minisearch
 version:       0.3.0.0
 build-type:    Simple
 
--- 第6部 ミニ全文検索エンジン（3. 検索 Web API を公開する）
+-- 第7部 ミニ全文検索エンジン（3. 検索 Web API を公開する）
 
 common shared
   default-language: GHC2024

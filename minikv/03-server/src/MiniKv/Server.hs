@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | The TCP server: one thread per client, one shared store in a TVar.
 -- TCP サーバー：クライアントごとに1つのスレッド、共有のストアは TVar に1つ
+-- ANCHOR: head
 module MiniKv.Server
   ( runCommand
   , serveClient
@@ -10,7 +11,8 @@ module MiniKv.Server
   ) where
 
 import Control.Concurrent (forkFinally, forkIO, killThread)
-import Control.Concurrent.STM (TVar, atomically, newTVarIO, stateTVar)
+import Control.Concurrent.STM (STM, TVar, atomically, newTVarIO, readTVar,
+                               writeTVar)
 import Control.Exception (bracket)
 import Control.Monad (forever, unless)
 import Data.ByteString (ByteString)
@@ -23,6 +25,7 @@ import Network.Socket.ByteString (recv, sendAll)
 import MiniKv.Protocol
 import MiniKv.Store
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: run
 -- ⚛️ Run one command on the shared store, atomically. stateTVar wants
@@ -34,9 +37,21 @@ runCommand storeVar words' =
   case toCommand words' of
     Left message -> pure (WError ("ERR " <> encodeUtf8 message))
     Right command -> do
-      reply <- atomically (stateTVar storeVar (apply command))
+      reply <- atomically (stateTVar' storeVar (apply command))
       pure (replyWire reply)
 -- ANCHOR_END: run
+
+-- ANCHOR: strict
+-- 🧮 Like stateTVar, but the new state is worked out before it goes
+--    into the TVar (stateTVar puts in the recipe, not the result).
+-- stateTVar と同じだが、新しい状態を計算してから TVar に入れる
+-- （stateTVar は、計算した結果ではなく、作り方のまま入れる）
+stateTVar' :: TVar s -> (s -> (a, s)) -> STM a
+stateTVar' var f = do
+  (a, new) <- f <$> readTVar var
+  writeTVar var $! new
+  pure a
+-- ANCHOR_END: strict
 
 -- ANCHOR: client
 -- 🧑‍💻 Talk to one client: read bytes, answer every complete request,

@@ -28,8 +28,8 @@ import MiniKv.Types
 -- 🗄️ The values, and the time each key should be forgotten.
 -- 値と、それぞれのキーを忘れる時刻
 data Store = Store
-  { values    :: Map Key Value
-  , deadlines :: Map Key Millis
+  { values    :: !(Map Key Value)
+  , deadlines :: !(Map Key Millis)
   }
   deriving (Show, Eq)
 

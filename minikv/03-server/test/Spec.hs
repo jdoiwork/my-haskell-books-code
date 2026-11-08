@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: imports
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
@@ -15,6 +16,7 @@ import MiniKv.Server
 import MiniKv.Store
 import MiniKv.Types
 import MiniKv.Wire
+-- ANCHOR_END: imports
 
 -- 🎲 Random wire values, any depth. / どんな深さでも、でたらめな回線の値
 genWire :: Int -> Gen Wire

@@ -3,7 +3,7 @@ name:          minitorch
 version:       0.2.0.0
 build-type:    Simple
 
--- 第8部 Python の機械学習ライブラリを Haskell で作る
+-- 第9部 Python の機械学習ライブラリを Haskell で作る
 -- （2. scikit-learn 風に回帰と分類を作る）
 
 common shared
