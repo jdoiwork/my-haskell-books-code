@@ -13,6 +13,7 @@ module MiniMq.Broker
   , publishAll
   ) where
 
+-- ANCHOR: imports
 import Control.Monad.Trans.State.Strict (StateT (..))
 import Data.Containers.ListUtils (nubOrd)
 import Data.List.NonEmpty (nonEmpty)
@@ -21,6 +22,7 @@ import qualified Data.Map.Strict as Map
 import Data.Sequence (Seq (..), (|>))
 
 import MiniMq.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: broker
 -- 🏤 The whole post office: the sorting desks (exchanges, each with its

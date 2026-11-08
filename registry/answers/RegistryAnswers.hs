@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- Answers for the training of the error handling chapter.
@@ -15,6 +16,7 @@ import Data.Text.IO qualified as TIO
 import Text.Read (readMaybe)
 
 import Registry (Job, RegistrationError (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: maybeToEither
 -- 🔁 Turn a Maybe into an Either: Nothing gets a reason.

@@ -8,10 +8,12 @@ module MiniMq.Examples
   , trainingLetters
   ) where
 
+-- ANCHOR: imports
 import Data.Function ((&))
 
 import MiniMq.Broker
 import MiniMq.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: post
 -- 🏤 The guild's post office: one sorting desk, two mailboxes.

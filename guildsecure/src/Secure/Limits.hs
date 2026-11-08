@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- 🧱 Things types do not stop: huge inputs and huge numbers.
@@ -12,6 +13,7 @@ import Data.Aeson                 (FromJSON, Value (..), eitherDecode)
 import Data.ByteString.Lazy       qualified as BL
 import Data.Int                   (Int64)
 import Data.Scientific            (toBoundedInteger)
+-- ANCHOR_END: imports
 
 -- ANCHOR: limited
 -- 🧱 Refuse a body that is too large, before even reading it as JSON.

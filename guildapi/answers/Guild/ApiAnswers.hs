@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -12,6 +13,7 @@ import Servant
 
 import Guild.Store
 import Guild.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: job
 -- 🧭 GET /adventurers?job=Mage -> only the mages (all, without ?job).

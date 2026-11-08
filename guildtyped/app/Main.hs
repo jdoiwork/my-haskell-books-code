@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- 🛡️ Try the guild with selda.
@@ -9,6 +10,7 @@ import Database.Selda
 import Database.Selda.SQLite (withSQLite)
 
 import TypedGuild
+-- ANCHOR_END: imports
 
 -- ANCHOR: main
 main :: IO ()

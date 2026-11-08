@@ -11,7 +11,9 @@ module Config
   , bossFloor
   ) where
 
+-- ANCHOR: imports
 import Control.Monad.Reader
+-- ANCHOR_END: imports
 
 -- ANCHOR: config
 -- ⚙️ Settings that many functions need to read.

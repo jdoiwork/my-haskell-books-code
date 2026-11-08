@@ -1,8 +1,10 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 module Party where
 
 import Data.List (partition, sortOn)
 import Data.Ord (Down (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: party
 -- Adventurers and their levels

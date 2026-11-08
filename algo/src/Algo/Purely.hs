@@ -30,7 +30,9 @@ module Algo.Purely
   , leftist
   ) where
 
+-- ANCHOR: imports
 import Data.List (unfoldr)
+-- ANCHOR_END: imports
 
 -- ANCHOR: slow
 -- 🐢 A queue as one list: the front of the line is the head.

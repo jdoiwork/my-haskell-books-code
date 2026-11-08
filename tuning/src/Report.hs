@@ -1,8 +1,10 @@
 -- ANCHOR: all
+-- ANCHOR: pragmas
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+-- ANCHOR_END: pragmas
 
 -- 📊 The guild's battle report: who fought, and who did the most damage.
 -- ギルドのバトルの報告：誰が戦い、誰がいちばんダメージを与えたか
@@ -20,6 +22,7 @@ module Report
   , monstersFast
   ) where
 
+-- ANCHOR: imports
 import Data.Aeson   (ToJSON (..), defaultOptions, genericToEncoding)
 import Data.List    (nub, sortOn)
 import Data.Ord     (Down (..))
@@ -28,6 +31,7 @@ import Data.Text    qualified as T
 import Data.Set     qualified as Set
 import Data.Map.Strict qualified as Map
 import GHC.Generics (Generic)
+-- ANCHOR_END: imports
 
 -- ANCHOR: log
 -- ⚔️ One hit in the battle log.

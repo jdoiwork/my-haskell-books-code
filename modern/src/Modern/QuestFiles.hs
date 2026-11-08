@@ -6,9 +6,11 @@ module Modern.QuestFiles
   , loadQuests
   ) where
 
+-- ANCHOR: imports
 import Data.List (sort)
 import System.Directory (listDirectory)
 import System.FilePath ((</>))
+-- ANCHOR_END: imports
 
 -- ANCHOR: draft
 -- 😵 The first draft: read the files in the order the folder lists
@@ -30,10 +32,12 @@ loadQuests dir = do
   mapM (\name -> readQuest (dir </> name)) (sort names)
 -- ANCHOR_END: sorted
 
+-- ANCHOR: readQuest
 -- 📜 The first line of the file is the quest.
 -- ファイルの1行目が、依頼
 readQuest :: FilePath -> IO String
 readQuest path = do
   text <- readFile path
   pure (takeWhile (/= '\n') text)
+-- ANCHOR_END: readQuest
 -- ANCHOR_END: all

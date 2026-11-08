@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- 🤫 Secrets that must not leak into logs.
@@ -14,6 +15,7 @@ import Data.Aeson (FromJSON (..), withObject, (.:))
 import Data.Text  (Text)
 
 import Secure.Username
+-- ANCHOR_END: imports
 
 -- ANCHOR: password
 -- 🤫 A password. show never prints the inside.

@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: imports
 import Control.Exception (evaluate)
 import Test.Hspec
 import Test.QuickCheck
@@ -7,6 +8,7 @@ import Test.QuickCheck
 import Answers
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+-- ANCHOR_END: imports
 
 -- 🎲 A random 2-D array with small whole numbers.
 -- 小さな整数の、でたらめな2次元の配列

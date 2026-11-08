@@ -5,9 +5,11 @@
 -- このファイルだけで完結しているので、そのまま提出できる
 module Main (main) where
 
+-- ANCHOR: imports
 import Data.ByteString.Char8 qualified as BS
 import Data.Maybe            (mapMaybe)
 import Data.Vector.Unboxed   qualified as VU
+-- ANCHOR_END: imports
 
 -- ANCHOR: read
 -- 🔢 All the numbers in some text, read fast with ByteString.

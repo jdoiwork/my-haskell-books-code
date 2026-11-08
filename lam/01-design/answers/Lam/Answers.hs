@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Answers to the training of the language design chapter.
@@ -9,6 +10,7 @@ module Lam.Answers
   ) where
 
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: size
 -- 📏 How many nodes the tree has.

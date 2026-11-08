@@ -1,8 +1,10 @@
+-- ANCHOR: imports
 module FindAnswers where
 
 import Data.List (find)
 import qualified Data.Map.Strict as Map
 import Party (party)
+-- ANCHOR_END: imports
 
 -- ANCHOR: firstVeteran
 -- The first adventurer whose level is 10 or more

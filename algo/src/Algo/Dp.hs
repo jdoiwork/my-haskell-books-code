@@ -15,7 +15,9 @@ module Algo.Dp
   , knapsack
   ) where
 
+-- ANCHOR: imports
 import Data.Array
+-- ANCHOR_END: imports
 
 -- ANCHOR: fibs
 -- 🐇 Every Fibonacci number, defined from the list itself.

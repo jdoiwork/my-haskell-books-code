@@ -1,4 +1,6 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE TemplateHaskell #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | The guild's ledger: read event lines, apply them, and summarize.
 -- ギルドの帳簿：出来事の行を読み、当てはめて、まとめる
@@ -17,12 +19,14 @@ module Review.Ledger
   , summarize
   ) where
 
+-- ANCHOR: imports
 import Control.Lens
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Semigroup (Max (..), Sum (..))
 import Text.Read (readMaybe)
+-- ANCHOR_END: imports
 
 -- ANCHOR: event
 -- 📜 What can happen in the guild.

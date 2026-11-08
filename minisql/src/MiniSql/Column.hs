@@ -1,5 +1,7 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | Columns that know their table and the type they hold.
 -- 自分の表と、しまう値の型を知っている列
@@ -9,11 +11,13 @@ module MiniSql.Column
   , colName
   ) where
 
+-- ANCHOR: imports
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.OverloadedLabels (IsLabel (..))
 import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+-- ANCHOR_END: imports
 
 -- ANCHOR: col
 -- 🏷️ A column of table t, holding values of type a. Only the name

@@ -3,9 +3,11 @@
 -- ダメージ（0〜96）ごとの回数：書き換えられる Vector で
 module Histogram (histogram) where
 
+-- ANCHOR: imports
 import Control.Monad.ST            (runST)
 import Data.Vector.Unboxed         qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as MVU
+-- ANCHOR_END: imports
 
 -- ANCHOR: histogram
 -- 📊 Count the damages into 97 boxes, rewriting them in place.

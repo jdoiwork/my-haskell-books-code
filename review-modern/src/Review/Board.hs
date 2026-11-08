@@ -14,11 +14,13 @@ module Review.Board
   , syncDevices
   ) where
 
+-- ANCHOR: imports
 import Control.Concurrent.Async (concurrently)
 import qualified Data.Set as Set
 import Data.Set (Set)
 
 import Modern.Crdt (OrSet, Tag, add, emptySet, members, remove)
+-- ANCHOR_END: imports
 
 -- ANCHOR: change
 -- 📝 Step 1: what a device can do to the board.

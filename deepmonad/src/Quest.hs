@@ -13,7 +13,9 @@ module Quest
   , lowerFloors
   ) where
 
+-- ANCHOR: imports
 import Control.Monad ((>=>))
+-- ANCHOR_END: imports
 
 -- ANCHOR: type
 -- 🗺️ A quest fails at a place, or clears with a result.

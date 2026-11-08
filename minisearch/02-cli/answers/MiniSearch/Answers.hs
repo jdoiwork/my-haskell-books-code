@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- | Answers to the training of the CLI chapter.
 -- CLI の章のトレーニングの解答。
@@ -15,6 +16,7 @@ import qualified Data.Text as T
 import Options.Applicative (ReadM, eitherReader)
 
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: stats
 -- 📊 The size of an index.

@@ -6,9 +6,11 @@ module StRef
   , sumST
   ) where
 
+-- ANCHOR: imports
 import Control.Monad.ST
 import Control.Monad.State.Strict (execState, modify')
 import Data.STRef
+-- ANCHOR_END: imports
 
 -- ANCHOR: both
 -- 📦 State: the "changing" total is a value passed from step to step.

@@ -3,11 +3,13 @@
 -- ベンチマーク：下書きと、速くした版を比べる
 module Main (main) where
 
+-- ANCHOR: imports
 import Data.Aeson      (encode)
 import Test.Tasty.Bench
 
 import Report
 import TuningAnswers
+-- ANCHOR_END: imports
 
 -- ANCHOR: main
 main :: IO ()

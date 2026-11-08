@@ -16,9 +16,11 @@ module Math.Stats
   , trips
   ) where
 
+-- ANCHOR: imports
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import System.Random (mkStdGen, uniformR)
+-- ANCHOR_END: imports
 
 -- ANCHOR: center
 -- ⚖️ The mean: add them up, divide by how many.

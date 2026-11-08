@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -21,6 +22,7 @@ import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics (Generic)
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- 📜 A quest on the board.

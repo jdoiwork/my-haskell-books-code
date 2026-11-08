@@ -14,12 +14,14 @@ module Math.Graphs
   , dijkstra
   ) where
 
+-- ANCHOR: imports
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Sequence (Seq (..), (|>))
 import qualified Data.Sequence as Seq
 import Data.Set (Set)
 import qualified Data.Set as Set
+-- ANCHOR_END: imports
 
 -- ANCHOR: graph
 -- 🗺️ A graph as an adjacency list: each town, and the towns next to it.

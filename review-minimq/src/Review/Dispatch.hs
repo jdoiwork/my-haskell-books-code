@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE DeriveAnyClass #-}
 -- ANCHOR: all
 -- | The guild's day of orders: workers that fall over at random, a
@@ -28,6 +29,7 @@ import MiniMq.Server (withServer)
 import MiniMq.Supervisor
 import MiniMq.Typed
 import MiniMq.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 📜 An order: its number, and whether it is cursed (no one can finish it).

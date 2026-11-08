@@ -3,7 +3,9 @@
 -- バトルの行動順（Seq で）
 module TurnQueue (Hero, takeTurns, joinFront, joinBack) where
 
+-- ANCHOR: imports
 import Data.Sequence (Seq (..), (<|), (|>))
+-- ANCHOR_END: imports
 
 type Hero = String
 

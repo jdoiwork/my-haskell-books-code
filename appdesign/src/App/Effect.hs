@@ -1,4 +1,6 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE TypeFamilies #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | The same roster as an effect, with effectful.
 -- 同じ名簿を、effectful のエフェクトとして
@@ -11,6 +13,7 @@ module App.Effect
   , runRosterSqlite
   ) where
 
+-- ANCHOR: imports
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Database.SQLite.Simple (Connection)
@@ -21,6 +24,7 @@ import Effectful.State.Static.Local
 import App.Env (Env (..), runApp)
 import qualified App.Roster as Roster
 import App.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: effect
 -- 📜 The roster effect: the things it can do, as a GADT.

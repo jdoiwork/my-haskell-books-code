@@ -19,8 +19,10 @@ module Math.Logic
   , sharedSkills
   ) where
 
+-- ANCHOR: imports
 import Data.Set (Set)
 import qualified Data.Set as Set
+-- ANCHOR_END: imports
 
 -- ANCHOR: gate
 -- 🧙 A hero at the gate of the dungeon.

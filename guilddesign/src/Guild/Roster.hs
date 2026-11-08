@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -12,6 +13,7 @@ module Guild.Roster
 
 import Data.Text (Text)
 import Data.Text qualified as T
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- 🧙 An adventurer in the roster.

@@ -1,11 +1,13 @@
 -- ANCHOR: all
 -- 🚪 The vault door: open it, work inside, and close it again.
 -- 宝物庫の扉：開けて、中で働いて、また閉める
+-- ANCHOR: imports
 module Door where
 
 import Control.Exception
 
 import Vault (VaultAccident (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: door
 -- 🔓 Open and close the door (we only write it down here).

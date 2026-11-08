@@ -1,10 +1,12 @@
 -- ANCHOR: all
 -- 🧪 A shelf of potions: a Vector, where any slot is one step away.
 -- 薬の棚：どの段にも一歩で届く Vector
+-- ANCHOR: imports
 module Shelf where
 
 import Data.Vector (Vector)
 import Data.Vector qualified as V
+-- ANCHOR_END: imports
 
 -- ANCHOR: shelf
 -- 💰 The prices of the potions, from slot 0.

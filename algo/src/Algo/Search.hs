@@ -12,9 +12,11 @@ module Algo.Search
   , sendMoreMoney
   ) where
 
+-- ANCHOR: imports
 import Control.Monad (guard)
 import Control.Monad.State (StateT (..), evalStateT, lift)
 import Data.List (tails)
+-- ANCHOR_END: imports
 
 -- ANCHOR: heroes
 -- 🦸 A hero who can join: name, job and fee.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -16,6 +17,7 @@ import Servant
 import Guild.Api
 import Guild.Store
 import Guild.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: server
 -- 🏰 One handler for each path, in the same order as in the API type.

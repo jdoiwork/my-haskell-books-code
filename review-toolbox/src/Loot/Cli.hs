@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- 🖥️ The command line of lootbook.
 -- lootbook のコマンドライン
+-- ANCHOR: imports
 module Loot.Cli
   ( Command (..)
   , Options (..)
@@ -8,6 +9,7 @@ module Loot.Cli
   ) where
 
 import Options.Applicative
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- 🖥️ What the user asked for.

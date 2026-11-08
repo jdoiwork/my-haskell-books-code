@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- ANCHOR: module
@@ -12,6 +13,7 @@ import Data.Aeson.Types (parseMaybe)
 -- Bytes.
 -- バイト列
 import Data.ByteString.Lazy (ByteString)
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: peek

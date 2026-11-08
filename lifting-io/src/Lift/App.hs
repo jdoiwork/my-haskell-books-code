@@ -12,12 +12,14 @@ module Lift.App
   , appraise
   ) where
 
+-- ANCHOR: imports
 import Control.Concurrent (threadDelay)
 import Control.Monad.Reader
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import UnliftIO (MonadUnliftIO (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: env
 -- 🎒 What the whole guild needs to reach.

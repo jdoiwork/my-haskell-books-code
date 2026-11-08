@@ -1,4 +1,5 @@
 cabal-version: 3.0
+-- ANCHOR: package
 name:          guildpg
 version:       0.1.0.0
 build-type:    Simple
@@ -38,6 +39,7 @@ executable pg-guild
     , guildpg
     , async         ^>=2.2
     , resource-pool ^>=0.5
+-- ANCHOR_END: package
 
 -- ANCHOR: testSuite
 -- The tests, on a real PostgreSQL in a container.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -16,6 +17,7 @@ import Servant
 
 import Board.Store
 import Board.Title
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- ✍️ What a client sends: a new quest, and who takes a quest.

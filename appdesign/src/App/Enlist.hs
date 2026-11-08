@@ -7,6 +7,7 @@ module App.Enlist
   , enlistCase
   ) where
 
+-- ANCHOR: imports
 import Control.Monad (when)
 import Control.Monad.Except
 import Control.Monad.Trans (lift)
@@ -15,6 +16,7 @@ import qualified Data.Text as T
 import App.Env
 import App.Roster
 import App.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: case
 -- 🪜 Without ExceptT: one case for each check.

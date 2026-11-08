@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -9,6 +10,7 @@ module FirstSpec (spec) where
 import Roster
 import Database.SQLite.Simple
 import Test.Hspec
+-- ANCHOR_END: imports
 
 -- ANCHOR: spec
 spec :: Spec

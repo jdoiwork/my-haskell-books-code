@@ -1,6 +1,6 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 -- ANCHOR: all
 -- ANCHOR: module
+{-# LANGUAGE OverloadedRecordDot #-}
 module Appraisal where
 
 -- sortOn and Down: sort by a key, largest first.

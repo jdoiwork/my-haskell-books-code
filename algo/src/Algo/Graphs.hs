@@ -22,12 +22,14 @@ module Algo.Graphs
   , questOrder
   ) where
 
+-- ANCHOR: imports
 import Data.Graph (SCC (..), stronglyConnComp)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
+-- ANCHOR_END: imports
 
 -- ANCHOR: graph
 -- 🗺️ Rooms and the corridors between them (both ways).

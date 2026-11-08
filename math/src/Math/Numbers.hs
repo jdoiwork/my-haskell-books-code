@@ -16,8 +16,10 @@ module Math.Numbers
   , fastInvSqrt
   ) where
 
+-- ANCHOR: imports
 import Data.Bits (setBit, shiftR, testBit)
 import GHC.Float (castFloatToWord32, castWord32ToFloat)
+-- ANCHOR_END: imports
 
 -- ANCHOR: digits
 -- 🔢 The digits of n in a base, from the top: toDigits 2 6 == [1, 1, 0].

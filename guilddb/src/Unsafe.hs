@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 
 -- ⚠️ A bad example: building SQL by gluing strings. Do not do this!
@@ -9,6 +10,7 @@ import Database.SQLite.Simple
 import Data.Text (Text)
 
 import Roster (Adventurer)
+-- ANCHOR_END: head
 
 -- ANCHOR: findUnsafe
 -- ❌ The name is glued into the SQL as it is.

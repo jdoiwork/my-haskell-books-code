@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- | Answers to the training of the architecture chapter.
 -- 設計を磨く章のトレーニングの解答。
@@ -16,6 +17,7 @@ import MiniSearch.Snippet (snippet)
 import MiniSearch.Tokenize (tokenize)
 import MiniSearch.Tokenizer (Tokenizer (..))
 import MiniSearch.Types (Token (..))
+-- ANCHOR_END: head
 
 -- ANCHOR: unigrams
 -- 🈁 Bigrams, plus every Japanese character on its own,

@@ -4,9 +4,11 @@
 -- 言語の地図の章の相性表を WebAssembly にして、JavaScript から呼ぶ
 module Matchup where
 
+-- ANCHOR: imports
 import GHC.Wasm.Prim (JSString (..), fromJSString, toJSString)
 
 import Modern.Elements (Element (..), power)
+-- ANCHOR_END: imports
 
 -- ANCHOR: export
 -- 📤 A function JavaScript can call: two element names in,

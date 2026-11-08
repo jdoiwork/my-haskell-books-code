@@ -21,10 +21,12 @@ module Modern.Crdt
   , members
   ) where
 
+-- ANCHOR: imports
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
+-- ANCHOR_END: imports
 
 -- ANCHOR: gcounter
 -- 🔢 A counter that only grows: each device keeps its own count.

@@ -1,4 +1,6 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE OrPatterns #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | Patterns: "this or that" in one line, and \case.
 -- パターン：「これか、あれ」を1行で。そして \case

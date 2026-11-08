@@ -5,6 +5,7 @@ build-type:    Simple
 
 -- 「データ構造の選び方」の章のコード
 
+-- ANCHOR: deps
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
@@ -13,6 +14,7 @@ common shared
     , containers           ^>=0.8
     , unordered-containers ^>=0.2.20
     , vector               ^>=0.13
+-- ANCHOR_END: deps
 
 -- A tree of our own, a turn queue, and a damage histogram.
 -- 自作の木、行動順の列、ダメージの度数分布

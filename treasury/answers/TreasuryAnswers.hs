@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 -- 🏋️ The answers of the training.
 -- トレーニングの解答
@@ -9,6 +10,7 @@ import Data.Text (Text)
 import Data.Text.IO qualified as TIO
 
 import Vault (VaultAccident (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: notice
 -- 📜 Read today's notice. Could not read it? Say there is none.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -26,8 +27,13 @@ import qualified Data.Text          as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as BL
 
-import Mondex.Command (MondexAction (..), MonlistRequest (..), MonsterOrder (..))
+import Mondex.Command
+  ( MondexAction (..)
+  , MonlistRequest (..)
+  , MonsterOrder (..)
+  )
 import Mondex.Monster (Monster (..))
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: outcome

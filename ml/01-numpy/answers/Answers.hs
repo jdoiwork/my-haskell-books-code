@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | Answers to the training of the NumPy chapter.
 -- NumPy の章のトレーニングの解答。
+-- ANCHOR: head
 module Answers
   ( eye
   , clip
@@ -9,6 +10,7 @@ module Answers
 
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+-- ANCHOR_END: head
 
 -- ANCHOR: eye
 -- 🪪 Np.eye 3: 1 on the diagonal, 0 elsewhere.

@@ -8,7 +8,9 @@ module Steps
   , withoutPure
   ) where
 
+-- ANCHOR: imports
 import Control.Monad (ap)
+-- ANCHOR_END: imports
 
 -- ANCHOR: steps
 -- 👣 A value, and how many steps it took.

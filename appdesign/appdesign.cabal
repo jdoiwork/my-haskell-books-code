@@ -5,6 +5,7 @@ build-type:    Simple
 
 -- 「モナド変換子とアプリケーション設計」の章のコード
 
+-- ANCHOR: deps
 common shared
   default-language: GHC2024
   default-extensions: OverloadedStrings
@@ -17,6 +18,7 @@ common shared
     , transformers     ^>=0.6
     , sqlite-simple    ^>=0.4
     , effectful-core
+-- ANCHOR_END: deps
 
 library
   import:           shared

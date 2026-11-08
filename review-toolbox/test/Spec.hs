@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -15,6 +16,7 @@ import Test.QuickCheck
 import Loot.Book
 import Loot.Cli
 import Loot.Gold
+-- ANCHOR_END: imports
 
 -- ANCHOR: arbitrary
 -- 🎲 Random items: gold through mkGold, counts not negative.

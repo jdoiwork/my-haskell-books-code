@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | Answers to the training of "Design: messages, queues and routing".
 -- 「設計：メッセージ・キュー・配り方を型で描く」のトレーニングの解答
+-- ANCHOR: head
 module MqAnswers
   ( drain
   , purge
@@ -8,6 +9,7 @@ module MqAnswers
 
 import MiniMq.Broker
 import MiniMq.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: drain
 -- 📤 Step 2: take every letter from a mailbox, in order.

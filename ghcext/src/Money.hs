@@ -1,5 +1,7 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveAnyClass #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | Deriving strategies, and DerivingVia.
 -- deriving の作戦と、DerivingVia
@@ -9,10 +11,12 @@ module Money
   , Loot (..)
   ) where
 
+-- ANCHOR: imports
 import Data.Aeson (ToJSON)
 import Data.Monoid (Sum (..))
 import Data.Semigroup (Max (..))
 import GHC.Generics (Generic)
+-- ANCHOR_END: imports
 
 -- ANCHOR: strategies
 -- 🎒 Three strategies, written out.

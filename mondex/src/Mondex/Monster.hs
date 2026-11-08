@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
@@ -21,6 +22,7 @@ import GHC.Generics (Generic)
 -- 文字とテキスト
 import Data.Char (toLower)
 import Data.Text (Text)
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: types

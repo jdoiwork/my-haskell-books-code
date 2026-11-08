@@ -15,11 +15,13 @@ module Tickets
   , isOpen
   ) where
 
+-- ANCHOR: imports
 import Control.Concurrent.Async (forConcurrently)
 import Data.IORef
 import Data.List (sort)
 import Data.Time
   (getZonedTime, localTimeOfDay, todHour, zonedTimeToLocalTime)
+-- ANCHOR_END: imports
 
 -- ANCHOR: ticket
 -- 🎫 A box with the next ticket number in it.

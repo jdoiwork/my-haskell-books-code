@@ -14,12 +14,14 @@ module Review.Shuffle
   , randomChoices
   ) where
 
+-- ANCHOR: imports
 import Control.Monad (replicateM)
 import Data.Foldable (toList)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import System.Random (StdGen, mkStdGen, uniformR)
+-- ANCHOR_END: imports
 
 -- ANCHOR: swap
 -- 🔀 Swap the items at positions i and j.

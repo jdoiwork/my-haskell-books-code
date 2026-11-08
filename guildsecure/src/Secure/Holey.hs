@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -14,6 +15,7 @@ import Data.Text              (Text)
 import Database.SQLite.Simple
 
 import Secure.Authz
+-- ANCHOR_END: imports
 
 -- ANCHOR: token
 -- 🕳️ Hole 1: show prints the token as it is.

@@ -3,10 +3,12 @@
 -- バトルログを足し合わせる、いろいろな書き方。どれだけメモリを抱えるか
 module Main (main) where
 
+-- ANCHOR: imports
 import Data.Text          qualified as T
 import Control.Exception  (evaluate)
 import System.Environment (getArgs)
 import System.Mem         (performGC)
+-- ANCHOR_END: imports
 
 -- ANCHOR: damages
 -- ⚔️ Ten million damages, from 0 to 96.

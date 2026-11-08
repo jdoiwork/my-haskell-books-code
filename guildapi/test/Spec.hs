@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
@@ -13,6 +14,7 @@ import Test.Hspec.Wai.JSON (json)
 import Guild.ApiAnswers (jobApp)
 import Guild.Server     (app)
 import Guild.Store      (newMemoryStore)
+-- ANCHOR_END: imports
 
 -- ANCHOR: spec
 main :: IO ()

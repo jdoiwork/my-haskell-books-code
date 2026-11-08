@@ -1,5 +1,6 @@
 -- ANCHOR: all
 -- ANCHOR: module
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- 🧪 The contract, on all three stores.
@@ -20,6 +21,7 @@ import Data.Text.Encoding         (encodeUtf8)
 import Data.Text.Lazy             qualified as LT
 import TestContainers.Hspec
 import Test.Hspec
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: spec

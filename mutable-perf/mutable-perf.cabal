@@ -5,6 +5,7 @@ build-type:    Simple
 
 -- 「書き換えて速くする」の章のコード
 
+-- ANCHOR: deps
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
@@ -16,6 +17,7 @@ common shared
     , mtl        ^>=2.3
     , primitive  ^>=0.9
     , vector     ^>=0.13
+-- ANCHOR_END: deps
 
 -- Counting monsters, the sieve, boxes and frozen vectors.
 -- モンスターを数える、ふるい、箱、凍らせた Vector

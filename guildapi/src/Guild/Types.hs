@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DuplicateRecordFields #-}
@@ -16,6 +17,7 @@ import Data.Aeson.TypeScript.TH (deriveTypeScript)
 import Data.OpenApi       (ToSchema)
 import Data.Text          (Text)
 import GHC.Generics       (Generic)
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- 🧙 An adventurer in the roster.

@@ -12,11 +12,13 @@ module Modern.Scouts
   , withLookout
   ) where
 
+-- ANCHOR: imports
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Async (link, mapConcurrently, withAsync)
 import Control.Exception (SomeException, throwIO, try)
 import Control.Monad (forever, void)
 import Data.IORef (IORef, atomicModifyIORef')
+-- ANCHOR_END: imports
 
 -- ANCHOR: scout
 -- 📒 Where the scouts write when they come back.

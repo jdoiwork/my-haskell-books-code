@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -11,6 +12,7 @@ import Data.Text qualified as T
 
 import Guild.Roster
 import Guild.Store
+-- ANCHOR_END: imports
 
 -- ANCHOR: enlist
 -- 📝 Add a new adventurer, and say how it went.

@@ -1,6 +1,6 @@
+-- ANCHOR: board
 {-# LANGUAGE OverloadedStrings #-}
 
--- ANCHOR: board
 module Main (main) where
 
 -- Keep only the values that are Just; sort by a key.

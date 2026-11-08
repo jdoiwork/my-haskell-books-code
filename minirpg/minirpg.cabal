@@ -73,6 +73,7 @@ executable hall-prelude
 
 -- Answer for the training: wordfreq with a number from the arguments.
 -- トレーニングの解答：引数で件数を指定できる wordfreq
+-- ANCHOR: wordfreqTop
 executable wordfreq-top
   import:           shared
   main-is:          WordfreqTop.hs
@@ -80,3 +81,4 @@ executable wordfreq-top
   build-depends:
     , containers
     , text
+-- ANCHOR_END: wordfreqTop

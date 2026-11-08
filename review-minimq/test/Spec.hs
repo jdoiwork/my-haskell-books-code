@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: imports
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import System.Timeout (timeout)
@@ -8,6 +9,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Monadic (assert, monadicIO, run)
 
 import Review.Dispatch
+-- ANCHOR_END: imports
 
 -- ANCHOR: gen
 -- 🎲 Some orders (about one in five cursed), numbered 1, 2, 3, ...

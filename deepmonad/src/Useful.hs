@@ -20,8 +20,10 @@ module Useful
   , readHp
   ) where
 
+-- ANCHOR: imports
 import Control.Monad (foldM)
 import Text.Read (readMaybe)
+-- ANCHOR_END: imports
 
 -- ANCHOR: plus10
 -- Ordinary functions for the examples. They are not the point:

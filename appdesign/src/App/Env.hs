@@ -11,9 +11,11 @@ module App.Env
   , db
   ) where
 
+-- ANCHOR: imports
 import Control.Monad.Reader
 import Data.Text (Text)
 import Database.SQLite.Simple (Connection)
+-- ANCHOR_END: imports
 
 -- ANCHOR: env
 -- 🎒 Everything the whole application needs to reach.

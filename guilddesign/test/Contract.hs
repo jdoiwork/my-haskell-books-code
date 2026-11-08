@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -9,6 +10,7 @@ module Contract (rosterContract) where
 import Guild.Roster
 import Guild.Store
 import Test.Hspec
+-- ANCHOR_END: imports
 
 -- ANCHOR: contract
 -- 📜 The same tests for any store. Each test gets an empty store.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedRecordDot #-}
 
 -- ANCHOR: module
@@ -12,6 +13,7 @@ import qualified Data.Text.IO as TIO
 import Mondex.Core    (Outcome (..), listMonsters)
 import Mondex.Monlist (MonlistInput (..), monlistInfo)
 import Mondex.Store   (loadBestiary)
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: main

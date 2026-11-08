@@ -11,6 +11,7 @@ module Modern.McpKit
   , serve
   ) where
 
+-- ANCHOR: imports
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KM
 import Data.Aeson.Types (Parser, parseMaybe)
@@ -18,6 +19,7 @@ import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.List (find)
 import Data.Text (Text)
 import System.IO (BufferMode (..), hSetBuffering, stdout)
+-- ANCHOR_END: imports
 
 -- ANCHOR: tool
 -- 🧰 A tool: its name, what it does, the shape of its arguments

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
@@ -13,6 +14,7 @@ module Secure.Authz
   ) where
 
 import Data.Text (Text)
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- 🛡️ The roles in the guild.

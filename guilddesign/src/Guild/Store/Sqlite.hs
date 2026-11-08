@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE MultilineStrings #-}
@@ -13,6 +14,7 @@ import Data.Text         (Text)
 
 import Guild.Roster
 import Guild.Store
+-- ANCHOR_END: imports
 
 -- ANCHOR: sqlite
 -- 🪶 Open the SQLite file, make the table if needed, and lend the store.

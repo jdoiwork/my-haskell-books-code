@@ -3,9 +3,11 @@
 -- 殿堂に記録を足す：ファイルを読んで、書き戻す
 module Main (main) where
 
+-- ANCHOR: imports
 import Data.Text          qualified as T
 import Data.Text.IO       qualified as TIO
 import System.Environment (getArgs)
+-- ANCHOR_END: imports
 
 main :: IO ()
 main = do

@@ -5,6 +5,7 @@ build-type:    Simple
 
 -- 第6部「アルゴリズムを Haskell らしく」のコード（章ごとにモジュール Algo.*）
 
+-- ANCHOR: lib
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
@@ -27,6 +28,7 @@ library
                     Algo.Purely
                     AlgoAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: lib
 
 -- ANCHOR: measure
 executable algo-measure
@@ -37,6 +39,7 @@ executable algo-measure
   build-depends:    algo-book
 -- ANCHOR_END: measure
 
+-- ANCHOR: test
 test-suite algo-test
   import:           shared
   type:             exitcode-stdio-1.0
@@ -55,3 +58,4 @@ test-suite algo-test
     , algo-book
     , hspec            ^>=2.11
     , QuickCheck       ^>=2.19
+-- ANCHOR_END: test

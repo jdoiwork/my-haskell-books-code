@@ -1,3 +1,4 @@
+-- ANCHOR: head
 module ThinkingSpec (spec) where
 
 import Test.Hspec
@@ -5,6 +6,7 @@ import Test.QuickCheck
 
 import Algo.Thinking
 import AlgoAnswers
+-- ANCHOR_END: head
 
 spec :: Spec
 spec = describe "Algo.Thinking" $ do

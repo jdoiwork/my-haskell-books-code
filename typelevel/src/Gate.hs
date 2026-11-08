@@ -1,4 +1,6 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE RankNTypes #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | From the outside world into Vec: the length is known only at run time.
 -- 外の世界から Vec へ：長さは、動かしてみるまでわからない
@@ -8,7 +10,9 @@ module Gate
   , vlength
   ) where
 
+-- ANCHOR: imports
 import Vec
+-- ANCHOR_END: imports
 
 -- ANCHOR: gate
 -- 🚪 A gate: check the length once, and get a Vec Three, or nothing.

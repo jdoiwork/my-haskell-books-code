@@ -19,12 +19,14 @@ module MiniSql.Query
   , runDelete
   ) where
 
+-- ANCHOR: imports
 import Data.Text (Text)
 import qualified Data.Text as T
 import Database.SQLite.Simple
 
 import MiniSql.Column
 import MiniSql.Expr
+-- ANCHOR_END: imports
 
 -- ANCHOR: select
 -- 🗃️ A table: its name, and its columns in the order of the record.

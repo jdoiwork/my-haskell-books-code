@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -21,6 +22,7 @@ import Secure.Holey             (canDeleteDraft, questsByOwnerUnsafe)
 import Secure.Limits
 import Secure.Secret
 import Secure.Username
+-- ANCHOR_END: imports
 
 -- ANCHOR: arbitrary
 -- 🎲 Random members and quests, with only a few names,

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- ANCHOR: module
@@ -20,6 +21,7 @@ import GHC.Generics (Generic)
 -- Text.
 -- テキスト
 import Data.Text (Text)
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: bounty

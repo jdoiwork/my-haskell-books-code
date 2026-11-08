@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -14,6 +15,7 @@ import Servant
 import Board.Api
 import Board.Store
 import Board.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: server
 -- 🏰 One handler for each path of the API, in the same order.

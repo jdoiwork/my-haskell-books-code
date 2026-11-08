@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- 🔤 Text (characters) and ByteString (bytes).
@@ -9,6 +10,7 @@ import Data.ByteString qualified as BS
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
+-- ANCHOR_END: imports
 
 -- ANCHOR: encode
 -- 📦 A name, as the bytes that are sent over the network or saved.

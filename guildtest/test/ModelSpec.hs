@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- 🔬 The model-based property test: the database against the Map.
 -- モデルベースのプロパティテスト：データベースを Map と比べる
+-- ANCHOR: imports
 module ModelSpec (spec, prop_model, prop_modelDraft) where
 
 import Model
@@ -9,6 +10,7 @@ import RosterSpec (withRoster)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
+-- ANCHOR_END: imports
 
 -- ANCHOR: prop
 -- ⚖️ Do the same operations on the database and on the model.

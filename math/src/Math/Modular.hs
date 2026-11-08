@@ -14,8 +14,10 @@ module Math.Modular
   , rsaDecrypt
   ) where
 
+-- ANCHOR: imports
 import Data.Char (ord)
 import Data.List (isPrefixOf, tails)
+-- ANCHOR_END: imports
 
 -- ANCHOR: clock
 -- 🕐 The hour n hours after h, on a 24-hour clock.

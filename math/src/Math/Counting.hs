@@ -14,8 +14,10 @@ module Math.Counting
   , sameBirthday
   ) where
 
+-- ANCHOR: imports
 import Data.Ratio ((%))
 import System.Random (StdGen, mkStdGen, uniformR)
+-- ANCHOR_END: imports
 
 -- ANCHOR: count
 -- 🔢 n! = n * (n - 1) * ... * 1: ways to line up n heroes.

@@ -8,7 +8,9 @@ module Logged
   , twoAttacks
   ) where
 
+-- ANCHOR: imports
 import Control.Monad.Writer.CPS
+-- ANCHOR_END: imports
 
 -- ANCHOR: byHand
 -- 📝 By hand: return the result and the log, and join the logs.

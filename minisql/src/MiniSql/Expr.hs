@@ -1,4 +1,6 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE UndecidableInstances #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | Expressions with types, turned into SQL with ? placeholders.
 -- 型を持った式。? の穴の付いた SQL に変える
@@ -12,12 +14,14 @@ module MiniSql.Expr
   , render
   ) where
 
+-- ANCHOR: imports
 import Data.Text (Text)
 import Database.SQLite.Simple.ToField (ToField (..))
 import Database.SQLite.Simple (SQLData)
 import GHC.OverloadedLabels (IsLabel (..))
 
 import MiniSql.Column
+-- ANCHOR_END: imports
 
 -- ANCHOR: expr
 -- 🧮 An expression over table t, whose value has type a.

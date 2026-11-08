@@ -3,6 +3,7 @@
 --    GUILD_STORE chooses the store: "memory" or "sqlite:FILE".
 -- ギルドの API サーバーを立ち上げる。
 -- 置き場は GUILD_STORE で選ぶ："memory" か "sqlite:ファイル"
+-- ANCHOR: imports
 module Main (main) where
 
 import Data.List                            (stripPrefix)
@@ -14,6 +15,7 @@ import Text.Read                            (readMaybe)
 
 import Guild.Server (app)
 import Guild.Store  (newMemoryStore, withSqliteStore)
+-- ANCHOR_END: imports
 
 -- ANCHOR: main
 main :: IO ()

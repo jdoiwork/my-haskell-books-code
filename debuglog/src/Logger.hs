@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- 📜 A small logger: levels, time stamps, and standard error.
@@ -20,6 +21,7 @@ import Data.Time (defaultTimeLocale, formatTime, getCurrentTime)
 import System.Environment (lookupEnv)
 import System.IO (stderr)
 import Text.Read (readMaybe)
+-- ANCHOR_END: imports
 
 -- ANCHOR: level
 -- 🚦 How important a message is, from the least to the most.

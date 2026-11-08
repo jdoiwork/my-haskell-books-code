@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of the concurrency chapter.
 -- 並行化する章のトレーニングの解答。
 module MiniSearch.Answers (readDocumentsConcurrently) where
@@ -11,6 +12,7 @@ import System.FilePath (takeExtension, (</>))
 
 import MiniSearch.Load (toDocument)
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: concurrently
 -- 📂 Read the files at the same time (good when they are on a slow

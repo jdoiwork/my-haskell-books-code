@@ -37,10 +37,12 @@ module MiniNumpy
   , broadcastShape
   ) where
 
+-- ANCHOR: imports
 import Prelude hiding (map, sum)
 import qualified Prelude
 import Data.List (intercalate)
 import qualified Data.Vector.Unboxed as VU
+-- ANCHOR_END: imports
 
 -- ANCHOR: type
 -- 📦 An array: a shape, and all the numbers in one row (row-major).
@@ -335,6 +337,7 @@ instance Show NDArray where
         (front, rest) -> front : chunksOf k rest
 
 -- 1.0 -> "1.", 0.5 -> "0.5" (like NumPy).
+-- 1.0 は "1."、0.5 は "0.5" と見せる（NumPy と同じ）
 showNum :: Double -> String
 showNum x
   | x == fromIntegral (round x :: Integer) && abs x < 1e15 =

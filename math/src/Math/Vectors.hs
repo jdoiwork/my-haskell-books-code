@@ -18,8 +18,10 @@ module Math.Vectors
   , stretchX
   ) where
 
+-- ANCHOR: imports
 import Data.List (maximumBy, transpose)
 import Data.Ord (comparing)
+-- ANCHOR_END: imports
 
 -- ANCHOR: vector
 -- ➡️ A vector: a list of numbers, like [attack, defense, speed, magic].

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE DataKinds #-}
 
 -- 🗺️ The API as a type, and the whole site: the API plus the files
@@ -10,6 +11,7 @@ import Data.Proxy (Proxy (..))
 import Servant.API
 
 import Board.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: api
 -- 🗺️ GET  /api/quests            -> every quest

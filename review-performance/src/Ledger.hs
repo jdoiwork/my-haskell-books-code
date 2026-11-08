@@ -10,6 +10,7 @@ module Ledger
   , topThree
   ) where
 
+-- ANCHOR: imports
 import Control.Parallel.Strategies (parMap, rdeepseq)
 import Data.ByteString.Char8       qualified as BS
 import Data.List                   (sortOn)
@@ -17,6 +18,7 @@ import Data.Map.Strict             (Map)
 import Data.Map.Strict             qualified as Map
 import Data.Maybe                  (mapMaybe)
 import Data.Ord                    (Down (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: record
 -- 📝 One line of the ledger: "Lambda 120" (a hero and the gold).

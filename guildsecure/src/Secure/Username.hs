@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- 🪪 Usernames that came from outside: check them once, at the door.
@@ -15,6 +16,7 @@ import Data.Aeson (ToJSON (..))
 import Data.Char  (isAsciiLower, isDigit)
 import Data.Text  (Text)
 import Data.Text  qualified as T
+-- ANCHOR_END: imports
 
 -- ANCHOR: validate
 -- ❓ Validate: only says yes or no. The Text stays a plain Text.

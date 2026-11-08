@@ -5,6 +5,7 @@
 -- 数そのものより、増え方を見る
 module Main (main) where
 
+-- ANCHOR: imports
 import Control.Exception   (evaluate)
 import Data.IntMap.Strict  qualified as IntMap
 import Data.Map.Strict     qualified as Map
@@ -13,6 +14,7 @@ import Data.Sequence       qualified as Seq
 import Data.Vector.Unboxed qualified as VU
 import GHC.Clock           (getMonotonicTime)
 import Text.Printf         (printf)
+-- ANCHOR_END: imports
 
 -- ANCHOR: timeIt
 -- ⏱️ Run an action, and say how many milliseconds it took.

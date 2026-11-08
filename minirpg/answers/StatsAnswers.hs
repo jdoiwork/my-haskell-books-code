@@ -1,5 +1,6 @@
 -- Answers for the training of the stats chapter.
 -- 集計する章のトレーニングの解答
+-- ANCHOR: module
 module StatsAnswers where
 
 -- Text, and Map for the stats
@@ -15,6 +16,7 @@ import Data.List (sortOn)
 -- 記録と、その集計
 import Records
 import Stats
+-- ANCHOR_END: module
 
 -- ANCHOR: winsIn
 -- 🥇 How many times this hero won. An unknown hero won 0 times.

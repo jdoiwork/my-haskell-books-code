@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- ⚡ The roster with hasql: statements as values.
@@ -22,6 +23,7 @@ import Hasql.Encoders                      qualified as E
 import Hasql.Session                       (Session)
 import Hasql.Session                       qualified as Session
 import Hasql.Statement                     (Statement (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: connect
 -- 🔌 Connect with a URL such as postgresql://user:pass@host/db.

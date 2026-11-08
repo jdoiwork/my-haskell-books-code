@@ -11,10 +11,12 @@ module Battle
   , replicateRolls
   ) where
 
+-- ANCHOR: imports
 import Control.Monad (replicateM)
 import Control.Monad.State
 
 import Dice (Seed, rollDie)
+-- ANCHOR_END: imports
 
 -- ANCHOR: arena
 -- 🏟️ Everything that changes during the battle.

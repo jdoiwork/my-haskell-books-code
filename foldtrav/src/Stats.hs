@@ -6,7 +6,9 @@ module Stats
   , report
   ) where
 
+-- ANCHOR: imports
 import Data.Semigroup (Max (..), Min (..), Sum (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: report
 -- 📊 How many, the total, the cheapest and the dearest.

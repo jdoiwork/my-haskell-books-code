@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: imports
 import Data.Foldable (toList)
 import Data.List (sort)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -10,6 +11,7 @@ import MiniMq.Broker
 import MiniMq.Examples
 import MiniMq.Types
 import MqAnswers
+-- ANCHOR_END: imports
 
 -- 🎲 Letters with one of a few keys, so that some go nowhere.
 -- いくつかの札のどれかを付けた手紙（どこにも届かないものも出るように）

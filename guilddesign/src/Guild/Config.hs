@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- ⚙️ Choose the store from a setting, such as "sqlite:guild.db".
 -- 設定（"sqlite:guild.db" など）から、置き場を選ぶ
+-- ANCHOR: imports
 module Guild.Config
   ( StoreConfig (..)
   , parseStoreConfig
@@ -14,6 +15,7 @@ import Guild.Store
 import Guild.Store.Memory
 import Guild.Store.Sqlite
 import Guild.Store.Postgres
+-- ANCHOR_END: imports
 
 -- ANCHOR: config
 -- ⚙️ Which store to use.

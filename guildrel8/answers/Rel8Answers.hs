@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -15,6 +16,7 @@ import Hasql.Statement qualified as Hasql
 import Rel8
 
 import Rel8Roster
+-- ANCHOR_END: imports
 
 -- ANCHOR: byJob
 -- 🧭 Adventurers of this job, by name.

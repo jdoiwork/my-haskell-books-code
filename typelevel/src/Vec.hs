@@ -1,4 +1,6 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE TypeFamilies #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | A list that knows its length in its type.
 -- 長さを型に持つリスト

@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Answers to the training of the parser chapter.
@@ -12,6 +13,7 @@ import Text.Megaparsec (some, (<|>))
 
 import Lam.Parser
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: negative
 -- ➖ -5 means 0 - 5 (Lam has no negative numbers in the tree).

@@ -10,11 +10,13 @@ module Shop
   , printAll
   ) where
 
+-- ANCHOR: imports
 import Control.Monad.State
 import Data.Foldable (for_)
 import qualified Data.Map.Strict as Map
 
 import Tree
+-- ANCHOR_END: imports
 
 -- ANCHOR: price
 -- 💰 The shop's price list.

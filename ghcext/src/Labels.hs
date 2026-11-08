@@ -1,5 +1,7 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE UndecidableInstances #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | What #level really is: fromLabel @"level".
 -- #level の正体：fromLabel @"level"
@@ -12,10 +14,12 @@ module Labels
   , heroName
   ) where
 
+-- ANCHOR: imports
 import GHC.OverloadedLabels (IsLabel (..))
 import GHC.Records (HasField (..))
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Data.Proxy (Proxy (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: column
 -- 🏷️ A column name. #level becomes Column "level".

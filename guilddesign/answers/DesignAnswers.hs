@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -12,6 +13,7 @@ import Test.Hspec
 
 import Guild.Roster
 import Guild.Store
+-- ANCHOR_END: imports
 
 -- ANCHOR: logging
 -- 📣 Wrap any store: say each add and level up, then pass it on.

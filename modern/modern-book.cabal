@@ -35,6 +35,7 @@ library
                     ModernAnswers
   hs-source-dirs:   src answers
 
+-- ANCHOR: guild-mcp
 -- The MCP server of the AI chapter.
 -- AI の章の MCP サーバー
 executable guild-mcp
@@ -43,7 +44,9 @@ executable guild-mcp
   hs-source-dirs:   app
   build-depends:
     , modern-book
+-- ANCHOR_END: guild-mcp
 
+-- ANCHOR: board-mcp
 -- The quest board as an MCP server (the MCP chapter).
 -- MCP サーバーになった依頼板（MCP の章）
 executable board-mcp
@@ -52,6 +55,7 @@ executable board-mcp
   hs-source-dirs:   app
   build-depends:
     , modern-book
+-- ANCHOR_END: board-mcp
 
 test-suite modern-test
   import:           shared

@@ -11,12 +11,14 @@ module Modern.Mcp
   , handleLine
   ) where
 
+-- ANCHOR: imports
 import Data.Aeson
 import Data.Aeson.Types (Parser, parseMaybe)
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Text (Text)
 
 import Modern.Elements (Element (..), power)
+-- ANCHOR_END: imports
 
 -- ANCHOR: line
 -- 📨 One line in, zero or one line out. Notifications get no answer.

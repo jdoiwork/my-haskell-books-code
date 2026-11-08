@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Answers to the training of the evaluator chapter.
@@ -13,6 +14,7 @@ import qualified Data.Text as T
 
 import Lam.Eval
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: dynamic
 -- 🌀 Dynamic scope: a function's body sees the variables of the

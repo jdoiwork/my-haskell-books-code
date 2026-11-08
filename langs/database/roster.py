@@ -1,10 +1,11 @@
 # The Python code in the database chapter.
 # データベース入門の章の Python のコード
-import sqlite3
 
 # ANCHOR: procedural
 # Python (procedural style)
 # Python（手続き型スタイル）
+import sqlite3
+
 conn = sqlite3.connect(":memory:")
 conn.execute("""
     CREATE TABLE adventurers

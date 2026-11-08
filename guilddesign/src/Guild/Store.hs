@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- 🔌 What a store of the roster can do: a record of functions.
 -- 名簿の置き場ができること：関数を並べたレコード
+-- ANCHOR: imports
 module Guild.Store
   ( RosterStore (..)
   , AddError (..)
@@ -8,6 +9,7 @@ module Guild.Store
 
 import Data.Text   (Text)
 import Guild.Roster
+-- ANCHOR_END: imports
 
 -- ANCHOR: store
 -- 🔌 The roster's store. Each field is one thing it can do.

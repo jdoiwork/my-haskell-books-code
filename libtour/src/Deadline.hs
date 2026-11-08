@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- 📅 Days and deadlines of quests.
 -- 依頼の日付と締め切り
+-- ANCHOR: imports
 module Deadline where
 
 import Data.Time
@@ -12,6 +13,7 @@ import Data.Time
   , fromGregorian
   , parseTimeM
   )
+-- ANCHOR_END: imports
 
 -- ANCHOR: days
 -- 📌 The day a quest was posted on the board.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE DeriveAnyClass #-}
 
 -- 📒 The loot book: the items, reading them, and the pure core.
@@ -19,6 +20,7 @@ import Data.Text            (Text)
 import GHC.Generics         (Generic)
 
 import Loot.Gold
+-- ANCHOR_END: imports
 
 -- ANCHOR: item
 -- 💎 One kind of item in the book: its price, and how many we have.

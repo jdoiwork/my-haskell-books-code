@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- Answers for the training of the debugging and logging chapter.
@@ -12,6 +13,7 @@ import Data.Text qualified as T
 import Debug.Trace (traceShowId)
 
 import Logger
+-- ANCHOR_END: imports
 
 -- ANCHOR: totalDamage
 -- 🔍 traceShowId shows each value as it passes through.

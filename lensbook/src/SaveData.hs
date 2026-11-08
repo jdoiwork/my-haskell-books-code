@@ -1,5 +1,7 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE MultilineStrings #-}
 {-# LANGUAGE OverloadedStrings #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | Peeking into deep JSON with lens-aeson.
 -- lens-aeson で、深い JSON をのぞく
@@ -10,10 +12,12 @@ module SaveData
   , richer
   ) where
 
+-- ANCHOR: imports
 import Control.Lens
 import Data.Aeson (Value)
 import Data.Aeson.Lens
 import Data.Text (Text)
+-- ANCHOR_END: imports
 
 -- ANCHOR: sample
 -- 💾 A save file: the hero, the party's items, and some flags.

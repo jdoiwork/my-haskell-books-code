@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- Answers for the training of the libraries chapter.
@@ -15,6 +16,7 @@ import Data.Vector qualified as V
 import Deadline (deadline)
 import Queue (nextTurn)
 import Shelf (prices)
+-- ANCHOR_END: imports
 
 -- ANCHOR: cheapestSlot
 -- 🔍 The slot of the cheapest potion.

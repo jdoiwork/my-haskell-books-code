@@ -1,4 +1,6 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE OverloadedLabels #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | The guild's roster, described for MiniSql.
 -- ギルドの名簿を、MiniSql 向けに書く
@@ -13,6 +15,7 @@ module Guild
   , retire
   ) where
 
+-- ANCHOR: imports
 import Data.Function ((&))
 import Data.Text (Text)
 import Database.SQLite.Simple
@@ -20,6 +23,7 @@ import Database.SQLite.Simple
 import MiniSql.Column
 import MiniSql.Expr
 import MiniSql.Query
+-- ANCHOR_END: imports
 
 -- ANCHOR: table
 -- 🧙 A row of the roster.

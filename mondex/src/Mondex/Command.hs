@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- ANCHOR: module
@@ -30,6 +31,7 @@ import Data.List (intercalate)
 import Data.Text (Text)
 
 import Mondex.Monster (Element, Monster (..), allElements, parseElement)
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: listTypes

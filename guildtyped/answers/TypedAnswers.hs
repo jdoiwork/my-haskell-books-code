@@ -1,11 +1,13 @@
 -- Answers for the training of the "typed SQL" chapter.
 -- 「型で SQL を守る」の章のトレーニングの解答
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedLabels #-}
 module TypedAnswers where
 
 import Database.Selda
 
 import TypedGuild
+-- ANCHOR_END: imports
 
 -- ANCHOR: byJob
 -- 🧑‍🤝‍🧑 Every adventurer with this job, by name.

@@ -8,6 +8,7 @@ module Modern.BoardMcp
   , boardTools
   ) where
 
+-- ANCHOR: imports
 import Data.Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
@@ -20,6 +21,7 @@ import System.IO (IOMode (..), withFile)
 
 import Modern.McpKit
 import Modern.QuestBoard
+-- ANCHOR_END: imports
 
 -- ANCHOR: load
 -- 📂 Read the board. No file yet means an empty board.

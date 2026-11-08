@@ -14,8 +14,10 @@ module Modern.Effects
   , runIO
   ) where
 
+-- ANCHOR: imports
 import Control.Monad (ap, replicateM)
 import System.Random (randomRIO)
+-- ANCHOR_END: imports
 
 -- ANCHOR: quest
 -- 📜 A program is a list of requests. Each request carries

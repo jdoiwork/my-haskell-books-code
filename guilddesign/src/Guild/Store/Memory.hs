@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedRecordDot #-}
 
 -- 🧠 A store in memory: a Map in a box that can be rewritten.
@@ -13,6 +14,7 @@ import Data.Text       (Text)
 
 import Guild.Roster
 import Guild.Store
+-- ANCHOR_END: imports
 
 -- ANCHOR: memory
 -- 📦 What the box holds: the adventurers by name, and the next id.

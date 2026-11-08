@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- 🐘 A tour of the roster on PostgreSQL.
@@ -15,6 +16,7 @@ import Data.Maybe               (fromMaybe)
 import PgRoster
 import Migrate
 import GuildPool
+-- ANCHOR_END: imports
 
 -- ANCHOR: url
 -- 🔌 Where the database is: GUILD_DB, or the container on this machine.

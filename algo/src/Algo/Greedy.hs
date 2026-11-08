@@ -19,8 +19,10 @@ module Algo.Greedy
   , decode
   ) where
 
+-- ANCHOR: imports
 import Data.List (sortOn, subsequences)
 import qualified Data.Map.Strict as Map
+-- ANCHOR_END: imports
 
 -- ANCHOR: quest
 -- 📅 A quest takes the hours from start to end (end not included).

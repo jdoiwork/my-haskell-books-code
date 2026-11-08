@@ -1,10 +1,14 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE DerivingVia #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | Answers to the training of "GHC extensions".
 -- 「GHC 拡張」のトレーニングの解答
 module ExtAnswers (Lowest (..)) where
 
+-- ANCHOR: imports
 import Data.Semigroup (Min (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: lowest
 -- 🐢 Step 2: the lowest price wins: borrow from Min Int.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of the performance chapter.
 -- 速くする章のトレーニングの解答。
 module MiniSearch.Answers
@@ -14,6 +15,7 @@ import Data.List (insertBy)
 import Data.Ord (Down (..), comparing)
 
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: topk
 -- 🏆 The k best hits, without sorting them all: keep a short,

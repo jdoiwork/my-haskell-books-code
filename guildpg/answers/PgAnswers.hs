@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- 🏋️ Answers for the training.
@@ -7,6 +8,7 @@ module PgAnswers (countAdventurers) where
 
 import Database.PostgreSQL.Simple
 import Data.Int (Int64)
+-- ANCHOR_END: imports
 
 -- ANCHOR: count
 -- 🔢 How many adventurers are in the roster. count(*) is a bigint.

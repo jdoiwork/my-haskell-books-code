@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
@@ -12,6 +13,7 @@ import Test.Hspec.Wai.JSON
 
 import Board.Server (app)
 import Board.Store (memoryStore)
+-- ANCHOR_END: imports
 
 -- 📮 POST with a JSON body (hspec-wai's post sends no Content-Type).
 -- JSON を付けて POST する（hspec-wai の post は Content-Type を付けない）

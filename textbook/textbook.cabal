@@ -29,8 +29,8 @@ executable board
   hs-source-dirs:   app
   build-depends:    textbook
 
--- wordfreq from the first chapter, rewritten with Text.
--- 第1章の wordfreq を Text で書き直したもの
+-- wordfreq from the setup chapter, rewritten with Text.
+-- 環境構築の章の wordfreq を Text で書き直したもの
 executable wordfreq-text
   import:           shared
   main-is:          WordfreqText.hs

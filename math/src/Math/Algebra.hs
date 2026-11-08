@@ -12,8 +12,10 @@ module Math.Algebra
   , visit
   ) where
 
+-- ANCHOR: imports
 import Data.Set (Set)
 import qualified Data.Set as Set
+-- ANCHOR_END: imports
 
 -- ANCHOR: summary
 -- 📊 A summary of response times that can be combined: how many,

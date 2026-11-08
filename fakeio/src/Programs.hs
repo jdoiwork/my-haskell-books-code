@@ -8,11 +8,13 @@ module Programs
   , longLine
   ) where
 
+-- ANCHOR: imports
 import Prelude hiding (getLine, putStr, putStrLn)
 
 import Data.Maybe (fromMaybe)
 
 import Console
+-- ANCHOR_END: imports
 
 putStrLn :: Console m => String -> m ()
 putStrLn text = putStr (text <> "\n")

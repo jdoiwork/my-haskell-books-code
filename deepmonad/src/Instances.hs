@@ -9,7 +9,9 @@ module Instances
   , everyPair
   ) where
 
+-- ANCHOR: imports
 import Control.Applicative (ZipList (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: pair
 -- 🎁 A pair is a Functor over its second part.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- ANCHOR: module
@@ -25,6 +26,7 @@ import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Text       (Text)
 import Data.Time       (UTCTime, getCurrentTime)
 import System.IO       (stderr)
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: level

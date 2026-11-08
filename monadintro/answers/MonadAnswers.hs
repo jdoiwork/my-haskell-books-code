@@ -1,11 +1,13 @@
 -- ANCHOR: all
 -- 🏋️ Answers for the training.
 -- トレーニングの解答
+-- ANCHOR: imports
 module MonadAnswers (totalPrice, totalPriceAp, affordableSets) where
 
 import Control.Monad (guard)
 
 import Shop (price)
+-- ANCHOR_END: imports
 
 -- ANCHOR: total
 -- 💰 The price of two items together, with do.

@@ -15,10 +15,12 @@ module Algo.Strings
   , monsters
   ) where
 
+-- ANCHOR: imports
 import Data.Array
 import Data.List (group, isPrefixOf, tails)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
+-- ANCHOR_END: imports
 
 -- ANCHOR: rle
 -- 🧱 Run-length encoding: each run of the same letter becomes

@@ -10,6 +10,7 @@ module Lift.Stack
   , runQuestDay
   ) where
 
+-- ANCHOR: imports
 import Control.Monad (when)
 import Control.Monad.Except
 import Control.Monad.State.Strict
@@ -19,6 +20,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
 import Lift.App
+-- ANCHOR_END: imports
 
 -- ANCHOR: accept
 -- 🚫 Why a quest could not be accepted.

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedRecordDot #-}
 
 -- ANCHOR: module
@@ -22,6 +23,7 @@ import System.Exit        (die)
 import Mondex.Command (MondexInput (..), mondexInfo)
 import Mondex.Core    (Outcome (..), runAction)
 import Mondex.Store   (loadBestiary, saveBestiary)
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: main

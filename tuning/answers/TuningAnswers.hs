@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 {-# LANGUAGE OverloadedRecordDot #-}
 
 -- 🏋️ Answers for the training.
@@ -11,6 +12,7 @@ import Data.List.NonEmpty qualified as NE
 import Data.Text          (Text)
 
 import Report
+-- ANCHOR_END: head
 
 -- ANCHOR: sorted
 -- 🗂️ Sort by hero, then add up each group: O(n log n), without a Map.

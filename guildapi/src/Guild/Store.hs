@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE MultilineStrings #-}
@@ -22,6 +23,7 @@ import Data.Text              (Text)
 import Database.SQLite.Simple
 
 import Guild.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: store
 -- 🔌 What a roster store can do.

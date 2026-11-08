@@ -6,6 +6,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 -- ANCHOR_END: pragma
 
+-- ANCHOR: imports
 -- 🛡️ The roster with rel8: tables as types, queries as Haskell.
 -- rel8 の名簿：表は型、問い合わせは Haskell の式
 module Rel8Roster where
@@ -16,6 +17,7 @@ import GHC.Generics (Generic)
 import Data.Functor.Contravariant ((>$<))
 import Hasql.Statement qualified as Hasql
 import Rel8
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- 🧙 An adventurer. f decides what each column is.

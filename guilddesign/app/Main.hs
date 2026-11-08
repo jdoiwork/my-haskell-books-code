@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedRecordDot #-}
 
 -- 🏰 The guild command. GUILD_STORE chooses where the roster lives.
@@ -16,6 +17,7 @@ import Guild.Roster
 import Guild.Store
 import Guild.Config
 import Guild.Service
+-- ANCHOR_END: imports
 
 -- ANCHOR: main
 main :: IO ()

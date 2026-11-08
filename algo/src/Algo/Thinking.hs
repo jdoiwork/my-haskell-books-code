@@ -13,7 +13,9 @@ module Algo.Thinking
   , dungeon
   ) where
 
+-- ANCHOR: imports
 import Data.List (inits, tails)
+-- ANCHOR_END: imports
 
 -- ANCHOR: dungeon
 -- 🏰 Treasure in each room: plus for gold, minus for traps.

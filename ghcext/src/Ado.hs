@@ -1,10 +1,14 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE ApplicativeDo #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | ApplicativeDo: do for something that is only Applicative.
 -- ApplicativeDo：Applicative でしかないものにも do を
 module Ado (sums) where
 
+-- ANCHOR: imports
 import Control.Applicative (ZipList (..))
+-- ANCHOR_END: imports
 
 -- ANCHOR: ado
 -- 🤐 ZipList has no Monad, but with ApplicativeDo, do works.

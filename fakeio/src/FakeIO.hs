@@ -15,12 +15,14 @@ module FakeIO
   , showScreen
   ) where
 
+-- ANCHOR: imports
 import Prelude hiding (getLine, putStr, putStrLn)
 
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 
 import Screen
+-- ANCHOR_END: imports
 
 -- ANCHOR: world
 -- 🌍 Everything outside the program that it can see or change.

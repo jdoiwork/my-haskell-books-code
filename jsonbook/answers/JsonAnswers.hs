@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -24,6 +25,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Monster (Monster (..), goblin, slime)
+-- ANCHOR_END: imports
 
 -- ANCHOR: quest
 -- 📜 A quest, with JSON from Generic.

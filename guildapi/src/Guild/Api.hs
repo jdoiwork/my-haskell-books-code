@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -15,6 +16,7 @@ import Servant.API
 import Servant.OpenApi (toOpenApi)
 
 import Guild.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: api
 -- 🗺️ GET    /adventurers                  -> every adventurer

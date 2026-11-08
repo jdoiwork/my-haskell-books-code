@@ -1,15 +1,20 @@
 module LogicSpec (spec, genHero, genNoKey) where
 
+-- ANCHOR: imports
 import qualified Data.Set as Set
 import Test.Hspec
 import Test.QuickCheck
 
 import LogicAnswers
 import Math.Logic
+-- ANCHOR_END: imports
 
--- 🎲 Random heroes for the gate. / 扉の前の、でたらめな冒険者
+-- ANCHOR: genHero
+-- 🎲 Random heroes for the gate.
+-- 扉の前の、でたらめな冒険者
 genHero :: Gen Hero
 genHero = Hero <$> choose (1, 20) <*> arbitrary <*> elements [minBound ..]
+-- ANCHOR_END: genHero
 
 -- ANCHOR: genNoKey
 -- 🎲 Heroes of level 10 or more without a key:

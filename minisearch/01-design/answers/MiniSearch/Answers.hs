@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of the design chapter.
 -- 設計の章のトレーニングの解答。
 module MiniSearch.Answers
@@ -15,6 +16,7 @@ import Data.Text (Text)
 import MiniSearch.Index (postingsOf)
 import MiniSearch.Tokenize (tokenize)
 import MiniSearch.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: any
 -- 🌊 OR search: documents that have at least one of the tokens.

@@ -1,3 +1,4 @@
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- 🔄 The turn order of a battle: a Seq, fast at both ends.
@@ -7,6 +8,7 @@ module Queue where
 import Data.Sequence (Seq (..))
 import Data.Sequence qualified as Seq
 import Data.Text (Text)
+-- ANCHOR_END: imports
 
 -- ANCHOR: queue
 -- 👥 Who acts first, second, third...

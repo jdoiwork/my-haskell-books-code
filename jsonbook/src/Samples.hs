@@ -2,6 +2,7 @@
 -- ANCHOR: pragma
 -- Let us write JSON text as ByteString values.
 -- JSON の文字列を ByteString の値として書けるようにする
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 -- Let us write strings between """ and """ (GHC 9.12 and later).
 -- """ と """ で囲んだ文字列を書けるようにする（GHC 9.12 以降）
@@ -14,6 +15,7 @@ module Samples where
 -- JSON arrives as bytes.
 -- JSON はバイト列でやってくる
 import Data.ByteString.Lazy (ByteString)
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: values

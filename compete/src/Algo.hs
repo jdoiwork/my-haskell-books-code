@@ -13,6 +13,7 @@ module Algo
   , twoSum
   ) where
 
+-- ANCHOR: imports
 import Control.Monad.ST            (ST, runST)
 import Data.List                   qualified as L
 import Data.Map.Strict             qualified as Map
@@ -20,6 +21,7 @@ import Data.Sequence               (Seq (..), (|>))
 import Data.Sequence               qualified as Seq
 import Data.Vector.Unboxed         qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as MVU
+-- ANCHOR_END: imports
 
 -- ANCHOR: prefix
 -- ➕ Prefix sums: sums !! i is the total of the first i damages.

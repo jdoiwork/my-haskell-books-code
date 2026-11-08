@@ -11,9 +11,11 @@ module MiniMq.Types
   , BrokerError (..)
   ) where
 
+-- ANCHOR: imports
 import Data.List.NonEmpty (NonEmpty)
 import Data.String (IsString)
 import Data.Text (Text)
+-- ANCHOR_END: imports
 
 -- ANCHOR: names
 -- 📛 Three kinds of names. All of them are text inside, but the compiler

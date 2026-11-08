@@ -1,11 +1,13 @@
 -- ANCHOR: all
 -- 🏊 A pool of connections, shared by many tasks.
 -- たくさんの仕事で使い回す、接続のプール
+-- ANCHOR: imports
 module GuildPool (newGuildPool) where
 
 import Database.PostgreSQL.Simple
 import Data.ByteString (ByteString)
 import Data.Pool
+-- ANCHOR_END: imports
 
 -- ANCHOR: pool
 -- 🏊 At most 5 connections; an idle one is closed after 30 seconds.

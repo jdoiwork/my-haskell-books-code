@@ -1,6 +1,5 @@
 # The Python code in the "growing the database" chapter.
 # 「データベースを育てる」の章の Python のコード
-import sqlite3
 
 MIGRATIONS = [
     "CREATE TABLE IF NOT EXISTS adventurers (id INTEGER PRIMARY KEY,"
@@ -48,6 +47,8 @@ def complete_quest(conn, quest_id):
 
 # ANCHOR: connect
 # Python
+import sqlite3
+
 # autocommit=False: a transaction is always open,
 #    so `with conn:` covers every statement in it (Python 3.12+).
 # autocommit=False：いつもトランザクションが開いているので、

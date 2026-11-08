@@ -1,5 +1,6 @@
 -- ANCHOR: all
 -- ANCHOR: module
+-- ANCHOR: imports
 module Battle where
 
 -- JSON: the classes, the generic helpers, and the options.
@@ -20,6 +21,7 @@ import GHC.Generics (Generic)
 -- The elements, from the bestiary.
 -- 図鑑の属性
 import Monster (Element (..))
+-- ANCHOR_END: imports
 -- ANCHOR_END: module
 
 -- ANCHOR: action

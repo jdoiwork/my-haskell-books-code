@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -16,6 +17,7 @@ import qualified Data.ByteString.Char8 as BS
 import Database.PostgreSQL.Simple
 
 import Board.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: store
 -- 🗄️ The three things the server needs from a store.

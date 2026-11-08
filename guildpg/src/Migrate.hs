@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 
 -- 🪜 Migrations by name: every script that has run is written down.
@@ -7,6 +8,7 @@ module Migrate (migrate, appliedScripts, MigrationResult (..)) where
 
 import Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.Migration
+-- ANCHOR_END: imports
 
 -- ANCHOR: migrate
 -- 🪜 Run the scripts in the directory that have not run yet.

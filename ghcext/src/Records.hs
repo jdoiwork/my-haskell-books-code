@@ -1,6 +1,8 @@
+-- ANCHOR: pragmas
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+-- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | Records: the same field name in two types, and reading with dots.
 -- レコード：2つの型に同じフィールド名、そしてドットで読む

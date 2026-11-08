@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -22,6 +23,7 @@ import Database.SQLite.Simple
 import GHC.Generics           (Generic)
 
 import Board.Title
+-- ANCHOR_END: imports
 
 -- ANCHOR: quest
 -- 📜 A quest on the board. Nobody has taken it while taker is Nothing.
