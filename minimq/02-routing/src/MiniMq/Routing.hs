@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | The three ways of handing out letters, as plain functions.
 -- 3つの配り方を、ふつうの関数で
+-- ANCHOR: header
 module MiniMq.Routing
   ( matches
   , topicMatch
@@ -13,6 +14,7 @@ import qualified Data.Text as T
 import Data.Text (Text)
 
 import MiniMq.Types
+-- ANCHOR_END: header
 
 -- ANCHOR: matches
 -- 🔀 Does a rule's key accept a letter's key? One line per way.

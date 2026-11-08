@@ -11,9 +11,9 @@ main = withEnv (Just "minimq.journal") $ \env -> do
   server <- listenOn 5673
   -- 「minimq：5673 番で待っています（日誌は minimq.journal）」
   putStrLn "minimq: listening on 127.0.0.1:5673 (journal: minimq.journal)"
-  supervise Plan
+  withGuests $ \welcome -> supervise Plan
     { strategy  = OneForOne
     , intensity = Intensity { restarts = 5, seconds = 10 }
-    , children  = [Child "acceptor" (acceptLoop env server)]
+    , children  = [Child "acceptor" (acceptLoop env server welcome)]
     }
 -- ANCHOR_END: main

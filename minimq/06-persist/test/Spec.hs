@@ -1,11 +1,17 @@
 module Main (main) where
 
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
+import Control.Concurrent.Async (cancel, withAsync)
+import Control.Exception (IOException, try)
+import Control.Monad (forever)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+import Data.Either (isLeft)
 import Data.List (isPrefixOf, sort)
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process (readProcess)
+import System.Timeout (timeout)
 import Test.Hspec
 import Test.QuickCheck hiding (replay)
 
@@ -160,6 +166,22 @@ main = hspec $ do
         withServerAt (Just path) $ \port -> withClient port $ \c ->
           request c (Consume "scratch" 1)
             `shouldReturn` Refused "no such queue: scratch"
+    -- サーバーが止まったら、つながっている客にも電話を切る
+    it "hangs up on its clients when it stops" $ do
+      started <- newEmptyMVar
+      let server = withServer $ \port -> do
+            putMVar started port
+            forever (threadDelay 1000000)
+      withAsync server $ \running -> do
+        port <- takeMVar started
+        withClient port $ \c -> do
+          request c (DeclareQueue "jobs" plainQueue) `shouldReturn` Ok
+          cancel running
+          -- Not left waiting for an answer that never comes: told at once.
+          -- 来ない答えを待たされず、すぐに切れたとわかる
+          late <- timeout 5000000 $
+            try @IOException (request c (DeclareQueue "late" plainQueue))
+          fmap isLeft late `shouldBe` Just True
   -- ANCHOR_END: spec-server
 
   -- 「トレーニング」

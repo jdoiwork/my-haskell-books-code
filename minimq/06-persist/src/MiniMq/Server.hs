@@ -3,6 +3,7 @@
 --   connection has a reader, a writer, and its consumers.
 -- TCP サーバーとしてのブローカー。純粋な核は TVar の中。
 -- つながりごとに、読む係・書く係・受け手たちがいる
+-- ANCHOR: imports
 module MiniMq.Server
   ( Env (..)
   , withEnv
@@ -15,18 +16,18 @@ module MiniMq.Server
   , withScope
   , listenOn
   , acceptLoop
+  , withGuests
   , withServer
   , withServerAt
   ) where
 
--- ANCHOR: imports
-import Control.Concurrent (forkFinally, forkIO, killThread)
 import Control.Concurrent.Async (async, cancel, concurrently_, link,
                                  withAsync)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally, mask)
 import Control.Monad (forever)
 import Data.IORef
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import Network.Socket hiding (bind)
 import qualified Network.Socket as Socket
@@ -220,8 +221,10 @@ withScope body =
 -- ANCHOR_END: serve
 
 -- ANCHOR: listen
--- 👂 Listen on 127.0.0.1, and give every client its own thread.
--- 127.0.0.1 で待ち受け、クライアントごとにスレッドを1つ
+-- 👂 Listen on 127.0.0.1, and give every client its own thread. The
+--    thread is started by `welcome`, so it lives in the server's scope.
+-- 127.0.0.1 で待ち受け、クライアントごとにスレッドを1つ。スレッドは
+-- welcome で始めるので、サーバーの範囲の中で動く
 listenOn :: PortNumber -> IO Socket
 listenOn port = do
   sock <- socket AF_INET Stream defaultProtocol
@@ -230,11 +233,35 @@ listenOn port = do
   listen sock 64
   pure sock
 
-acceptLoop :: Env -> Socket -> IO ()
-acceptLoop env server = forever $ do
+acceptLoop :: Env -> Socket -> (IO () -> IO ()) -> IO ()
+acceptLoop env server welcome = forever $ do
   (client, _) <- accept server
   conn <- newConn client
-  forkFinally (serveClient env conn) (\_ -> close client)
+  welcome (serveClient env conn `finally` close client)
+
+-- 🚪 Like `withScope`, for guests who come and go. When the scope ends,
+--    every guest still here is stopped (and its socket closed). A guest
+--    who leaves crosses itself out, so a server that runs for weeks
+--    does not keep a list of everyone who ever came. It waits until the
+--    door has written it down (under `mask`, that comes right away).
+-- withScope の、来ては帰る客の版。範囲が終わると、まだいる客を全部
+-- 止める（ソケットも閉じる）。帰る客は自分で名前を消すので、何週間も
+-- 動くサーバーが、来た客全員の一覧を抱えこまない。消す前に、戸口が
+-- 書き留めるのを待つ（mask の中なので、すぐに書かれる）
+withGuests :: ((IO () -> IO ()) -> IO a) -> IO a
+withGuests body = do
+  guests  <- newTVarIO Map.empty
+  tickets <- newIORef (0 :: Int)
+  let leave n = atomically $ do
+        here <- readTVar guests
+        check (Map.member n here)
+        writeTVar guests (Map.delete n here)
+      welcome job = mask $ \restore -> do
+        n <- atomicModifyIORef' tickets (\k -> (k + 1, k))
+        guest <- async (restore job `finally` leave n)
+        atomically (modifyTVar' guests (Map.insert n guest))
+      stopAll = readTVarIO guests >>= mapM_ cancel
+  body welcome `finally` stopAll
 
 -- 🧪 For tests: a server on a free port, stopped when the test ends.
 --    Stopping it cleans up as usual (the journal file is closed), so
@@ -242,14 +269,15 @@ acceptLoop env server = forever $ do
 -- テスト用：空いているポートで動き、テストが終わると止まるサーバー。
 -- 止めるときは、いつもどおり後片付けをする（日誌のファイルも閉じる）。
 -- だから、もう一度起動するのは、電源を抜いたあとではなく、再起動
-
 withServerAt :: Maybe FilePath -> (PortNumber -> IO a) -> IO a
 withServerAt path action =
   withEnv path $ \env ->
     bracket (listenOn 0) close $ \server -> do
       port <- socketPort server
-      bracket (forkIO (acceptLoop env server)) killThread $ \_ ->
-        action port
+      withGuests $ \welcome ->
+        withAsync (acceptLoop env server welcome) $ \acceptor -> do
+          link acceptor
+          action port
 
 withServer :: (PortNumber -> IO a) -> IO a
 withServer = withServerAt Nothing

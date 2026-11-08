@@ -60,6 +60,7 @@ test-suite minimq-test
   ghc-options:      -threaded
   build-depends:
     , minimq
+    , async            ^>=2.2
     , directory
     , filepath         ^>=1.5
     , temporary        ^>=1.3

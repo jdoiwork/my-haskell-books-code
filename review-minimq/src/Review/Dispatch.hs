@@ -103,8 +103,8 @@ runDay memory workers todo falls = withServer $ \port -> do
           atomicModifyIORef' doneRef (\counts -> (tally counts, ()))
         unlucky <- atomicModifyIORef' tape nextLuck
         when unlucky (throwIO (userError "tripped before the ACK"))
-        -- Past the last chance to fall: only the ACK is left.
-        -- もう転ばない。残るのは ACK だけ
+        -- Past the last chance to fall: during the day, it never comes back.
+        -- もう転ばない。営業中に、この依頼が戻ってくることはない
         atomicModifyIORef' settledRef
           (\settled -> (Set.insert (orderNo order) settled, ()))
       -- ANCHOR_END: job
@@ -129,7 +129,11 @@ runDay memory workers todo falls = withServer $ \port -> do
       link boss
       link keeper
       waitUntil finished
-  Report <$> readIORef doneRef <*> readIORef buriedRef
+      -- Copy the day's result now, while everyone is still at work:
+      -- closing the shop may cut off an ACK and put a letter back.
+      -- 結果は、まだみんなが働いているうちに写す。店じまいでは、
+      -- ACK が途中で切れて、手紙が戻ることがあるから
+      Report <$> readIORef doneRef <*> readIORef buriedRef
 -- ANCHOR_END: runDay
 
 -- 🎲 Read the next answer from the tape of bad luck.
