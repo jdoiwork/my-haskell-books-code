@@ -30,5 +30,16 @@ assert average == 14.0 and damage == 49
 wrapped = ctypes.c_int8(300).value   # 44
 # ANCHOR_END: narrow
 assert wrapped == 44
+
+# The book also says: some conversions refuse instead of wrapping.
+# 本文の説明：一周させずに、断る変換もある
+import array
+for refuse in (lambda: array.array("b", [300]),
+               lambda: (300).to_bytes(1, signed=True)):
+    try:
+        refuse()
+        raise AssertionError("expected OverflowError")
+    except OverflowError:
+        pass
 assert 100 * 2 ** 60 == 115292150460684697600
 print("ok")

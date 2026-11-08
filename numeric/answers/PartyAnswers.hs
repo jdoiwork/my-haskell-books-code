@@ -17,17 +17,23 @@ speedBonus agility = sqrt (fromIntegral agility)
 -- ANCHOR_END: speedBonus
 
 -- ANCHOR: isqrt
--- 🔢 The square root of n, rounded down, exactly.
+-- 🔢 The square root of n (0 or more), rounded down, exactly.
 --    sqrt on a Double may be one off for a big n,
 --    so the answer is fixed by one step at a time.
--- n の平方根の切り捨てを、正確に求める。
--- 大きな n では Double の sqrt が 1 ずれることがあるので、1 ずつ直す
+--    The squares are checked in Integer: near maxBound,
+--    (r + 1) * (r + 1) would wrap around in Int.
+-- n（0 以上）の平方根の切り捨てを、正確に求める。
+-- 大きな n では Double の sqrt が 1 ずれることがあるので、1 ずつ直す。
+-- 2乗は Integer で確かめる。maxBound の近くでは、
+-- (r + 1) * (r + 1) が Int だと一周してしまう
 isqrt :: Int -> Int
 isqrt n = fix guess
   where
-    guess = floor (sqrt (fromIntegral n :: Double))
+    guess    = floor (sqrt (fromIntegral n :: Double))
+    big      = toInteger n
+    square r = toInteger r * toInteger r
     fix r
-      | r * r > n              = fix (r - 1)
-      | (r + 1) * (r + 1) <= n = fix (r + 1)
-      | otherwise              = r
+      | square r       >  big = fix (r - 1)
+      | square (r + 1) <= big = fix (r + 1)
+      | otherwise             = r
 -- ANCHOR_END: isqrt
