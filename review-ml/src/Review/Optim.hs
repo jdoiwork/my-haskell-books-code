@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Optimizers in the style of torch.optim: SGD, momentum, and Adam.
 -- torch.optim 風の最適化：SGD、Momentum、Adam
@@ -18,6 +19,7 @@ import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
 import MiniTorch.NN (Params, mlp, sgdStep)
 import MiniTorch.Tensor (Grads, backward, crossEntropy, tvalue)
+-- ANCHOR_END: head
 
 -- ANCHOR: optimizer
 -- 🧭 An optimizer: give it the parameters and their gradients, and it

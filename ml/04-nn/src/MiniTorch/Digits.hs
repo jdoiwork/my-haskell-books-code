@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Hand-written-looking digits: 5 x 7 pixel glyphs with noise.
 --   (A small stand-in for MNIST, made by the program itself.)
@@ -15,6 +16,7 @@ import Data.Word (Word64)
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
 import MiniTorch.Random (uniforms)
+-- ANCHOR_END: head
 
 -- ANCHOR: glyphs
 -- 🔢 The ten digits, 7 rows of 5 pixels each.

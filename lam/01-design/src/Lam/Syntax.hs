@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | The abstract syntax tree (AST) of Lam: a program, as a value.
 -- Lam の抽象構文木（AST）：プログラムを、値として表す。
@@ -12,6 +13,7 @@ module Lam.Syntax
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
+-- ANCHOR_END: head
 
 -- ANCHOR: expr
 -- 🏷️ A variable's name: x, double, fact

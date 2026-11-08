@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Small made-up datasets. They use sin, not random numbers,
 --   so that Python makes exactly the same numbers.
@@ -10,6 +11,7 @@ module MiniSklearn.Datasets
 
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+-- ANCHOR_END: head
 
 -- ANCHOR: potions
 -- 🧪 Potion prices: the bigger the potion (ml), the higher the price.

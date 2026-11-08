@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | The heart of the REPL: one line in, a new session and a text out.
@@ -18,6 +19,7 @@ import Lam.Parser
 import Lam.Program
 import Lam.Syntax
 import Lam.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: input
 -- ⌨️ What the user typed.

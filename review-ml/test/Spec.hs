@@ -1,3 +1,4 @@
+-- ANCHOR: head
 module Main (main) where
 
 import qualified Data.Map.Strict as Map
@@ -32,6 +33,7 @@ moves old new =
   where
     distance :: NDArray -> NDArray -> [Double]
     distance a b = map abs (zipWith (-) (Np.toList a) (Np.toList b))
+-- ANCHOR_END: head
 
 -- ANCHOR: firstStep
 -- 🦉 Adam's first step moves every number by (almost) exactly lr.
@@ -42,8 +44,12 @@ prop_adamFirstStep make =
     let lr      = 0.01
         opt     = make defaultAdam { learningRate = lr }
         (ps', _) = step opt ps grads
-    in  counterexample (show (moves ps ps'))
-          (all (\d -> abs (d - lr) < 1e-6) (moves ps ps'))
+        ds      = moves ps ps'
+        -- Every number must be there: all on an empty list is True.
+        -- 数が1つも欠けていないこと（空のリストの all は True なので）
+        total   = sum (map Np.size (Map.elems ps))
+    in  counterexample (show ds)
+          (length ds == total && all (\d -> abs (d - lr) < 1e-6) ds)
 -- ANCHOR_END: firstStep
 
 main :: IO ()
@@ -68,9 +74,11 @@ main = hspec $ do
       forAll genCase $ \(ps, grads) ->
         let zero = Map.map (Np.map (const 0)) grads
         in  fst (step (adam defaultAdam) ps zero) == ps
+    -- ANCHOR: draftTest
     -- Adam の最初の1歩は、どの数も lr だけ動く
     it "Adam's first step moves every number by lr" $
       prop_adamFirstStep adam
     -- 下書きは、この性質を破る
     it "the draft breaks it" $
       expectFailure (prop_adamFirstStep adamDraft)
+    -- ANCHOR_END: draftTest

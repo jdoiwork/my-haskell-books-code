@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | A network whose layer sizes are in its type: MLP 35 32 10.
 --   Inside, it uses the untyped MiniTorch from the last chapter.
@@ -24,6 +25,7 @@ import qualified MiniTorch.NN as NN
 import MiniTorch.NN (Params)
 import MiniTorch.Tensor (backward, crossEntropy, tvalue)
 import MiniTorch.Typed
+-- ANCHOR_END: head
 
 -- ANCHOR: layers
 -- 🧱 nn.Linear(i, o), with i and o in the type.

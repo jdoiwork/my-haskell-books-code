@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Read Lam source code into an AST, with megaparsec.
@@ -23,6 +24,7 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: lexer
 -- 🔤 A parser that reads Text; no custom error type (Void).

@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | The evaluator: walk the tree and compute a value.
@@ -23,6 +24,7 @@ import qualified Data.Text as T
 
 import Lam.Pretty (opSymbol)
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: value
 -- 💎 What a Lam program computes.

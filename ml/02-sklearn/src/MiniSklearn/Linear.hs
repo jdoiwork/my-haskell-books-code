@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Linear regression, learned by gradient descent:
 --   import qualified MiniSklearn.Linear as Lin
@@ -14,6 +15,7 @@ module MiniSklearn.Linear
 
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+-- ANCHOR_END: head
 
 -- ANCHOR: model
 -- 📈 A learned line: y = X · coef + intercept.

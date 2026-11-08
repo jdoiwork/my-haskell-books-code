@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | The heart of the REPL: one line in, a new environment and
@@ -19,6 +20,7 @@ import Text.Megaparsec
 import Lam.Eval
 import Lam.Parser
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: input
 -- ⌨️ What the user typed.

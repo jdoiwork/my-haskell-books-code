@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Definitions and whole programs: shared by the REPL, program
@@ -20,6 +21,7 @@ import Lam.Syntax
 import Lam.Types
 import qualified Data.Text as T
 import Text.Megaparsec (errorBundlePretty, parse)
+-- ANCHOR_END: head
 
 -- ANCHOR: session
 -- 🗂️ What has been defined so far: types and values.

@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | lam: the REPL, or run a file.  lam  /  lam program.lam
@@ -27,6 +28,7 @@ main = do
       -- 「Lam の REPL です。:quit で終わります」
       putStrLn "Lam REPL. Type :quit to quit."
       runInputT defaultSettings (loop Map.empty)
+-- ANCHOR_END: head
 
 -- ANCHOR: loop
 -- 🔁 Read a line, run one step, show, and go around again.
@@ -56,6 +58,7 @@ loop env = do
           loop env
 -- ANCHOR_END: loop
 
+-- ANCHOR: runFile
 -- 📜 lam program.lam
 runFile :: FilePath -> IO ()
 runFile file = do
@@ -65,4 +68,5 @@ runFile file = do
     Left err  -> do
       TIO.hPutStrLn stderr err
       exitFailure
+-- ANCHOR_END: runFile
 -- ANCHOR_END: all

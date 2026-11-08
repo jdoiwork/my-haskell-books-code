@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
 -- ANCHOR: all
@@ -11,6 +12,7 @@ module Lam.Prelude
 import Data.Text (Text)
 
 import Lam.Program
+-- ANCHOR_END: head
 
 -- ANCHOR: source
 -- 📚 Every REPL and every program starts with these.

@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Logistic regression: sort things into two groups (0 or 1).
 --   import qualified MiniSklearn.Logistic as Logi
@@ -14,6 +15,7 @@ module MiniSklearn.Logistic
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
 import MiniSklearn.Linear (Options (..))
+-- ANCHOR_END: head
 
 -- ANCHOR: model
 -- 🎚️ Like linear regression, but the line goes through sigmoid,

@@ -92,12 +92,14 @@ item a
 array :: [Double] -> NDArray
 array xs = NDArray [length xs] (VU.fromList xs)
 
+-- ANCHOR: fromVector
 -- 🏭 An array from a shape and an unboxed vector (for big data).
 -- 形と Unboxed の Vector から配列を作る（大きなデータ用）
 fromVector :: [Int] -> VU.Vector Double -> NDArray
 fromVector sh values
   | product sh == VU.length values = NDArray sh values
   | otherwise = error "fromVector: the shape does not fit the values"
+-- ANCHOR_END: fromVector
 
 -- 🏭 Np.array2 [[1, 2], [3, 4]]: a 2-D array (every row the same length).
 -- 2次元の配列（どの行も同じ長さ）
@@ -179,12 +181,14 @@ row i a = case arrShape a of
   [_, c] -> NDArray [c] (VU.slice (i * c) c (arrValues a))
   _      -> error "row: only for 2-D arrays"
 
+-- ANCHOR: rowsFrom
 -- ✂️ The rows from i, n of them (like a[i:i+n] in NumPy). No copying.
 -- i 行目から n 行（NumPy の a[i:i+n]）。コピーしない
 rowsFrom :: Int -> Int -> NDArray -> NDArray
 rowsFrom i n a = case arrShape a of
   [_, c] -> NDArray [n, c] (VU.slice (i * c) (n * c) (arrValues a))
   _      -> error "rowsFrom: only for 2-D arrays"
+-- ANCHOR_END: rowsFrom
 -- ANCHOR_END: at
 
 -- ANCHOR: broadcast

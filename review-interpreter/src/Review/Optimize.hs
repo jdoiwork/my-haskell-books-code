@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | A tiny optimizer for Lam: rewrite the tree into a simpler tree
 --   that computes the same answer.
@@ -10,6 +11,7 @@ module Review.Optimize
   ) where
 
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: optimize
 -- 🧹 Optimize the children first, then this node.

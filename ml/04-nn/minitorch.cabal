@@ -6,6 +6,7 @@ build-type:    Simple
 -- 第9部 Python の機械学習ライブラリを Haskell で作る
 -- （4. PyTorch 風にニューラルネットワークを組む）
 
+-- ANCHOR: lib
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
@@ -31,6 +32,7 @@ library
                     MiniTorch.Mnist
                     Answers
   hs-source-dirs:   src answers
+-- ANCHOR_END: lib
 
 -- ANCHOR: exe
 executable train-digits
@@ -53,6 +55,7 @@ executable train-mnist
     , filepath         ^>=1.5
 -- ANCHOR_END: mnistexe
 
+-- ANCHOR: test
 test-suite minitorch-test
   import:           shared
   type:             exitcode-stdio-1.0
@@ -63,3 +66,4 @@ test-suite minitorch-test
     , bytestring
     , hspec            ^>=2.11
     , QuickCheck       ^>=2.19
+-- ANCHOR_END: test

@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Autograd for whole arrays (tensors), like torch.Tensor.
 -- 配列（テンソル）まるごとの自動微分。torch.Tensor のように。
@@ -21,6 +22,7 @@ import qualified Data.Map.Strict as Map
 
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+-- ANCHOR_END: head
 
 -- ANCHOR: tensor
 -- 🔖 The gradient of each parameter: an array of the same shape.

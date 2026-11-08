@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Using autograd: the same function, three ways, and a regression.
 -- autograd を使う：同じ関数を3通りに、それから回帰。
@@ -9,6 +10,7 @@ module AutogradDemo
 import Autograd
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+-- ANCHOR_END: head
 
 -- ANCHOR: f
 -- 🧮 One function, written for ANY kind of number (Floating a).

@@ -1,3 +1,4 @@
+-- ANCHOR: head
 module Main (main) where
 
 import qualified Data.ByteString as BS
@@ -32,6 +33,7 @@ lossWith ps x ys name k h =
             | (j, v) <- zip [0 ..] (Np.toList w) ]
       ps' = Map.insert name (Np.reshape (Np.shape w) (Np.array ws)) ps
   in Np.item (tvalue (crossEntropy (mlp ps' x) ys))
+-- ANCHOR_END: head
 
 main :: IO ()
 main = hspec $ do

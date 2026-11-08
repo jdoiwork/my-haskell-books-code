@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
@@ -8,6 +9,7 @@ import Lam.Answers
 import Lam.Examples
 import Lam.Pretty
 import Lam.Syntax
+-- ANCHOR_END: head
 
 main :: IO ()
 main = hspec $ do

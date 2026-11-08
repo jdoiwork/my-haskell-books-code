@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
@@ -19,6 +20,7 @@ typeOf :: Text -> Text
 typeOf source = case parseExpr source of
   Left _  -> "parse error"
   Right e -> either renderTypeError renderType (inferType Map.empty e)
+-- ANCHOR_END: head
 
 -- ANCHOR: gen
 -- 🎲 Random expressions over x, y : Int and f : Int -> Int.

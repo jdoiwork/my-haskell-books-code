@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
@@ -14,6 +15,7 @@ import Lam.Pretty
 import Lam.Syntax
 import Lam.Types
 import Review.Optimize
+-- ANCHOR_END: head
 
 -- ANCHOR: gen
 -- 🎲 Random closed expressions (no free names), small numbers.

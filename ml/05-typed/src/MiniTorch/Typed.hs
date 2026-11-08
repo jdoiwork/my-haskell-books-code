@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Matrices whose shape is written in their type: Matrix 35 32.
 -- 形が型に書いてある行列：Matrix 35 32
@@ -27,6 +28,7 @@ import GHC.TypeLits
 
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 📐 A matrix with r rows and c columns. The constructor is hidden:

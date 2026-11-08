@@ -6,6 +6,7 @@ build-type:    Simple
 -- 第9部 Python の機械学習ライブラリを Haskell で作る
 -- （5. 型で次元を守る）
 
+-- ANCHOR: lib
 common shared
   default-language: GHC2024
   ghc-options:      -Wall
@@ -32,6 +33,7 @@ library
                     Answers
                     TypedAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: lib
 
 -- ANCHOR: exe
 executable train-digits

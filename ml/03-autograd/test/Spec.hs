@@ -1,3 +1,4 @@
+-- ANCHOR: head
 module Main (main) where
 
 import Test.Hspec
@@ -19,6 +20,7 @@ numeric g x = (g (x + h) - g (x - h)) / (2 * h)
 
 near :: Double -> Double -> Double -> Bool
 near tolerance a b = abs (a - b) < tolerance
+-- ANCHOR_END: head
 
 main :: IO ()
 main = hspec $ do
@@ -71,7 +73,8 @@ main = hspec $ do
             [a, b] -> a * b + sin a
             _      -> 0
       gradDual g2 [2, 3]
-        `shouldSatisfy` (\gs -> and (zipWith (near 1e-12) gs [3 + cos 2, 2]))
+        `shouldSatisfy` (\gs -> length gs == 2
+          && and (zipWith (near 1e-12) gs [3 + cos 2, 2]))
     it "squareChain n x = x ^ (2 ^ n)" $
       grad "x" (backward (squareChain 3 (param "x" 1.1)))
         `shouldSatisfy` near 1e-9 (8 * 1.1 ^ (7 :: Int))

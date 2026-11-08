@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Forward mode: carry the derivative along with the value
 --   (dual numbers).
@@ -6,6 +7,7 @@ module Dual
   ( Dual (..)
   , derivative
   ) where
+-- ANCHOR_END: head
 
 -- ANCHOR: dual
 -- 👯 A value, and how fast it changes when x changes.

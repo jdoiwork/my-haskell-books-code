@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Turn an AST back into Lam source code, with as few
@@ -12,6 +13,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: levels
 -- 🪜 How tightly each kind of expression holds together.

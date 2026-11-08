@@ -1,3 +1,4 @@
+-- ANCHOR: head
 module Main (main) where
 
 import qualified Data.Map.Strict as Map
@@ -13,6 +14,7 @@ import MiniTorch.Tensor
 import qualified MiniTorch.Typed as T
 import qualified MiniTorch.TypedNN as TN
 import qualified TypedAnswers as TA
+-- ANCHOR_END: head
 
 near :: Double -> Double -> Double -> Bool
 near tolerance a b = abs (a - b) < tolerance
@@ -104,11 +106,18 @@ main = hspec $ do
         `shouldBe` Right [7, 35]
     -- 型のあるネットワークは、型のない mlp と同じ数を出す
     it "the typed network gives the same numbers as the untyped one" $ do
-      let (x, _) = makeDigits 1 0.1 20
-          net    = TN.initMLP @35 @32 @10 7
-          untyped = tvalue (mlp (TN.toParams net) x)
-      T.withRows @35 x (\m -> T.toNDArray (TN.mlp net m))
-        `shouldBe` Right untyped
+      let (x, ys) = makeDigits 1 0.1 20
+          start   = TN.initMLP @35 @32 @10 7
+          -- Compare after one step: the biases start at 0, so a
+          -- forgotten bias would not show at the start.
+          -- 1歩学んでから比べる。バイアスは 0 から始まるので、
+          -- 最初のままでは、バイアスの足し忘れが見えない
+          both m =
+            let net = snd (TN.trainStep 0.5 start m ys)
+            in ( T.toNDArray (TN.mlp net m)
+               , tvalue (mlp (TN.toParams net) x) )
+      fmap (uncurry (==)) (T.withRows @35 x both)
+        `shouldBe` Right True
     -- 型のある1歩は、型のない1歩と同じ
     it "one typed step is the same as one untyped step" $ do
       let (x, ys) = makeDigits 1 0.1 50

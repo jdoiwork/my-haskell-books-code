@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | The heart of the REPL: one line in, a new session and a text out.
@@ -22,6 +23,7 @@ import Lam.Eval
 import Lam.Parser
 import Lam.Syntax
 import Lam.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: session
 -- 🗂️ What the REPL remembers: the type and the value of each name.
@@ -35,6 +37,7 @@ emptySession :: Session
 emptySession = Session Map.empty Map.empty
 -- ANCHOR_END: session
 
+-- ANCHOR: input
 -- ⌨️ What the user typed.
 -- ユーザーが打ったもの
 data Input
@@ -64,6 +67,7 @@ parseInput line =
       e <- expr
       eof
       pure (Define x e)
+-- ANCHOR_END: input
 
 -- ANCHOR: step
 -- 🔁 One turn of the REPL: check the type first, then compute.

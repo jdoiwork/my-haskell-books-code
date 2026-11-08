@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Read MNIST's IDX files: a small header, then one byte per pixel.
 -- MNIST の IDX ファイルを読む：小さな見出しのあとに、1点1バイト
@@ -14,6 +15,7 @@ import qualified Data.Vector.Unboxed as VU
 
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+-- ANCHOR_END: head
 
 -- ANCHOR: parse
 -- 🔢 A 32-bit number stored big-endian at a position.

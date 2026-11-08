@@ -90,6 +90,7 @@ atom = choice
   , between (symbol "(") (symbol ")") expr
   ] <?> "a value"
 
+-- ANCHOR: application
 -- 📞 Calling a function: atoms side by side.
 --    f x y means (f x) y.
 -- 関数を呼ぶ：部品を並べる。f x y は (f x) y
@@ -98,6 +99,7 @@ application = do
   f    <- atom
   args <- many (continuing *> atom)
   pure (foldl App f args)
+-- ANCHOR_END: application
 
 -- ANCHOR: continuing
 -- 📏 A word at the very left (column 1) starts a new definition,
@@ -140,6 +142,7 @@ operatorExpr = makeExprParser application operators
 expr :: Parser Expr
 expr = choice [lambda, letIn, ifThenElse, operatorExpr]
 
+-- ANCHOR: lambda
 -- \x y -> body  is  \x -> \y -> body  (sugar, no new tree shape).
 -- \x y -> body は \x -> \y -> body のこと（糖衣構文。木の形は増えない）
 lambda :: Parser Expr
@@ -156,6 +159,7 @@ letIn = do
   keyword "in"
   body <- expr
   pure (Let x e body)
+-- ANCHOR_END: lambda
 
 -- ANCHOR: definition
 -- 🏷️ let f x y = body  is  let f = \x -> \y -> body.

@@ -13,6 +13,7 @@ common shared
     , containers       ^>=0.8
     , text             ^>=2.1
 
+-- ANCHOR: lib
 library
   import:           shared
   exposed-modules:  Lam.Syntax
@@ -30,6 +31,7 @@ library
     , megaparsec         ^>=9.8
     , parser-combinators ^>=1.3
   -- ANCHOR_END: deps
+-- ANCHOR_END: lib
 
 -- ANCHOR: exe
 executable lam

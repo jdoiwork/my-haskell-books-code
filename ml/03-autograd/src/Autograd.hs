@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | A tiny autograd (reverse mode): build a value, then call backward
 --   to get the gradient of every parameter, like PyTorch.
@@ -16,6 +17,7 @@ module Autograd
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+-- ANCHOR_END: head
 
 -- ANCHOR: value
 -- 🔖 Gradients: for each parameter's name, d(output) / d(parameter).

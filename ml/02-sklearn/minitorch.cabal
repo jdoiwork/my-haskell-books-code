@@ -13,6 +13,7 @@ common shared
     , base             >=4.20 && <5
     , vector           ^>=0.13
 
+-- ANCHOR: lib
 library
   import:           shared
   exposed-modules:  MiniNumpy
@@ -21,6 +22,7 @@ library
                     MiniSklearn.Logistic
                     Answers
   hs-source-dirs:   src answers
+-- ANCHOR_END: lib
 
 test-suite minitorch-test
   import:           shared

@@ -4,7 +4,9 @@
 -- 作りものの数字で、ネットワークを学ばせ、学んでいく様子を見せる。
 module Main (main) where
 
+import Control.Exception (evaluate)
 import Control.Monad (forM_, when)
+import qualified Data.Map.Strict as Map
 import GHC.Clock (getMonotonicTime)
 import Text.Printf (printf)
 
@@ -35,6 +37,9 @@ main = do
             go ps' (epoch + 1)
   final <- go start 0
   -- ANCHOR_END: loop
+  -- Compute the last step now, inside the timing (it is lazy).
+  -- 最後の1歩も、ここで計算させて測る（遅延評価なので）
+  mapM_ (evaluate . Np.item . Np.sum) (Map.elems final)
   t1 <- getMonotonicTime
   printf "train accuracy %.3f, test accuracy %.3f (%.1f s)\n"
     (accuracy final xTrain yTrain) (accuracy final xTest yTest) (t1 - t0)

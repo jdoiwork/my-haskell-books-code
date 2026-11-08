@@ -1,10 +1,13 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Train on the real MNIST, 100 images at a time.
 --   cabal run train-mnist -- ../data/mnist
 -- 本物の MNIST で、100 枚ずつ学ばせる
 module Main (main) where
 
+import Control.Exception (evaluate)
 import Control.Monad (foldM, when)
+import qualified Data.Map.Strict as Map
 import GHC.Clock (getMonotonicTime)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
@@ -16,6 +19,7 @@ import MiniNumpy (NDArray)
 import MiniTorch.Mnist
 import MiniTorch.NN
 import MiniTorch.Tensor
+-- ANCHOR_END: head
 
 -- ANCHOR: load
 -- 📂 Read the four files, or stop with the reason.
@@ -66,6 +70,11 @@ main = do
   let start = initParams 7 [("fc1", 784, 64), ("fc2", 64, 10)]
   t0 <- getMonotonicTime
   final <- epoch xTrain yTrain start
+  -- The steps are lazy: compute every number of the last parameters
+  -- now, so that the time includes them.
+  -- 1歩1歩は遅延評価。最後のパラメーターの数をここで全部計算させて、
+  -- その時間も測る
+  mapM_ (evaluate . Np.item . Np.sum) (Map.elems final)
   t1 <- getMonotonicTime
   printf "test accuracy %.4f (one epoch in %.1f s)\n"
     (accuracy final xTest yTest) (t1 - t0)

@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Type inference for Lam (Hindley-Milner, algorithm W):
@@ -25,6 +26,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 🏷️ A type: Int, Bool, a type variable (not known yet), or a function.

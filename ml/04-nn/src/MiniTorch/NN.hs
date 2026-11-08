@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Layers, a model, and an optimizer, in the style of torch.nn.
 -- torch.nn 風の、層とモデルと最適化。
@@ -18,6 +19,7 @@ import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
 import MiniTorch.Random (uniforms)
 import MiniTorch.Tensor
+-- ANCHOR_END: head
 
 -- ANCHOR: params
 -- 🎒 All the learnable numbers, by name: "fc1.weight", "fc1.bias", ...

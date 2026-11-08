@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | A draft of render with a bug, to see QuickCheck find it.
@@ -9,6 +10,7 @@ import qualified Data.Text as T
 
 import Lam.Pretty (opSymbol)
 import Lam.Syntax
+-- ANCHOR_END: head
 
 level :: Expr -> Int
 level expr = case expr of

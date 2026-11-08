@@ -1,3 +1,4 @@
+-- ANCHOR: head
 -- ANCHOR: all
 -- | Train the same network as the last chapter, but with the layer
 --   sizes in the type.   cabal run typed-digits
@@ -10,6 +11,7 @@ import Text.Printf (printf)
 import MiniTorch.Digits
 import MiniTorch.Typed
 import MiniTorch.TypedNN
+-- ANCHOR_END: head
 
 -- ANCHOR: model
 -- 🧠 35 inputs, 32 hidden, 10 outputs, written once, in the type.

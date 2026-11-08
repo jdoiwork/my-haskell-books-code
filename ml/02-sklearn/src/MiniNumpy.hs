@@ -76,12 +76,14 @@ nrows a = case arrShape a of
 toList :: NDArray -> [Double]
 toList = VU.toList . arrValues
 
+-- ANCHOR: item
 -- The one number inside (like a.item() in NumPy).
 -- 中の1つの数（NumPy の a.item()）
 item :: NDArray -> Double
 item a
   | size a == 1 = VU.head (arrValues a)
   | otherwise   = error "item: the array has more than one number"
+-- ANCHOR_END: item
 -- ANCHOR_END: type
 
 -- ANCHOR: make

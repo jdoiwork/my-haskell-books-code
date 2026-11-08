@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
@@ -13,6 +14,7 @@ import Lam.Pretty
 import Lam.Program
 import Lam.Repl
 import Lam.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: golden
 -- 📜 Run an example program, as `lam file.lam` would show it.

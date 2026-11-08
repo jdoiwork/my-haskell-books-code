@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
@@ -19,6 +20,7 @@ run :: Text -> Text
 run source = case parseExpr source of
   Left _  -> "parse error"
   Right e -> either renderError renderValue (eval Map.empty e)
+-- ANCHOR_END: head
 
 -- ANCHOR: arith
 -- 🎲 Random arithmetic: numbers with + - * only.

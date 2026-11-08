@@ -1,3 +1,4 @@
+-- ANCHOR: head
 module Main (main) where
 
 import Test.Hspec
@@ -12,11 +13,14 @@ import qualified MiniSklearn.Logistic as Logi
 -- 十分に近い（少しずつ学んだ数のため）
 near :: Double -> Double -> Double -> Bool
 near tolerance a b = abs (a - b) < tolerance
+-- ANCHOR_END: head
 
+-- ANCHOR: setup
 main :: IO ()
 main = hspec $ do
   let (x, y)   = potionPrices
       (mx, my) = monsters
+-- ANCHOR_END: setup
   -- 「線形回帰」
   describe "LinearRegression" $ do
     -- ANCHOR: linear

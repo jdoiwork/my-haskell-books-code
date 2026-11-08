@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | lam: the REPL, or run a file.  lam  /  lam program.lam
@@ -25,6 +26,7 @@ main = do
       -- 「Lam の REPL です。:quit で終わります」
       putStrLn "Lam REPL. Type :quit to quit."
       runInputT defaultSettings (loop emptySession)
+-- ANCHOR_END: head
 
 -- ANCHOR: loop
 -- 🔁 Read a line, run one step, show, and go around again.

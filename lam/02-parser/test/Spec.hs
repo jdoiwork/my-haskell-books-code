@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
@@ -12,6 +13,7 @@ import Lam.Parser
 import Lam.Pretty
 import Lam.Syntax
 import PrettyDraft (renderDraft)
+-- ANCHOR_END: head
 
 -- ANCHOR: gen
 -- 🎲 A random Lam expression. `sized` keeps it from growing forever.

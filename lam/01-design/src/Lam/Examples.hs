@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Some Lam programs, written as Haskell values (no parser yet).
@@ -9,6 +10,7 @@ module Lam.Examples
   ) where
 
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: double
 -- let double = \x -> x * 2 in double 21
