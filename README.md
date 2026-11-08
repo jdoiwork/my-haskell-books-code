@@ -172,7 +172,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | NumPy 風の配列ライブラリを作る | [`ml/`](ml/)、[`ml/01-numpy/`](ml/01-numpy/)、[`langs/ml-numerics/`](langs/ml-numerics/) |
 | scikit-learn 風に回帰と分類を作る | [`ml/02-sklearn/`](ml/02-sklearn/)、[`langs/ml-regression/`](langs/ml-regression/) |
 | PyTorch の autograd 風に自動微分を作る | [`ml/03-autograd/`](ml/03-autograd/)、[`langs/ml-autodiff/`](langs/ml-autodiff/) |
-| PyTorch 風にニューラルネットワークを組む | [`ml/04-nn/`](ml/04-nn/)、[`ml/`](ml/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
+| PyTorch 風にニューラルネットワークを組む | [`ml/04-nn/`](ml/04-nn/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
 | 型で次元を守る | [`ml/05-typed/`](ml/05-typed/)、[`langs/ml-typed-tensors/`](langs/ml-typed-tensors/) |
 | 第9部のふりかえり | [`ml/05-typed/`](ml/05-typed/)、[`review-ml/`](review-ml/)、[`langs/review-ml/`](langs/review-ml/) |
 
@@ -201,6 +201,12 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 永続化：届いていないメッセージを失わない | [`minimq/06-persist/`](minimq/06-persist/)、[`langs/mq-persistence/`](langs/mq-persistence/) |
 | 型に厳しいクライアント：Erlang くん・Elixir くんと並べて | [`minimq/07-client/`](minimq/07-client/)、[`minimq/06-persist/`](minimq/06-persist/)、[`langs/mq-typed-client/`](langs/mq-typed-client/) |
 | 第11部のふりかえり：手紙を一通も落とさない伝令所 | [`minimq/01-design/`](minimq/01-design/)、[`review-minimq/`](review-minimq/) |
+
+### 第12部 総合演習6：読書メモのレビューサイトを作る
+
+| 章 | コード |
+|---|---|
+| 設計：作品・目次・感想・評価を型で描く | [`tsundoku/01-design/`](tsundoku/01-design/)、[`langs/shelf-design/`](langs/shelf-design/) |
 
 ### 第13部 プログラマーのための数学
 
