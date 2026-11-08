@@ -26,7 +26,7 @@ import Database.SQLite.Simple
 import Data.Map.Strict   (Map)
 import Data.Map.Strict   qualified as Map
 import Data.Text         (Text)
-import Control.Exception (try)
+import Control.Exception (tryJust)
 
 -- Random operations.
 -- でたらめな操作
@@ -122,10 +122,19 @@ runModel step ops = go Map.empty ops
 -- 本物のデータベースで、操作をする
 stepReal :: Connection -> Op -> IO Answer
 stepReal conn (Add new) = do
-  result <- try (addAdventurer conn new)
+  result <- tryJust brokenRule (addAdventurer conn new)
   case result of
-    Left (_ :: SQLError) -> pure Rejected
-    Right ()             -> pure Done
+    Left ()  -> pure Rejected
+    Right () -> pure Done
+  where
+    -- Only a broken rule of the table (UNIQUE) is a refusal.
+    --    Any other error is a real failure, so it is not caught.
+    -- 表の決まり（UNIQUE）を破ったときだけが「断られた」。
+    -- ほかのエラーは本当の失敗なので、つかまえずにそのまま投げる
+    brokenRule :: SQLError -> Maybe ()
+    brokenRule e
+      | e.sqlError == ErrorConstraint = Just ()
+      | otherwise                     = Nothing
 stepReal conn (LevelUp who) = Changed <$> levelUp conn who
 stepReal conn (Remove who)  = Changed <$> removeAdventurer conn who
 

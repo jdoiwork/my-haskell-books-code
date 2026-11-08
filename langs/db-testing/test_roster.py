@@ -84,7 +84,10 @@ class RosterMachine(RuleBasedStateMachine):
 
     @invariant()
     def same_roster(self):
-        assert sorted(names(self.conn)) == sorted(self.model)
+        # Compare the levels too, not only the names.
+        # 名前だけでなく、レベルまでくらべる
+        rows = self.conn.execute("SELECT name, level FROM adventurers")
+        assert dict(rows) == self.model
 
     def teardown(self):
         self.conn.close()
