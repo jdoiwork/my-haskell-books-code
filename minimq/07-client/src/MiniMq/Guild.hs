@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveAnyClass #-}
 -- ANCHOR: all
+-- ANCHOR: header
+{-# LANGUAGE DeriveAnyClass #-}
 -- | The guild's letters, with their types: quests and herbs.
 -- ギルドの手紙と、その型：依頼と薬草
 module MiniMq.Guild
@@ -19,6 +20,7 @@ import GHC.Generics (Generic)
 
 import MiniMq.Typed
 import MiniMq.Types
+-- ANCHOR_END: header
 
 -- ANCHOR: types
 -- 📜 A quest, and a herb. Two different kinds of letter.

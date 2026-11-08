@@ -5,6 +5,7 @@
 -- 手紙の中身を知っているクライアント。仕分け台と郵便受けは、手紙の型を
 -- 持っている。受け手の関数に渡るのは値だけで、番号札は渡らない。
 -- だから、返事を忘れることも、2回返事をすることもできない
+-- ANCHOR: header
 module MiniMq.Typed
   ( Codec (..)
   , json
@@ -30,6 +31,7 @@ import MiniMq.Client
 import MiniMq.Protocol
 import MiniMq.Types
 import MiniMq.Wire
+-- ANCHOR_END: header
 
 -- ANCHOR: codec
 -- 🧪 How an `a` becomes the text of a letter, and back.
@@ -66,12 +68,14 @@ data Mailbox a = Mailbox
   }
 -- ANCHOR_END: desk
 
+-- ANCHOR: error
 -- 🚫 What the broker refused, or an answer we did not expect.
 -- ブローカーに断られた、または、思いがけない答えが来た
 data MqError = Refusal Text | Unexpected Response
   deriving Show
 
 instance Exception MqError
+-- ANCHOR_END: error
 
 -- ANCHOR: declare
 -- 🏗️ Make them, and tie a desk to a mailbox. Both must carry the same
