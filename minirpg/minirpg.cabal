@@ -24,9 +24,12 @@ library
                     StatsAnswers
   hs-source-dirs:   src
                     answers
+  -- unicode-show: to show Japanese and emoji as they are in GHCi (uprint)
+  -- unicode-show：GHCi で日本語や絵文字をそのまま見せるため（uprint）
   build-depends:
     , containers
     , text
+    , unicode-show
 
 -- A tiny program that asks for your name.
 -- 名前を聞くだけの小さなプログラム

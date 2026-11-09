@@ -73,10 +73,15 @@ sqliteShelf conn = do
         result <- edit wid core (\_ -> write)
         pure (fmap (\_ -> ()) result)
   pure Shelf
-    { addWork    = \w       -> run (insertWork w)
+    { -- 📚 The works on the shelf
+      -- 本棚の作品
+      addWork    = \w       -> run (insertWork w)
     , removeWork = \wid     -> run (deleteWork wid)
     , getCard    = \wid     -> run (loadCard   wid)
     , listCards  =             run  loadAll
+
+      -- 📖 Reading, notes, and ratings
+      -- 読む・感想・評価
     , applyEvent = \wid e   -> fmap reading <$>
         edit  wid (Card.applyEvent e)   (updateReading wid)
     , addNote    = \wid n   ->

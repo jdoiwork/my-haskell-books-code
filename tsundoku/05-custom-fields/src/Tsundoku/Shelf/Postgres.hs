@@ -79,10 +79,15 @@ inTx conn tx = do
 -- SQLite と同じ窓口。向こうにいるのが PostgreSQL
 postgresShelf :: Connection -> Shelf
 postgresShelf conn = Shelf
-  { addWork    = \w       -> run (insertWork w)
+  { -- 📚 The works on the shelf
+    -- 本棚の作品
+    addWork    = \w       -> run (insertWork w)
   , removeWork = \wid     -> run (deleteWork wid)
   , getCard    = \wid     -> run (loadCard   wid)
   , listCards  =             run  loadAll
+
+    -- 📖 Reading, notes, and ratings
+    -- 読む・感想・評価
   , applyEvent = \wid e   -> fmap reading <$>
       edit  wid (Card.applyEvent e)   (updateReading wid)
   , addNote    = \wid n   ->
@@ -93,6 +98,9 @@ postgresShelf conn = Shelf
       edit_ wid (Right . Card.rate s) (updateRating  wid s)
   , rateEntry  = \wid i s ->
       edit_ wid (Card.rateEntry i s)  (upsertRating  wid i s)
+
+    -- 🏷️ My own attributes and states
+    -- 自分で決める属性と状態
   , getSchema  =             run  loadSchema
   , defineAttr = \d       ->
       define (Custom.defineAttr d)    (insertDefinition (Left  d))

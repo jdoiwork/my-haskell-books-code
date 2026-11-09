@@ -37,6 +37,9 @@ library
                     ShelfAnswers.Recent
                     ShelfAnswers.ByKind
   hs-source-dirs:   src answers
+  -- unicode-show: to show Japanese as it is in GHCi (uprint)
+  -- unicode-show：GHCi で日本語をそのまま見せるため（uprint）
+  build-depends:    unicode-show ^>=0.1.1
 
 test-suite tsundoku-test
   import:           shared

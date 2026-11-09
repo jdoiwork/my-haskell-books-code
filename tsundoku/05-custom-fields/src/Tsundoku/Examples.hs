@@ -24,7 +24,6 @@ module Tsundoku.Examples
   , surely
   , numberedShort
   , printToc
-  , printLines
     -- * My own attributes and states / 自分で決める属性と状態
   , oshiDef
   , whereDef
@@ -46,9 +45,6 @@ module Tsundoku.Examples
   , filledCards
   , oshi
   , boughtOn
-  , printChecked
-  , printAttrs
-  , printFound
   ) where
 
 -- trees, time, walking with a counter, and folding with effects
@@ -65,7 +61,6 @@ import Data.Tree (Forest, Tree (..), drawForest, flatten)
 import Tsundoku.Card
 import Tsundoku.Custom
 import Tsundoku.Field
-import Tsundoku.Form (explain)
 import Tsundoku.Rating
 import Tsundoku.Types
 -- ANCHOR_END: imports
@@ -300,14 +295,6 @@ printToc toc = putStr (drawForest (map (fmap showEntry) toc))
       in  show n ++ ". " ++ T.unpack (heading entry)
 -- ANCHOR_END: print
 
--- ANCHOR: printLines
--- 🖨️ For GHCi: print lines of text, one per line. Works on a list,
---    and on a Maybe too (Nothing prints nothing).
--- GHCi のため：文字列の行を、1行ずつ表示する。リストにも、
--- Maybe にも使える（Nothing なら何も出さない）
-printLines :: Foldable t => t Text -> IO ()
-printLines = mapM_ (putStrLn . T.unpack)
--- ANCHOR_END: printLines
 
 -- ANCHOR: defs
 -- 🏷️ The attributes the library decided to keep.
@@ -413,26 +400,4 @@ oshi = Field "推し度" NumberK
 boughtOn :: Field Day
 boughtOn = Field "買った日" DateK
 -- ANCHOR_END: fields
-
--- ANCHOR: printChecked
--- 🖨️ For GHCi: say "よし" for a yes, or the reasons for a no.
--- GHCi のため：よければ「よし」、だめなら理由を表示する
-printChecked :: Checked a -> IO ()
-printChecked (Right _)  = putStrLn "よし"
-printChecked (Left why) = printLines (explain why)
-
--- 🖨️ For GHCi: my own attributes of a card, one per line.
--- GHCi のため：カードの、自分で決めた属性を1行ずつ
-printAttrs :: Card -> IO ()
-printAttrs card = printLines
-  [ name <> " = " <> showValue value
-  | (name, value) <- Map.toList (attrs card) ]
-
--- 🖨️ For GHCi: the titles a search found, or why it could not search.
--- GHCi のため：絞り込みで見つかった作品の題か、絞り込めなかった理由
-printFound :: Checked [(WorkId, Card)] -> IO ()
-printFound (Left why)    = printLines (explain why)
-printFound (Right found) =
-  printLines [ title (work card) | (_, card) <- found ]
--- ANCHOR_END: printChecked
 -- ANCHOR_END: all

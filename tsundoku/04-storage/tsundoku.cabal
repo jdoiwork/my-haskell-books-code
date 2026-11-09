@@ -49,12 +49,15 @@ library
                     ShelfAnswers.Move
   hs-source-dirs:   src answers
   -- ANCHOR: deps
+  -- unicode-show: to show Japanese as it is in GHCi (uprint)
+  -- unicode-show：GHCi で日本語をそのまま見せるため（uprint）
   build-depends:
     , hasql             ^>=2.0
     , hasql-transaction ^>=1.2.3
     , mtl               ^>=2.3
     , pqi-ffi           ^>=1.0
     , sqlite-simple     ^>=0.4.19
+    , unicode-show      ^>=0.1.1
   -- ANCHOR_END: deps
 -- ANCHOR_END: library
 

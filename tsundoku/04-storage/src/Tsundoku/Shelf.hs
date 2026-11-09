@@ -21,10 +21,15 @@ import Tsundoku.Types
 -- 🪟 What you can do with the shelf. Each field is one thing.
 -- 本棚でできること。フィールドの1つ1つが、できることの1つ
 data Shelf = Shelf
-  { addWork    :: Work                       -> IO WorkId
+  { -- 📚 The works on the shelf
+    -- 本棚の作品
+    addWork    :: Work                       -> IO WorkId
   , removeWork :: WorkId                     -> IO Bool
   , getCard    :: WorkId                     -> IO (Maybe Card)
   , listCards  ::                               IO [(WorkId, Card)]
+
+    -- 📖 Reading, notes, and ratings
+    -- 読む・感想・評価
   , applyEvent :: WorkId -> Event            -> IO (Checked ReadingState)
   , addNote    :: WorkId -> Note             -> IO (Checked ())
   , logReading :: WorkId -> LogLine          -> IO (Checked ())

@@ -50,10 +50,15 @@ newMemoryShelf = do
         result <- edit wid core
         pure (fmap (\_ -> ()) result)
   pure Shelf
-    { addWork    = \w       -> step (shelve w)
+    { -- 📚 The works on the shelf
+      -- 本棚の作品
+      addWork    = \w       -> step (shelve w)
     , removeWork = \wid     -> step (unshelve wid)
     , getCard    = \wid     -> look (Map.lookup wid . cards)
     , listCards  =             look (Map.toList     . cards)
+
+      -- 📖 Reading, notes, and ratings
+      -- 読む・感想・評価
     , applyEvent = \wid e   -> fmap reading <$> edit wid (Card.applyEvent e)
     , addNote    = \wid n   -> edit_ wid (Card.addNote n)
     , logReading = \wid l   -> edit_ wid (Card.logReading l)

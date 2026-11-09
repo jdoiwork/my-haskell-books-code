@@ -24,7 +24,6 @@ module Tsundoku.Examples
   , surely
   , numberedShort
   , printToc
-  , printLines
   ) where
 
 -- trees, time, walking with a counter, and folding with effects
@@ -270,13 +269,4 @@ printToc toc = putStr (drawForest (map (fmap showEntry) toc))
       let EntryId n = entryId entry
       in  show n ++ ". " ++ T.unpack (heading entry)
 -- ANCHOR_END: print
-
--- ANCHOR: printLines
--- 🖨️ For GHCi: print lines of text, one per line. Works on a list,
---    and on a Maybe too (Nothing prints nothing).
--- GHCi のため：文字列の行を、1行ずつ表示する。リストにも、
--- Maybe にも使える（Nothing なら何も出さない）
-printLines :: Foldable t => t Text -> IO ()
-printLines = mapM_ (putStrLn . T.unpack)
--- ANCHOR_END: printLines
 -- ANCHOR_END: all

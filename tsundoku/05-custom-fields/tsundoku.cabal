@@ -57,6 +57,8 @@ library
                     ShelfAnswers.OrNot
   hs-source-dirs:   src answers
   -- ANCHOR: deps
+  -- unicode-show: to show Japanese as it is in GHCi (uprint)
+  -- unicode-show：GHCi で日本語をそのまま見せるため（uprint）
   build-depends:
     , aeson              ^>=2.3
     , hasql              ^>=2.0
@@ -67,6 +69,7 @@ library
     , pqi-ffi            ^>=1.0
     , scientific         ^>=0.3.8
     , sqlite-simple      ^>=0.4.19
+    , unicode-show       ^>=0.1.1
   -- ANCHOR_END: deps
 -- ANCHOR_END: library
 
