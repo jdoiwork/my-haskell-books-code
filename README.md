@@ -213,6 +213,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 自分で決める属性と状態：型の外側を型で守る | [`tsundoku/05-custom-fields/`](tsundoku/05-custom-fields/)、[`tsundoku/04-storage/`](tsundoku/04-storage/)、[`langs/shelf-custom-fields/`](langs/shelf-custom-fields/) |
 | 本を取り込む：EPUB・PDF・ISBN から目次を作る | [`tsundoku/06-import/`](tsundoku/06-import/)、[`tsundoku/05-custom-fields/`](tsundoku/05-custom-fields/)、[`langs/shelf-import/`](langs/shelf-import/) |
 | 中身を探す：SQLite FTS5 で全文検索 | [`tsundoku/07-search/`](tsundoku/07-search/)、[`tsundoku/06-import/`](tsundoku/06-import/)、[`langs/shelf-search/`](langs/shelf-search/) |
+| 画面に依らない API：servant の型を正にする | [`tsundoku/08-api/`](tsundoku/08-api/)、[`tsundoku/07-search/`](tsundoku/07-search/)、[`langs/shelf-api/`](langs/shelf-api/) |
+| 画面を取り替える1：lucid と htmx でサーバーが HTML を返す | [`langs/shelf-api/`](langs/shelf-api/) |
 
 ### 第13部 プログラマーのための数学
 
