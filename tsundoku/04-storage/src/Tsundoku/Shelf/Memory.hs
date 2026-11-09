@@ -35,25 +35,49 @@ data Memory = Memory
 newMemoryShelf :: IO Shelf
 newMemoryShelf = do
   ref <- newIORef (Memory 1 1 Map.empty)
-  let change wid core = atomicModifyIORef' ref $ \m ->
-        case decide wid core (Map.lookup wid (cards m)) of
-          Left why  -> (m, Left why)
-          Right new -> (m { cards = Map.insert wid new (cards m) }, Right new)
+  let -- Change the box in one step, with no other thread in between.
+      -- 箱の中身を、ほかのスレッドに割りこまれずに、1歩で変える
+      step :: (Memory -> (Memory, a)) -> IO a
+      step = atomicModifyIORef' ref
+      -- Read the box, and look at one part of it.
+      -- 箱を読んで、その一部を見る
+      look :: (Memory -> a) -> IO a
+      look part = part <$> readIORef ref
+      -- Ask the core to change one card. edit_ forgets the new card.
+      -- 核にカードを1枚変えてもらう。edit_ は新しいカードを返さない
+      edit  wid core = step (changeCard wid core)
+      edit_ wid core = do
+        result <- edit wid core
+        pure (fmap (\_ -> ()) result)
   pure Shelf
-    { addWork    = \w -> atomicModifyIORef' ref (shelve w)
-    , removeWork = \wid -> atomicModifyIORef' ref $ \m ->
-        ( m { cards = Map.delete wid (cards m) }
-        , Map.member wid (cards m) )
-    , getCard    = \wid -> Map.lookup wid . cards <$> readIORef ref
-    , listCards  = Map.toList . cards <$> readIORef ref
-    , applyEvent = \wid e -> fmap reading <$> change wid (Card.applyEvent e)
-    , addNote    = \wid n -> done <$> change wid (Card.addNote n)
-    , logReading = \wid l -> done <$> change wid (Card.logReading l)
-    , rate       = \wid s -> done <$> change wid (Right . Card.rate s)
-    , rateEntry  = \wid i s -> done <$> change wid (Card.rateEntry i s)
+    { addWork    = \w       -> step (shelve w)
+    , removeWork = \wid     -> step (unshelve wid)
+    , getCard    = \wid     -> look (Map.lookup wid . cards)
+    , listCards  =             look (Map.toList     . cards)
+    , applyEvent = \wid e   -> fmap reading <$> edit wid (Card.applyEvent e)
+    , addNote    = \wid n   -> edit_ wid (Card.addNote n)
+    , logReading = \wid l   -> edit_ wid (Card.logReading l)
+    , rate       = \wid s   -> edit_ wid (Right . Card.rate s)
+    , rateEntry  = \wid i s -> edit_ wid (Card.rateEntry i s)
     }
-  where
-    done = fmap (const ())
+
+-- 🔁 Read, decide, write: one change to one card. No card, or the
+--    core says no: the shelf stays as it was.
+-- 読む → 決める → 書く。カードが1枚変わる。カードがないか、
+-- 核が「だめ」と言えば、本棚はそのまま
+changeCard :: WorkId -> (Card -> Either Mistake Card) -> Memory
+           -> (Memory, Either Mistake Card)
+changeCard wid core m =
+  case decide wid core (Map.lookup wid (cards m)) of
+    Left why  -> (m, Left why)
+    Right new -> (m { cards = Map.insert wid new (cards m) }, Right new)
+
+-- 🗑️ Take a card off the shelf. Was it there?
+-- カードを本棚から外す。その作品はあった？
+unshelve :: WorkId -> Memory -> (Memory, Bool)
+unshelve wid m =
+  ( m { cards = Map.delete wid (cards m) }
+  , Map.member wid (cards m) )
 -- ANCHOR_END: memory
 
 -- ANCHOR: shelve

@@ -43,32 +43,50 @@ sqliteShelf conn = do
   execute_ conn "PRAGMA foreign_keys = ON"
   migrate conn
   lock <- newMVar ()
-  let inTx :: IO a -> IO a
+  let -- One change at a time, in one transaction.
+      -- 変更は1つずつ、1つのトランザクションで
+      inTx :: IO a -> IO a
       inTx action = withMVar lock (\_ -> withTransaction conn action)
-      change wid core write = inTx $ do
+      -- Read, decide, write. The core decides; write saves the new card.
+      -- 読む → 決める → 書く。決めるのは核。write が新しいカードをしまう
+      edit wid core write = inTx $ do
         found <- loadCard conn wid
-        for (decide wid core found) (\new -> new <$ write new)
+        case decide wid core found of
+          Left why  -> pure (Left why)
+          Right new -> do
+            write new
+            pure (Right new)
+      -- The same, for a write that does not need the new card.
+      -- 同じことを、新しいカードを使わない write で
+      edit_ wid core write = do
+        result <- edit wid core (\_ -> write)
+        pure (fmap (\_ -> ()) result)
   pure Shelf
-    { addWork    = \w -> inTx (insertWork conn w)
-    , removeWork = \wid -> inTx (deleteWork conn wid)
-    , getCard    = \wid -> inTx (loadCard conn wid)
-    , listCards  = inTx $ do
-        ids <- query_ conn "SELECT id FROM works ORDER BY id"
-        concat <$> for ids (\(Only w) -> withId (WorkId w))
-    , applyEvent = \wid e -> fmap reading <$>
-        change wid (Card.applyEvent e) (updateReading conn wid . reading)
-    , addNote    = \wid n -> done <$>
-        change wid (Card.addNote n) (\_ -> insertNote conn wid n)
-    , logReading = \wid l -> done <$>
-        change wid (Card.logReading l) (\_ -> insertLog conn wid l)
-    , rate       = \wid s -> done <$>
-        change wid (Right . Card.rate s) (\_ -> updateRating conn wid s)
-    , rateEntry  = \wid i s -> done <$>
-        change wid (Card.rateEntry i s) (\_ -> upsertRating conn wid i s)
+    { addWork    = \w       -> inTx (insertWork conn w)
+    , removeWork = \wid     -> inTx (deleteWork conn wid)
+    , getCard    = \wid     -> inTx (loadCard   conn wid)
+    , listCards  =             inTx (loadAll    conn)
+    , applyEvent = \wid e   -> fmap reading <$>
+        edit  wid (Card.applyEvent e)   (updateReading conn wid . reading)
+    , addNote    = \wid n   ->
+        edit_ wid (Card.addNote n)      (insertNote    conn wid n)
+    , logReading = \wid l   ->
+        edit_ wid (Card.logReading l)   (insertLog     conn wid l)
+    , rate       = \wid s   ->
+        edit_ wid (Right . Card.rate s) (updateRating  conn wid s)
+    , rateEntry  = \wid i s ->
+        edit_ wid (Card.rateEntry i s)  (upsertRating  conn wid i s)
     }
-  where
-    done = fmap (const ())
-    withId wid = maybe [] (\card -> [(wid, card)]) <$> loadCard conn wid
+
+-- 📚 Every card on the shelf, in the order the works were added.
+-- 本棚のカードを全部、作品を足した順に
+loadAll :: Connection -> IO [(WorkId, Card)]
+loadAll conn = do
+  ids   <- query_ conn "SELECT id FROM works ORDER BY id"
+  pairs <- for ids $ \(Only w) -> do
+    card <- loadCard conn (WorkId w)
+    pure (WorkId w, card)
+  pure [ (wid, card) | (wid, Just card) <- pairs ]
 -- ANCHOR_END: withSqliteShelf
 
 -- ANCHOR: changes

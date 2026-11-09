@@ -76,31 +76,45 @@ inTx conn tx = do
 -- SQLite と同じ窓口。向こうにいるのが PostgreSQL
 postgresShelf :: Connection -> Shelf
 postgresShelf conn = Shelf
-  { addWork    = inTx conn . insertWork
-  , removeWork = \(WorkId w) -> inTx conn ((> 0) <$> statement w deleteWork)
-  , getCard    = inTx conn . loadCard
-  , listCards  = inTx conn $ do
-      ids <- statement () selectWorkIds
-      concat <$> for ids (\w -> withId (WorkId w))
-  , applyEvent = \wid e -> fmap reading <$>
-      change wid (Card.applyEvent e) (\new ->
-        statement (wid, stateName (reading new)) updateReading)
-  , addNote    = \wid n -> done <$>
-      change wid (Card.addNote n) (\_ -> statement (wid, n) insertNote)
-  , logReading = \wid l -> done <$>
-      change wid (Card.logReading l) (\_ -> statement (wid, l) insertLog)
-  , rate       = \wid s -> done <$>
-      change wid (Right . Card.rate s) (\_ -> statement (wid, s) updateRating)
-  , rateEntry  = \wid i s -> done <$>
-      change wid (Card.rateEntry i s)
-        (\_ -> statement (wid, i, s) upsertRating)
+  { addWork    = \w       -> inTx conn (insertWork w)
+  , removeWork = \wid     -> inTx conn (removeOne  wid)
+  , getCard    = \wid     -> inTx conn (loadCard   wid)
+  , listCards  =             inTx conn  loadAll
+  , applyEvent = \wid e   -> fmap reading <$>
+      edit  wid (Card.applyEvent e)   (saveReading wid)
+  , addNote    = \wid n   ->
+      edit_ wid (Card.addNote n)      (statement (wid, n)    insertNote)
+  , logReading = \wid l   ->
+      edit_ wid (Card.logReading l)   (statement (wid, l)    insertLog)
+  , rate       = \wid s   ->
+      edit_ wid (Right . Card.rate s) (statement (wid, s)    updateRating)
+  , rateEntry  = \wid i s ->
+      edit_ wid (Card.rateEntry i s)  (statement (wid, i, s) upsertRating)
   }
   where
-    change wid core write = inTx conn $ do
+    -- Read, decide, write: the same as SQLite's, in a Transaction.
+    -- 読む → 決める → 書く。SQLite と同じで、Transaction の中で動く
+    edit wid core write = inTx conn $ do
       found <- loadCard wid
-      for (decide wid core found) (\new -> new <$ write new)
-    done = fmap (const ())
-    withId wid = maybe [] (\card -> [(wid, card)]) <$> loadCard wid
+      case decide wid core found of
+        Left why  -> pure (Left why)
+        Right new -> do
+          write new
+          pure (Right new)
+    edit_ wid core write = do
+      result <- edit wid core (\_ -> write)
+      pure (fmap (\_ -> ()) result)
+    saveReading wid new =
+      statement (wid, stateName (reading new)) updateReading
+    removeOne (WorkId w) = do
+      removed <- statement w deleteWork
+      pure (removed > 0)
+    loadAll = do
+      ids   <- statement () selectWorkIds
+      pairs <- for ids $ \w -> do
+        card <- loadCard (WorkId w)
+        pure (WorkId w, card)
+      pure [ (wid, card) | (wid, Just card) <- pairs ]
 -- ANCHOR_END: postgresShelf
 
 -- ANCHOR: codecs
