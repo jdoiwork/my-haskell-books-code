@@ -172,7 +172,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | NumPy 風の配列ライブラリを作る | [`ml/`](ml/)、[`ml/01-numpy/`](ml/01-numpy/)、[`langs/ml-numerics/`](langs/ml-numerics/) |
 | scikit-learn 風に回帰と分類を作る | [`ml/02-sklearn/`](ml/02-sklearn/)、[`langs/ml-regression/`](langs/ml-regression/) |
 | PyTorch の autograd 風に自動微分を作る | [`ml/03-autograd/`](ml/03-autograd/)、[`langs/ml-autodiff/`](langs/ml-autodiff/) |
-| PyTorch 風にニューラルネットワークを組む | [`ml/04-nn/`](ml/04-nn/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
+| PyTorch 風にニューラルネットワークを組む | [`ml/04-nn/`](ml/04-nn/)、[`ml/`](ml/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
 | 型で次元を守る | [`ml/05-typed/`](ml/05-typed/)、[`langs/ml-typed-tensors/`](langs/ml-typed-tensors/) |
 | 第9部のふりかえり | [`ml/05-typed/`](ml/05-typed/)、[`review-ml/`](review-ml/)、[`langs/review-ml/`](langs/review-ml/) |
 
@@ -207,6 +207,11 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 章 | コード |
 |---|---|
 | 設計：作品・目次・感想・評価を型で描く | [`tsundoku/01-design/`](tsundoku/01-design/)、[`langs/shelf-design/`](langs/shelf-design/) |
+| 目次の木と進み具合：どこまで読んだ？ | [`tsundoku/02-progress/`](tsundoku/02-progress/)、[`tsundoku/01-design/`](tsundoku/01-design/)、[`langs/shelf-progress/`](langs/shelf-progress/) |
+| ★を集める：件数の少ない★5にだまされないランキング | [`tsundoku/03-ratings/`](tsundoku/03-ratings/)、[`tsundoku/02-progress/`](tsundoku/02-progress/)、[`langs/shelf-ratings/`](langs/shelf-ratings/) |
+| 窓口と記録：やれることを型にして SQLite にしまう | [`tsundoku/04-storage/`](tsundoku/04-storage/)、[`tsundoku/03-ratings/`](tsundoku/03-ratings/)、[`langs/shelf-storage/`](langs/shelf-storage/) |
+| 自分で決める属性と状態：型の外側を型で守る | [`tsundoku/05-custom-fields/`](tsundoku/05-custom-fields/)、[`tsundoku/04-storage/`](tsundoku/04-storage/)、[`langs/shelf-custom-fields/`](langs/shelf-custom-fields/) |
+| 本を取り込む：EPUB・PDF・ISBN から目次を作る | [`tsundoku/06-import/`](tsundoku/06-import/)、[`tsundoku/05-custom-fields/`](tsundoku/05-custom-fields/)、[`langs/shelf-import/`](langs/shelf-import/) |
 
 ### 第13部 プログラマーのための数学
 
