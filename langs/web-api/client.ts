@@ -5,7 +5,9 @@ import type { Adventurer, ApiError, NewAdventurer } from "./guild-types.ts";
 // ANCHOR: client
 // TypeScript (calling the Haskell API with types made from Haskell)
 // TypeScript（Haskell から作った型で、Haskell の API を呼ぶ）
-const base = "http://localhost:8080";
+// Same origin: the dev server passes /adventurers on to Haskell (port 8080).
+// 同じ Origin：開発サーバーが /adventurers を Haskell（8080 番）へ中継する
+const base = "";
 
 export async function listAdventurers(): Promise<Adventurer[]> {
   const res = await fetch(`${base}/adventurers`);

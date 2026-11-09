@@ -69,11 +69,13 @@ answersSpec = do
         request "POST" "/adventurers/Lambda/levelup" [] "" `shouldRespondWith`
           [json|{adventurerId: 1, name: "Lambda", job: "Mage", level: 4}|]
   -- ANCHOR_END: levelup
+  -- ANCHOR: jobtest
   with (jobApp <$> newMemoryStore) $
     describe "GET /adventurers?job=..." $
       -- 「?job がなければ、全員（ここでは空っぽ）」
       it "lists everyone without ?job" $
         get "/adventurers" `shouldRespondWith` [json|[]|]
+  -- ANCHOR_END: jobtest
   where
     lambda = [json|{name: "Lambda", job: "Mage", level: 3}|]
     postJson path body =

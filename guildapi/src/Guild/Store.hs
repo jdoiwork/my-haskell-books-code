@@ -83,11 +83,13 @@ withSqliteStore path action =
             Left (e :: SQLError)
               | e.sqlError == ErrorConstraint -> pure Nothing
               | otherwise                     -> throwIO e
-        up who = do
-          execute conn
-            "UPDATE adventurers SET level = level + 1 WHERE name = ?"
-            (Only who)
-          find who
+        -- One statement updates and reads back, so a level-up running at
+        -- the same time cannot slip in between.
+        -- 1つの文で上げて読み返すので、同時のレベル上げが間に入れない
+        up who = fmap toAdv . firstRow <$> query conn
+          "UPDATE adventurers SET level = level + 1 WHERE name = ? \
+          \RETURNING id, name, job, level"
+          (Only who)
     action RosterStore
       { listAdventurers = map toAdv <$> query_ conn (select <> " ORDER BY id")
       , findAdventurer  = find
