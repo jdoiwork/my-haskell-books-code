@@ -1,0 +1,20 @@
+-- 「本を取り込む：EPUB・PDF・ISBN から目次を作る」の段階。
+-- 章ごとに育つので、段階ごとに別のプロジェクトにしている
+packages: .
+
+-- ANCHOR: libpq
+-- hasql (through pqi-ffi) uses libpq. Find it with pkg-config,
+-- as in the PostgreSQL chapter.
+-- hasql は（pqi-ffi を通して）libpq を使う。PostgreSQL の章と同じく、
+-- pkg-config で見つける
+package postgresql-libpq
+  flags: +use-pkg-config
+-- ANCHOR_END: libpq
+
+-- ANCHOR: allowNewer
+-- servant 0.20.3 says QuickCheck < 2.19, but works with the 2.19 the
+-- tests use (checked 2026-11-09). Lift only that bound.
+-- servant 0.20.3 は QuickCheck < 2.19 と書いているが、テストで使う 2.19 で
+-- 動く（2026-11-09 に確かめた）。その上限だけを外す
+allow-newer: servant:QuickCheck
+-- ANCHOR_END: allowNewer

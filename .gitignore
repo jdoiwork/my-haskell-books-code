@@ -6,6 +6,9 @@ dist-werror/
 # The times of scripts/check-code.sh / check-code.sh の項目ごとの時間
 .check-times/
 node_modules/
+# What vite build writes for the shelf's React screen
+# 本棚の React の画面で、vite build が書くもの
+tsundoku/*/web/dist/
 target/
 
 # hspec-golden writes the latest output next to the golden file
@@ -22,3 +25,8 @@ minisearch/*/index*.bin
 ml/data/
 # Liquid Haskell の作業ファイル
 .liquid/
+
+# The shelf's secrets and settings when tried with docker compose
+# docker compose で試したときの、本棚の秘密と設定
+tsundoku/*/db_password.txt
+tsundoku/*/.env

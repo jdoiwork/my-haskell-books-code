@@ -1,0 +1,24 @@
+/* The look of the shelf's pages. Only looks: nothing here changes
+   what the pages do.
+   本棚のページの見た目。見た目だけで、ページの動きは何も変えない */
+body     { font-family: sans-serif; max-width: 46rem; margin: 1rem auto;
+           padding: 0 1rem; line-height: 1.6; }
+header a { text-decoration: none; font-weight: bold; }
+.works li, .hits li { margin: .4rem 0; }
+.creator { color: #666; margin-left: .6rem; }
+.state   { background: #efeaff; border-radius: .6rem; padding: 0 .5rem;
+           margin: 0 .5rem; }
+.rating button     { border: 1px solid #ccc; background: #fff;
+                     border-radius: .4rem; margin: 0 .1rem; }
+.rating button.now { background: #ffd54a; border-color: #c9a227; }
+.toc .done   { color: #2e8b57; }
+.toc .unread { color: #bbb; }
+.problem ul  { background: #fff3f1; border: 2px solid #e06c5a;
+               border-radius: .5rem; padding: .5rem 2rem; }
+.attr        { display: block; margin: .3rem 0; }
+.attr span   { display: inline-block; width: 8rem; }
+mark         { background: #ffe58a; }
+progress     { width: 8rem; vertical-align: middle; }
+.problem     { position: sticky; top: 0; }
+.where, time { margin-right: .6rem; color: #666; }
+.flow button { margin-left: .3rem; }

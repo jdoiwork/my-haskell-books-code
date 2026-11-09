@@ -1,0 +1,37 @@
+[
+  {
+    "summary": {
+      "isbn": "9784999900015",
+      "title": "はじめてのドラゴン学",
+      "volume": "",
+      "series": "",
+      "publisher": "ギルド図書室",
+      "pubdate": "20261101",
+      "cover": "",
+      "author": "ギルド図書室／編"
+    },
+    "onix": {
+      "DescriptiveDetail": {
+        "Extent": [
+          {
+            "ExtentType": "11",
+            "ExtentValue": "78",
+            "ExtentUnit": "03"
+          }
+        ]
+      },
+      "CollateralDetail": {
+        "TextContent": [
+          {
+            "TextType": "02",
+            "Text": "ドラゴンと仲よくなるための、はじめの一冊。"
+          },
+          {
+            "TextType": "04",
+            "Text": "第1部　ドラゴンを知る……001\n第1章　見分け方……003\n1.1　うろこの色……007\n1.2　火を吐くもの……015\n第2章　すみかと季節……025\n第2部　ドラゴンと話す……049\n第3章　あいさつの作法……051\n第4章　怒らせたときは……067"
+          }
+        ]
+      }
+    }
+  }
+]

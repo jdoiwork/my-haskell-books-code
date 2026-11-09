@@ -1,0 +1,34 @@
+cabal-version: 3.0
+name:          review-tsundoku
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第12部のふりかえり」の総合トレーニング：読書会
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , tsundoku
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    -- unicode-show: to show Japanese as it is in GHCi (uprint)
+    -- unicode-show：GHCi で日本語をそのまま見せるため（uprint）
+    , unicode-show     ^>=0.1.1
+
+library
+  import:           shared
+  exposed-modules:  Review.BookClub
+  hs-source-dirs:   src
+
+test-suite review-tsundoku-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , review-tsundoku
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19

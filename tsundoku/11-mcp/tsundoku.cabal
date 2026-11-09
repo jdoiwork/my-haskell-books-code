@@ -1,0 +1,223 @@
+cabal-version: 3.0
+name:          tsundoku
+version:       0.1.0.0
+build-type:    Simple
+
+-- htmx and the style are put inside the program (Tsundoku.Html.Static)
+-- htmx と見た目は、プログラムの中に入れる（Tsundoku.Html.Static）
+extra-source-files: static/*
+
+-- 総合演習：読書メモのレビューサイトを作る
+-- （11. AI と一緒に：MCP で目次を一括登録する）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    , time             >=1.12 && <1.16
+
+-- ANCHOR: library
+library
+  import:           shared
+  exposed-modules:  Tsundoku.Types
+                    Tsundoku.Rating
+                    Tsundoku.Reading
+                    Tsundoku.Card
+                    Tsundoku.Progress
+                    Tsundoku.Bar
+                    Tsundoku.Ranking
+                    Tsundoku.Chart
+                    Tsundoku.Examples
+                    Tsundoku.Outline
+                    Tsundoku.Shelf
+                    Tsundoku.Shelf.Rows
+                    Tsundoku.Shelf.Memory
+                    Tsundoku.Shelf.Sqlite
+                    Tsundoku.Shelf.Postgres
+                    Tsundoku.Shelf.Config
+                    Tsundoku.Validation
+                    Tsundoku.Custom
+                    Tsundoku.Field
+                    Tsundoku.Query
+                    Tsundoku.Form
+                    Tsundoku.Isbn
+                    Tsundoku.Import.Types
+                    Tsundoku.Import.Epub
+                    Tsundoku.Import.Sample
+                    Tsundoku.Import.Pdf
+                    Tsundoku.Import.Http
+                    Tsundoku.Import.OpenBd
+                    Tsundoku.Import.Narou
+                    Tsundoku.Import
+                    Tsundoku.Search
+                    Tsundoku.Api.Json
+                    Tsundoku.Api.Routes
+                    Tsundoku.Api.Server
+                    Tsundoku.Api.Client
+                    Tsundoku.Labels
+                    Tsundoku.Html.Parts
+                    Tsundoku.Html.Routes
+                    Tsundoku.Html.Static
+                    Tsundoku.Html.Server
+                    Tsundoku.Tui.Model
+                    Tsundoku.Tui.View
+                    Tsundoku.Tui.Run
+                    Tsundoku.Mcp.Wire
+                    Tsundoku.Mcp.Toc
+                    Tsundoku.Mcp.Tools
+                    ShelfAnswers.Podcast
+                    ShelfAnswers.Grades
+                    ShelfAnswers.LookBack
+                    ShelfAnswers.HalfRead
+                    ShelfAnswers.FirstUnread
+                    ShelfAnswers.ColorBar
+                    ShelfAnswers.Weights
+                    ShelfAnswers.Recent
+                    ShelfAnswers.ByKind
+                    ShelfAnswers.Orphans
+                    ShelfAnswers.Tags
+                    ShelfAnswers.Move
+                    ShelfAnswers.Url
+                    ShelfAnswers.Redefine
+                    ShelfAnswers.OrNot
+                    ShelfAnswers.Ruby
+                    ShelfAnswers.Depth
+                    ShelfAnswers.Isbn13
+                    ShelfAnswers.NotesOnly
+                    ShelfAnswers.Spoilers
+                    ShelfAnswers.TitlesFirst
+                    ShelfAnswers.Episodes
+                    ShelfAnswers.Paging
+                    ShelfAnswers.LiveSearch
+                    ShelfAnswers.FinishBoth
+                    ShelfAnswers.TuiSearch
+                    ShelfAnswers.TocDiff
+                    ShelfAnswers.Unnoted
+  hs-source-dirs:   src answers
+  -- ANCHOR: deps
+  -- unicode-show: to show Japanese as it is in GHCi (uprint)
+  -- unicode-show：GHCi で日本語をそのまま見せるため（uprint）
+  build-depends:
+    , aeson              ^>=2.3
+    , aeson-typescript   ^>=0.6.4
+    , brick              ^>=3.0
+    , bytestring         ^>=0.12
+    , directory          ^>=1.3
+    , file-embed         ^>=0.0.16
+    , filepath           ^>=1.5
+    , hasql              ^>=2.0
+    , http-api-data      ^>=0.7
+    , lucid              ^>=2.11
+    , http-client        ^>=0.7.19
+    , http-media         ^>=0.8
+    , http-types         ^>=0.12.4
+    , hasql-transaction  ^>=1.2.3
+    , megaparsec         ^>=9.8
+    , mtl                ^>=2.3
+    , parser-combinators ^>=1.3
+    , pqi-ffi            ^>=1.0
+    , scientific         ^>=0.3.8
+    , servant            ^>=0.20.3
+    , servant-client     ^>=0.20.3
+    , servant-server     ^>=0.20.3
+    , sqlite-simple      ^>=0.4.19
+    , tagsoup            ^>=0.14.8
+    , transformers       ^>=0.6
+    , vty                ^>=6.7
+    , wai                ^>=3.2
+    , typed-process      ^>=0.2.13
+    , unicode-show       ^>=0.1.1
+    , xml-conduit        ^>=1.10
+    , zip-archive        ^>=0.5
+    , zlib               ^>=0.7.1
+  -- ANCHOR_END: deps
+-- ANCHOR_END: library
+
+-- ANCHOR: exe
+-- The shelf from the command line, on the store TSUNDOKU_DB chooses.
+-- コマンドから使う本棚。しまう場所は TSUNDOKU_DB で選ぶ
+executable shelf
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  -- warp (shelf serve) needs the threaded runtime
+  -- warp（shelf serve）には、スレッドを使うランタイムが要る
+  ghc-options:      -threaded
+  build-depends:
+    , tsundoku
+    , bytestring       ^>=0.12
+    , filepath         ^>=1.5
+    , http-client-tls  ^>=0.3.6
+    , warp             ^>=3.4
+-- ANCHOR_END: exe
+
+-- ANCHOR: tui
+-- The shelf in the terminal (brick). It asks the API over HTTP.
+-- ターミナルの本棚（brick）。HTTP で API に聞く
+executable shelf-tui
+  import:           shared
+  main-is:          Tui.hs
+  hs-source-dirs:   app
+  ghc-options:      -threaded
+  build-depends:
+    , tsundoku
+    , brick              ^>=3.0
+    , servant-client     ^>=0.20.3
+-- ANCHOR_END: tui
+
+-- ANCHOR: genTs
+-- Write the TypeScript types of the API's JSON.
+-- API の JSON の、TypeScript の型を書き出す
+executable gen-ts
+  import:           shared
+  main-is:          GenTs.hs
+  hs-source-dirs:   app
+  build-depends:
+    , tsundoku
+    , aeson-typescript ^>=0.6.4
+-- ANCHOR_END: genTs
+
+-- ANCHOR: test
+test-suite tsundoku-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  other-modules:    ShelfContract
+                    ShelfSpec
+                    CustomSpec
+                    ImportSpec
+                    SearchSpec
+                    ApiSpec
+                    HtmlSpec
+                    TuiSpec
+                    McpSpec
+  ghc-options:      -threaded
+  build-depends:
+    , tsundoku
+    , aeson            ^>=2.3
+    , bytestring       ^>=0.12
+    , directory        ^>=1.3
+    , filepath         ^>=1.5
+    , hasql            ^>=2.0
+    , hspec            ^>=2.11
+    , hspec-wai        ^>=0.12
+    , hspec-wai-json   ^>=0.12
+    , lucid            ^>=2.11
+    , vty              ^>=6.7
+    , http-client      ^>=0.7.19
+    , http-types       ^>=0.12.4
+    , pqi-ffi          ^>=1.0
+    , process          ^>=1.6
+    , QuickCheck       ^>=2.19
+    , servant          ^>=0.20.3
+    , servant-client   ^>=0.20.3
+    , sqlite-simple    ^>=0.4.19
+    , testcontainers   ^>=0.5.4
+    , wai              ^>=3.2
+    , warp             ^>=3.4
+-- ANCHOR_END: test

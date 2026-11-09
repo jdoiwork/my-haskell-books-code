@@ -1,0 +1,10 @@
+# What the image does not need: builds, databases, the React screen's
+# packages, and the tests.
+# イメージに要らないもの：ビルド、データベース、React の画面のパッケージ、テスト
+dist-newstyle
+*.db
+*.db-*
+web
+test
+broken
+extras
