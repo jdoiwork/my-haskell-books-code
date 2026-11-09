@@ -59,14 +59,16 @@ add conn new = do
     Left (e :: SqlError)
       | e.sqlState == "23505" -> pure (Left (NameTaken new.newName))
       | otherwise             -> throwIO e
--- ANCHOR_END: postgres
 
 -- 🧙 A row as a tuple, to an Adventurer.
 -- タプルの行を、Adventurer に
 toAdventurer :: (Int, Text, Text, Int) -> Adventurer
 toAdventurer (i, n, j, l) = Adventurer i n j l
 
+-- 🥇 The first row, if any.
+-- 最初の行（あれば）
 firstRow :: [a] -> Maybe a
 firstRow (x : _) = Just x
 firstRow []      = Nothing
+-- ANCHOR_END: postgres
 -- ANCHOR_END: all

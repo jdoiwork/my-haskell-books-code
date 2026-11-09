@@ -24,7 +24,7 @@ withSqliteStore path action =
   withConnection path $ \conn -> do
     execute_ conn """
       CREATE TABLE IF NOT EXISTS adventurers
-        ( id    INTEGER PRIMARY KEY
+        ( id    INTEGER PRIMARY KEY AUTOINCREMENT
         , name  TEXT    NOT NULL UNIQUE
         , job   TEXT    NOT NULL
         , level INTEGER NOT NULL
@@ -63,14 +63,16 @@ changed conn sql who = do
   execute conn sql (Only who)
   n <- changes conn
   pure (n > 0)
--- ANCHOR_END: sqlite
 
 -- 🧙 A row as a tuple, to an Adventurer.
 -- タプルの行を、Adventurer に
 toAdventurer :: (Int, Text, Text, Int) -> Adventurer
 toAdventurer (i, n, j, l) = Adventurer i n j l
 
+-- 🥇 The first row, if any.
+-- 最初の行（あれば）
 firstRow :: [a] -> Maybe a
 firstRow (x : _) = Just x
 firstRow []      = Nothing
+-- ANCHOR_END: sqlite
 -- ANCHOR_END: all

@@ -47,6 +47,12 @@ rosterContract = do
       _ <- store.addAdventurer lambda
       store.removeAdventurer "Lambda" `shouldReturn` True
       store.findAdventurer "Lambda" `shouldReturn` Nothing
+
+    -- 「外した人の番号は、使い回さない」
+    it "never reuses the id of a removed adventurer" $ \store -> do
+      _ <- store.addAdventurer lambda
+      _ <- store.removeAdventurer "Lambda"
+      store.addAdventurer python `shouldReturn` Right 2
   where
     lambda = NewAdventurer "Lambda" "Mage"   3
     python = NewAdventurer "Python" "Archer" 5

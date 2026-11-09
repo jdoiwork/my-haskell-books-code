@@ -34,7 +34,6 @@ data NewAdventurer = NewAdventurer
   , newLevel :: Int
   }
   deriving (Show, Eq)
--- ANCHOR_END: types
 
 -- 🖨️ One line for the roster: "Lambda      Mage      Lv 3"
 -- 名簿の1行
@@ -43,4 +42,5 @@ formatAdventurer a =
   T.justifyLeft 12 ' ' a.name
     <> T.justifyLeft 10 ' ' a.job
     <> "Lv " <> T.pack (show a.level)
+-- ANCHOR_END: types
 -- ANCHOR_END: all
