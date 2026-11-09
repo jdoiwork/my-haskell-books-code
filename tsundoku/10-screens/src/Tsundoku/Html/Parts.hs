@@ -95,6 +95,7 @@ page title body = doctypehtml_ $ do
     meta_ [name_ "htmx-config", content_ htmxConfig]
     title_ (toHtml title)
     link_ [rel_ "stylesheet", href_ "/static/shelf.css"]
+    link_ [rel_ "stylesheet", href_ "/static/theme.css"]
     script_ [src_ "/static/htmx.min.js"] ("" :: Text)
   body_ $ do
     header_ (a_ [href_ "/"] "📚 tsundoku")

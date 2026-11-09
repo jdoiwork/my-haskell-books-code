@@ -9,14 +9,16 @@ import { WorkList } from "./WorkList";
 export function App() {
   const [opened, setOpened] = useState<number | null>(null);
   return (
-    <main>
+    <>
       <header>
         <a href="#" onClick={() => setOpened(null)}>📚 tsundoku</a>
       </header>
-      {opened === null
-        ? <WorkList onOpen={setOpened} />
-        : <CardView id={opened} />}
-    </main>
+      <main>
+        {opened === null
+          ? <WorkList onOpen={setOpened} />
+          : <CardView id={opened} />}
+      </main>
+    </>
   );
 }
 // ANCHOR_END: all

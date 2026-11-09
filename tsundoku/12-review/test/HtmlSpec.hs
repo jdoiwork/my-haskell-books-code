@@ -157,6 +157,7 @@ routesSpec = describe "the pages" $ do
     it "serves htmx and the style from inside the program" $ do
       get "/static/htmx.min.js" `shouldRespondWith` 200
       get "/static/shelf.css"   `shouldRespondWith` 200
+      get "/static/theme.css"   `shouldRespondWith` 200
     -- 「JSON の API は /api の下に、そのまま」
     it "keeps the JSON API as it was, under /api" $
       get "/api/works/1" `shouldRespondWith` showing 200 ["\"rating\":null"]
