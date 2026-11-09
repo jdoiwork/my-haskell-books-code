@@ -113,6 +113,11 @@ tocSpec = describe "the tree from the AI" $ do
       [ "竜の飼い方入門（王都出版）"
       , "・第1章 卵（2ページ）", "  ・1.1 温め方（17ページ）"
       , "・第2章 ひな（40ページ）", "・第3章 巣立ち（61ページ）" ]
+  -- 「作者がわからなければ、空のかっこは出さない」
+  it "shows no empty brackets when the creator is not known" $
+    fmap (take 1 . preview)
+         (draftWork (TocDraft "竜の飼い方入門" "" 120 [Chapter "第1章 卵" 1 []]))
+      `shouldBe` Right ["竜の飼い方入門"]
   -- 「鍵は、本棚が振った番号に左右されない」
   it "keys a work by its shape, not by the numbers the shelf gave" $ do
     shelf <- newMemoryShelf

@@ -180,11 +180,17 @@ draftWork d = case tocProblems d of
 -- 👀 The book as lines to show before adding it: depth, pages, heading.
 -- 足す前に見せる、本の行：深さ、ページ数、見出し
 preview :: Work -> [Text]
-preview w = (w.title <> "（" <> w.creator <> "）") : case w.contents of
+preview w = titleLine : case w.contents of
   Book toc -> [ T.replicate depth "  " <> "・" <> e.heading
                 <> "（" <> T.pack (show n) <> "ページ）"
               | (depth, e) <- outline toc, let Pages n = e.size ]
   _        -> []
+  where
+    -- No empty brackets when the creator is not known.
+    -- 作者がわからないときは、空のかっこを出さない
+    titleLine
+      | T.null w.creator = w.title
+      | otherwise        = w.title <> "（" <> w.creator <> "）"
 -- ANCHOR_END: work
 
 -- ANCHOR: key
