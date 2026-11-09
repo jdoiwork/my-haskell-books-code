@@ -206,21 +206,21 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 
 | 章 | コード |
 |---|---|
-| 設計：作品・目次・感想・評価を型で描く | [`tsundoku/01-design/`](tsundoku/01-design/)、[`langs/shelf-design/`](langs/shelf-design/) |
-| 目次の木と進み具合：どこまで読んだ？ | [`tsundoku/02-progress/`](tsundoku/02-progress/)、[`tsundoku/01-design/`](tsundoku/01-design/)、[`langs/shelf-progress/`](langs/shelf-progress/) |
-| ★を集める：件数の少ない★5にだまされないランキング | [`tsundoku/03-ratings/`](tsundoku/03-ratings/)、[`tsundoku/02-progress/`](tsundoku/02-progress/)、[`langs/shelf-ratings/`](langs/shelf-ratings/) |
-| 窓口と記録：やれることを型にして SQLite にしまう | [`tsundoku/04-storage/`](tsundoku/04-storage/)、[`tsundoku/03-ratings/`](tsundoku/03-ratings/)、[`langs/shelf-storage/`](langs/shelf-storage/) |
-| 自分で決める属性と状態：型の外側を型で守る | [`tsundoku/05-custom-fields/`](tsundoku/05-custom-fields/)、[`tsundoku/04-storage/`](tsundoku/04-storage/)、[`langs/shelf-custom-fields/`](langs/shelf-custom-fields/) |
-| 本を取り込む：EPUB・PDF・ISBN から目次を作る | [`tsundoku/06-import/`](tsundoku/06-import/)、[`tsundoku/05-custom-fields/`](tsundoku/05-custom-fields/)、[`langs/shelf-import/`](langs/shelf-import/) |
-| 中身を探す：SQLite FTS5 で全文検索 | [`tsundoku/07-search/`](tsundoku/07-search/)、[`tsundoku/06-import/`](tsundoku/06-import/)、[`langs/shelf-search/`](langs/shelf-search/) |
-| 画面に依らない API：servant の型を正にする | [`tsundoku/08-api/`](tsundoku/08-api/)、[`tsundoku/07-search/`](tsundoku/07-search/)、[`langs/shelf-api/`](langs/shelf-api/) |
-| 画面を取り替える1：lucid と htmx でサーバーが HTML を返す | [`tsundoku/09-htmx/`](tsundoku/09-htmx/)、[`tsundoku/08-api/`](tsundoku/08-api/)、[`langs/shelf-htmx/`](langs/shelf-htmx/) |
-| 画面を取り替える2：React と brick で同じ API を使う | [`tsundoku/10-screens/`](tsundoku/10-screens/)、[`tsundoku/09-htmx/`](tsundoku/09-htmx/)、[`langs/shelf-react-brick/`](langs/shelf-react-brick/) |
-| AI と一緒に：MCP で目次を一括登録する | [`tsundoku/11-mcp/`](tsundoku/11-mcp/)、[`tsundoku/10-screens/`](tsundoku/10-screens/)、[`langs/shelf-mcp/`](langs/shelf-mcp/) |
-| レビューサイトに仕上げる：本棚・タグ・ネタバレ・読書の統計 | [`tsundoku/12-review/`](tsundoku/12-review/)、[`tsundoku/11-mcp/`](tsundoku/11-mcp/)、[`langs/shelf-review-site/`](langs/shelf-review-site/) |
-| 本棚を手で整える：React で本を足し、目次を直す | [`tsundoku/13-editing/`](tsundoku/13-editing/)、[`tsundoku/12-review/`](tsundoku/12-review/)、[`langs/shelf-editing/`](langs/shelf-editing/) |
-| 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/14-docker/`](tsundoku/14-docker/)、[`tsundoku/13-editing/`](tsundoku/13-editing/) |
-| 第12部のふりかえり | [`tsundoku/14-docker/`](tsundoku/14-docker/)、[`review-tsundoku/`](review-tsundoku/) |
+| 設計：作品・目次・感想・評価を型で描く | [`tsundoku/design/`](tsundoku/design/)、[`langs/shelf-design/`](langs/shelf-design/) |
+| 目次の木と進み具合：どこまで読んだ？ | [`tsundoku/progress/`](tsundoku/progress/)、[`tsundoku/design/`](tsundoku/design/)、[`langs/shelf-progress/`](langs/shelf-progress/) |
+| ★を集める：件数の少ない★5にだまされないランキング | [`tsundoku/ratings/`](tsundoku/ratings/)、[`tsundoku/progress/`](tsundoku/progress/)、[`langs/shelf-ratings/`](langs/shelf-ratings/) |
+| 窓口と記録：やれることを型にして SQLite にしまう | [`tsundoku/storage/`](tsundoku/storage/)、[`tsundoku/ratings/`](tsundoku/ratings/)、[`langs/shelf-storage/`](langs/shelf-storage/) |
+| 自分で決める属性と状態：型の外側を型で守る | [`tsundoku/custom-fields/`](tsundoku/custom-fields/)、[`tsundoku/storage/`](tsundoku/storage/)、[`langs/shelf-custom-fields/`](langs/shelf-custom-fields/) |
+| 本を取り込む：EPUB・PDF・ISBN から目次を作る | [`tsundoku/import/`](tsundoku/import/)、[`tsundoku/custom-fields/`](tsundoku/custom-fields/)、[`langs/shelf-import/`](langs/shelf-import/) |
+| 中身を探す：SQLite FTS5 で全文検索 | [`tsundoku/search/`](tsundoku/search/)、[`tsundoku/import/`](tsundoku/import/)、[`langs/shelf-search/`](langs/shelf-search/) |
+| 画面に依らない API：servant の型を正にする | [`tsundoku/api/`](tsundoku/api/)、[`tsundoku/search/`](tsundoku/search/)、[`langs/shelf-api/`](langs/shelf-api/) |
+| 画面を取り替える1：lucid と htmx でサーバーが HTML を返す | [`tsundoku/htmx/`](tsundoku/htmx/)、[`tsundoku/api/`](tsundoku/api/)、[`langs/shelf-htmx/`](langs/shelf-htmx/) |
+| 画面を取り替える2：React と brick で同じ API を使う | [`tsundoku/screens/`](tsundoku/screens/)、[`tsundoku/htmx/`](tsundoku/htmx/)、[`langs/shelf-react-brick/`](langs/shelf-react-brick/) |
+| AI と一緒に：MCP で目次を一括登録する | [`tsundoku/mcp/`](tsundoku/mcp/)、[`tsundoku/screens/`](tsundoku/screens/)、[`langs/shelf-mcp/`](langs/shelf-mcp/) |
+| レビューサイトに仕上げる：本棚・タグ・ネタバレ・読書の統計 | [`tsundoku/review-site/`](tsundoku/review-site/)、[`tsundoku/mcp/`](tsundoku/mcp/)、[`langs/shelf-review-site/`](langs/shelf-review-site/) |
+| 本棚を手で整える：React で本を足し、目次を直す | [`tsundoku/editing/`](tsundoku/editing/)、[`tsundoku/review-site/`](tsundoku/review-site/)、[`langs/shelf-editing/`](langs/shelf-editing/) |
+| 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/docker/`](tsundoku/docker/)、[`tsundoku/editing/`](tsundoku/editing/) |
+| 第12部のふりかえり | [`tsundoku/docker/`](tsundoku/docker/)、[`review-tsundoku/`](review-tsundoku/) |
 
 ### 第13部 プログラマーのための数学
 

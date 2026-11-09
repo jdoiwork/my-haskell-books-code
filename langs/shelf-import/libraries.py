@@ -1,6 +1,6 @@
 # The same, with the libraries everybody uses: ebooklib for EPUB and
 # pypdf for PDF. books/ has the sample books that `shelf samples` writes
-# (code/tsundoku/06-import).
+# (code/tsundoku/import).
 # 同じことを、みんなが使うライブラリで：EPUB は ebooklib、PDF は pypdf。
 # books/ には、shelf samples が書き出す見本の本がある
 import warnings

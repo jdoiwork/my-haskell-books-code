@@ -4,6 +4,12 @@
 # 本棚を、ビルドしない人のために：docker compose up -d。
 # SQLite か PostgreSQL かは、.env の COMPOSE_PROFILES で選ぶ
 
+# The project's name: containers and volumes are tsundoku-…, wherever
+# this folder is.
+# プロジェクトの名前。コンテナとボリュームは、このフォルダーがどこにあっても
+# tsundoku-… になる
+name: tsundoku
+
 # ANCHOR: common
 # What every shelf container shares. Only this machine may come in
 # (127.0.0.1); inside the container, the shelf waits on every address.

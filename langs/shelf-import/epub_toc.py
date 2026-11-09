@@ -4,7 +4,7 @@
 # Haskell 版と同じ手順
 #
 # books/dragon.epub is the sample book that `shelf samples` writes
-# (code/tsundoku/06-import).
+# (code/tsundoku/import).
 # books/dragon.epub は、shelf samples が書き出す見本の本
 import posixpath
 import zipfile
