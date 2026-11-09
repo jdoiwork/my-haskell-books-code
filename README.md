@@ -215,7 +215,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 中身を探す：SQLite FTS5 で全文検索 | [`tsundoku/07-search/`](tsundoku/07-search/)、[`tsundoku/06-import/`](tsundoku/06-import/)、[`langs/shelf-search/`](langs/shelf-search/) |
 | 画面に依らない API：servant の型を正にする | [`tsundoku/08-api/`](tsundoku/08-api/)、[`tsundoku/07-search/`](tsundoku/07-search/)、[`langs/shelf-api/`](langs/shelf-api/) |
 | 画面を取り替える1：lucid と htmx でサーバーが HTML を返す | [`tsundoku/09-htmx/`](tsundoku/09-htmx/)、[`tsundoku/08-api/`](tsundoku/08-api/)、[`langs/shelf-htmx/`](langs/shelf-htmx/) |
-| 画面を取り替える2：React と brick で同じ API を使う | [`tsundoku/10-screens/`](tsundoku/10-screens/)、[`tsundoku/09-htmx/`](tsundoku/09-htmx/) |
+| 画面を取り替える2：React と brick で同じ API を使う | [`tsundoku/10-screens/`](tsundoku/10-screens/)、[`tsundoku/09-htmx/`](tsundoku/09-htmx/)、[`langs/shelf-react-brick/`](langs/shelf-react-brick/) |
 | AI と一緒に：MCP で目次を一括登録する | [`tsundoku/11-mcp/`](tsundoku/11-mcp/)、[`tsundoku/10-screens/`](tsundoku/10-screens/)、[`langs/shelf-mcp/`](langs/shelf-mcp/) |
 | レビューサイトに仕上げる：本棚・タグ・ネタバレ・読書の統計 | [`tsundoku/12-review/`](tsundoku/12-review/)、[`tsundoku/11-mcp/`](tsundoku/11-mcp/)、[`langs/shelf-review-site/`](langs/shelf-review-site/) |
 | 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/13-docker/`](tsundoku/13-docker/)、[`tsundoku/12-review/`](tsundoku/12-review/) |
