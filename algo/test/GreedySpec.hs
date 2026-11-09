@@ -5,6 +5,7 @@ import Test.QuickCheck
 
 import Algo.Greedy
 
+-- ANCHOR: genQuests
 -- 🎲 A few random quests within a day.
 -- 1日の中の、でたらめな依頼をいくつか
 genQuests :: Gen [Quest]
@@ -14,6 +15,7 @@ genQuests = do
     s <- chooseInt (0, 20)
     len <- chooseInt (1, 8)
     pure (Quest "q" s (s + len))
+-- ANCHOR_END: genQuests
 
 spec :: Spec
 spec = describe "Algo.Greedy" $ do

@@ -30,6 +30,8 @@ adamDraft cfg = go Map.empty Map.empty
       in  (Map.mapWithKey move ps, go ms' vs')
 -- ANCHOR_END: draft
 
+-- 📊 old * beta + new * (1 - beta); the first time, old is 0.
+-- 古い平均 × beta + 新しい値 × (1 - beta)。最初は、古い平均を 0 とする
 average :: Double -> Map String NDArray -> String -> NDArray -> NDArray
 average beta old name new = case Map.lookup name old of
   Nothing -> Np.scalar (1 - beta) * new

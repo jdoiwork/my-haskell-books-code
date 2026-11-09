@@ -8,10 +8,12 @@ import Options.Applicative
 
 import DiceAnswers
 
+-- ANCHOR: parseWith
 -- ⌨️ Parse the words with a parser.
 -- パーサーで単語を解析する
 parseWith :: ParserInfo a -> [String] -> Maybe a
 parseWith pinfo args = getParseResult (execParserPure defaultPrefs pinfo args)
+-- ANCHOR_END: parseWith
 
 diceSpec :: Spec
 diceSpec = do

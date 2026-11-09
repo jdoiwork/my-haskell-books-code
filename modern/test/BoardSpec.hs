@@ -16,6 +16,7 @@ import Modern.McpKit
 import Modern.QuestBoard
 import ModernAnswers (applyOpOneEach, totalRewardTool)
 
+-- ANCHOR: anyOp
 -- 🎲 Any op, with numbers and names that often hit the rules.
 -- でたらめな Op。決まりに引っかかりやすい番号と名前にする
 newtype AnyOp = AnyOp BoardOp
@@ -31,8 +32,11 @@ instance Arbitrary AnyOp where
     where
       titles = ["Slay slimes", "Find herbs", "", "  "]
 
+-- 📋 The board after the ops, from an empty board.
+-- 空の依頼板に、Op を順に当てはめた依頼板
 boardOf :: [AnyOp] -> Board
 boardOf ops = applyAll [ op | AnyOp op <- ops ] emptyBoard
+-- ANCHOR_END: anyOp
 
 -- 📨 Call a tool of board-mcp and read back (isError, text).
 -- board-mcp の道具を呼んで、(isError, テキスト) を読む

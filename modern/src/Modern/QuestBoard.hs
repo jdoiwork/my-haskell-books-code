@@ -107,10 +107,12 @@ applyOp op (Board qs) =
     label n = "quest #" <> tshow n
 -- ANCHOR_END: apply
 
+-- ANCHOR: applyAll
 -- 🔁 Apply ops one by one, skipping the refused ones (for the tests).
 -- Op を順に当てはめる。断られたものは飛ばす（テスト用）
 applyAll :: [BoardOp] -> Board -> Board
 applyAll ops board = foldl (\b op -> fromRight b (applyOp op b)) board ops
+-- ANCHOR_END: applyAll
 
 -- ANCHOR: describe
 -- 🧾 The board as text, for the AI to read.
@@ -129,8 +131,12 @@ describeBoard board
     stage (DoneBy who)  = "done by " <> who
 -- ANCHOR_END: describe
 
+-- ANCHOR: tshow
+-- 🔤 show, but as Text.
+-- show の答えを Text にする
 tshow :: Show a => a -> Text
 tshow = T.pack . show
+-- ANCHOR_END: tshow
 
 -- ANCHOR: json
 -- 📦 An op from JSON. The "op" field is the name of the MCP tool,

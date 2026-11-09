@@ -7,6 +7,7 @@ import Test.QuickCheck
 import Modern.Crdt (OrSet, members)
 import Review.Board
 
+-- ANCHOR: changesFrom
 -- 🎲 Changes about a few quests, from one device.
 -- 少しの依頼についての変更。1台の端末から
 changesFrom :: String -> Gen [Change]
@@ -15,9 +16,14 @@ changesFrom device = do
   quests <- vectorOf (length steps) (elements ["slime", "herb", "dragon"])
   pure [ if isPost then Post (device, n) q else Finish q
        | (n, isPost, q) <- zip3 [0 ..] steps quests ]
+-- ANCHOR_END: changesFrom
 
+-- ANCHOR: start
+-- 📌 Both devices start from the guild's board.
+-- 2台とも、ギルドの板から始める
 start :: OrSet String
 start = guildBoard
+-- ANCHOR_END: start
 
 main :: IO ()
 main = hspec $ do

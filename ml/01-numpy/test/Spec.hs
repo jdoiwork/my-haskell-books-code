@@ -10,6 +10,7 @@ import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
 -- ANCHOR_END: imports
 
+-- ANCHOR: helpers
 -- 🎲 A random 2-D array with small whole numbers.
 -- 小さな整数の、でたらめな2次元の配列
 genMatrix :: Int -> Int -> Gen NDArray
@@ -17,6 +18,8 @@ genMatrix r c = do
   xs <- vectorOf (r * c) (fromIntegral <$> chooseInt (-5, 5))
   pure (Np.reshape [r, c] (Np.array xs))
 
+-- 📐 A random shape, 1 to 4 rows and columns.
+-- でたらめな形（1〜4 行、1〜4 列）
 genShape :: Gen (Int, Int)
 genShape = (,) <$> chooseInt (1, 4) <*> chooseInt (1, 4)
 
@@ -26,8 +29,11 @@ naiveDot :: [[Double]] -> [[Double]] -> [[Double]]
 naiveDot a b = [ [ sum (zipWith (*) r c) | c <- cols ] | r <- a ]
   where cols = foldr (zipWith (:)) (repeat []) b
 
+-- 📋 A 2-D array as a list of rows.
+-- 2次元の配列を、行のリストにする
 rowsOf :: NDArray -> [[Double]]
 rowsOf a = [ Np.toList (Np.row i a) | i <- [0 .. Np.nrows a - 1] ]
+-- ANCHOR_END: helpers
 
 main :: IO ()
 main = hspec $ do

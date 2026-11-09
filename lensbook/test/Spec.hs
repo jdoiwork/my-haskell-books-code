@@ -13,10 +13,12 @@ import qualified MiniLens as Mini
 import qualified Plain
 import SaveData
 
+-- ANCHOR: leaderHp
 -- 🎯 The path used in the law tests.
 -- 法則のテストで使う道順
 leaderHp :: Lens' Party Int
 leaderHp = leader . stats . hp
+-- ANCHOR_END: leaderHp
 
 main :: IO ()
 main = hspec $ do

@@ -8,10 +8,12 @@ import Test.QuickCheck
 import Algo.Strings
 import AlgoAnswers (longestRun)
 
+-- ANCHOR: small
 -- 🎲 Short strings over a small alphabet, so patterns really appear.
 -- 小さな文字の集まりの、短い文字列（パターンが本当に現れるように）
 small :: Gen String
 small = listOf (elements "ab")
+-- ANCHOR_END: small
 
 spec :: Spec
 spec = describe "Algo.Strings" $ do

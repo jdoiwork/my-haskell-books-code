@@ -5,6 +5,7 @@ import Test.QuickCheck
 
 import Review.Quests
 
+-- ANCHOR: gen
 -- 🎲 A few quests on a short day, so they overlap often.
 -- 短い1日に、少しの依頼（よく重なるように）
 genQuests :: Gen [Quest]
@@ -22,6 +23,7 @@ genQuests = do
 -- 依頼を減らして縮める
 shrinkQuests :: [Quest] -> [[Quest]]
 shrinkQuests = shrinkList (const [])
+-- ANCHOR_END: gen
 
 main :: IO ()
 main = hspec $ do

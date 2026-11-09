@@ -14,10 +14,12 @@ import Prelude hiding (getLine, putStr, putStrLn)
 import Data.Maybe (fromMaybe)
 
 import Console
--- ANCHOR_END: imports
 
+-- 📝 putStrLn is putStr with a newline at the end.
+-- putStrLn は、最後に改行を足した putStr
 putStrLn :: Console m => String -> m ()
 putStrLn text = putStr (text <> "\n")
+-- ANCHOR_END: imports
 
 -- ANCHOR: greet
 -- 👋 Greet the user named in $USER, and ask for their quest.

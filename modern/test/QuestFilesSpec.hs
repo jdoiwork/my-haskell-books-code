@@ -7,6 +7,7 @@ import Test.Hspec
 
 import Modern.QuestFiles
 
+-- ANCHOR: folder
 -- 🗂️ Make a folder with a file for each quest, in this order.
 -- 依頼ごとにファイルを作ったフォルダーを、この順で用意する
 withQuestFolder :: (FilePath -> IO a) -> IO a
@@ -22,6 +23,7 @@ withQuestFolder action = do
   result <- action dir
   removeDirectoryRecursive dir
   pure result
+-- ANCHOR_END: folder
 
 spec :: Spec
 spec = describe "Modern.QuestFiles" $

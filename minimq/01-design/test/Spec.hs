@@ -13,6 +13,7 @@ import MiniMq.Types
 import MqAnswers
 -- ANCHOR_END: imports
 
+-- ANCHOR: model
 -- 🎲 Letters with one of a few keys, so that some go nowhere.
 -- いくつかの札のどれかを付けた手紙（どこにも届かないものも出るように）
 genLetter :: Gen Message
@@ -26,7 +27,6 @@ genLetter = do
 post :: Broker
 post = surely guildPost
 
--- ANCHOR: model
 -- 📜 The rules of the guild's post office, written down as plain pairs.
 -- ギルドの伝令所の決まりを、ただの組のリストで書き出したもの
 guildRules :: [(RoutingKey, QueueName)]

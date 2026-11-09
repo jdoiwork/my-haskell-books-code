@@ -136,7 +136,6 @@ runDay memory workers todo falls = withServer $ \port -> do
       -- 結果は、まだみんなが働いているうちに写す。店じまいでは、
       -- ACK が途中で切れて、手紙が戻ることがあるから
       Report <$> readIORef doneRef <*> readIORef buriedRef
--- ANCHOR_END: runDay
 
 -- 🎲 Read the next answer from the tape of bad luck.
 -- 不運のテープから、次の答えを読む
@@ -149,5 +148,6 @@ waitUntil :: IO Bool -> IO ()
 waitUntil ready = do
   ok <- ready
   if ok then pure () else threadDelay 10000 >> waitUntil ready
+-- ANCHOR_END: runDay
 
 -- ANCHOR_END: all

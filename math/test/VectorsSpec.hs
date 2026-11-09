@@ -6,13 +6,17 @@ import Test.QuickCheck hiding (scale)
 import Math.Vectors
 import VectorsAnswers
 
+-- ANCHOR: gens
 -- 🎲 Small whole numbers, so the products are exact.
 -- 小さな整数（積がずれないように）
 genMatrix :: Gen (Matrix Integer)
 genMatrix = vectorOf 2 (vectorOf 2 (choose (-9, 9)))
 
+-- 🎲 A small vector, the same way.
+-- 小さなベクトルも、同じように
 genVector :: Gen (Vector Integer)
 genVector = vectorOf 2 (choose (-9, 9))
+-- ANCHOR_END: gens
 
 spec :: Spec
 spec = do

@@ -7,6 +7,7 @@ import Test.QuickCheck
 import AlgebraAnswers
 import Math.Algebra
 
+-- ANCHOR: gens
 -- 🎲 Random summaries, made from random response times.
 -- でたらめな応答時間から作る、でたらめなまとめ
 genSummary :: Gen Summary
@@ -14,8 +15,11 @@ genSummary = foldMap summarize <$> listOf time
   where
     time = fromIntegral <$> choose (1, 999 :: Int)
 
+-- 🎲 Random response times, at least one.
+-- でたらめな応答時間（1つ以上）
 genTimes :: Gen [Double]
 genTimes = listOf1 (fromIntegral <$> choose (1, 999 :: Int))
+-- ANCHOR_END: gens
 
 spec :: Spec
 spec = do

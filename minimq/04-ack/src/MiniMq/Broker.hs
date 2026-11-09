@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | The pure core, now with answers: a handed-out letter is kept until
 --   its consumer says it is done.
 -- 純粋な核。返事つきになった：渡した手紙は、受け手が「終わった」と
@@ -28,6 +29,7 @@ import Data.Sequence (Seq (..), (<|), (|>))
 
 import MiniMq.Routing
 import MiniMq.Types
+-- ANCHOR_END: header
 
 -- ANCHOR: broker
 -- 🏤 The post office. New: each queue has its settings, and there is
@@ -69,6 +71,9 @@ data Pending = Pending
   deriving (Show, Eq)
 -- ANCHOR_END: broker
 
+-- ANCHOR: core
+-- 🆕 A post office with nothing in it yet.
+-- まだ何もない伝令所
 emptyBroker :: Broker
 emptyBroker = Broker Map.empty Map.empty Map.empty 1 1
 
@@ -120,6 +125,7 @@ publish name message broker = do
   pure $ case nonEmpty (route exchange (routingKey message)) of
     Nothing -> (Unroutable, broker)
     Just qs -> (Routed qs, foldr (atBack (Envelope message 0)) broker qs)
+-- ANCHOR_END: core
 
 -- ANCHOR: take
 -- 🙋 A new consumer for a queue gets its own number.
@@ -213,6 +219,7 @@ giveUp held broker =
     _ -> broker
 -- ANCHOR_END: deadletter
 
+-- ANCHOR: envelopes
 -- 📥 Put an envelope at the back of a queue, or back at its front.
 -- 封筒をキューの後ろに入れる。または、先頭に戻す
 atBack :: Envelope -> QueueName -> Broker -> Broker
@@ -221,6 +228,8 @@ atBack env name = overReady name (|> env)
 atFront :: Pending -> Broker -> Broker
 atFront held = overReady (fromQ held) (envelope held <|)
 
+-- ✏️ Change the line of letters ready in a queue.
+-- キューの、渡せる手紙の行列を書きかえる
 overReady :: QueueName -> (Seq Envelope -> Seq Envelope) -> Broker -> Broker
 overReady name f broker =
   broker { queues = Map.adjust (\q -> q { ready = f (ready q) }) name
@@ -240,4 +249,5 @@ publishAll :: ExchangeName -> [Message] -> Broker
            -> Either BrokerError ([Outcome], Broker)
 publishAll name messages =
   runStateT (traverse (StateT . publish name) messages)
+-- ANCHOR_END: envelopes
 -- ANCHOR_END: all

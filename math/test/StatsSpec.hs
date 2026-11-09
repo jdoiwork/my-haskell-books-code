@@ -6,12 +6,17 @@ import Test.QuickCheck
 import Math.Stats
 import StatsAnswers
 
--- 🎲 A non-empty list of numbers. / 空でない数のリスト
+-- ANCHOR: helpers
+-- 🎲 A non-empty list of numbers.
+-- 空でない数のリスト
 genData :: Gen [Double]
 genData = listOf1 (choose (-1000, 1000))
 
+-- 📏 Close enough for decimals?
+-- 小数として、十分に近い？
 near :: Double -> Double -> Bool
 near a b = abs (a - b) < 1e-6
+-- ANCHOR_END: helpers
 
 spec :: Spec
 spec = do

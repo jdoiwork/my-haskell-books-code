@@ -133,6 +133,7 @@ toolText isError text =
     ]
 -- ANCHOR_END: tools
 
+-- ANCHOR: reply
 -- 📮 The two shapes of a JSON-RPC answer.
 -- JSON-RPC の答えの、2つの形
 success :: Value -> Value -> Value
@@ -146,4 +147,5 @@ failure rid code message =
     , "id"      .= rid
     , "error"   .= object ["code" .= code, "message" .= message]
     ]
+-- ANCHOR_END: reply
 -- ANCHOR_END: all

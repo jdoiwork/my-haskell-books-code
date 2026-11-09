@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: helpers
 import Data.Foldable (toList)
 import qualified Data.Text as T
 import Test.Hspec
@@ -29,9 +30,11 @@ sentTo desk key = case surely (dryRun desk key (surely guildPost)) of
   Routed qs  -> toList qs
   Unroutable -> []
 
--- ➕ "quest.*" → "quest.*.#"
+-- ➕ Add ".#" to a pattern: "quest.*" → "quest.*.#"
+-- 模様の後ろに「.#」を足す
 withHash :: RoutingKey -> RoutingKey
 withHash (RoutingKey p) = RoutingKey (p <> ".#")
+-- ANCHOR_END: helpers
 
 main :: IO ()
 main = hspec $ do

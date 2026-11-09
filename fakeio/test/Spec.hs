@@ -9,6 +9,7 @@ import FakeIO (FakeIO, World (..), newWorld, runFakeIO)
 import Programs
 import Screen
 
+-- ANCHOR: helpers
 -- 🧪 Run a program in a new world.
 -- 新しい世界で、プログラムを動かす
 runIn :: [(String, String)] -> [String] -> FakeIO a -> (a, World)
@@ -19,6 +20,7 @@ runIn vars typed program = runFakeIO program (newWorld vars typed)
 shownRows :: World -> [String]
 shownRows world =
   map (reverse . dropWhile (== ' ') . reverse) (rows (screen world))
+-- ANCHOR_END: helpers
 
 main :: IO ()
 main = hspec $ do

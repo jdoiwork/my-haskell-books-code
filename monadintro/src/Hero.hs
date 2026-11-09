@@ -1,17 +1,19 @@
 -- ANCHOR: all
+-- ANCHOR: parts
 -- 🦸 Building a hero from parts that may be missing: <$> and <*>.
 -- 欠けているかもしれない部品から勇者を作る：<$> と <*>
 module Hero (Hero (..), readLevel, readName, heroFrom, heroFromDo) where
 
 import Text.Read (readMaybe)
 
+-- 📇 A hero has a name and a level.
+-- 勇者は、名前とレベルを持つ
 data Hero = Hero
   { name  :: String
   , level :: Int
   }
   deriving (Show)
 
--- ANCHOR: parts
 -- 🔢 Read a level, if it is a number from 1 to 99.
 -- レベルを読む（1〜99 の数なら）
 readLevel :: String -> Maybe Int

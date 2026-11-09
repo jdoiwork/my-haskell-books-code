@@ -36,6 +36,7 @@ disconnect (Connection sock _) = close sock
 withConnection :: PortNumber -> (Connection -> IO a) -> IO a
 withConnection port = bracket (connectTo port) disconnect
 
+-- ANCHOR: receive
 -- 📮 Send a request (always in the length-prefixed form) and read one
 --    reply, waiting for more bytes as long as the parser asks.
 -- 要求を（いつも長さつきの形で）送り、答えを1つ読む。
@@ -59,5 +60,6 @@ receive (Connection sock leftover) = readOne =<< readIORef leftover
         if BS.null chunk
           then fail "the server hung up"
           else readOne (buffer <> chunk)
+-- ANCHOR_END: receive
 -- ANCHOR_END: client
 -- ANCHOR_END: all

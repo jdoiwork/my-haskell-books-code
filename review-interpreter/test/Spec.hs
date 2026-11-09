@@ -117,8 +117,12 @@ sameOrMoreGeneral before after =
     _                   -> False
 -- ANCHOR_END: general
 
+-- ANCHOR: parse
+-- 🧾 Read source code; a parse error stops the test.
+-- ソースコードを読む。読めなければ、テストを止める
 parseOrDie :: Text -> Expr
 parseOrDie src = either (error . show) id (parseExpr src)
+-- ANCHOR_END: parse
 
 main :: IO ()
 main = hspec $ do

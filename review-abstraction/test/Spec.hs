@@ -12,6 +12,7 @@ sampleLines =
   [ "join Lambda", "reward Lambda 50", "join Python"
   , "reward Python 30", "fine Lambda 80" ]
 
+-- ANCHOR: events
 -- 🎲 Random events among three adventurers.
 -- 3人の冒険者の、でたらめな出来事
 newtype Events = Events [Event]
@@ -24,6 +25,7 @@ instance Arbitrary Events where
       amount = chooseInt (0, 100)
       event = oneof
         [ Join <$> who, Reward <$> who <*> amount, Fine <$> who <*> amount ]
+-- ANCHOR_END: events
 
 main :: IO ()
 main = hspec $ do

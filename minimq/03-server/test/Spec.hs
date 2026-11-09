@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: helpers
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (forConcurrently)
 import Data.Attoparsec.ByteString (IResult (..), feed, parse)
@@ -43,13 +44,18 @@ instance Arbitrary Response where
     , Deliver <$> letter
     ]
 
+-- 🏷️ A random name: one word, no space, no newline.
+-- でたらめな名前：1語で、空白も改行もない
 name :: Coercible T.Text n => Gen n
 name = coerce . T.pack <$> listOf1 (elements "abcxyz.*#-")
 
+-- ✉️ A random letter. The body may hold spaces, newlines and Japanese.
+-- でたらめな手紙。本文には空白も改行も日本語も入る
 letter :: Gen Message
 letter = Message <$> name <*> (T.pack <$> listOf (elements "ab \n竜"))
 
-
+-- 🧱 The bytes that a value is written as.
+-- 値を書いたときのバイト列
 bytesOf :: Wire a => a -> BS.ByteString
 bytesOf = LBS.toStrict . toLazyByteString . render
 
@@ -61,6 +67,7 @@ readInTwo at bytes =
   in  case feed (parse parser front) back of
         Done rest a | BS.null rest -> Just a
         _                          -> Nothing
+-- ANCHOR_END: helpers
 
 main :: IO ()
 main = hspec $ do
@@ -155,13 +162,21 @@ main = hspec $ do
         fmap (map body) (takeLetters c "jobs" 2) `shouldReturn` ["1", "2"]
       withClient port $ \c ->
         takeLetters c "nobody" 1 `shouldThrow` anyIOException
+  -- ANCHOR: spec-where
   where
+    -- 🏗️ A queue "jobs", bound to a Fanout desk "post".
+    -- キュー jobs を作り、Fanout の仕分け台 post に結ぶ
     setUp port = withClient port $ \c -> do
       _ <- request c (DeclareQueue "jobs")
       _ <- request c (DeclareExchange "post" Fanout)
       _ <- request c (Bind "post" "" "jobs")
       pure ()
+    -- 🔢 Letter number i.
+    -- i 番の手紙
     letterNo i = Message "job" (T.pack (show (i :: Int)))
+    -- 🧺 Every letter that comes within 0.3 seconds of the one before.
+    -- 前の手紙から 0.3 秒以内に届く手紙を、全部集める
     collect c = do
       next <- timeout 300000 (nextLetter c)
       maybe (pure []) (\l -> (l :) <$> collect c) next
+  -- ANCHOR_END: spec-where

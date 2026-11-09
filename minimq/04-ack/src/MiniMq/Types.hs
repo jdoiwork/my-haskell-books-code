@@ -88,6 +88,7 @@ data Outcome
   | Unroutable
   deriving (Show, Eq)
 
+-- ANCHOR: errors
 -- 🚫 Asking for something that does not exist.
 -- ないものを頼んだ
 data BrokerError
@@ -95,6 +96,7 @@ data BrokerError
   | NoSuchExchange ExchangeName
   | UnknownTag     Tag          -- ^ new: no letter waits for this answer
   deriving (Show, Eq)
+-- ANCHOR_END: errors
 
 -- (The server throws it inside STM, so it is an exception too.)
 -- （サーバーが STM の中で投げるので、例外にもしておく）

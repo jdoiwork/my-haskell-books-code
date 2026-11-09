@@ -41,8 +41,6 @@ genWire depth = oneof (leaves ++ deeper)
       n <- choose (0, 4)
       vectorOf n g
 
--- 🎲 Random commands on a few keys, so that kinds collide often.
--- 少ないキーへの、でたらめなコマンド（種類がよくぶつかるように）
 -- ANCHOR: timed
 -- 📝 Run commands, each at its own time (Nothing is the sweeper's
 --    turn), and write the log a server would write.
@@ -70,6 +68,9 @@ genTimed = do
   pure (zip times (map snd turns))
 -- ANCHOR_END: timed
 
+-- ANCHOR: genCommand
+-- 🎲 Random commands on a few keys, so that kinds collide often.
+-- 少ないキーへの、でたらめなコマンド（種類がよくぶつかるように）
 genCommand :: Gen Command
 genCommand = oneof
   [ Get <$> key, Set <$> key <*> text, Del <$> listOf1 key
@@ -87,6 +88,7 @@ genCommand = oneof
     key   = elements ["a", "b", "c"]
     text  = elements ["x", "y", "z", "1", "2"]
     small = choose (-3, 3)
+-- ANCHOR_END: genCommand
 
 main :: IO ()
 main = hspec $ do

@@ -105,6 +105,7 @@ call tools request =
       in object ["content" .= [part], "isError" .= isError]
 -- ANCHOR_END: list
 
+-- ANCHOR: reply
 -- 🤝 Agree on a version, as in the AI chapter.
 -- AI の章と同じく、版を合わせる
 hello :: Text -> Value -> Value
@@ -126,6 +127,8 @@ hello server request =
     supported = ["2025-06-18", "2025-11-25"] :: [Text]
     latest    = "2025-11-25"
 
+-- 📮 The two shapes of a JSON-RPC answer.
+-- JSON-RPC の答えの、2つの形
 success :: Value -> Value -> Value
 success rid r =
   object ["jsonrpc" .= ("2.0" :: Text), "id" .= rid, "result" .= r]
@@ -137,6 +140,7 @@ failure rid code message =
     , "id"      .= rid
     , "error"   .= object ["code" .= code, "message" .= message]
     ]
+-- ANCHOR_END: reply
 
 -- ANCHOR: serve
 -- 🔁 Read a message from each line of stdin, answer on stdout.

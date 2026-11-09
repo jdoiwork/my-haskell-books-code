@@ -1,13 +1,15 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- 🔄 The turn order of a battle, as a Seq.
 -- バトルの行動順（Seq で）
 module TurnQueue (Hero, takeTurns, joinFront, joinBack) where
 
--- ANCHOR: imports
 import Data.Sequence (Seq (..), (<|), (|>))
--- ANCHOR_END: imports
 
+-- 🦸 A hero is just a name here.
+-- ここでは、勇者は名前だけ
 type Hero = String
+-- ANCHOR_END: imports
 
 -- ANCHOR: turns
 -- 🔄 Let n heroes act in order. Who acts goes to the back of the line.

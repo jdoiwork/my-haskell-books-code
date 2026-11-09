@@ -7,6 +7,7 @@ import Test.QuickCheck
 import Algo.Purely
 import AlgoAnswers (kSmallest, peek, queueLength)
 
+-- ANCHOR: model
 -- 🎲 One step on the line: join with a number, or leave.
 -- 列の1手：数を持って並ぶか、抜けるか
 data Op = Push Int | Pop
@@ -26,6 +27,8 @@ runModel = go []
     go []       (Pop    : ops) = Nothing : go [] ops
     go (x : xs) (Pop    : ops) = Just x  : go xs ops
 
+-- 🚶 The same steps on our Queue.
+-- 同じ手順を、作った Queue で
 runQueue :: [Op] -> [Maybe Int]
 runQueue = go emptyQueue
   where
@@ -35,6 +38,7 @@ runQueue = go emptyQueue
     go q (Pop    : ops) = case pop q of
       Nothing      -> Nothing : go q  ops
       Just (x, q') -> Just x  : go q' ops
+-- ANCHOR_END: model
 
 spec :: Spec
 spec = describe "Algo.Purely" $ do

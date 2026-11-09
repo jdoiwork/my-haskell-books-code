@@ -65,6 +65,10 @@ usernameText (Username t) = t
 instance ToJSON Username where
   toJSON = toJSON . usernameText
 
+-- ANCHOR: allowed
+-- ✅ The characters a name may use: a-z, 0-9 and _.
+-- 名前に使える文字：a〜z、0〜9、_
 allowed :: Char -> Bool
 allowed c = isAsciiLower c || isDigit c || c == '_'
+-- ANCHOR_END: allowed
 -- ANCHOR_END: all

@@ -58,11 +58,13 @@ naiveMerge :: NaiveBoard -> NaiveBoard -> NaiveBoard
 naiveMerge (NaiveBoard a) (NaiveBoard b) = NaiveBoard (Set.union a b)
 -- ANCHOR_END: naive
 
+-- ANCHOR: guildBoard
 -- 📋 The board the guild starts with: slime and herb.
 -- ギルドが最初に貼った板：slime と herb
 guildBoard :: OrSet String
 guildBoard =
   applyAll emptySet [Post ("guild", 0) "slime", Post ("guild", 1) "herb"]
+-- ANCHOR_END: guildBoard
 
 -- ANCHOR: sync
 -- 📱 Step 3: two devices work at the same time from the same board,

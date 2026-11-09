@@ -15,6 +15,7 @@ import Board.Server (app)
 import Board.Store (memoryStore)
 -- ANCHOR_END: imports
 
+-- ANCHOR: tests
 -- 📮 POST with a JSON body (hspec-wai's post sends no Content-Type).
 -- JSON を付けて POST する（hspec-wai の post は Content-Type を付けない）
 postJson :: ByteString -> ByteString -> WaiSession st SResponse
@@ -25,7 +26,6 @@ postJson path =
 
 main :: IO ()
 main = hspec $ with (flip app "test" <$> memoryStore) $ do
-  -- ANCHOR: tests
   describe "the quest API" $ do
     -- 最初は空
     it "starts empty" $

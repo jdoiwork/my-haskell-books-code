@@ -6,8 +6,12 @@ import Test.QuickCheck
 import CalculusAnswers
 import Math.Calculus
 
+-- ANCHOR: near
+-- 📏 Close enough, within the given tolerance?
+-- 許すずれの中で、十分に近い？
 near :: Double -> Double -> Double -> Bool
 near tolerance a b = abs (a - b) < tolerance
+-- ANCHOR_END: near
 
 spec :: Spec
 spec = do
