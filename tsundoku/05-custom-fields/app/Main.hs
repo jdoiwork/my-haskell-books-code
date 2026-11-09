@@ -70,7 +70,7 @@ addExamples shelf = do
   film <- shelf.addWork lastDragonFilm
   void (shelf.applyEvent film Start)
   void (shelf.applyEvent film Finish)
-  _ <- shelf.addWork dungeonGame
+  void (shelf.addWork dungeonGame)
   putStrLn "added 5 works"
 
 -- 📋 One line for each card.
