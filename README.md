@@ -218,9 +218,9 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 画面を取り替える2：React と brick で同じ API を使う | [`tsundoku/10-screens/`](tsundoku/10-screens/)、[`tsundoku/09-htmx/`](tsundoku/09-htmx/)、[`langs/shelf-react-brick/`](langs/shelf-react-brick/) |
 | AI と一緒に：MCP で目次を一括登録する | [`tsundoku/11-mcp/`](tsundoku/11-mcp/)、[`tsundoku/10-screens/`](tsundoku/10-screens/)、[`langs/shelf-mcp/`](langs/shelf-mcp/) |
 | レビューサイトに仕上げる：本棚・タグ・ネタバレ・読書の統計 | [`tsundoku/12-review/`](tsundoku/12-review/)、[`tsundoku/11-mcp/`](tsundoku/11-mcp/)、[`langs/shelf-review-site/`](langs/shelf-review-site/) |
-| 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/13-docker/`](tsundoku/13-docker/)、[`tsundoku/12-review/`](tsundoku/12-review/) |
-| 本棚を手で整える：React で本を足し、目次を直す | [`tsundoku/14-editing/`](tsundoku/14-editing/)、[`tsundoku/13-docker/`](tsundoku/13-docker/)、[`langs/shelf-editing/`](langs/shelf-editing/) |
-| 第12部のふりかえり | [`tsundoku/13-docker/`](tsundoku/13-docker/)、[`review-tsundoku/`](review-tsundoku/) |
+| 本棚を手で整える：React で本を足し、目次を直す | [`tsundoku/13-editing/`](tsundoku/13-editing/)、[`tsundoku/12-review/`](tsundoku/12-review/)、[`langs/shelf-editing/`](langs/shelf-editing/) |
+| 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/14-docker/`](tsundoku/14-docker/)、[`tsundoku/13-editing/`](tsundoku/13-editing/) |
+| 第12部のふりかえり | [`tsundoku/14-docker/`](tsundoku/14-docker/)、[`review-tsundoku/`](review-tsundoku/) |
 
 ### 第13部 プログラマーのための数学
 

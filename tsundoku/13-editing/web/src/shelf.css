@@ -1,0 +1,123 @@
+/* The look of the shelf's pages: shapes and spaces only. Every colour
+   comes from a variable that theme.css sets, so a screen changes its
+   colours by changing theme.css alone. Nothing here changes what the
+   pages do.
+   本棚のページの見た目：形と間だけ。色は全部、theme.css が決める変数から
+   取るので、theme.css を差し替えるだけで、画面の色が変わる。ページの動きは
+   何も変えない */
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  line-height: 1.7;
+}
+
+/* 📚 The band at the top. / 上の帯 */
+header {
+  background: var(--accent);
+  padding: .7rem 1.2rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .12);
+}
+header a { color: var(--on-accent); text-decoration: none;
+           font-weight: bold; font-size: 1.15rem; }
+
+/* 🗂️ The page itself, as a card. / ページそのものを、カードのように */
+main {
+  max-width: 46rem;
+  margin: 1.4rem auto;
+  padding: 1.2rem 1.6rem;
+  background: var(--surface);
+  border-radius: .9rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 6px 18px rgba(0, 0, 0, .05);
+}
+h1 { margin: .2rem 0 .4rem; font-size: 1.8rem; }
+h2 { margin-top: 1.6rem; font-size: 1.15rem;
+     border-bottom: 2px solid var(--accent-soft); padding-bottom: .2rem; }
+a  { color: var(--link); }
+
+/* 🔘 Buttons and fields. / ボタンと入力欄 */
+button, input, select, textarea {
+  font: inherit; font-size: .9rem;
+  border: 1px solid var(--line); border-radius: .5rem;
+  background: var(--surface); color: var(--ink);
+  padding: .15rem .6rem;
+}
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); color: var(--accent); }
+input[type="search"], input[name="q"] { width: 14rem; margin: .5rem 0; }
+
+/* 📋 The shelf. / 本棚の一覧 */
+.works, .hits { list-style: none; padding: 0; }
+.works li, .hits li {
+  margin: .4rem 0; padding: .45rem .7rem;
+  border: 1px solid var(--line); border-radius: .6rem;
+}
+.creator { color: var(--muted); margin-left: .6rem; }
+.state   { background: var(--accent-soft); color: var(--accent-ink);
+           border-radius: 1rem; padding: .05rem .6rem; margin: 0 .5rem;
+           font-size: .85rem; }
+progress { width: 8rem; vertical-align: middle; accent-color: var(--accent); }
+
+/* ⭐ Stars and reading. / ★と読書の状態 */
+.reading button, .notes time { margin-left: .4rem; }
+.rating button     { margin: .15rem .1rem; border-radius: 1rem; }
+.rating button.now { background: var(--star); border-color: var(--star-line);
+                     color: var(--ink); font-weight: bold; }
+
+/* 🌳 The table and the notes. / 目次と感想 */
+.toc .done   { color: var(--done); }
+.toc .unread { color: var(--line); }
+.toc, .toc ul { list-style: none; padding-left: 1.2rem; }
+.notes { padding-left: 1.2rem; }
+.where, time { margin-right: .6rem; color: var(--muted); }
+details summary { cursor: pointer; color: var(--accent-ink); }
+
+/* 🏷️ My own attributes, tags, and the rest. / 自分の属性、タグ、ほか */
+.attr      { display: block; margin: .35rem 0; }
+.attr > span:first-child { display: inline-block; width: 8rem;
+                           color: var(--muted); }
+.flow button { margin-left: .3rem; }
+.tag    { margin-right: .4rem; color: var(--accent-ink); }
+.tags input { width: 16rem; }
+.hidden { color: var(--muted); font-style: italic; }
+.months td, .months th { padding: 0 .8rem; }
+.histogram .bar { display: inline-block; height: .7rem;
+                  background: var(--accent); border-radius: .2rem; }
+mark { background: var(--mark); border-radius: .2rem; padding: 0 .1rem; }
+
+/* ⚠️ Why the shelf said no. / 本棚が断った理由 */
+.problem { position: sticky; top: 0; }
+.problem ul { background: var(--danger-soft); border: 2px solid var(--danger);
+              border-radius: .6rem; padding: .5rem 2rem; }
+
+/* ✏️ Adding and fixing a work. / 作品を足す・直す */
+header .add { float: right; font-size: 1rem; font-weight: normal; }
+.creator .fix { margin-left: .8rem; font-size: .8rem; }
+.edit label { display: block; margin: .5rem 0; color: var(--muted); }
+.edit label input { margin-left: .5rem; width: 20rem; color: var(--ink); }
+.edit .outline textarea { display: block; width: 100%; margin-top: .3rem;
+                          box-sizing: border-box; color: var(--ink);
+                          font-family: ui-monospace, Menlo, monospace; }
+.rows { list-style: none; padding: 0; }
+.rows li { display: flex; gap: .4rem; align-items: center; margin: .3rem 0;
+           padding: .25rem .4rem; border-left: 3px solid var(--line);
+           border-radius: .3rem; }
+.rows li.new { border-left-color: var(--accent);
+               background: var(--accent-soft); }
+.rows .heading { flex: 1; min-width: 8rem; }
+.rows .size    { width: 4.5rem; }
+.rows .tools button { padding: .1rem .4rem; }
+button.primary { background: var(--accent); color: var(--on-accent);
+                 border-color: var(--accent); padding: .3rem 1.2rem; }
+button.primary:hover { color: var(--on-accent); opacity: .9; }
+.actions button { margin-right: .6rem; }
+.warning { background: var(--warn-soft); border: 2px solid var(--warn);
+           border-radius: .6rem; padding: .3rem 1rem; margin: 1rem 0; }
+.warning p, .warning ul { margin: .2rem 0; }
+.notes-choice { border: 0; margin: .4rem 0; padding: 0; }
+.notes-choice legend { font-weight: bold; padding: 0; }
+.edit .notes-choice label { display: block; margin: .2rem 0;
+                            color: var(--ink); }
+.edit .notes-choice input { width: auto; margin: 0 .4rem 0 0; }

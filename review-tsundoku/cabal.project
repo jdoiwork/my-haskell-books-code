@@ -1,8 +1,8 @@
 -- 「第12部のふりかえり」の総合トレーニングのコード（別のプロジェクト）。
--- 最後の段階の tsundoku（tsundoku/13-docker）を使う
+-- 最後の段階の tsundoku（tsundoku/14-docker）を使う
 packages:
   .
-  ../tsundoku/13-docker
+  ../tsundoku/14-docker
 
 -- tsundoku の段階と同じ設定（libpq を pkg-config で見つける、servant の
 -- QuickCheck の上限を外す）
