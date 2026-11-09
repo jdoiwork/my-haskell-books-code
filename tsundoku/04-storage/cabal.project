@@ -1,0 +1,12 @@
+-- 「窓口と記録：やれることを型にして SQLite にしまう」の段階。
+-- 章ごとに育つので、段階ごとに別のプロジェクトにしている
+packages: .
+
+-- ANCHOR: libpq
+-- hasql (through pqi-ffi) uses libpq. Find it with pkg-config,
+-- as in the PostgreSQL chapter.
+-- hasql は（pqi-ffi を通して）libpq を使う。PostgreSQL の章と同じく、
+-- pkg-config で見つける
+package postgresql-libpq
+  flags: +use-pkg-config
+-- ANCHOR_END: libpq

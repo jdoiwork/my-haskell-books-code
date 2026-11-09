@@ -1,0 +1,87 @@
+cabal-version: 3.0
+name:          tsundoku
+version:       0.1.0.0
+build-type:    Simple
+
+-- 総合演習：読書メモのレビューサイトを作る
+-- （4. 窓口と記録：やれることを型にして SQLite にしまう）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    , time             >=1.12 && <1.16
+
+-- ANCHOR: library
+library
+  import:           shared
+  exposed-modules:  Tsundoku.Types
+                    Tsundoku.Rating
+                    Tsundoku.Reading
+                    Tsundoku.Card
+                    Tsundoku.Progress
+                    Tsundoku.Bar
+                    Tsundoku.Ranking
+                    Tsundoku.Chart
+                    Tsundoku.Examples
+                    Tsundoku.Outline
+                    Tsundoku.Shelf
+                    Tsundoku.Shelf.Rows
+                    Tsundoku.Shelf.Memory
+                    Tsundoku.Shelf.Sqlite
+                    Tsundoku.Shelf.Postgres
+                    Tsundoku.Shelf.Config
+                    ShelfAnswers.Podcast
+                    ShelfAnswers.Grades
+                    ShelfAnswers.LookBack
+                    ShelfAnswers.HalfRead
+                    ShelfAnswers.FirstUnread
+                    ShelfAnswers.ColorBar
+                    ShelfAnswers.Weights
+                    ShelfAnswers.Recent
+                    ShelfAnswers.ByKind
+                    ShelfAnswers.Orphans
+                    ShelfAnswers.Tags
+                    ShelfAnswers.Move
+  hs-source-dirs:   src answers
+  -- ANCHOR: deps
+  build-depends:
+    , hasql             ^>=2.0
+    , hasql-transaction ^>=1.2.3
+    , pqi-ffi           ^>=1.0
+    , sqlite-simple     ^>=0.4.19
+  -- ANCHOR_END: deps
+-- ANCHOR_END: library
+
+-- ANCHOR: exe
+-- The shelf from the command line, on the store TSUNDOKU_DB chooses.
+-- コマンドから使う本棚。しまう場所は TSUNDOKU_DB で選ぶ
+executable shelf
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    tsundoku
+-- ANCHOR_END: exe
+
+-- ANCHOR: test
+test-suite tsundoku-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  other-modules:    ShelfContract
+                    ShelfSpec
+  build-depends:
+    , tsundoku
+    , hasql            ^>=2.0
+    , hspec            ^>=2.11
+    , pqi-ffi          ^>=1.0
+    , process          ^>=1.6
+    , QuickCheck       ^>=2.19
+    , sqlite-simple    ^>=0.4.19
+    , testcontainers   ^>=0.5.4
+-- ANCHOR_END: test
