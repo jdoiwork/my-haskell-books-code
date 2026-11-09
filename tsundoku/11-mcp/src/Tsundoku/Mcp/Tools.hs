@@ -32,7 +32,10 @@ import Tsundoku.Import (publisherDef)
 import Tsundoku.Mcp.Toc
 import Tsundoku.Mcp.Wire
 import Tsundoku.Shelf
-import Tsundoku.Tui.View (barText, nextLine, tocLines, workLine)
+import Tsundoku.Card (Card (..))
+import Tsundoku.Custom (showValue)
+import Tsundoku.Labels (eventLabel, stateLabel)
+import Tsundoku.Tui.View (workLine)
 import Tsundoku.Types
 -- ANCHOR_END: header
 
@@ -82,7 +85,8 @@ lookTools g =
         found <- g.getCard (WorkId n)
         pure $ case found of
           Nothing   -> Refuse (T.unlines (explain (NoSuchWork (WorkId n))))
-          Just card -> Answer (cardText spoilers (detailOf (WorkId n, card)))
+          Just card -> Answer (cardText spoilers (detailOf (WorkId n, card))
+                                        card)
         where spoilers = fromMaybe False (arg "spoilers" args)
     searchWords args = do
       found <- g.searchText (fromMaybe "" (arg "words" args))
@@ -92,25 +96,63 @@ lookTools g =
 -- ANCHOR_END: look
 
 -- ANCHOR: text
--- 📝 One card as text for the AI: the same lines the terminal shows.
---    Spoilers only when asked.
--- カード1枚を、AI に渡す文字に。ターミナルの画面と同じ行。ネタバレは、
+-- 📝 One card as text for the AI. Not the terminal's lines (a bar to
+--    look at, keys to press): the AI reads words and cannot press keys.
+--    So "name: value" lines whose meaning is plain, with the events by
+--    name. Spoilers only when asked.
+-- カード1枚を、AI に渡す文字に。ターミナルの画面の行（目で見るバー、
+-- 押すキー）は使わない。AI は文字を読み、キーは押せない。だから、意味が
+-- はっきりした「名前：値」の行にし、次にできることも言葉で。ネタバレは、
 -- 頼まれたときだけ
-cardText :: Bool -> CardDetail -> Text
-cardText spoilers c = T.unlines $
-  [ c.work.title <> byCreator
-  , nextLine c.work.reading c.next
-  , maybe "（進み具合なし）" (barText 20) c.work.progress ]
-  ++ tocLines c.toc
-  ++ [ "感想：" <> shown n | n <- reverse c.notes ]
+cardText :: Bool -> CardDetail -> Card -> Text
+cardText spoilers c card = T.unlines $
+  [ "作品 " <> num c.work.id <> "：" <> c.work.title ]
+  ++ [ "作者：" <> c.work.creator | not (T.null c.work.creator) ]
+  ++ [ "種類：" <> kindWord c.work.kind
+     , "状態：" <> word stateLabel c.work.reading <> nextPart
+     , "進み具合：" <> maybe "なし" howFar c.work.progress
+     , "評価：" <> maybe "まだ" (\n -> num n <> " 点（100 点満点）") c.work.rating ]
+  ++ [ "属性：" <> listed (Map.map showValue card.attrs)
+     | not (Map.null card.attrs) ]
+  ++ [ "自分で決めた状態：" <> listed card.states | not (Map.null card.states) ]
+  ++ [ "目次（✓ は読み終えた項目）：" | not (null c.toc) ]
+  ++ concatMap (entryLines 1) c.toc
+  ++ [ "感想：" | not (null c.notes) ]
+  ++ [ "  ・" <> shown n | n <- reverse c.notes ]
   where
-    byCreator
-      | T.null c.work.creator = ""
-      | otherwise             = "（" <> c.work.creator <> "）"
+    num :: Int -> Text
+    num = T.pack . show
+    word label name = maybe name label (fromName name)
+    listed m = T.intercalate "、" [ k <> "＝" <> v | (k, v) <- Map.toList m ]
+    nextPart
+      | null c.next = ""
+      | otherwise   = "（次にできること："
+                      <> T.intercalate "・" (map (word eventLabel) c.next) <> "）"
+    howFar p = num p.done <> "／" <> num p.total <> unitWord p.unit
+               <> "（" <> num p.percent <> "%）"
+    entryLines depth e =
+      (T.replicate depth "  " <> "・" <> e.heading <> if e.done then " ✓" else "")
+        : concatMap (entryLines (depth + 1)) e.children
     shown n
       | n.spoiler && not spoilers = "（ネタバレなので伏せています）"
       | n.spoiler                 = "（ネタバレ）" <> n.body
       | otherwise                 = n.body
+
+-- 🏷️ The words of the API ("book", "pages", ...) in Japanese.
+-- API の言葉（"book"・"pages" など）を日本語に
+kindWord, unitWord :: Text -> Text
+kindWord k = case k of
+  "book"   -> "本"
+  "serial" -> "連載"
+  "series" -> "シリーズ（ドラマ・アニメ）"
+  "film"   -> "映画"
+  "game"   -> "ゲーム"
+  other    -> other
+unitWord u = case u of
+  "pages"    -> "ページ"
+  "episodes" -> "話"
+  "minutes"  -> "分"
+  other      -> other
 
 -- 🔎 One hit as a line: where, and the snippet with 【】.
 -- ヒット1つを1行に：どこか、と【】つきの抜き出し

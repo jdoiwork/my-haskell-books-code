@@ -195,6 +195,17 @@ toolSpec = describe "the tools" $ do
     (_, hidden) <- callTool tools "show_work" (object ["id" .= n])
     (_, shown)  <- callTool tools "show_work" (object ["id" .= n, "spoilers" .= True])
     (T.isInfixOf "犯人" hidden, T.isInfixOf "犯人" shown) `shouldBe` (False, True)
+  -- 「AI 向けのカードは、名前：値の行。押すキーの番号は出さない」
+  it "shows the AI a card of named lines, with no keys to press" $ do
+    shelf <- newMemoryShelf
+    wid <- shelf.works.addWork dragonBook
+    let WorkId n = wid
+    (False, text) <- callTool (shelfTools ReadOnly clock shelf) "show_work"
+                              (object ["id" .= n])
+    take 4 (T.lines text) `shouldBe`
+      [ "作品 1：はじめてのドラゴン学", "作者：ギルド図書室", "種類：本"
+      , "状態：積読（次にできること：読み始める）" ]
+    T.isInfixOf "1 読み" text `shouldBe` False
   -- 「お知らせには答えない。版は話し合って決める」
   it "answers no notification, and agrees on a version" $ do
     none <- handle "test" [] (object [ "jsonrpc" .= ("2.0" :: Text)
