@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type Answer, shelf } from "./api";
 import { AttrForm } from "./AttrForm";
 import { Bar } from "./Bar";
-import { eventLabel, marks, stars, stateLabel } from "./shadows";
+import { eventLabel, marks, stars, stateLabel, whereOf } from "./shadows";
 import { Toc } from "./Toc";
 import type { CardDetail, FormField } from "./tsundoku-api";
 
@@ -65,6 +65,7 @@ export function CardView({ id }: { id: number }) {
       <ul className="notes">
         {[...card.notes].reverse().map((n, i) => (
           <li key={i}>
+            <span className="where">{whereOf(card.toc, n.entry)}</span>
             <time>{n.writtenAt.slice(0, 10)}</time>
             {n.spoiler
               ? <details><summary>ネタバレ</summary><p>{n.body}</p></details>

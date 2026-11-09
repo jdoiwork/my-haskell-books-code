@@ -5,6 +5,7 @@
 // この画面だけが、モデルの数にすること：その影。言葉と丸め方は、Haskell の
 // 側（Tsundoku.Labels、Tsundoku.Rating の render）に合わせてある。
 // どの画面も、同じことを言うように
+import type { TocItem } from "./tsundoku-api";
 
 // ⭐ Points as stars, in steps of half a star. The middle rounds up
 //    (73 → ★3.5, 75 → ★4), as Rating.render FiveStars does.
@@ -32,4 +33,20 @@ const eventWords: Record<string, string> = {
 };
 export const stateLabel = (name: string) => stateWords[name] ?? name;
 export const eventLabel = (name: string) => eventWords[name] ?? name;
+
+// 📍 Which entry a note is about, as Html.Parts' notePart says it: the
+//    heading, the whole work, or an entry the table no longer has.
+// 感想が、どの項目へのものか。Html.Parts の notePart と同じ言い方で：
+// 見出し、作品の全体、目次にもうない項目
+export function whereOf(toc: TocItem[], entry: number | null): string {
+  if (entry === null) return "作品の全体";
+  const found = flatItems(toc).find((item) => item.id === entry);
+  return found ? found.heading : "（目次にない項目）";
+}
+
+// 🌳 Every item of the table, from the top.
+// 目次の項目の全部を、上から順に
+function flatItems(items: TocItem[]): TocItem[] {
+  return items.flatMap((item) => [item, ...flatItems(item.children)]);
+}
 // ANCHOR_END: all
