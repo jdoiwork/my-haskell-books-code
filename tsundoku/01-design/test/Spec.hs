@@ -48,10 +48,12 @@ walk = scanl tryOne
     tryOne state event = either (const state) id (advance event state)
 -- ANCHOR_END: model
 
+-- ANCHOR: outline
 -- 🌳 Outlines of any shape, with plain titles.
 -- どんな形でもよい下書き（題はなんでもよい）
 outline :: Forest Int -> Forest (Text, Int)
 outline = map (fmap (\n -> ("entry", n)))
+-- ANCHOR_END: outline
 
 -- ANCHOR: spec
 main :: IO ()

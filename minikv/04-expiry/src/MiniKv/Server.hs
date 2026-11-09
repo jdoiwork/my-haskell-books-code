@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | The TCP server: one thread per client, one shared store in a TVar.
 -- TCP サーバー：クライアントごとに1つのスレッド、共有のストアは TVar に1つ
+-- ANCHOR: head
 module MiniKv.Server
   ( Clock
   , systemClock
@@ -31,6 +32,7 @@ import MiniKv.Protocol
 import MiniKv.Store
 import MiniKv.Types (Millis)
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: run
 -- 🕰️ A clock: where "now" comes from. The real one reads the system

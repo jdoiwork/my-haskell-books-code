@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | The types of minimq: names, messages, bindings, and what can happen.
 -- minimq の型：名前、手紙、結びつけ、起こりうること
+-- ANCHOR: exports
 module MiniMq.Types
   ( QueueName (..)
   , ExchangeName (..)
@@ -18,6 +19,7 @@ module MiniMq.Types
   , Delivery (..)
   , Settlement (..)
   ) where
+-- ANCHOR_END: exports
 
 import Control.Exception (Exception)
 import Data.List.NonEmpty (NonEmpty)

@@ -8,6 +8,7 @@ import Test.QuickCheck
 import GraphsAnswers
 import Math.Graphs
 
+-- ANCHOR: helpers
 -- 🎲 Random roads among towns "A".."F", with lengths 1..9.
 -- 町 A〜F のあいだの、長さ 1〜9 のでたらめな道
 genRoads :: Gen Roads
@@ -40,6 +41,7 @@ bruteForce roads start goal
         [] -> Nothing
         hs -> (minimum hs +) <$> cost (b : rest)
     cost _ = Just 0
+-- ANCHOR_END: helpers
 
 spec :: Spec
 spec = do

@@ -60,10 +60,12 @@ usernameText :: Username -> Text
 usernameText (Username t) = t
 -- ANCHOR_END: parse
 
+-- ANCHOR: json
 -- 📤 A name may be written out as JSON (it is not a secret).
 -- 名前は JSON に書き出してよい（秘密ではない）
 instance ToJSON Username where
   toJSON = toJSON . usernameText
+-- ANCHOR_END: json
 
 -- ANCHOR: allowed
 -- ✅ The characters a name may use: a-z, 0-9 and _.

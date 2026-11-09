@@ -72,6 +72,13 @@ runTool tool args = do
     Right (ExitFailure n, _, err) -> Left (ToolFailed tool n (utf8 err))
   where
     shown = T.pack . displayException
+
+-- 🔤 Bytes from a tool, read as UTF-8. A broken byte becomes U+FFFD
+--    instead of an error.
+-- 道具が書いたバイト列を UTF-8 として読む。壊れたバイトは、
+-- エラーにせず U+FFFD（�）にする
+utf8 :: LBS.ByteString -> Text
+utf8 = decodeUtf8With lenientDecode . LBS.toStrict
 -- ANCHOR_END: runTool
 
 -- ANCHOR: readPdf
@@ -168,7 +175,4 @@ pdfDraft title author total outline
     book  = Draft title author
     whole = maybe "本文" id title
 -- ANCHOR_END: pdfDraft
-
-utf8 :: LBS.ByteString -> Text
-utf8 = decodeUtf8With lenientDecode . LBS.toStrict
 -- ANCHOR_END: all
