@@ -9,15 +9,22 @@ module Tsundoku.Shelf.Sqlite
   , migrations
   ) where
 
--- a lock, exceptions, loops, and SQLite
--- 鍵、例外、くり返し、SQLite
+-- a lock, exceptions, loops, and a job that can ask for the connection
+-- 鍵、例外、くり返し、接続を取り出せる仕事
 import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Exception (throwIO)
 import Control.Monad (forM_, when)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Data.String (fromString)
 import Data.Traversable (for)
 import Data.Tree (Tree (..))
+
+-- SQLite (its query and execute are wrapped below, so they are qualified)
+-- SQLite（query や execute は下で包み直すので、qualified で使う）
 import Database.SQLite.Simple
+  (Connection, FromRow, Only (..), Query, ToRow, withConnection)
+import Database.SQLite.Simple qualified as SQLite
 
 import Tsundoku.Card qualified as Card
 import Tsundoku.Card (Card (..), newCard)
@@ -40,32 +47,28 @@ withSqliteShelf path action =
 -- （全部か、何もなしか）
 sqliteShelf :: Connection -> IO Shelf
 sqliteShelf conn = do
-  execute_ conn "PRAGMA foreign_keys = ON"
-  migrate conn
+  runReaderT (execute_ "PRAGMA foreign_keys = ON") conn
+  runReaderT migrate conn
   lock <- newMVar ()
-  let -- One change at a time, in one transaction.
-      -- 変更は1つずつ、1つのトランザクションで
-      inTx :: IO a -> IO a
-      inTx action = withMVar lock (\_ -> withTransaction conn action)
-      -- Give a job the connection, in a transaction.
-      -- 仕事に接続を渡して、トランザクションの中で動かす
-      run :: (Connection -> IO a) -> IO a
-      run job = inTx (job conn)
+  let -- Run a job: one at a time, in one transaction, on this connection.
+      -- 仕事を動かす。1つずつ、1つのトランザクションで、この接続で
+      run :: Db a -> IO a
+      run job = withMVar lock (\_ -> runReaderT (transaction job) conn)
       -- Read, decide, write. The core decides; write saves the new card.
       -- 読む → 決める → 書く。決めるのは核。write が新しいカードをしまう
       edit  :: WorkId -> (Card -> Either Mistake Card)
-            -> (Card -> Connection -> IO ()) -> IO (Either Mistake Card)
-      edit wid core write = inTx $ do
-        found <- loadCard wid conn
+            -> (Card -> Db ()) -> IO (Either Mistake Card)
+      edit wid core write = run $ do
+        found <- loadCard wid
         case decide wid core found of
           Left why  -> pure (Left why)
           Right new -> do
-            write new conn
+            write new
             pure (Right new)
       -- The same, for a write that does not need the new card.
       -- 同じことを、新しいカードを使わない write で
       edit_ :: WorkId -> (Card -> Either Mistake Card)
-            -> (Connection -> IO ()) -> IO (Either Mistake ())
+            -> Db () -> IO (Either Mistake ())
       edit_ wid core write = do
         result <- edit wid core (\_ -> write)
         pure (fmap (\_ -> ()) result)
@@ -88,39 +91,80 @@ sqliteShelf conn = do
 
 -- 📚 Every card on the shelf, in the order the works were added.
 -- 本棚のカードを全部、作品を足した順に
-loadAll :: Connection -> IO [(WorkId, Card)]
-loadAll conn = do
-  ids   <- query_ conn "SELECT id FROM works ORDER BY id"
+loadAll :: Db [(WorkId, Card)]
+loadAll = do
+  ids   <- query_ "SELECT id FROM works ORDER BY id"
   pairs <- for ids $ \(Only w) -> do
-    card <- loadCard (WorkId w) conn
+    card <- loadCard (WorkId w)
     pure (WorkId w, card)
   pure [ (wid, card) | (wid, Just card) <- pairs ]
 -- ANCHOR_END: withSqliteShelf
 
+-- ANCHOR: db
+-- 🧵 A job on the shelf's database. It can ask for the connection
+--    whenever it needs it, so no function has to pass it on.
+-- 本棚のデータベースでする仕事。接続は要るときに ask で取り出せるので、
+-- 関数から関数へ渡さなくてよい
+type Db = ReaderT Connection IO
+
+-- 🔌 sqlite-simple's functions, taking the connection from Db.
+-- sqlite-simple の関数を、接続を Db から取る形に包み直す
+query :: (ToRow q, FromRow r) => Query -> q -> Db [r]
+query sql args = do
+  conn <- ask
+  liftIO (SQLite.query conn sql args)
+
+query_ :: FromRow r => Query -> Db [r]
+query_ sql = do
+  conn <- ask
+  liftIO (SQLite.query_ conn sql)
+
+execute :: ToRow q => Query -> q -> Db ()
+execute sql args = do
+  conn <- ask
+  liftIO (SQLite.execute conn sql args)
+
+execute_ :: Query -> Db ()
+execute_ sql = do
+  conn <- ask
+  liftIO (SQLite.execute_ conn sql)
+
+-- How many rows the last statement changed.
+-- 最後の文が変えた行の数
+changes :: Db Int
+changes = do
+  conn <- ask
+  liftIO (SQLite.changes conn)
+
+-- 🔒 Run a job in a transaction: all of it, or none of it.
+-- 仕事をトランザクションの中で動かす。全部か、何もなしか
+transaction :: Db a -> Db a
+transaction job = do
+  conn <- ask
+  liftIO (SQLite.withTransaction conn (runReaderT job conn))
+-- ANCHOR_END: db
+
 -- ANCHOR: changes
--- ✏️ The statements that write one change. Like every job the window
---    runs, each takes the connection last, so the window can say only
---    what to write; `run` and `edit` hand it the connection.
--- 変更を1つ書く文。窓口が動かす仕事は、どれも接続を最後の引数に
--- もらう。窓口では「何を書くか」だけを書き、接続は run と edit が渡す
-updateReading :: WorkId -> Card -> Connection -> IO ()
-updateReading (WorkId w) card conn =
-  execute conn "UPDATE works SET reading = ? WHERE id = ?"
+-- ✏️ The jobs that write one change.
+-- 変更を1つ書く仕事
+updateReading :: WorkId -> Card -> Db ()
+updateReading (WorkId w) card =
+  execute "UPDATE works SET reading = ? WHERE id = ?"
     (stateName (reading card), w)
 
-updateRating :: WorkId -> Score -> Connection -> IO ()
-updateRating (WorkId w) s conn =
-  execute conn "UPDATE works SET rating = ? WHERE id = ?" (scoreValue s, w)
+updateRating :: WorkId -> Score -> Db ()
+updateRating (WorkId w) s =
+  execute "UPDATE works SET rating = ? WHERE id = ?" (scoreValue s, w)
 
-insertNote :: WorkId -> Note -> Connection -> IO ()
-insertNote (WorkId w) n conn = execute conn """
+insertNote :: WorkId -> Note -> Db ()
+insertNote (WorkId w) n = execute """
   INSERT INTO notes (work_id, entry_id, body, written_at, spoiler)
   VALUES (?, ?, ?, ?, ?)
   """
   (w, targetEntry (target n), body n, writtenAt n, spoiler n)
 
-insertLog :: WorkId -> LogLine -> Connection -> IO ()
-insertLog (WorkId w) l conn = execute conn """
+insertLog :: WorkId -> LogLine -> Db ()
+insertLog (WorkId w) l = execute """
   INSERT INTO reading_log (work_id, entry_id, read_on)
   VALUES (?, ?, ?)
   """
@@ -128,8 +172,8 @@ insertLog (WorkId w) l conn = execute conn """
   where
     EntryId i = readEntry l
 
-upsertRating :: WorkId -> EntryId -> Score -> Connection -> IO ()
-upsertRating (WorkId w) (EntryId i) s conn = execute conn """
+upsertRating :: WorkId -> EntryId -> Score -> Db ()
+upsertRating (WorkId w) (EntryId i) s = execute """
   INSERT INTO entry_ratings (entry_id, work_id, score) VALUES (?, ?, ?)
   ON CONFLICT (entry_id) DO UPDATE SET score = excluded.score
   """
@@ -139,10 +183,11 @@ upsertRating (WorkId w) (EntryId i) s conn = execute conn """
 --    (ON DELETE CASCADE). Was it there?
 -- 作品を消す。目次・感想・ログ・評価も一緒に消える（ON DELETE CASCADE）。
 -- その作品はあった？
-deleteWork :: WorkId -> Connection -> IO Bool
-deleteWork (WorkId w) conn = do
-  execute conn "DELETE FROM works WHERE id = ?" (Only w)
-  (> 0) <$> changes conn
+deleteWork :: WorkId -> Db Bool
+deleteWork (WorkId w) = do
+  execute "DELETE FROM works WHERE id = ?" (Only w)
+  removed <- changes
+  pure (removed > 0)
 -- ANCHOR_END: changes
 
 -- ANCHOR: insertWork
@@ -150,67 +195,67 @@ deleteWork (WorkId w) conn = do
 --    contents. SQLite gives every number (RETURNING tells us which).
 -- 新しいカードを表にしまう：まず作品、それから目次。番号は全部 SQLite が
 -- 振る（どの番号になったかは、RETURNING が教えてくれる）
-insertWork :: Work -> Connection -> IO WorkId
-insertWork w conn = do
+insertWork :: Work -> Db WorkId
+insertWork w = do
   let (kind, minutes, toc) = toPlain (contents w)
       card                 = newCard w
-  wid <- returningId conn """
+  wid <- returningId """
     INSERT INTO works (title, creator, kind, minutes, reading)
     VALUES (?, ?, ?, ?, ?)
     RETURNING id
     """
     (title w, creator w, kind, minutes, stateName (reading card))
-  insertForest conn wid Nothing toc
+  insertForest wid Nothing toc
   pure (WorkId wid)
 
 -- 🌳 Put each tree in, root first: the children need the root's number.
 -- 木を1本ずつ、根から入れる。子には、根の番号が要るから
-insertForest :: Connection -> Int -> Maybe Int -> Toc Int -> IO ()
-insertForest conn wid parent forest =
+insertForest :: Int -> Maybe Int -> Toc Int -> Db ()
+insertForest wid parent forest =
   forM_ (zip [1 :: Int ..] forest) $ \(position, Node entry children) -> do
-    eid <- returningId conn """
+    eid <- returningId """
       INSERT INTO entries (work_id, parent_id, position, heading, size)
       VALUES (?, ?, ?, ?, ?)
       RETURNING id
       """
       (wid, parent, position, heading entry, size entry)
-    insertForest conn wid (Just eid) children
+    insertForest wid (Just eid) children
 
 -- 🔢 Run an INSERT ... RETURNING id, and take the number.
 -- INSERT ... RETURNING id を動かして、番号を受け取る
-returningId :: ToRow q => Connection -> Query -> q -> IO Int
-returningId conn sql row = do
-  ids <- query conn sql row
+returningId :: ToRow q => Query -> q -> Db Int
+returningId sql row = do
+  ids <- query sql row
   case ids of
     [Only i] -> pure i
-    _        -> throwIO (BrokenRow "RETURNING id")
+    _        -> liftIO (throwIO (BrokenRow "RETURNING id"))
 -- ANCHOR_END: insertWork
 
 -- ANCHOR: loadCard
 -- 📖 Read a card back from its tables, if the work is there.
 -- 作品があれば、表からカードを読み戻す
-loadCard :: WorkId -> Connection -> IO (Maybe Card)
-loadCard (WorkId w) conn = do
-  rows <- query conn """
+loadCard :: WorkId -> Db (Maybe Card)
+loadCard (WorkId w) = do
+  rows <- query """
     SELECT title, creator, kind, minutes, reading, rating
       FROM works WHERE id = ?
     """ (Only w)
   case rows of
     []                       -> pure Nothing
     (t, c, k, m, r, s) : _ -> do
-      toc     <- query conn tocQuery (Only w)
-      notes'  <- query conn """
+      toc     <- query tocQuery (Only w)
+      notes'  <- query """
         SELECT entry_id, body, written_at, spoiler
           FROM notes WHERE work_id = ? ORDER BY id
         """ (Only w)
-      log'    <- query conn """
+      log'    <- query """
         SELECT read_on, entry_id
           FROM reading_log WHERE work_id = ? ORDER BY id
         """ (Only w)
-      ratings <- query conn
+      ratings <- query
         "SELECT entry_id, score FROM entry_ratings WHERE work_id = ?"
         (Only w)
-      either throwIO (pure . Just)
+      either (liftIO . throwIO) (pure . Just)
         (assemble (WorkRow t c k m r s) toc notes' log' ratings)
 -- ANCHOR_END: loadCard
 
@@ -299,12 +344,12 @@ migrations =
 --    our own in the file: PRAGMA user_version (0 for a new file).
 -- ファイルがまだ動かしていない手順を動かす。SQLite は、自由に使える
 -- 番号を1つ、ファイルにしまえる：PRAGMA user_version（新しいファイルは 0）
-migrate :: Connection -> IO ()
-migrate conn = do
-  [Only done] <- query_ conn "PRAGMA user_version"
+migrate :: Db ()
+migrate = do
+  [Only done] <- query_ "PRAGMA user_version"
   forM_ (zip [1 :: Int ..] migrations) $ \(n, step) ->
-    when (n > done) $ withTransaction conn $ do
-      mapM_ (execute_ conn) step
-      execute_ conn (fromString ("PRAGMA user_version = " <> show n))
+    when (n > done) $ transaction $ do
+      mapM_ execute_ step
+      execute_ (fromString ("PRAGMA user_version = " <> show n))
 -- ANCHOR_END: migrations
 -- ANCHOR_END: all
