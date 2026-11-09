@@ -1,0 +1,10 @@
+# ANCHOR: all
+# For the one who builds the image (not handed to users). Compose reads
+# this file too, by itself, when it sits next to compose.yaml.
+# イメージをビルドする人のためのもの（使う人には渡さない）。compose.yaml の
+# となりにあれば、Compose がひとりでに、このファイルも読む
+services:
+  shelf-sqlite:   { build: . }
+  shelf-postgres: { build: . }
+  tui:            { build: . }
+# ANCHOR_END: all

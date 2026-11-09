@@ -9,6 +9,9 @@ node_modules/
 # What vite build writes for the shelf's React screen
 # 本棚の React の画面で、vite build が書くもの
 tsundoku/*/web/dist/
+# A shelf to try the screens by hand (shelf serve)
+# 画面を手で試すための本棚（shelf serve）
+tsundoku/*/try/
 target/
 
 # hspec-golden writes the latest output next to the golden file
