@@ -212,6 +212,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 窓口と記録：やれることを型にして SQLite にしまう | [`tsundoku/04-storage/`](tsundoku/04-storage/)、[`tsundoku/03-ratings/`](tsundoku/03-ratings/)、[`langs/shelf-storage/`](langs/shelf-storage/) |
 | 自分で決める属性と状態：型の外側を型で守る | [`tsundoku/05-custom-fields/`](tsundoku/05-custom-fields/)、[`tsundoku/04-storage/`](tsundoku/04-storage/)、[`langs/shelf-custom-fields/`](langs/shelf-custom-fields/) |
 | 本を取り込む：EPUB・PDF・ISBN から目次を作る | [`tsundoku/06-import/`](tsundoku/06-import/)、[`tsundoku/05-custom-fields/`](tsundoku/05-custom-fields/)、[`langs/shelf-import/`](langs/shelf-import/) |
+| 中身を探す：SQLite FTS5 で全文検索 | [`tsundoku/07-search/`](tsundoku/07-search/)、[`tsundoku/06-import/`](tsundoku/06-import/)、[`langs/shelf-search/`](langs/shelf-search/) |
 
 ### 第13部 プログラマーのための数学
 
