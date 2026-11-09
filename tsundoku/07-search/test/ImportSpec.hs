@@ -17,7 +17,7 @@ import Data.Tree (Tree (..), flatten)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import System.Directory
   (findExecutable, getTemporaryDirectory, removeFile)
-import System.FilePath ((</>))
+import System.IO (hClose, openBinaryTempFile)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
@@ -204,11 +204,12 @@ pdfSpec = describe "PDF" $ do
     case found of
       Nothing -> pendingWith "poppler（pdfinfo・pdftohtml）がありません"
       Just _  -> do
-        dir <- getTemporaryDirectory
-        let marked = dir </> "tsundoku-alice.pdf"
-            plain  = dir </> "tsundoku-plain.pdf"
-        LBS.writeFile marked samplePdf
-        LBS.writeFile plain (pdfBook False)
+        -- A new file name each time (the stages of this part may run
+        -- their tests at the same time).
+        -- 毎回ちがうファイル名に（この部の段階は、テストを同時に動かすことがある）
+        dir    <- getTemporaryDirectory
+        marked <- writeTemp dir "tsundoku-alice.pdf" samplePdf
+        plain  <- writeTemp dir "tsundoku-plain.pdf" (pdfBook False)
         got  <- readPdf marked
         flat <- readPdf plain
         mapM_ removeFile [marked, plain]
@@ -217,6 +218,11 @@ pdfSpec = describe "PDF" $ do
         draftCreator . draft <$> got `shouldBe` Right (Just "Lewis Carroll")
         missed <$> flat `shouldBe` Right [NoOutline]
   where
+    writeTemp dir name bytes = do
+      (path, h) <- openBinaryTempFile dir name
+      LBS.hPut h bytes
+      hClose h
+      pure path
     outlineXml = T.unlines
       [ "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
       , "<pdf2xml><page number=\"1\"><text>x</text></page>"

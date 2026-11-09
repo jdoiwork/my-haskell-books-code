@@ -34,12 +34,17 @@ import Tsundoku.Api.Routes
 shelfClient :: ShelfRoutes (AsClientT ClientM)
 shelfClient = client shelfApi
 
--- 🔌 A server on this machine, at this port.
--- このマシンの、このポートのサーバー
+-- 🔌 A server on this machine, at this port. Written 127.0.0.1, not
+--    localhost: with localhost, each request on macOS waited 0.1 s or so
+--    (it seems to try IPv6's ::1 first), and the tests were 200 times
+--    slower.
+-- このマシンの、このポートのサーバー。localhost ではなく 127.0.0.1 と
+-- 書く。localhost だと、macOS では1回ごとに 0.1 秒ほど待ち（IPv6 の ::1 を
+-- 先に試すらしい）、テストが 200 倍遅かった
 localApi :: Int -> IO ClientEnv
 localApi port = do
   manager <- newManager defaultManagerSettings
-  pure (mkClientEnv manager (BaseUrl Http "localhost" port ""))
+  pure (mkClientEnv manager (BaseUrl Http "127.0.0.1" port ""))
 
 -- ▶️ Ask the server.
 -- サーバーに聞く

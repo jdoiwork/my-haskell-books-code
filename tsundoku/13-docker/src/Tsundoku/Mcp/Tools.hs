@@ -19,6 +19,8 @@ module Tsundoku.Mcp.Tools
 -- JSON、文字列、日時
 import Data.Aeson
 import Data.Aeson.Types (parseEither)
+import Control.Monad (mfilter, unless, void)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -26,6 +28,7 @@ import Data.Time (UTCTime)
 
 import Tsundoku.Api.Json
 import Tsundoku.Form (explain)
+import Tsundoku.Import (publisherDef)
 import Tsundoku.Mcp.Toc
 import Tsundoku.Mcp.Wire
 import Tsundoku.Shelf
@@ -48,6 +51,7 @@ shelfTools mode clock shelf = case mode of
   ReadOnly  -> lookTools (glance shelf)
   ReadWrite -> lookTools (glance shelf)
                ++ editTools clock shelf.works shelf.reading
+                            (keepPublisher shelf.custom)
 -- ANCHOR_END: mode
 
 -- ANCHOR: look
@@ -94,12 +98,15 @@ lookTools g =
 -- 頼まれたときだけ
 cardText :: Bool -> CardDetail -> Text
 cardText spoilers c = T.unlines $
-  [ c.work.title <> "（" <> c.work.creator <> "）"
+  [ c.work.title <> byCreator
   , nextLine c.work.reading c.next
   , maybe "（進み具合なし）" (barText 20) c.work.progress ]
   ++ tocLines c.toc
   ++ [ "感想：" <> shown n | n <- reverse c.notes ]
   where
+    byCreator
+      | T.null c.work.creator = ""
+      | otherwise             = "（" <> c.work.creator <> "）"
     shown n
       | n.spoiler && not spoilers = "（ネタバレなので伏せています）"
       | n.spoiler                 = "（ネタバレ）" <> n.body
@@ -117,11 +124,14 @@ hitLine h = T.pack (show h.work) <> ". "
 
 -- ANCHOR: edit
 -- ✍️ Tools that write: add a table of contents (first a draft, then
---    commit), and add a note. They get only the windows they need.
+--    commit), and add a note. They get only what they need: two windows,
+--    and one function that writes the publisher (not the custom window).
 -- 書く道具：目次を足す（まず下書き、それから commit）、感想を足す。
--- もらうのは、要る窓口だけ
-editTools :: IO UTCTime -> WorkWindow -> ReadingWindow -> [Tool]
-editTools clock works reading =
+-- もらうのは、要るものだけ：窓口2つと、出版社を書く関数1つ（属性の窓口
+-- そのものは、もらわない）
+editTools :: IO UTCTime -> WorkWindow -> ReadingWindow
+          -> (WorkId -> Text -> IO (Checked ())) -> [Tool]
+editTools clock works reading keep =
   [ Tool "add_toc" addTocHelp tocSchema addToc
   , Tool "add_note" "作品に感想を1つ書く"
          (objectSchema [ ("id",      intP  "作品の番号")
@@ -135,7 +145,7 @@ editTools clock works reading =
       Left why    -> pure (Refuse ("目次の形が読めません：" <> T.pack why))
       Right draft -> do
         shelf <- works.listCards
-        decideToc works args (planToc shelf draft)
+        decideToc works keep args (planToc shelf draft)
     addNote args = case (arg "id" args, arg "body" args) of
       (Just n, Just body) -> do
         now <- clock
@@ -154,14 +164,16 @@ editTools clock works reading =
 -- add_toc の2段階。commit なしなら、足される本と、その鍵を見せる。commit と
 -- 同じ鍵があれば、足す。同じ目次がもう一度来たら、もうあると言う（二重には
 -- 足さない）
-decideToc :: WorkWindow -> Object -> Plan -> IO Reply
-decideToc works args plan = case plan of
+decideToc :: WorkWindow -> (WorkId -> Text -> IO (Checked ())) -> Object
+          -> Plan -> IO Reply
+decideToc works keep args plan = case plan of
   Problems why -> pure (Refuse (T.unlines ("目次を直してください：" : why)))
   Already wid  -> pure (Answer ("もう登録してあります：作品 " <> num wid
                                <> "。二重には登録しません"))
   Ready w key
     | not commit -> pure (Answer (T.unlines (
         "下書きです。まだ登録していません。" : preview w
+        ++ [ "出版社：" <> p | Just p <- [publisher] ]
         ++ [ "key: " <> key
            , "よければ、同じ引数に commit: true と、この key を付けて"
              <> "送ってください" ])))
@@ -170,12 +182,28 @@ decideToc works args plan = case plan of
         \新しい key をもらってください")
     | otherwise -> do
         added <- addChecked works w
-        pure $ case added of
-          Left mistake -> Refuse (T.unlines (explain mistake))
-          Right wid    -> Answer ("登録しました：作品 " <> num wid)
+        case added of
+          Left mistake -> pure (Refuse (T.unlines (explain mistake)))
+          Right wid    -> do
+            kept <- maybe (pure (Right ())) (keep wid) publisher
+            pure (Answer (T.intercalate "\n" (
+              ("登録しました：作品 " <> num wid)
+              : either (\m -> "出版社は書けませんでした：" : explain m)
+                       (const []) kept)))
   where
-    commit = fromMaybe False (arg "commit" args)
+    commit    = fromMaybe False (arg "commit" args)
+    publisher = mfilter (not . T.null) (arg "publisher" args)
     num (WorkId n) = T.pack (show n)
+
+-- 🏢 Write the publisher in the attribute 「出版社」, defining the
+--    attribute first if the shelf does not have it yet.
+-- 出版社を属性「出版社」に書く。本棚にまだその属性がなければ、先に決める
+keepPublisher :: CustomWindow -> WorkId -> Text -> IO (Checked ())
+keepPublisher custom wid name = do
+  schema <- custom.getSchema
+  unless (attrName publisherDef `elem` map attrName (attrDefs schema))
+    (void (custom.defineAttr publisherDef))
+  custom.editAttrs wid (Map.singleton (attrName publisherDef) name)
 -- ANCHOR_END: decide
 
 -- ANCHOR: schema
@@ -188,7 +216,8 @@ tocSchema = object
   [ "type"       .= ("object" :: Text)
   , "properties" .= object
       [ "title"     .= textP "題"
-      , "creator"   .= textP "作者"
+      , "creator"   .= textP "作者（人の名前。出版社は publisher に）"
+      , "publisher" .= textP "出版社（わかれば）"
       , "last_page" .= intP  "本の最後のページ"
       , "toc"       .= arrayOf chapterRef
       , "commit"    .= boolP "true なら登録する（まず false で下書きを見る）"
@@ -210,6 +239,7 @@ tocSchema = object
 addTocHelp :: Text
 addTocHelp = T.unwords
   [ "本の目次を、木の形で登録する。page は各章の始まるページ。"
+  , "出版社がわかれば publisher に書く（作者の欄には入れない）。"
   , "まず commit なしで送ると、登録される本と key が返る。"
   , "よければ commit: true と key を付けて、もう一度送る。" ]
 

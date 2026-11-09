@@ -7,7 +7,7 @@
 -- カードがどこにしまわれているかは、知らない
 module Main (main) where
 
-import Control.Monad (forM_, void)
+import Control.Monad (forM_, unless, void)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
@@ -72,7 +72,7 @@ main = do
 -- それから作品と、そこに書いたもの
 addExamples :: Shelf -> IO ()
 addExamples shelf = do
-  mapM_ shelf.defineAttr (libraryAttrs ++ [ncodeDef])
+  mapM_ shelf.defineAttr (libraryAttrs ++ [ncodeDef, publisherDef])
   mapM_ shelf.defineFlow libraryFlows
   dragon <- shelf.addWork dragonBook
   void (shelf.applyEvent dragon Start)
@@ -147,7 +147,8 @@ importInto shelf path = do
   result <- importFile path
   got    <- either stop pure result
   mapM_ (T.hPutStrLn stderr . explainImport) (missed got)
-  added shelf (bookWork (T.pack (takeBaseName path)) (draft got))
+  wid    <- shelf.addWork (bookWork (T.pack (takeBaseName path)) (draft got))
+  added shelf wid
 
 -- 🔢 Look up an ISBN on openBD, and put the book on the shelf.
 --    TSUNDOKU_OPENBD can point somewhere else (to try without the
@@ -162,7 +163,9 @@ isbnInto shelf typed = do
   book    <- either stop pure =<< fetchBook manager base asked
   let got = bookDraft book
   mapM_ (T.hPutStrLn stderr . explainImport) (missed got)
-  added shelf (bookWork (isbnText asked) (draft got))
+  wid     <- shelf.addWork (bookWork (isbnText asked) (draft got))
+  added shelf wid
+  keepPublisher shelf wid (publisher book)
 
 -- 🔔 Ask the なろう小説API about every serial with an Nコード, in one
 --    go, and grow the tables of the ones with new episodes.
@@ -186,11 +189,10 @@ checkUpdates shelf = do
         Right () -> T.putStrLn (novelTitle novel <> "：新しく "
                                 <> T.pack (show n) <> "話")
 
--- 📗 Put a work on the shelf, and show its line and its table.
--- 作品を本棚に置いて、その1行と目次を見せる
-added :: Shelf -> Work -> IO ()
-added shelf w = do
-  wid <- shelf.addWork w
+-- 📗 Show a work just put on the shelf: its line and its table.
+-- 本棚に置いたばかりの作品を見せる：その1行と目次
+added :: Shelf -> WorkId -> IO ()
+added shelf wid = do
   found <- shelf.getCard wid
   forM_ found $ \card -> do
     T.putStrLn ("added " <> cardLine (wid, card))
@@ -200,6 +202,23 @@ added shelf w = do
         T.putStrLn (T.replicate (2 * depth + 2) " " <> heading entry
                     <> "  " <> showAmount (size entry))
       _        -> pure ()
+
+-- 🏢 Keep the publisher openBD told us, in the attribute 「出版社」. If
+--    the shelf does not have that attribute yet, define it first.
+-- openBD が教えてくれた出版社を、属性「出版社」に書いておく。本棚に、
+-- まだその属性がなければ、先に決める
+keepPublisher :: Shelf -> WorkId -> Text -> IO ()
+keepPublisher shelf wid name
+  | T.null name = pure ()
+  | otherwise   = do
+      schema <- shelf.getSchema
+      let known = map attrName (attrDefs schema)
+      unless (attrName publisherDef `elem` known)
+        (void (shelf.defineAttr publisherDef))
+      kept <- shelf.editAttrs wid (Map.singleton (attrName publisherDef) name)
+      case kept of
+        Left why -> mapM_ (T.hPutStrLn stderr) (explain why)
+        Right () -> T.putStrLn ("  出版社：" <> name)
 
 -- 🛑 Say what went wrong, and stop with exit code 1.
 -- 何がまずかったかを言って、終了コード 1 で止まる

@@ -8,6 +8,7 @@ module Tsundoku.Import
   ( charsPerPage
   , importFile
   , ncodeDef
+  , publisherDef
   , narouSerials
   , updatesFor
   ) where
@@ -83,4 +84,13 @@ updatesFor found serials =
       Nothing -> Left (UnknownNovel code)
       Just n  -> Right (n, max 0 (episodes n - episodesIn toc))
 -- ANCHOR_END: updates
+
+-- ANCHOR: publisher
+-- 🏢 The attribute that keeps a book's publisher (openBD tells it; an AI
+--    can send it too). Some readers care a lot about the publisher.
+-- 本の出版社を書いておく属性（openBD が教えてくれる。AI が送ってくる
+-- こともある）。出版社に、こだわる読み手もいる
+publisherDef :: AttrDef
+publisherDef = AttrDef { attrName = "出版社", attrKind = TextKind }
+-- ANCHOR_END: publisher
 -- ANCHOR_END: all

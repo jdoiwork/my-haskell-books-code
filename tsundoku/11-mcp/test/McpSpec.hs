@@ -10,6 +10,7 @@ module McpSpec (mcpSpec) where
 
 import Data.Aeson
 import Data.Aeson.Types (parseMaybe)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -34,7 +35,7 @@ import ShelfAnswers.Unnoted
 -- 📗 A table the AI might send, and the same with one change.
 -- AI が送りそうな目次と、1か所だけちがうもの
 eggs :: TocDraft
-eggs = TocDraft "竜の飼い方入門" "王都出版" 120
+eggs = TocDraft "竜の飼い方入門" "竜田まもる" 120
   [ Chapter "第1章 卵" 1 [Chapter "1.1 温め方" 3 []]
   , Chapter "第2章 ひな" 20 []
   , Chapter "第3章 巣立ち" 60 [] ]
@@ -62,7 +63,7 @@ callTool tools name arguments = do
 -- eggs の add_toc の引数
 eggsArgs :: [(Key, Value)]
 eggsArgs =
-  [ "title" .= ("竜の飼い方入門" :: Text), "creator" .= ("王都出版" :: Text)
+  [ "title" .= ("竜の飼い方入門" :: Text), "creator" .= ("竜田まもる" :: Text)
   , "last_page" .= (120 :: Int)
   , "toc" .= [ chapter "第1章 卵" 1 [chapter "1.1 温め方" 3 []]
              , chapter "第2章 ひな" 20 [], chapter "第3章 巣立ち" 60 [] ] ]
@@ -110,7 +111,7 @@ tocSpec = describe "the tree from the AI" $ do
   -- 「始まりのページから、その項目だけのページ数を」
   it "makes a book with pages from where chapters start" $
     fmap preview (draftWork eggs) `shouldBe` Right
-      [ "竜の飼い方入門（王都出版）"
+      [ "竜の飼い方入門（竜田まもる）"
       , "・第1章 卵（2ページ）", "  ・1.1 温め方（17ページ）"
       , "・第2章 ひな（40ページ）", "・第3章 巣立ち（61ページ）" ]
   -- 「作者がわからなければ、空のかっこは出さない」
@@ -126,7 +127,7 @@ tocSpec = describe "the tree from the AI" $ do
     wid   <- shelf.works.addWork w
     Just c <- shelf.works.getCard wid
     workKey c.work `shouldBe` workKey w
-    workKey w `shouldNotBe` workKey (Work "竜の飼い方入門 第2版" "王都出版" w.contents)
+    workKey w `shouldNotBe` workKey (Work "竜の飼い方入門 第2版" "竜田まもる" w.contents)
   -- 「同じ目次は Already、題が空なら核が断る」
   it "plans: already there, or refused by the core" $ do
     Right w <- pure (draftWork eggs)
@@ -170,6 +171,19 @@ toolSpec = describe "the tools" $ do
       (object (eggsArgs ++ ["commit" .= True, "key" .= ("0000" :: Text)]))
     failed `shouldBe` True
     length <$> shelf.works.listCards `shouldReturn` 0
+  -- 「出版社は、作者の欄ではなく、属性「出版社」に」
+  it "keeps the publisher in its attribute, not as the creator" $ do
+    shelf <- newMemoryShelf
+    let tools = shelfTools ReadWrite clock shelf
+        args  = eggsArgs ++ ["publisher" .= ("王都出版" :: Text)]
+    (_, draft) <- callTool tools "add_toc" (object args)
+    draft `shouldSatisfy` T.isInfixOf "出版社：王都出版"
+    let key = T.drop 5 (head' [ l | l <- T.lines draft, "key: " `T.isPrefixOf` l ])
+    (False, _) <- callTool tools "add_toc"
+      (object (args ++ ["commit" .= True, "key" .= key]))
+    Just card <- shelf.works.getCard (WorkId 1)
+    Map.lookup "出版社" card.attrs `shouldBe` Just (TextV "王都出版")
+    card.work.creator `shouldBe` "竜田まもる"
   -- 「ネタバレは、頼まれたときだけ見せる」
   it "hides spoilers unless asked" $ do
     shelf <- newMemoryShelf

@@ -157,7 +157,7 @@ runSpec = describe "the runner" $
     mapM_ shelf.defineAttr libraryAttrs
     let clock = pure (UTCTime (fromGregorian 2026 11 9) 0)
     testWithApplication (pure (siteApp FiveStars clock shelf)) $ \port -> do
-      env <- remoteApi (BaseUrl Http "localhost" port "api")
+      env <- remoteApi (BaseUrl Http "127.0.0.1" port "api")
       Works ws <- perform env LoadWorks
       map (.title) ws `shouldBe` ["はじめてのドラゴン学"]
       Card c fs <- perform env (LoadCard 1)
