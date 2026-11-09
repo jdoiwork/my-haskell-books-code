@@ -21,15 +21,15 @@ import Tsundoku.Types
 -- 🪟 What you can do with the shelf. Each field is one thing.
 -- 本棚でできること。フィールドの1つ1つが、できることの1つ
 data Shelf = Shelf
-  { addWork    :: Work -> IO WorkId
-  , removeWork :: WorkId -> IO Bool
-  , getCard    :: WorkId -> IO (Maybe Card)
-  , listCards  :: IO [(WorkId, Card)]
-  , applyEvent :: WorkId -> Event -> IO (Either Mistake ReadingState)
-  , addNote    :: WorkId -> Note -> IO (Either Mistake ())
-  , logReading :: WorkId -> LogLine -> IO (Either Mistake ())
-  , rate       :: WorkId -> Score -> IO (Either Mistake ())
-  , rateEntry  :: WorkId -> EntryId -> Score -> IO (Either Mistake ())
+  { addWork    :: Work                       -> IO WorkId
+  , removeWork :: WorkId                     -> IO Bool
+  , getCard    :: WorkId                     -> IO (Maybe Card)
+  , listCards  ::                               IO [(WorkId, Card)]
+  , applyEvent :: WorkId -> Event            -> IO (Checked ReadingState)
+  , addNote    :: WorkId -> Note             -> IO (Checked ())
+  , logReading :: WorkId -> LogLine          -> IO (Checked ())
+  , rate       :: WorkId -> Score            -> IO (Checked ())
+  , rateEntry  :: WorkId -> EntryId -> Score -> IO (Checked ())
   }
 -- ANCHOR_END: shelf
 
@@ -38,8 +38,7 @@ data Shelf = Shelf
 --    the core's function says yes (the new card) or no (why not).
 -- 変えてよいかを決めるのは、いつも核。カードがなければ NoSuchWork。
 -- あれば、核の関数が「よし」（新しいカード）か「だめ」（理由）を言う
-decide :: WorkId -> (Card -> Either Mistake Card) -> Maybe Card
-       -> Either Mistake Card
+decide :: WorkId -> (Card -> Checked Card) -> Maybe Card -> Checked Card
 decide wid _    Nothing     = Left (NoSuchWork wid)
 decide _   core (Just card) = core card
 -- ANCHOR_END: decide

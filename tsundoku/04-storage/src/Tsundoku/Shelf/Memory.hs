@@ -65,8 +65,8 @@ newMemoryShelf = do
 --    core says no: the shelf stays as it was.
 -- 読む → 決める → 書く。カードが1枚変わる。カードがないか、
 -- 核が「だめ」と言えば、本棚はそのまま
-changeCard :: WorkId -> (Card -> Either Mistake Card) -> Memory
-           -> (Memory, Either Mistake Card)
+changeCard :: WorkId -> (Card -> Checked Card) -> Memory
+           -> (Memory, Checked Card)
 changeCard wid core m =
   case decide wid core (Map.lookup wid (cards m)) of
     Left why  -> (m, Left why)

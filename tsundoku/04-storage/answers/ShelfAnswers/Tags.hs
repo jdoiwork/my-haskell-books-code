@@ -26,7 +26,7 @@ import Tsundoku.Types
 -- 🏷️ What you can do with tags.
 -- タグでできること
 data Tagging = Tagging
-  { tagWork :: WorkId -> Text -> IO (Either Mistake ())
+  { tagWork :: WorkId -> Text -> IO (Checked ())
   , tagsOf  :: WorkId -> IO [Text]
   }
 
@@ -67,7 +67,7 @@ sqliteTagging shelf conn = do
 
 -- 🎯 Do it only if the work is on the shelf.
 -- 本棚に作品があるときだけ、する
-onWork :: Shelf -> WorkId -> IO () -> IO (Either Mistake ())
+onWork :: Shelf -> WorkId -> IO () -> IO (Checked ())
 onWork shelf wid action = do
   found <- shelf.getCard wid
   case found of

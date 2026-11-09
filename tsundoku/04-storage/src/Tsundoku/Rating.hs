@@ -27,7 +27,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 
-import Tsundoku.Types (Mistake (..))
+import Tsundoku.Types (Checked, Mistake (..))
 -- ANCHOR_END: header
 
 -- ANCHOR: score
@@ -39,7 +39,7 @@ newtype Score = Score Int
 
 -- 🚪 The only way in: 0 to 100. Anything else is a mistake.
 -- 点を作る、ただ1つの入り口：0〜100。それ以外はまちがい
-score :: Int -> Either Mistake Score
+score :: Int -> Checked Score
 score n
   | n < 0 || n > 100 = Left (BadScore n)
   | otherwise        = Right (Score n)
@@ -113,7 +113,7 @@ oneDecimal t = T.pack (show (t `div` 10) ++ "." ++ show (t `mod` 10))
 --    The marks (点, ★, /10) may be left out.
 -- その見せ方で打ちこまれたものを、モデルに読み戻す。
 -- 印（点、★、/10）は、省いてもよい
-parse :: RatingStyle -> Text -> Either Mistake Score
+parse :: RatingStyle -> Text -> Checked Score
 parse style typed =
   case (style, readTenths number) of
     (Hundred, Just t)

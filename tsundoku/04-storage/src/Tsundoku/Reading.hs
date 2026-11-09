@@ -8,7 +8,7 @@ module Tsundoku.Reading
   , advance
   ) where
 
-import Tsundoku.Types (Event (..), Mistake (..), ReadingState (..))
+import Tsundoku.Types (Checked, Event (..), Mistake (..), ReadingState (..))
 -- ANCHOR_END: header
 
 -- ANCHOR: moves
@@ -33,7 +33,7 @@ allowed state = map fst (moves state)
 
 -- ➡️ Take one step on the map, or say why not.
 -- 地図の上を1歩進む。進めなければ、そのわけを返す
-advance :: Event -> ReadingState -> Either Mistake ReadingState
+advance :: Event -> ReadingState -> Checked ReadingState
 advance event state =
   case lookup event (moves state) of
     Just next -> Right next

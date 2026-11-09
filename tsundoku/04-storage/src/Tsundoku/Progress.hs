@@ -95,7 +95,7 @@ remaining p = amount (count (total p) - count (done p))
 -- 🔖 A bookmark: everything up to this entry (itself too), from top
 --    to bottom, counts as read.
 -- しおり：上から順に、この項目まで（この項目も）読んだことにする
-readThrough :: EntryId -> Toc u -> Either Mistake (Set EntryId)
+readThrough :: EntryId -> Toc u -> Checked (Set EntryId)
 readThrough mark toc =
   case break (== mark) ids of
     (before, _ : _) -> Right (Set.fromList (before ++ [mark]))

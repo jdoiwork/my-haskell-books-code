@@ -56,8 +56,8 @@ sqliteShelf conn = do
       run job = withMVar lock (\_ -> runReaderT (transaction job) conn)
       -- Read, decide, write. The core decides; write saves the new card.
       -- 読む → 決める → 書く。決めるのは核。write が新しいカードをしまう
-      edit  :: WorkId -> (Card -> Either Mistake Card)
-            -> (Card -> Db ()) -> IO (Either Mistake Card)
+      edit  :: WorkId -> (Card -> Checked Card)
+            -> (Card -> Db ()) -> IO (Checked Card)
       edit wid core write = run $ do
         found <- loadCard wid
         case decide wid core found of
@@ -67,8 +67,8 @@ sqliteShelf conn = do
             pure (Right new)
       -- The same, for a write that does not need the new card.
       -- 同じことを、新しいカードを使わない write で
-      edit_ :: WorkId -> (Card -> Either Mistake Card)
-            -> Db () -> IO (Either Mistake ())
+      edit_ :: WorkId -> (Card -> Checked Card)
+            -> Db () -> IO (Checked ())
       edit_ wid core write = do
         result <- edit wid core (\_ -> write)
         pure (fmap (\_ -> ()) result)

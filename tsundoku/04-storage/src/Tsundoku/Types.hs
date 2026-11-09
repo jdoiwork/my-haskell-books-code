@@ -27,6 +27,7 @@ module Tsundoku.Types
   , LogLine (..)
     -- * Mistakes / まちがい
   , Mistake (..)
+  , Checked
   ) where
 
 -- ANCHOR: imports
@@ -242,5 +243,11 @@ data Mistake
   | EmptyNote                      -- nothing written / 何も書いていない
   | NoSuchWork  WorkId             -- not on the shelf / 本棚にない
   deriving (Show, Eq)
+
+-- ✅ An answer the core has checked: the value, or the mistake.
+--    Checked Card reads "a Card, or why not".
+-- 核が確かめた答え：値か、まちがいか。
+-- Checked Card は「Card か、だめな理由」と読む
+type Checked = Either Mistake
 -- ANCHOR_END: mistake
 -- ANCHOR_END: all

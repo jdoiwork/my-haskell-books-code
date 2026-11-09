@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 
 import Tsundoku.Rating (Score, score, scoreValue)
-import Tsundoku.Types (Mistake (..))
+import Tsundoku.Types (Checked, Mistake (..))
 -- ANCHOR_END: head
 
 -- ANCHOR: grades
@@ -31,7 +31,7 @@ renderGrade s
 --    one: the middle of its range.
 -- 成績1つは、たくさんの点の影。読み戻すときは、1つ選ぶしかない。
 -- その範囲の真ん中にする
-parseGrade :: Text -> Either Mistake Score
+parseGrade :: Text -> Checked Score
 parseGrade typed = case T.toUpper (T.strip typed) of
   "A" -> score 95
   "B" -> score 85

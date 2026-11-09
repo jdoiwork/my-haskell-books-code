@@ -164,7 +164,7 @@ dragonCard = surely $ do
 
 -- 🙏 For GHCi and examples: take the value out of a Right we know is fine.
 -- GHCi と例のため：うまくいくとわかっている Right から中身を取り出す
-surely :: Either Mistake a -> a
+surely :: Checked a -> a
 surely (Right x) = x
 surely (Left m)  = error ("surely: " ++ show m)
 -- ANCHOR_END: card

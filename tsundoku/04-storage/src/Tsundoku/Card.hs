@@ -62,7 +62,7 @@ newCard w = Card
 -- ANCHOR: addNote
 -- ✍️ Add a note, if it says something and is about something real.
 -- 感想を足す。中身があって、ちゃんとある所に付くときだけ
-addNote :: Note -> Card -> Either Mistake Card
+addNote :: Note -> Card -> Checked Card
 addNote note card = do
   when (T.null (T.strip (body note))) (Left EmptyNote)
   checkTarget (contents (work card)) (target note)
@@ -70,7 +70,7 @@ addNote note card = do
 
 -- 🎯 The whole work is always there; an entry must be in the table.
 -- 作品全体は、いつでもある。目次の項目は、目次になければならない
-checkTarget :: Contents -> Target -> Either Mistake ()
+checkTarget :: Contents -> Target -> Checked ()
 checkTarget _    OnWork = Right ()
 checkTarget what (OnEntry i)
   | i `elem` entryIds what = Right ()
@@ -80,7 +80,7 @@ checkTarget what (OnEntry i)
 -- ANCHOR: applyEvent
 -- 🔔 Something happened: move the card on the map of reading.
 -- できごとが起きた：カードを、読書の地図の上で進める
-applyEvent :: Event -> Card -> Either Mistake Card
+applyEvent :: Event -> Card -> Checked Card
 applyEvent event card = do
   next <- advance event (reading card)
   pure card { reading = next }
@@ -105,7 +105,7 @@ visibleTo state allNotes
 -- ANCHOR: logReading
 -- 📓 Write a line in the reading log, if the entry is in the table.
 -- 読書ログに1行書く。目次にある項目のときだけ
-logReading :: LogLine -> Card -> Either Mistake Card
+logReading :: LogLine -> Card -> Checked Card
 logReading line card = do
   checkTarget (contents (work card)) (OnEntry (readEntry line))
   pure card { readLog = readLog card ++ [line] }
@@ -116,7 +116,7 @@ logReading line card = do
 --    (a new rating replaces the old one, as with `rate`).
 -- 目次の項目（話など）1つに評価を付ける。目次にある項目のときだけ
 -- （付け直したら、rate と同じく、新しいほうにする）
-rateEntry :: EntryId -> Score -> Card -> Either Mistake Card
+rateEntry :: EntryId -> Score -> Card -> Checked Card
 rateEntry i r card = do
   checkTarget (contents (work card)) (OnEntry i)
   pure card { entryRatings = Map.insert i r (entryRatings card) }

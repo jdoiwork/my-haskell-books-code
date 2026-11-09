@@ -98,8 +98,8 @@ postgresShelf conn = Shelf
     run = inTx conn
     -- Read, decide, write: the same as SQLite's.
     -- 読む → 決める → 書く。SQLite と同じ
-    edit  :: WorkId -> (Card -> Either Mistake Card)
-          -> (Card -> Transaction ()) -> IO (Either Mistake Card)
+    edit  :: WorkId -> (Card -> Checked Card)
+          -> (Card -> Transaction ()) -> IO (Checked Card)
     edit wid core write = run $ do
       found <- loadCard wid
       case decide wid core found of
@@ -107,8 +107,8 @@ postgresShelf conn = Shelf
         Right new -> do
           write new
           pure (Right new)
-    edit_ :: WorkId -> (Card -> Either Mistake Card)
-          -> Transaction () -> IO (Either Mistake ())
+    edit_ :: WorkId -> (Card -> Checked Card)
+          -> Transaction () -> IO (Checked ())
     edit_ wid core write = do
       result <- edit wid core (\_ -> write)
       pure (fmap (\_ -> ()) result)
