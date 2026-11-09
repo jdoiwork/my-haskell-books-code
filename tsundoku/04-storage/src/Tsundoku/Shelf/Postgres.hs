@@ -76,45 +76,52 @@ inTx conn tx = do
 -- SQLite と同じ窓口。向こうにいるのが PostgreSQL
 postgresShelf :: Connection -> Shelf
 postgresShelf conn = Shelf
-  { addWork    = \w       -> inTx conn (insertWork w)
-  , removeWork = \wid     -> inTx conn (removeOne  wid)
-  , getCard    = \wid     -> inTx conn (loadCard   wid)
-  , listCards  =             inTx conn  loadAll
+  { addWork    = \w       -> run (insertWork w)
+  , removeWork = \wid     -> run (deleteWork wid)
+  , getCard    = \wid     -> run (loadCard   wid)
+  , listCards  =             run  loadAll
   , applyEvent = \wid e   -> fmap reading <$>
-      edit  wid (Card.applyEvent e)   (saveReading wid)
+      edit  wid (Card.applyEvent e)   (updateReading wid)
   , addNote    = \wid n   ->
-      edit_ wid (Card.addNote n)      (statement (wid, n)    insertNote)
+      edit_ wid (Card.addNote n)      (insertNote    wid n)
   , logReading = \wid l   ->
-      edit_ wid (Card.logReading l)   (statement (wid, l)    insertLog)
+      edit_ wid (Card.logReading l)   (insertLog     wid l)
   , rate       = \wid s   ->
-      edit_ wid (Right . Card.rate s) (statement (wid, s)    updateRating)
+      edit_ wid (Right . Card.rate s) (updateRating  wid s)
   , rateEntry  = \wid i s ->
-      edit_ wid (Card.rateEntry i s)  (statement (wid, i, s) upsertRating)
+      edit_ wid (Card.rateEntry i s)  (upsertRating  wid i s)
   }
   where
-    -- Read, decide, write: the same as SQLite's, in a Transaction.
-    -- 読む → 決める → 書く。SQLite と同じで、Transaction の中で動く
-    edit wid core write = inTx conn $ do
+    -- Run a job in a transaction on this connection.
+    -- この接続で、仕事をトランザクションの中で動かす
+    run :: Transaction a -> IO a
+    run = inTx conn
+    -- Read, decide, write: the same as SQLite's.
+    -- 読む → 決める → 書く。SQLite と同じ
+    edit  :: WorkId -> (Card -> Either Mistake Card)
+          -> (Card -> Transaction ()) -> IO (Either Mistake Card)
+    edit wid core write = run $ do
       found <- loadCard wid
       case decide wid core found of
         Left why  -> pure (Left why)
         Right new -> do
           write new
           pure (Right new)
+    edit_ :: WorkId -> (Card -> Either Mistake Card)
+          -> Transaction () -> IO (Either Mistake ())
     edit_ wid core write = do
       result <- edit wid core (\_ -> write)
       pure (fmap (\_ -> ()) result)
-    saveReading wid new =
-      statement (wid, stateName (reading new)) updateReading
-    removeOne (WorkId w) = do
-      removed <- statement w deleteWork
-      pure (removed > 0)
-    loadAll = do
-      ids   <- statement () selectWorkIds
-      pairs <- for ids $ \w -> do
-        card <- loadCard (WorkId w)
-        pure (WorkId w, card)
-      pure [ (wid, card) | (wid, Just card) <- pairs ]
+
+-- 📚 Every card on the shelf, in the order the works were added.
+-- 本棚のカードを全部、作品を足した順に
+loadAll :: Transaction [(WorkId, Card)]
+loadAll = do
+  ids   <- statement () selectWorkIds
+  pairs <- for ids $ \w -> do
+    card <- loadCard (WorkId w)
+    pure (WorkId w, card)
+  pure [ (wid, card) | (wid, Just card) <- pairs ]
 -- ANCHOR_END: postgresShelf
 
 -- ANCHOR: codecs
@@ -204,22 +211,26 @@ newEntry = preparable sql encoder (D.singleRow (column intColumn))
 -- ANCHOR_END: insertWork
 
 -- ANCHOR: changes
--- ✏️ The statements that write one change.
--- 変更を1つ書く文
-updateReading :: Statement (WorkId, Text) ()
-updateReading = preparable
-  "UPDATE works SET reading = $2 WHERE id = $1"
-  ((fst >$< param workId) <> (snd >$< param E.text))
-  D.noResult
+-- ✏️ The jobs that write one change. Each one runs its statement:
+--    the arguments, and the statement (SQL, encoder, decoder).
+-- 変更を1つ書く仕事。どれも、文を1つ動かす：引数と、文
+-- （SQL、引数の入れ方、答えの取り出し方）
+updateReading :: WorkId -> Card -> Transaction ()
+updateReading wid card =
+  statement (wid, stateName (reading card)) $ preparable
+    "UPDATE works SET reading = $2 WHERE id = $1"
+    ((fst >$< param workId) <> (snd >$< param E.text))
+    D.noResult
 
-updateRating :: Statement (WorkId, Score) ()
-updateRating = preparable
-  "UPDATE works SET rating = $2 WHERE id = $1"
-  ((fst >$< param workId) <> ((scoreValue . snd) >$< param int))
-  D.noResult
+updateRating :: WorkId -> Score -> Transaction ()
+updateRating wid s =
+  statement (wid, s) $ preparable
+    "UPDATE works SET rating = $2 WHERE id = $1"
+    ((fst >$< param workId) <> ((scoreValue . snd) >$< param int))
+    D.noResult
 
-insertNote :: Statement (WorkId, Note) ()
-insertNote = preparable sql encoder D.noResult
+insertNote :: WorkId -> Note -> Transaction ()
+insertNote wid n = statement (wid, n) (preparable sql encoder D.noResult)
   where
     sql = """
       INSERT INTO notes (work_id, entry_id, body, written_at, spoiler)
@@ -233,37 +244,42 @@ insertNote = preparable sql encoder D.noResult
       , (spoiler . snd)              >$< param E.bool
       ]
 
-insertLog :: Statement (WorkId, LogLine) ()
-insertLog = preparable sql encoder D.noResult
+insertLog :: WorkId -> LogLine -> Transaction ()
+insertLog wid l = statement (wid, l) (preparable sql encoder D.noResult)
   where
     sql = """
       INSERT INTO reading_log (work_id, entry_id, read_on)
       VALUES ($1, $2, $3)
       """
     encoder = mconcat
-      [ fst                 >$< param workId
-      , (readEntry . snd)   >$< param entryNo
-      , (readOn . snd)      >$< param E.date
+      [ fst               >$< param workId
+      , (readEntry . snd) >$< param entryNo
+      , (readOn . snd)    >$< param E.date
       ]
 
-upsertRating :: Statement (WorkId, EntryId, Score) ()
-upsertRating = preparable sql encoder D.noResult
+upsertRating :: WorkId -> EntryId -> Score -> Transaction ()
+upsertRating wid i s =
+  statement (wid, i, s) (preparable sql encoder D.noResult)
   where
     sql = """
       INSERT INTO entry_ratings (entry_id, work_id, score) VALUES ($2, $1, $3)
       ON CONFLICT (entry_id) DO UPDATE SET score = excluded.score
       """
     encoder = mconcat
-      [ (\(w, _, _) -> w)              >$< param workId
-      , (\(_, i, _) -> i)              >$< param entryNo
-      , (\(_, _, s) -> scoreValue s)   >$< param int
+      [ (\(w, _, _) -> w)            >$< param workId
+      , (\(_, e, _) -> e)            >$< param entryNo
+      , (\(_, _, v) -> scoreValue v) >$< param int
       ]
 
-deleteWork :: Statement Int Int
-deleteWork = preparable
-  "DELETE FROM works WHERE id = $1"
-  (param int)
-  (fromIntegral <$> D.rowsAffected)
+-- 🗑️ Remove a work; the database removes the rest. Was it there?
+-- 作品を消す。残りはデータベースが消す。その作品はあった？
+deleteWork :: WorkId -> Transaction Bool
+deleteWork (WorkId w) = do
+  removed <- statement w $ preparable
+    "DELETE FROM works WHERE id = $1"
+    (param int)
+    D.rowsAffected
+  pure (removed > 0)
 -- ANCHOR_END: changes
 
 -- ANCHOR: loadCard
@@ -271,15 +287,20 @@ deleteWork = preparable
 -- 作品があれば、表からカードを読み戻す
 loadCard :: WorkId -> Transaction (Maybe Card)
 loadCard wid = do
-  found <- statement wid selectWork
+  found <- about selectWork
   for found $ \row -> do
-    toc     <- statement wid selectToc
-    notes'  <- statement wid selectNotes
-    log'    <- statement wid selectLog
-    ratings <- statement wid selectRatings
+    toc     <- about selectToc
+    notes'  <- about selectNotes
+    log'    <- about selectLog
+    ratings <- about selectRatings
     case assemble row toc notes' log' ratings of
       Left broken -> throw broken
       Right card  -> pure card
+  where
+    -- Every query here is about this one work.
+    -- ここの問い合わせは、どれもこの作品について
+    about :: Statement WorkId r -> Transaction r
+    about query = statement wid query
 
 selectWorkIds :: Statement () [Int]
 selectWorkIds = preparable

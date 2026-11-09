@@ -47,35 +47,43 @@ sqliteShelf conn = do
       -- 変更は1つずつ、1つのトランザクションで
       inTx :: IO a -> IO a
       inTx action = withMVar lock (\_ -> withTransaction conn action)
+      -- Give a job the connection, in a transaction.
+      -- 仕事に接続を渡して、トランザクションの中で動かす
+      run :: (Connection -> IO a) -> IO a
+      run job = inTx (job conn)
       -- Read, decide, write. The core decides; write saves the new card.
       -- 読む → 決める → 書く。決めるのは核。write が新しいカードをしまう
+      edit  :: WorkId -> (Card -> Either Mistake Card)
+            -> (Card -> Connection -> IO ()) -> IO (Either Mistake Card)
       edit wid core write = inTx $ do
-        found <- loadCard conn wid
+        found <- loadCard wid conn
         case decide wid core found of
           Left why  -> pure (Left why)
           Right new -> do
-            write new
+            write new conn
             pure (Right new)
       -- The same, for a write that does not need the new card.
       -- 同じことを、新しいカードを使わない write で
+      edit_ :: WorkId -> (Card -> Either Mistake Card)
+            -> (Connection -> IO ()) -> IO (Either Mistake ())
       edit_ wid core write = do
         result <- edit wid core (\_ -> write)
         pure (fmap (\_ -> ()) result)
   pure Shelf
-    { addWork    = \w       -> inTx (insertWork conn w)
-    , removeWork = \wid     -> inTx (deleteWork conn wid)
-    , getCard    = \wid     -> inTx (loadCard   conn wid)
-    , listCards  =             inTx (loadAll    conn)
+    { addWork    = \w       -> run (insertWork w)
+    , removeWork = \wid     -> run (deleteWork wid)
+    , getCard    = \wid     -> run (loadCard   wid)
+    , listCards  =             run  loadAll
     , applyEvent = \wid e   -> fmap reading <$>
-        edit  wid (Card.applyEvent e)   (updateReading conn wid . reading)
+        edit  wid (Card.applyEvent e)   (updateReading wid)
     , addNote    = \wid n   ->
-        edit_ wid (Card.addNote n)      (insertNote    conn wid n)
+        edit_ wid (Card.addNote n)      (insertNote    wid n)
     , logReading = \wid l   ->
-        edit_ wid (Card.logReading l)   (insertLog     conn wid l)
+        edit_ wid (Card.logReading l)   (insertLog     wid l)
     , rate       = \wid s   ->
-        edit_ wid (Right . Card.rate s) (updateRating  conn wid s)
+        edit_ wid (Right . Card.rate s) (updateRating  wid s)
     , rateEntry  = \wid i s ->
-        edit_ wid (Card.rateEntry i s)  (upsertRating  conn wid i s)
+        edit_ wid (Card.rateEntry i s)  (upsertRating  wid i s)
     }
 
 -- 📚 Every card on the shelf, in the order the works were added.
@@ -84,32 +92,35 @@ loadAll :: Connection -> IO [(WorkId, Card)]
 loadAll conn = do
   ids   <- query_ conn "SELECT id FROM works ORDER BY id"
   pairs <- for ids $ \(Only w) -> do
-    card <- loadCard conn (WorkId w)
+    card <- loadCard (WorkId w) conn
     pure (WorkId w, card)
   pure [ (wid, card) | (wid, Just card) <- pairs ]
 -- ANCHOR_END: withSqliteShelf
 
 -- ANCHOR: changes
--- ✏️ The statements that write one change.
--- 変更を1つ書く文
-updateReading :: Connection -> WorkId -> ReadingState -> IO ()
-updateReading conn (WorkId w) state =
+-- ✏️ The statements that write one change. Like every job the window
+--    runs, each takes the connection last, so the window can say only
+--    what to write; `run` and `edit` hand it the connection.
+-- 変更を1つ書く文。窓口が動かす仕事は、どれも接続を最後の引数に
+-- もらう。窓口では「何を書くか」だけを書き、接続は run と edit が渡す
+updateReading :: WorkId -> Card -> Connection -> IO ()
+updateReading (WorkId w) card conn =
   execute conn "UPDATE works SET reading = ? WHERE id = ?"
-    (stateName state, w)
+    (stateName (reading card), w)
 
-updateRating :: Connection -> WorkId -> Score -> IO ()
-updateRating conn (WorkId w) s =
+updateRating :: WorkId -> Score -> Connection -> IO ()
+updateRating (WorkId w) s conn =
   execute conn "UPDATE works SET rating = ? WHERE id = ?" (scoreValue s, w)
 
-insertNote :: Connection -> WorkId -> Note -> IO ()
-insertNote conn (WorkId w) n = execute conn """
+insertNote :: WorkId -> Note -> Connection -> IO ()
+insertNote (WorkId w) n conn = execute conn """
   INSERT INTO notes (work_id, entry_id, body, written_at, spoiler)
   VALUES (?, ?, ?, ?, ?)
   """
   (w, targetEntry (target n), body n, writtenAt n, spoiler n)
 
-insertLog :: Connection -> WorkId -> LogLine -> IO ()
-insertLog conn (WorkId w) l = execute conn """
+insertLog :: WorkId -> LogLine -> Connection -> IO ()
+insertLog (WorkId w) l conn = execute conn """
   INSERT INTO reading_log (work_id, entry_id, read_on)
   VALUES (?, ?, ?)
   """
@@ -117,8 +128,8 @@ insertLog conn (WorkId w) l = execute conn """
   where
     EntryId i = readEntry l
 
-upsertRating :: Connection -> WorkId -> EntryId -> Score -> IO ()
-upsertRating conn (WorkId w) (EntryId i) s = execute conn """
+upsertRating :: WorkId -> EntryId -> Score -> Connection -> IO ()
+upsertRating (WorkId w) (EntryId i) s conn = execute conn """
   INSERT INTO entry_ratings (entry_id, work_id, score) VALUES (?, ?, ?)
   ON CONFLICT (entry_id) DO UPDATE SET score = excluded.score
   """
@@ -128,8 +139,8 @@ upsertRating conn (WorkId w) (EntryId i) s = execute conn """
 --    (ON DELETE CASCADE). Was it there?
 -- 作品を消す。目次・感想・ログ・評価も一緒に消える（ON DELETE CASCADE）。
 -- その作品はあった？
-deleteWork :: Connection -> WorkId -> IO Bool
-deleteWork conn (WorkId w) = do
+deleteWork :: WorkId -> Connection -> IO Bool
+deleteWork (WorkId w) conn = do
   execute conn "DELETE FROM works WHERE id = ?" (Only w)
   (> 0) <$> changes conn
 -- ANCHOR_END: changes
@@ -139,8 +150,8 @@ deleteWork conn (WorkId w) = do
 --    contents. SQLite gives every number (RETURNING tells us which).
 -- 新しいカードを表にしまう：まず作品、それから目次。番号は全部 SQLite が
 -- 振る（どの番号になったかは、RETURNING が教えてくれる）
-insertWork :: Connection -> Work -> IO WorkId
-insertWork conn w = do
+insertWork :: Work -> Connection -> IO WorkId
+insertWork w conn = do
   let (kind, minutes, toc) = toPlain (contents w)
       card                 = newCard w
   wid <- returningId conn """
@@ -178,8 +189,8 @@ returningId conn sql row = do
 -- ANCHOR: loadCard
 -- 📖 Read a card back from its tables, if the work is there.
 -- 作品があれば、表からカードを読み戻す
-loadCard :: Connection -> WorkId -> IO (Maybe Card)
-loadCard conn (WorkId w) = do
+loadCard :: WorkId -> Connection -> IO (Maybe Card)
+loadCard (WorkId w) conn = do
   rows <- query conn """
     SELECT title, creator, kind, minutes, reading, rating
       FROM works WHERE id = ?
