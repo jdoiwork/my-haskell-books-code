@@ -36,14 +36,18 @@ main = hspec $
           addThree conn
           _ <- runSession conn (statement () (R.postQuest "Slay" (Just 1)))
           _ <- runSession conn (statement () (R.postQuest "Find" Nothing))
-          runSession conn (statement () (Rel8.run (Rel8.select R.questBoard)))
-            `shouldReturn` [("Slay", Just "Lambda"), ("Find", Nothing)]
+          let board = Rel8.run (Rel8.select R.questBoard)
+          rows <- runSession conn (statement () board)
+          -- No ORDER BY, so any order is right.
+          -- ORDER BY がないので、順番は問わずに比べる
+          rows `shouldMatchList` [("Slay", Just "Lambda"), ("Find", Nothing)]
 
         -- 「職業ごとに数える」
         it "counts each job" $ \conn -> do
           addThree conn
-          runSession conn (statement () (Rel8.run (Rel8.select R.jobCounts)))
-            `shouldReturn` [("Archer", 1), ("Mage", 2)]
+          let counts = Rel8.run (Rel8.select R.jobCounts)
+          rows <- runSession conn (statement () counts)
+          rows `shouldMatchList` [("Archer", 1), ("Mage", 2)]
 -- ANCHOR_END: spec
 
 -- 🧙 Lambda (3), Python (5), and Merlin (7).
