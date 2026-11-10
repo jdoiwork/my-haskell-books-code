@@ -46,6 +46,7 @@ data Login = Login
   deriving Show
 -- ANCHOR_END: login
 
+-- ANCHOR: fromjson
 -- 📥 Read a login from JSON. The name is parsed at the door.
 --    (Password has no ToJSON, so a Login can not be turned back into JSON.)
 -- JSON からログインを読む。名前は門でパースする
@@ -56,4 +57,5 @@ instance FromJSON Login where
     name    <- either (fail . show) pure (parseUsername rawName)
     pass    <- o .: "password"
     pure (Login name (mkPassword pass))
+-- ANCHOR_END: fromjson
 -- ANCHOR_END: all

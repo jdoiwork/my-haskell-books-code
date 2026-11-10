@@ -41,8 +41,10 @@ instance Arbitrary Quest where
   arbitrary = Quest <$> elements ["slay the slime", "find the herb"] <*> names
 -- ANCHOR_END: arbitrary
 
+-- ANCHOR: main
 main :: IO ()
 main = hspec $ do
+-- ANCHOR_END: main
   describe "parseUsername" $ do
     -- 「ふつうの名前は通す」
     it "accepts a plain name" $
@@ -65,7 +67,9 @@ main = hspec $ do
   describe "canEdit" $ do
     -- 「書き換えられるのは、マスターか、依頼主だけ」
     prop "lets only the master or the owner edit" $
-      \m q -> canEdit m q ==> m.role == Master || m.name == q.owner
+      \m q -> canEdit m q
+               ==> m.role == Master
+                     || (m.role == Adventurer && m.name == q.owner)
     -- 「マスターと、冒険者の依頼主は、本当に書き換えられる」
     prop "lets the master and the owner edit" $
       \m q -> m.role == Master || (m.role == Adventurer && m.name == q.owner)
@@ -73,7 +77,9 @@ main = hspec $ do
     -- 「下書きは、この決まりを破る（QuickCheck が見つける）」
     prop "the draft breaks the rule (QuickCheck finds it)" $
       expectFailure $
-        \m q -> canEditDraft m q ==> m.role == Master || m.name == q.owner
+        \m q -> canEditDraft m q
+                 ==> m.role == Master
+                       || (m.role == Adventurer && m.name == q.owner)
   -- ANCHOR_END: authz
 
   describe "limits" $ do
