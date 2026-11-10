@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | An IO look-alike: a function from the world before to a result
 --   and the world after.
 -- IO もどき：前の世界を受け取って、結果と、あとの世界を返す関数
@@ -15,7 +16,6 @@ module FakeIO
   , showScreen
   ) where
 
--- ANCHOR: imports
 import Prelude hiding (getLine, putStr, putStrLn)
 
 import qualified Data.Map.Strict as Map

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | A small terminal screen: 40 columns by 8 rows. Long lines wrap,
 --   and when the screen is full, the top row scrolls away for good.
 -- 小さなターミナルの画面：横 40 文字、縦 8 行。長い行は折り返し、
@@ -13,6 +14,7 @@ module Screen
   , rows
   , render
   ) where
+-- ANCHOR_END: imports
 
 -- ANCHOR: size
 -- 📐 The size of the screen. Change these to try other sizes.

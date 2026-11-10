@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | The few things our programs ask of the outside world, so the
 --   same program runs with the real IO and with the look-alike.
 -- プログラムが外の世界に頼む、いくつかのこと。同じプログラムを、
@@ -12,6 +13,7 @@ import qualified System.IO as IO
 
 import qualified FakeIO as Fake
 import FakeIO (FakeIO)
+-- ANCHOR_END: imports
 
 -- ANCHOR: class
 -- 🎛️ Read the environment, read a line, write text.

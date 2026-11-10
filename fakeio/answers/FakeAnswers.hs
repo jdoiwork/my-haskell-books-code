@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Answers to the training of the fake IO chapter.
 -- IO もどきの章のトレーニングの解答
 module FakeAnswers
@@ -12,6 +13,7 @@ import Text.Read (readMaybe)
 
 import Console
 import Programs (putStrLn)
+-- ANCHOR_END: imports
 
 -- ANCHOR: askNumber
 -- 🔢 Step 2: ask again until a number comes.

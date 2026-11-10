@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Programs written once, for any Console.
 -- 一度だけ書いて、どの Console でも動くプログラム
 module Programs
@@ -8,7 +9,6 @@ module Programs
   , longLine
   ) where
 
--- ANCHOR: imports
 import Prelude hiding (getLine, putStr, putStrLn)
 
 import Data.Maybe (fromMaybe)

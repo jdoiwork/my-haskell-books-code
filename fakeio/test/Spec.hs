@@ -1,3 +1,4 @@
+-- ANCHOR: head
 module Main (main) where
 
 import qualified Data.Map.Strict as Map
@@ -8,6 +9,7 @@ import FakeAnswers
 import FakeIO (FakeIO, World (..), newWorld, runFakeIO)
 import Programs
 import Screen
+-- ANCHOR_END: head
 
 -- ANCHOR: helpers
 -- 🧪 Run a program in a new world.
@@ -22,10 +24,22 @@ shownRows world =
   map (reverse . dropWhile (== ' ') . reverse) (rows (screen world))
 -- ANCHOR_END: helpers
 
+-- ANCHOR: sameSize
+-- 📐 After writing the text, the screen is still 8 rows of 40 columns.
+-- 文字を書いたあとも、画面は 8 行、どの行も 40 文字
+sameSize :: String -> Bool
+sameSize text =
+  let screenRows = rows (writeString text blankScreen)
+  in  length screenRows == screenHeight
+        && all ((== screenWidth) . length) screenRows
+-- ANCHOR_END: sameSize
+
+-- ANCHOR: main
 main :: IO ()
 main = hspec $ do
+-- ANCHOR_END: main
+  -- ANCHOR: greetTest
   describe "programs in the fake world" $ do
-    -- ANCHOR: greetTest
     -- あいさつして、依頼をたずね、打った行は消費される
     it "greet" $ do
       let (_, world) = runIn [("USER", "Lambda")] ["slay the slime"] greet
@@ -58,10 +72,12 @@ main = hspec $ do
   -- ANCHOR: screenProps
   describe "the screen" $ do
     -- 何を書いても、画面は 8 行、どの行も 40 文字
-    it "always has the same size" $ property $ \text ->
-      let screenRows = rows (writeString text blankScreen)
-      in length screenRows == screenHeight
-           && all ((== screenWidth) . length) screenRows
+    it "always has the same size" $ property sameSize
+    -- 改行の多い文字でも。画面があふれて、上の行が流れていく
+    it "keeps the size when it scrolls" $
+      forAll (listOf (elements "ab\n")) $ \text ->
+        classify (length (lines text) > screenHeight) "scrolled"
+          (sameSize text)
   -- ANCHOR_END: screenProps
   describe "answers" $ do
     -- 数が来るまでたずねる

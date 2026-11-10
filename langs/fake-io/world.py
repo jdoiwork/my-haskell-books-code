@@ -51,7 +51,6 @@ def greet_pure(world):
     quest, world = get_line(world)
     _, world = put_str(f"Good luck with {quest}.\n", world)
     return None, world
-# ANCHOR_END: functional
 
 
 start = {"env": {"USER": "Lambda"}, "stdin": ["slay the slime"], "screen": ""}
@@ -59,4 +58,5 @@ _, end = greet_pure(start)
 assert end["stdin"] == []
 assert end["screen"].endswith("Good luck with slay the slime.\n")
 assert start["stdin"] == ["slay the slime"]
+# ANCHOR_END: functional
 print("ok")
