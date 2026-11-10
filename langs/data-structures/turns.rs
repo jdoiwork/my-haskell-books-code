@@ -23,5 +23,6 @@ fn main() {
     let order = take_turns(7, &["Lambda", "Python", "Rust"]);
     assert_eq!(order, vec!["Lambda", "Python", "Rust", "Lambda",
                            "Python", "Rust", "Lambda"]);
+    assert!(take_turns(3, &[]).is_empty());
     println!("ok");
 }

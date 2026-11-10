@@ -36,11 +36,11 @@ lookups = do
       wanted  = [ (i * 7919) `mod` n | i <- [1 .. 10000] ]
       list    = [0 .. n - 1] :: [Int]
       vector  = VU.fromList list
-      seqence = Seq.fromList list
+      seqLine = Seq.fromList list
       intMap  = IntMap.fromList (zip list list)
-  _ <- evaluate (sum list + VU.sum vector + sum seqence + sum intMap)
+  _ <- evaluate (sum list + VU.sum vector + sum seqLine + sum intMap)
   timeIt "list    (!!)"     (pure (sum [ list !! i           | i <- wanted ]))
-  timeIt "Seq     (index)"  (pure (sum [ Seq.index seqence i | i <- wanted ]))
+  timeIt "Seq     (index)"  (pure (sum [ Seq.index seqLine i | i <- wanted ]))
   timeIt "IntMap  (lookup)" (pure (sum [ intMap IntMap.! i   | i <- wanted ]))
   timeIt "Vector  (!)"      (pure (sum [ vector VU.! i       | i <- wanted ]))
 -- ANCHOR_END: lookups
@@ -59,10 +59,12 @@ appends = do
   timeIt "Map     (insert)"    (pure (sum toMap))
 -- ANCHOR_END: appends
 
+-- ANCHOR: main
 main :: IO ()
 main = do
   putStrLn "-- lookups / 番号で取り出す"
   lookups
   putStrLn "-- appends / 後ろに足す"
   appends
+-- ANCHOR_END: main
 -- ANCHOR_END: all

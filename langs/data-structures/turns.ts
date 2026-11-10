@@ -22,3 +22,4 @@ function takeTurns(n: number, heroes: string[]): string[] {
 
 check(takeTurns(7, ["Lambda", "Python", "Rust"]).join() ===
       "Lambda,Python,Rust,Lambda,Python,Rust,Lambda", "turns");
+check(takeTurns(3, []).length === 0, "empty line");

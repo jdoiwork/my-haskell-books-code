@@ -8,6 +8,8 @@ def take_turns_list(n, heroes):
     line = list(heroes)
     order = []
     for _ in range(n):
+        if not line:
+            break
         hero = line.pop(0)
         order.append(hero)
         line.append(hero)
@@ -23,6 +25,8 @@ def take_turns(n, heroes):
     line = deque(heroes)
     order = []
     for _ in range(n):
+        if not line:
+            break
         hero = line.popleft()
         order.append(hero)
         line.append(hero)
@@ -33,4 +37,6 @@ heroes = ["Lambda", "Python", "Rust"]
 expected = ["Lambda", "Python", "Rust", "Lambda", "Python", "Rust", "Lambda"]
 assert take_turns_list(7, heroes) == expected
 assert take_turns(7, heroes) == expected
+assert take_turns_list(3, []) == []
+assert take_turns(3, []) == []
 print("ok")

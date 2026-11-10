@@ -1,9 +1,9 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- 📊 How many times each damage (0 to 96) came up: a mutable vector.
 -- ダメージ（0〜96）ごとの回数：書き換えられる Vector で
 module Histogram (histogram) where
 
--- ANCHOR: imports
 import Control.Monad.ST            (runST)
 import Data.Vector.Unboxed         qualified as VU
 import Data.Vector.Unboxed.Mutable qualified as MVU

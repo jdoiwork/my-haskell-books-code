@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: module
 -- 🌳 A binary search tree of our own, to see how Map works inside.
 -- 自作の二分探索木。Map の中身の仕組みを見るために
 module Tree
@@ -10,6 +11,7 @@ module Tree
   , toList
   , depth
   ) where
+-- ANCHOR_END: module
 
 -- ANCHOR: type
 -- 🌳 A tree is empty (a leaf), or a node with a left tree, a value,
