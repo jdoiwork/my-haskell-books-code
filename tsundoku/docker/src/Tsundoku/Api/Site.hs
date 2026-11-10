@@ -24,6 +24,7 @@ module Tsundoku.Api.Site
   , tagCounts
   , taggedWith
   , statsItem
+  , percentOf
   ) where
 
 -- maps, sets, text, and dates

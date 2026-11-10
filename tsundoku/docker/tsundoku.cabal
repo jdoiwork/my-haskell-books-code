@@ -96,6 +96,7 @@ library
                     ShelfAnswers.TitlesFirst
                     ShelfAnswers.Episodes
                     ShelfAnswers.Paging
+                    ShelfAnswers.Alike
                     ShelfAnswers.LiveSearch
                     ShelfAnswers.FinishBoth
                     ShelfAnswers.TuiSearch

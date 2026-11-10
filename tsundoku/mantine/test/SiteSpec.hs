@@ -28,6 +28,8 @@ import Tsundoku.Shelf.Memory (newMemoryShelf)
 import Tsundoku.Types
 
 import ApiSpec (refusedWith, send, stopped)
+import ShelfAnswers.Alike (alikeApp)
+import Tsundoku.Review (similarTo)
 -- ANCHOR_END: imports
 
 -- ANCHOR: helpers
@@ -44,11 +46,16 @@ halfway = spoiled { reading = Reading, readLog = dragonLog }
 -- 🆕 The API on a shelf in memory with the six tagged works.
 -- タグを付けた6作品を置いた、メモリの本棚の上の API
 taggedApi :: IO Application
-taggedApi = do
+taggedApi = shelfApp stopped <$> taggedMemory
+
+-- 📚 A shelf in memory with the six tagged works.
+-- タグを付けた6作品を置いた、メモリの本棚
+taggedMemory :: IO Shelf
+taggedMemory = do
   shelf <- newMemoryShelf
   mapM_ (\(_, c) -> shelf.works.addWork c.work) taggedShelf
   mapM_ (\(wid, c) -> shelf.tagging.setTags wid c.tags) taggedShelf
-  pure (shelfApp stopped shelf)
+  pure shelf
 
 -- 🔍 The body read as this type, and this test about it.
 -- 本体をこの型として読んで、それについてこのテスト
@@ -119,5 +126,19 @@ siteSpec = describe "the review site on the wire" $ do
       get "/stats?year=2025" `shouldRespondWith`
         reading' (decode @StatsItem) (\s -> s.year == 2025 && null s.best)
   -- ANCHOR_END: routeSpec
+  -- ANCHOR: alikeSpec
+  -- 「トレーニングのステップ2：似ている作品を n 個。n は 1〜20」
+  describe "the answers" $ with (alikeApp <$> taggedMemory) $
+    it "gives n works alike, as the core finds them" $ do
+      let alike n = [ m | (_, WorkId m, _) <- similarTo n (WorkId 1)
+                                                taggedShelf ]
+          ids     = map (.work)
+      get "/works/1/alike?n=2" `shouldRespondWith`
+        reading' (decode @[AlikeItem]) (\xs -> ids xs == alike 2)
+      get "/works/1/alike" `shouldRespondWith`
+        reading' (decode @[AlikeItem]) (\xs -> ids xs == alike 3)
+      get "/works/1/alike?n=21" `shouldRespondWith` 400
+      get "/works/9/alike" `shouldRespondWith` refusedWith 404 "no-such-work"
+  -- ANCHOR_END: alikeSpec
 -- ANCHOR_END: siteSpec
 -- ANCHOR_END: all
