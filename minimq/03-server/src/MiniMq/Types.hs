@@ -89,8 +89,10 @@ data BrokerError
   | NoSuchExchange ExchangeName
   deriving (Show, Eq)
 
+-- ANCHOR: exception
 -- (The server throws it inside STM, so it is an exception too.)
 -- （サーバーが STM の中で投げるので、例外にもしておく）
 instance Exception BrokerError
+-- ANCHOR_END: exception
 -- ANCHOR_END: outcome
 -- ANCHOR_END: all
