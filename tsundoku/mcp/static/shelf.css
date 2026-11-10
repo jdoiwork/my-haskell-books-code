@@ -60,6 +60,17 @@ input[type="search"], input[name="q"] { width: 14rem; margin: .5rem 0; }
            font-size: .85rem; }
 progress { width: 8rem; vertical-align: middle; accent-color: var(--accent); }
 
+/* The rows of the shelf: the bar goes to the right end of the row.
+   本棚の行：バーは行の右の端へ */
+.works li { display: flex; align-items: center; flex-wrap: wrap;
+            gap: .2rem .5rem; }
+.works li .progress { margin-left: auto; }
+
+/* A new note: the box takes the whole width; the rest goes under it.
+   新しい感想：入力欄は幅いっぱいに、ほかはその下に */
+.note-form textarea { display: block; width: 100%; box-sizing: border-box;
+                      margin-bottom: .4rem; }
+
 /* ⭐ Stars and reading. / ★と読書の状態 */
 .reading button, .notes time { margin-left: .4rem; }
 .rating button     { margin: .15rem .1rem; border-radius: 1rem; }

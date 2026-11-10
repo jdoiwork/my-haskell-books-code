@@ -102,7 +102,7 @@ function NoteForm({ onWrite }: {
     setSpoiler(false);
   };
   return (
-    <form onSubmit={write}>
+    <form className="note-form" onSubmit={write}>
       <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} />
       <label>
         <input type="checkbox" checked={spoiler}
