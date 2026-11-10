@@ -31,8 +31,9 @@ party = Party(Hero("Lambda", Stats(30, 10, 5)),
 # Python（手続き型スタイル：書き換えられる写しを作って、その場で変える）
 import copy
 
-data = copy.deepcopy({"leader": {"name": "Lambda",
-                                 "stats": {"hp": 30, "mp": 10, "level": 5}}})
+original = {"leader": {"name": "Lambda",
+                       "stats": {"hp": 30, "mp": 10, "level": 5}}}
+data = copy.deepcopy(original)
 data["leader"]["stats"]["hp"] = 0
 # ANCHOR_END: procedural
 
@@ -46,6 +47,7 @@ knocked_out = replace(
 # ANCHOR_END: replace
 
 assert data["leader"]["stats"]["hp"] == 0
+assert original["leader"]["stats"]["hp"] == 30
 assert knocked_out.leader.stats.hp == 0
 assert party.leader.stats.hp == 30
 print("ok")

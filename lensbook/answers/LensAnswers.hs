@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
+-- ANCHOR: head
+{-# LANGUAGE OverloadedStrings #-}
 -- | Answers to the training of "lens".
 -- 「lens」のトレーニングの解答
 module LensAnswers
@@ -12,6 +13,7 @@ import Data.Aeson.Lens (key, values, _Integer, _String)
 import Data.Text (Text)
 
 import Guild
+-- ANCHOR_END: head
 
 -- ANCHOR: potions
 -- 🧪 Step 2: give every member one more potion.

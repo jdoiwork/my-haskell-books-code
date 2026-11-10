@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 -- ANCHOR: all
+-- ANCHOR: head
+{-# LANGUAGE OverloadedRecordDot #-}
 -- | Nested records without lens: reading is easy, changing is not.
 -- lens なしの入れ子のレコード：読むのは楽、変えるのは大変
 module Plain
@@ -10,6 +11,7 @@ module Plain
   , leaderHp
   , knockOutLeader
   ) where
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 📊 Numbers of one hero.

@@ -1,3 +1,4 @@
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
@@ -12,6 +13,7 @@ import LensAnswers
 import qualified MiniLens as Mini
 import qualified Plain
 import SaveData
+-- ANCHOR_END: head
 
 -- ANCHOR: leaderHp
 -- 🎯 The path used in the law tests.
@@ -20,8 +22,28 @@ leaderHp :: Lens' Party Int
 leaderHp = leader . stats . hp
 -- ANCHOR_END: leaderHp
 
+-- ANCHOR: miniLaws
+-- 🧪 The three laws for a lens of our own, on random points. The lens is
+--    an argument: a path is just a value.
+-- 自作のレンズの3つの約束を、でたらめな点で。レンズは引数で渡す（道順は、ただの値）
+miniLaws :: String -> Mini.Lens Mini.Point Int -> Spec
+miniLaws name l = describe ("the laws of " ++ name) $ do
+  -- 入れたものを読むと、入れたものが出てくる
+  it "view after set" $ property $ \a b v ->
+    Mini.view l (Mini.set l v (Mini.Point a b)) == v
+  -- 読んだものを入れ直しても、何も変わらない
+  it "set what you viewed" $ property $ \a b ->
+    let p = Mini.Point a b in Mini.set l (Mini.view l p) p == p
+  -- 2回入れたら、あとのほうだけが残る
+  it "set twice" $ property $ \a b v w ->
+    let p = Mini.Point a b
+    in  Mini.set l w (Mini.set l v p) == Mini.set l w p
+-- ANCHOR_END: miniLaws
+
+-- ANCHOR: main
 main :: IO ()
 main = hspec $ do
+-- ANCHOR_END: main
   describe "plain records and lenses agree" $
     -- 手で作り直しても、レンズでも、同じ結果
     it "knockOutLeader" $ do
@@ -55,10 +77,11 @@ main = hspec $ do
       firstMemberName (party & members .~ []) `shouldBe` Nothing
     -- 全員の HP の合計
     it "totalHp" $ totalHp party `shouldBe` 95
+  -- ANCHOR: miniSpec
+  miniLaws "px" Mini.px
+  miniLaws "py" Mini.py
+  -- ANCHOR_END: miniSpec
   describe "MiniLens" $ do
-    -- 小さなレンズも、法則を守る
-    it "view after set" $ property $ \a b v ->
-      Mini.view Mini.px (Mini.set Mini.px v (Mini.Point a b)) == v
     -- traverse は、そのままトラバーサルとして使える
     it "over traverse" $ property $ \xs ->
       Mini.over traverse (* 2) xs == map (* 2) (xs :: [Int])

@@ -1,7 +1,6 @@
--- ANCHOR: pragmas
-{-# LANGUAGE TemplateHaskell #-}
--- ANCHOR_END: pragmas
 -- ANCHOR: all
+-- ANCHOR: head
+{-# LANGUAGE TemplateHaskell #-}
 -- | The same party, with lenses made by makeLenses.
 -- 同じパーティーを、makeLenses で作ったレンズで
 module Guild
@@ -19,10 +18,9 @@ module Guild
   , totalHp
   ) where
 
--- ANCHOR: imports
 import Control.Lens
 import qualified Data.Map.Strict as Map
--- ANCHOR_END: imports
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 📊 Fields start with _; makeLenses makes a lens for each,

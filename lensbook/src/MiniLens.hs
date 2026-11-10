@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 -- ANCHOR: all
+-- ANCHOR: head
+{-# LANGUAGE OverloadedRecordDot #-}
 -- | A tiny lens library, to see how lens works inside.
 -- lens の中身を見るための、小さな lens ライブラリ
 module MiniLens
@@ -16,6 +17,7 @@ module MiniLens
 
 import Data.Functor.Const (Const (..))
 import Data.Functor.Identity (Identity (..))
+-- ANCHOR_END: head
 
 -- ANCHOR: types
 -- 🔭 A lens: given a way to "do something" with the part, do it with
