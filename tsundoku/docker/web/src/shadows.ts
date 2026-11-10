@@ -28,6 +28,20 @@ export const pointsOf = (starsGiven: number): number =>
   Math.round(starsGiven * 20);
 // ANCHOR_END: halfStars
 
+// ANCHOR: quarterStars
+// 💡 Another light on the same points: 25 points a star, and ★1 is 0.
+//    0 → ★1, 25 → ★2, 50 → ★3, 75 → ★4, 100 → ★5 (73 → ★4).
+//    No halves: five steps, and 0 points can be pressed.
+// 同じ点を、別の照らし方で：★1つは 25 点で、★1 が 0 点。
+// 0 → ★1、25 → ★2、50 → ★3、75 → ★4、100 → ★5（73 → ★4）。
+// 半分の★はなく、5段。そのかわり 0 点も押せる
+export const quarterStars = (points: number): number =>
+  Math.floor((points + 12.5) / 25) + 1;
+
+export const pointsOfQuarter = (starsGiven: number): number =>
+  (starsGiven - 1) * 25;
+// ANCHOR_END: quarterStars
+
 // 🔘 The points of each button of stars: 0, 10, ..., 100.
 // ★のボタンごとの点：0、10、…、100
 export const marks: number[] = Array.from({ length: 11 }, (_, i) => i * 10);

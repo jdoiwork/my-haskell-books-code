@@ -2,8 +2,8 @@
 // 影は、Haskell の側と同じことを言う
 import { describe, expect, it } from "vitest";
 import {
-  eventLabel, halfStars, marks, pointsOf, stars, stateColor, stateLabel,
-  whereOf,
+  eventLabel, halfStars, marks, pointsOf, pointsOfQuarter, quarterStars,
+  stars, stateColor, stateLabel, whereOf,
 } from "./shadows";
 
 describe("stars", () => {
@@ -64,3 +64,16 @@ describe("stateColor", () => {
   });
 });
 // ANCHOR_END: site
+
+// ANCHOR: quarter
+describe("quarterStars", () => {
+  // 「25 点ずつの照らし方。★1 が 0 点で、点のモデルは同じ」
+  it("lights the same points 25 a star, from ★1 = 0", () => {
+    expect([0, 25, 50, 75, 100].map(quarterStars)).toEqual([1, 2, 3, 4, 5]);
+    expect(quarterStars(73)).toBe(4);
+    expect(quarterStars(12)).toBe(1);
+    expect(quarterStars(13)).toBe(2);
+    expect([1, 2, 3, 4, 5].map(pointsOfQuarter)).toEqual([0, 25, 50, 75, 100]);
+  });
+});
+// ANCHOR_END: quarter
