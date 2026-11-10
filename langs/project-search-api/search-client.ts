@@ -37,7 +37,23 @@ export async function searchDocs(
   limit?: number,
 ): Promise<SearchResponse | ApiError> {
   const res = await fetch(searchUrl(base, q, limit));
-  return (await res.json()) as SearchResponse | ApiError;
+  const body = await res.text();
+  if (res.ok) {
+    return JSON.parse(body) as SearchResponse;
+  }
+  return { message: messageOf(res.status, body) };
+}
+
+// 💬 Our own errors are {"message": ...}. Others (a limit servant could
+//    not read, a proxy that is down) may be plain text: show them as is.
+// 自分で断るときは {"message": ...}。ほか（servant が読めなかった limit、
+// 止まった中継など）はただの文字のことがあるので、そのまま見せる
+function messageOf(status: number, body: string): string {
+  try {
+    return (JSON.parse(body) as ApiError).message;
+  } catch {
+    return `${status}: ${body}`;
+  }
 }
 // ANCHOR_END: url
 
@@ -57,5 +73,15 @@ check(
   searchUrl(base, "gold&limit=1000")
     === "http://localhost:8080/search?q=gold%26limit%3D1000",
   "& cannot sneak in another parameter",
+);
+check(
+  messageOf(400, '{"message":"the query q is empty"}')
+    === "the query q is empty",
+  "our own errors are JSON",
+);
+check(
+  messageOf(400, "could not parse: `abc'")
+    === "400: could not parse: `abc'",
+  "servant's own errors are plain text",
 );
 console.log("ok");

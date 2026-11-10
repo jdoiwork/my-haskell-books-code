@@ -4,7 +4,7 @@
 // again from the API: the screen shows what is on the shelf.
 // カード1枚：バー、状態とボタン、★、目次、感想、自分で決めた属性。
 // 変えるたびに、API からカードを読み直す。画面は、本棚にあるとおりを見せる
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type Answer, shelf } from "./api";
 import { AttrForm } from "./AttrForm";
@@ -19,22 +19,37 @@ export function CardView({ id }: { id: number }) {
   const [fields, setFields] = useState<FormField[]>([]);
   const [problem, setProblem] = useState<string[]>([]);
 
+  // 🔁 Read the card again. Two readings can overlap (two quick clicks),
+  //    and their answers can come back in either order: show only the
+  //    newest one asked, and drop an older answer that comes late.
+  // カードを読み直す。読み直しは重なることがあり（すばやく2回押す）、
+  // 答えはどちらが先に届くかわからない。いちばん新しく頼んだものだけを
+  // 見せ、遅れて届いた古い答えは捨てる
+  const asked = useRef(0);
   const reload = useCallback(async () => {
+    const mine = ++asked.current;
     const [c, f] = await Promise.all([shelf.card(id), shelf.form(id)]);
+    if (mine !== asked.current) return;
     if (c.ok) setCard(c.value);
+    else setProblem(c.problem.messages);
     if (f.ok) setFields(f.value);
   }, [id]);
   useEffect(() => { reload(); }, [reload]);
 
   // ✅ Change through the API, then read the card again (or say why not).
-  // API を通して変えて、カードを読み直す（だめなら理由を見せる）
-  const change = async (asked: Promise<Answer<unknown>>) => {
-    const a = await asked;
+  //    Says whether it worked, so a form keeps what was typed on a no.
+  // API を通して変えて、カードを読み直す（だめなら理由を見せる）。
+  // うまくいったかを返す（だめなら、フォームは打ったものを残す）
+  const change = async (sent: Promise<Answer<unknown>>) => {
+    const a = await sent;
     setProblem(a.ok ? [] : a.problem.messages);
     await reload();
+    return a.ok;
   };
 
-  if (card === null) return <p>読みこみ中…</p>;
+  if (card === null) return problem.length > 0
+    ? <ul className="problem">{problem.map((m) => <li key={m}>{m}</li>)}</ul>
+    : <p>読みこみ中…</p>;
   const now = card.work.rating === null
     ? null : Math.floor((card.work.rating + 5) / 10) * 10;
   return (
@@ -83,15 +98,18 @@ export function CardView({ id }: { id: number }) {
 // ✍️ The form for a new note.
 // 新しい感想のフォーム
 function NoteForm({ onWrite }: {
-  onWrite: (body: string, spoiler: boolean) => Promise<void>;
+  onWrite: (body: string, spoiler: boolean) => Promise<boolean>;
 }) {
   const [body, setBody] = useState("");
   const [spoiler, setSpoiler] = useState(false);
+  // Clear the form only when the note was written.
+  // 書けたときだけ、フォームを空にする
   const write = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onWrite(body, spoiler);
-    setBody("");
-    setSpoiler(false);
+    if (await onWrite(body, spoiler)) {
+      setBody("");
+      setSpoiler(false);
+    }
   };
   return (
     <form className="note-form" onSubmit={write}>

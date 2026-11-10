@@ -25,7 +25,25 @@ async function ask<T>(res: Response): Promise<Answer<T>> {
     const value = res.status === 204 ? undefined : await res.json();
     return { ok: true, value: value as T };
   }
-  return { ok: false, problem: (await res.json()) as Problem };
+  return { ok: false, problem: problemOf(res, await res.text()) };
+}
+
+// 💬 Our own refusals are a Problem in JSON. Others are not: servant's
+//    405 and 415, warp's 500 when a handler throws, the dev server's 502
+//    when `shelf serve` is down. Make a Problem of those too.
+// 自分で返す断りは、JSON の Problem。ほかはちがう：servant の 405・415、
+// ハンドラーが例外で止まったときの warp の 500、shelf serve が止まって
+// いるときの開発サーバーの 502。それも Problem にする
+function problemOf(res: Response, body: string): Problem {
+  try {
+    const said = JSON.parse(body);
+    if (Array.isArray(said?.messages)) return said as Problem;
+  } catch {
+    // Not JSON: say the status and the words as they came.
+    // JSON ではない：状態と、届いた言葉をそのまま言う
+  }
+  const words = `${res.status} ${res.statusText} ${body}`.trim();
+  return { mistake: "not-a-problem", messages: [words] };
 }
 
 export function shelfApi(get: typeof fetch, base = "") {
@@ -75,11 +93,15 @@ const answers: Record<string, [number, unknown]> = {
   }]],
   "/works/9": [404, { mistake: "no-such-work", messages: ["本棚にない作品です"] }],
   "PUT /works/1/rating": [422, { mistake: "bad-score", messages: ["点は 0〜100 です：101"] }],
+  // the dev server, when shelf serve is down: 502, and no body
+  // shelf serve が止まっているときの開発サーバー：502 で、本体なし
+  "/works/7": [502, ""],
 };
 const fake: typeof fetch = async (url, init) => {
   const key = init?.method ? `${init.method} ${url}` : String(url);
   const [status, body] = answers[key] ?? [500, null];
-  return new Response(JSON.stringify(body), { status });
+  const text = typeof body === "string" ? body : JSON.stringify(body);
+  return new Response(text, { status });
 };
 
 const api = shelfApi(fake);
@@ -92,6 +114,8 @@ const missing = await api.card(9);
 check(!missing.ok && missing.problem.mistake === "no-such-work", "404");
 const tooMuch = await api.rate(1, { points: 101 });
 check(!tooMuch.ok && tooMuch.problem.mistake === "bad-score", "422");
+const down = await api.card(7);
+check(!down.ok && down.problem.messages[0] === "502", "not JSON");
 check(
   marked([{ text: "ドラゴンは", match: false }, { text: "怠けもの", match: true }])
     === "ドラゴンは<mark>怠けもの</mark>",

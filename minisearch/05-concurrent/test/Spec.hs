@@ -265,6 +265,33 @@ main = hspec $ do
       b <- readDocumentsConcurrently "samples/docs"
       b `shouldBe` a
 
+    -- ANCHOR: answer3
+    -- 「最後の作り直しが失敗した理由を覚えている」（ステップ3）
+    it "remembers why the last rebuild failed" $ do
+      status <- newTVarIO Nothing
+      okRef  <- newIORef True
+      let source = do
+            ok <- readIORef okRef
+            if ok
+              then pure (take 2 sampleDocs)
+              -- 「フォルダーがありません」
+              else ioError (userError "the folder is gone")
+      live <- newLive (reportingSource status source)
+      writeIORef okRef False
+      started <- startReindex live
+      waitIdle live
+      failed  <- readTVarIO status
+      kept    <- documentCount <$> currentIndex live
+      -- Once the folder is back, a rebuild works and clears the error.
+      -- フォルダーが戻れば、作り直せて、エラーも消える
+      writeIORef okRef True
+      retried <- startReindex live
+      waitIdle live
+      cleared <- readTVarIO status
+      (started, failed, kept, retried, cleared) `shouldBe`
+        (True, Just "user error (the folder is gone)", 2, True, Nothing)
+    -- ANCHOR_END: answer3
+
     -- 「保存して読み戻すと、同じインデックスになる」
     it "an index survives a round trip through JSON" $
       property $ forAll genDocs $ \docs ->

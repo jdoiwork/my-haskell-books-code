@@ -16,7 +16,7 @@ import {
 import {
   IconLock, IconMessage, IconPencil, IconTag,
 } from "@tabler/icons-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type Answer, shelf } from "./api";
 import { AttrForm } from "./AttrForm";
@@ -50,10 +50,20 @@ export function CardView({ id, onEdit, onTag, onOpen }: {
   const [problem, setProblem] = useState<string[]>([]);
 
   // ANCHOR: reload
+  // 🔁 Read the card again. Two readings can overlap (two quick clicks),
+  //    and their answers can come back in either order: show only the
+  //    newest one asked, and drop an older answer that comes late.
+  // カードを読み直す。読み直しは重なることがあり（すばやく2回押す）、
+  // 答えはどちらが先に届くかわからない。いちばん新しく頼んだものだけを
+  // 見せ、遅れて届いた古い答えは捨てる
+  const asked = useRef(0);
   const reload = useCallback(async () => {
+    const mine = ++asked.current;
     const [c, f, x, t] = await Promise.all(
       [shelf.card(id), shelf.form(id), shelf.extras(id), shelf.tags()]);
+    if (mine !== asked.current) return;
     if (c.ok) setCard(c.value);
+    else setProblem(c.problem.messages);
     if (f.ok) setFields(f.value);
     if (x.ok) setExtras(x.value);
     if (t.ok) setKnown(t.value.map((k) => k.tag));
@@ -62,11 +72,14 @@ export function CardView({ id, onEdit, onTag, onOpen }: {
   // ANCHOR_END: reload
 
   // ✅ Change through the API, then read the card again (or say why not).
-  // API を通して変えて、カードを読み直す（だめなら理由を見せる）
-  const change = async (asked: Promise<Answer<unknown>>) => {
-    const a = await asked;
+  //    Says whether it worked, so a form keeps what was typed on a no.
+  // API を通して変えて、カードを読み直す（だめなら理由を見せる）。
+  // うまくいったかを返す（だめなら、フォームは打ったものを残す）
+  const change = async (sent: Promise<Answer<unknown>>) => {
+    const a = await sent;
     setProblem(a.ok ? [] : a.problem.messages);
     await reload();
+    return a.ok;
   };
 
   // ✅ A tick writes today in the log, for the entry and every entry
@@ -82,7 +95,9 @@ export function CardView({ id, onEdit, onTag, onOpen }: {
     change(inOrder(asks));
   };
 
-  if (card === null || extras === null) return <Text>読みこみ中…</Text>;
+  if (card === null || extras === null) return problem.length > 0
+    ? <Problems messages={problem} />
+    : <Text>読みこみ中…</Text>;
   const w = card.work;
   return (
     <Stack>
@@ -221,7 +236,7 @@ function Notes({ seen, toc }: { seen: SeenNote[]; toc: TocItem[] }) {
 function TagsBox({ tags, known, onSave }: {
   tags: string[];
   known: string[];
-  onSave: (tags: string[]) => Promise<void>;
+  onSave: (tags: string[]) => Promise<boolean>;
 }) {
   const [typed, setTyped] = useState<string[]>(tags);
   useEffect(() => { setTyped(tags); }, [tags]);
@@ -269,15 +284,18 @@ function Alike({ extras, onOpen }: {
 // ✍️ The form for a new note.
 // 新しい感想のフォーム
 function NoteForm({ onWrite }: {
-  onWrite: (body: string, spoiler: boolean) => Promise<void>;
+  onWrite: (body: string, spoiler: boolean) => Promise<boolean>;
 }) {
   const [body, setBody] = useState("");
   const [spoiler, setSpoiler] = useState(false);
+  // Clear the form only when the note was written.
+  // 書けたときだけ、フォームを空にする
   const write = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onWrite(body, spoiler);
-    setBody("");
-    setSpoiler(false);
+    if (await onWrite(body, spoiler)) {
+      setBody("");
+      setSpoiler(false);
+    }
   };
   return (
     <form onSubmit={write}>

@@ -5,19 +5,26 @@
 // 自分で決めた属性のフォーム。API が送る行から描く（htmx が描き、brick が
 // 見せるのと同じ行）。入力欄を決めるのは kind。ここには推し度を知っている
 // 行は1つもない
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { FormField } from "./tsundoku-api";
 
 export function AttrForm({ fields, onSave }: {
   fields: FormField[];
-  onSave: (edits: Record<string, string>) => Promise<void>;
+  onSave: (edits: Record<string, string>) => Promise<boolean>;
 }) {
+  // What I typed, over the values that came. They go away only when
+  // saved: a no, or the card read again after another change, keeps them.
+  // 来た値の上に、打ったもの。消えるのは保存できたときだけ。断られても、
+  // ほかの変更でカードを読み直しても、残る
   const [edits, setEdits] = useState<Record<string, string>>({});
-  useEffect(() => { setEdits({}); }, [fields]);
   const value = (f: FormField) => edits[f.label] ?? f.current;
   const set = (f: FormField, v: string) =>
-    setEdits({ ...edits, [f.label]: v });
+    setEdits((now) => ({ ...now, [f.label]: v }));
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (await onSave(edits)) setEdits({});
+  };
 
   // ANCHOR: input
   const input = (f: FormField) => {
@@ -42,7 +49,7 @@ export function AttrForm({ fields, onSave }: {
   // ANCHOR_END: input
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave(edits); }}>
+    <form onSubmit={save}>
       {fields.map((f) => (
         <label key={f.label} className="attr">
           <span>{f.label}</span>{input(f)}

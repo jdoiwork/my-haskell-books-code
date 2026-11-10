@@ -22,6 +22,7 @@ target/
 # プログラムを試したときに書かれるファイル
 minisearch/*/index*.json
 minisearch/*/index*.bin
+minikv/*/minikv.log*
 
 # MNIST, downloaded for the neural network chapter (about 55 MB)
 # ニューラルネットワークの章でダウンロードする MNIST（約 55 MB）

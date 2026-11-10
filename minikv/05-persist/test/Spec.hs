@@ -276,6 +276,26 @@ main = hspec $ do
         withConnection port $ \conn -> request conn ["GET", "k"]
       removeFile path
       reply `shouldBe` WBulk (Just "1")
+    -- 途中で切れたログのあとに書いたものも、立て直したあとに読み戻せる
+    it "keeps what was written after a log that was cut short" $ do
+      dir <- getTemporaryDirectory
+      let path = dir </> "minikv-cut.log"
+          -- A SET, then a DEL cut short (the server stopped while
+          --   writing it).
+          -- SET と、途中で切れた DEL（書いている途中で、サーバーが止まった）
+          cut  = encodeEntry (Set "hero" "Lambda") <> "*2\r\n$3\r\nDEL"
+      BS.writeFile path cut
+      withServerLog systemClock (Just path) $ \port ->
+        withConnection port $ \conn ->
+          request conn ["SET", "gold", "10"] `shouldReturn` WSimple "OK"
+      r <- replay <$> BS.readFile path
+      removeFile path
+      (problem r, replayedStore r) `shouldBe`
+        ( Nothing
+        , snd (applyAll 0 [Set "hero" "Lambda", Set "gold" "10"] emptyStore) )
+      -- The old log is kept aside. / 古いログは、写しを残してある
+      BS.readFile (path <> ".broken") `shouldReturn` cut
+      removeFile (path <> ".broken")
     -- サーバーが止まったら、つながっている客にも電話を切る
     it "hangs up on its clients when it stops" $ do
       started <- newEmptyMVar

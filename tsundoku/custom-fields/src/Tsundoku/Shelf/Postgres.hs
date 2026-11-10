@@ -66,11 +66,15 @@ data PostgresError
 
 instance Exception PostgresError
 
--- 🔒 Run a transaction: all of it, or none of it.
--- トランザクションを動かす。全部か、何もなしか
+-- 🔒 Run a transaction: all of it, or none of it. Serializable: if
+--    another program changed what we read before we wrote, PostgreSQL
+--    says so (error 40001), and hasql-transaction runs the job again.
+-- トランザクションを動かす。全部か、何もなしか。Serializable：読んでから
+-- 書くまでに、ほかのプログラムが同じものを変えていたら、PostgreSQL が
+-- そう言い（エラー 40001）、hasql-transaction が仕事をやり直す
 inTx :: Connection -> Transaction a -> IO a
 inTx conn tx = do
-  result <- Connection.use conn (transaction ReadCommitted Write tx)
+  result <- Connection.use conn (transaction Serializable Write tx)
   either (throwIO . Failed) pure result
 -- ANCHOR_END: withPostgresShelf
 

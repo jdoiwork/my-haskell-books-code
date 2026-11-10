@@ -96,10 +96,13 @@ workUrl wid part = "/works/" <> T.pack (show wid) <> "/" <> part
 -- ANCHOR: page
 -- 📄 The frame of every page: htmx, the style, and a box for problems.
 --    The meta tag tells htmx to show a 4xx answer in that box only
---    (swap "none": only the out-of-band problem box is swapped).
+--    (swap "none": only the out-of-band problem box is swapped). When
+--    no answer comes (a 5xx, or the server is down), the body's hx-on
+--    says so in the same box.
 -- どのページにも共通の枠：htmx、見た目、まずかったことの箱。
 -- meta のタグは、4xx の答えをその箱にだけ出すように htmx に頼む
--- （swap は none：帯の外の problem の箱だけが差し替わる）
+-- （swap は none：帯の外の problem の箱だけが差し替わる）。答えが来ない
+-- とき（5xx、サーバーが止まっている）は、body の hx-on が同じ箱に書く
 page :: Text -> Html () -> Html ()
 page title body = doctypehtml_ $ do
   head_ $ do
@@ -109,7 +112,8 @@ page title body = doctypehtml_ $ do
     link_ [rel_ "stylesheet", href_ "/static/shelf.css"]
     link_ [rel_ "stylesheet", href_ "/static/theme.css"]
     script_ [src_ "/static/htmx.min.js"] ("" :: Text)
-  body_ $ do
+  body_ [ makeAttribute "hx-on:htmx:response-error" noAnswer
+        , makeAttribute "hx-on:htmx:send-error"     noAnswer ] $ do
     header_ (a_ [href_ "/"] "📚 tsundoku")
     problemBox []
     main_ body
@@ -121,6 +125,13 @@ page title body = doctypehtml_ $ do
       , "{\"code\": \"4..\", \"swap\": true, \"error\": false,"
       , " \"swapOverride\": \"none\"},"
       , "{\"code\": \"...\", \"swap\": false, \"error\": true}]}" ]
+    -- Say so in the problem box, with the status (none: no answer).
+    -- problem の箱に書く。答えの状態も（なし：答えが来なかった）
+    noAnswer = T.concat
+      [ "document.getElementById('problem').innerHTML ="
+      , " '<ul><li>うまくいきませんでした（サーバーの答え：'"
+      , " + (event.detail.xhr.status || 'なし')"
+      , " + '）。少し待って、もう一度どうぞ</li></ul>'" ]
 
 -- 🚨 The box for what went wrong. A part answers with it out of band
 --    (hx-swap-oob), so it replaces the box wherever it is on the page.

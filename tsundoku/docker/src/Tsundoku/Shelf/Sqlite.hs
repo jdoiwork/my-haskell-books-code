@@ -51,12 +51,16 @@ withSqliteShelf path action =
 
 -- ANCHOR: backup
 -- 💾 Copy the whole shelf into a new file, safely even while it is in
---    use (SQLite's VACUUM INTO). The new file must not exist yet.
+--    use (SQLite's VACUUM INTO). The new file must not exist yet. If
+--    the shelf is writing just now, wait for it, up to 5 seconds.
 -- 本棚の全部を、新しいファイルに写す。使っている最中でも安全に
--- （SQLite の VACUUM INTO）。写す先のファイルは、まだあってはいけない
+-- （SQLite の VACUUM INTO）。写す先のファイルは、まだあってはいけない。
+-- 本棚が書いている最中なら、書き終わるのを5秒まで待つ
 backupSqlite :: FilePath -> FilePath -> IO ()
 backupSqlite path to =
-  withConnection path $ \conn -> SQLite.execute conn "VACUUM INTO ?" (Only to)
+  withConnection path $ \conn -> do
+    SQLite.execute_ conn "PRAGMA busy_timeout = 5000"
+    SQLite.execute conn "VACUUM INTO ?" (Only to)
 -- ANCHOR_END: backup
 
 -- 🪟 The shelf on an open connection. One change at a time, and each
@@ -66,6 +70,9 @@ backupSqlite path to =
 sqliteShelf :: Connection -> IO Shelf
 sqliteShelf conn = do
   runReaderT (execute_ "PRAGMA foreign_keys = ON") conn
+  -- Another program writing the same file: wait for it, up to 5 seconds.
+  -- 同じファイルに、ほかのプログラムが書いている間は、5秒まで待つ
+  runReaderT (execute_ "PRAGMA busy_timeout = 5000") conn
   runReaderT migrate conn
   lock <- newMVar ()
   let -- Run a job: one at a time, in one transaction, on this connection.
@@ -262,12 +269,15 @@ changes = do
   conn <- ask
   liftIO (SQLite.changes conn)
 
--- 🔒 Run a job in a transaction: all of it, or none of it.
--- 仕事をトランザクションの中で動かす。全部か、何もなしか
+-- 🔒 Run a job in a transaction: all of it, or none of it. IMMEDIATE
+--    takes the right to write first, so no other program can write
+--    between our reading and our writing.
+-- 仕事をトランザクションの中で動かす。全部か、何もなしか。IMMEDIATE で、
+-- 書く権利を先に取る。読んでから書くまでに、ほかのプログラムが書けない
 transaction :: Db a -> Db a
 transaction job = do
   conn <- ask
-  liftIO (SQLite.withTransaction conn (runReaderT job conn))
+  liftIO (SQLite.withImmediateTransaction conn (runReaderT job conn))
 -- ANCHOR_END: db
 
 -- ANCHOR: changes

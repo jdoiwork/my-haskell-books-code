@@ -272,6 +272,26 @@ main = hspec $ do
         withConnection port $ \conn -> request conn ["GET", "k"]
       removeFile path
       reply `shouldBe` WBulk (Just "1")
+    -- 途中で切れたログのあとに書いたものも、立て直したあとに読み戻せる
+    it "keeps what was written after a log that was cut short" $ do
+      dir <- getTemporaryDirectory
+      let path = dir </> "minikv-cut.log"
+          -- A SET, then a DEL cut short (the server stopped while
+          --   writing it).
+          -- SET と、途中で切れた DEL（書いている途中で、サーバーが止まった）
+          cut  = encodeEntry (Set "hero" "Lambda") <> "*2\r\n$3\r\nDEL"
+      BS.writeFile path cut
+      withServerLog systemClock (Just path) $ \port ->
+        withConnection port $ \conn ->
+          request conn ["SET", "gold", "10"] `shouldReturn` WSimple "OK"
+      r <- replay <$> BS.readFile path
+      removeFile path
+      (problem r, replayedStore r) `shouldBe`
+        ( Nothing
+        , snd (applyAll 0 [Set "hero" "Lambda", Set "gold" "10"] emptyStore) )
+      -- The old log is kept aside. / 古いログは、写しを残してある
+      BS.readFile (path <> ".broken") `shouldReturn` cut
+      removeFile (path <> ".broken")
     -- サーバーが止まったら、つながっている客にも電話を切る
     it "hangs up on its clients when it stops" $ do
       started <- newEmptyMVar
@@ -317,6 +337,20 @@ main = hspec $ do
              request c ["RPUSH", "jobs", "only one"])
         filter (/= WBulk Nothing) [a, b]
           `shouldBe` [WBulk (Just "only one")]
+    -- 待っているあいだに切ったクライアントは、仕事を持っていかない
+    it "a waiter who hangs up takes no item" $ withServer $ \port -> do
+      -- 20 clients start a BLPOP with no time limit, and hang up
+      --   0.1 s later.
+      -- 20 人が、時間切れなしの BLPOP を始め、0.1 秒後に切る
+      forConcurrently_ [1 .. 20 :: Int] $ \_ ->
+        withConnection port $ \c ->
+          timeout 100000 (request c ["BLPOP", "jobs", "0"])
+      -- Give the server time to notice. / サーバーが気づくのを待つ
+      threadDelay 200000
+      withConnection port $ \c -> do
+        _ <- request c ["RPUSH", "jobs", "slay goblins"]
+        request c ["BLPOP", "jobs", "1"]
+          `shouldReturn` WBulk (Just "slay goblins")
     -- 購読しているクライアントに、メッセージが届く
     it "delivers a published message to a subscriber" $
       withServer $ \port ->

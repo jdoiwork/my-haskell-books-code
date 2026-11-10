@@ -2,10 +2,17 @@
 -- ANCHOR: head
 -- | Answers to the training of the concurrency chapter.
 -- 並行化する章のトレーニングの解答。
-module MiniSearch.Answers (readDocumentsConcurrently) where
+module MiniSearch.Answers
+  ( readDocumentsConcurrently
+  , reportingSource
+  ) where
 
 import Control.Concurrent.Async (mapConcurrently)
+import Control.Concurrent.STM
+import Control.Exception (IOException, displayException, throwIO, try)
 import Data.List (sort)
+import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Text.IO.Utf8 as Utf8
 import System.Directory (listDirectory)
 import System.FilePath (takeExtension, (</>))
@@ -26,4 +33,24 @@ readDocumentsConcurrently dir = do
   contents <- mapConcurrently (\n -> Utf8.readFile (dir </> n)) txtFiles
   pure (zipWith toDocument [1 ..] contents)
 -- ANCHOR_END: concurrently
+
+-- ANCHOR: reporting
+-- 📋 Wrap the source of documents, and remember how the last read
+--    went: Nothing = it worked, Just message = it failed. The error
+--    is thrown again, so the rebuild stops and the old index stays.
+-- 文書の出どころを包んで、最後に読んだときの結果を覚えておく：
+-- Nothing なら成功、Just メッセージなら失敗。エラーは投げ直すので、
+-- 作り直しは止まり、古いインデックスが残る
+reportingSource :: TVar (Maybe Text) -> IO [Document] -> IO [Document]
+reportingSource status source = do
+  result <- try source
+  case result of
+    Left err -> do
+      let message = T.pack (displayException (err :: IOException))
+      atomically (writeTVar status (Just message))
+      throwIO err
+    Right docs -> do
+      atomically (writeTVar status Nothing)
+      pure docs
+-- ANCHOR_END: reporting
 -- ANCHOR_END: all

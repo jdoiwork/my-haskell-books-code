@@ -21,11 +21,14 @@ module MiniKv.Server
   , withServerLog
   ) where
 
-import Control.Concurrent (MVar, newMVar, threadDelay, withMVar)
-import Control.Concurrent.Async (async, cancel, link, race_, withAsync)
+import Control.Concurrent (MVar, newMVar, threadDelay, threadWaitRead,
+                           withMVar)
+import Control.Concurrent.Async (async, cancel, link, race, race_,
+                                 withAsync)
 import Control.Concurrent.STM
 import Control.Exception (bracket, finally, mask)
 import Control.Monad (forM_, forever, unless, when)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import Data.IORef (atomicModifyIORef', newIORef)
@@ -36,7 +39,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
-import System.Directory (doesFileExist)
+import System.Directory (copyFile, doesFileExist, renameFile)
 import System.IO (Handle, IOMode (..), hClose, hFlush, openFile)
 
 import MiniKv.Persist
@@ -81,12 +84,32 @@ openEnv clk logPath = do
       exists <- doesFileExist path
       if exists then replay <$> BS.readFile path
                 else pure (Replayed emptyStore 0 Nothing)
+  forM_ logPath $ \path -> repairLog path replayed
   var <- newTVarIO (replayedStore replayed)
   lock <- traverse (\path -> openFile path AppendMode >>= newMVar) logPath
   channel <- newBroadcastTChanIO
   counts <- newTVarIO Map.empty
   pure (Env clk var lock channel counts, replayed)
 -- ANCHOR_END: openEnv
+
+-- ANCHOR: repair
+-- 🩹 If reading stopped early, the log has a broken entry (often the
+--    last one, cut short). Entries added after it would never be read
+--    back: reading stops there again. So keep a copy of the old log,
+--    and put a fresh log of what we could read in its place (renaming
+--    a file is all or nothing).
+-- 読み戻しが途中で止まったら、ログには壊れた1件がある（たいていは、
+-- 途中で切れた最後の1件）。そのあとに足したものは、次も読み戻せない
+-- （また、そこで止まる）。だから、古いログの写しを残し、読めた分から
+-- 作った新しいログに置き換える（ファイルの名前の付け替えは、全部か無しか）
+repairLog :: FilePath -> Replayed -> IO ()
+repairLog path replayed = case problem replayed of
+  Nothing -> pure ()
+  Just _  -> do
+    copyFile path (path <> ".broken")
+    BS.writeFile (path <> ".new") (rewriteLog (replayedStore replayed))
+    renameFile (path <> ".new") path
+-- ANCHOR_END: repair
 
 -- ANCHOR: run
 -- ⚛️ Run one plain command (logging it if it changes the store).
@@ -129,22 +152,39 @@ stateTVar' var f = do
 -- ⏳ BLPOP: wait until the list has something (or the time is up),
 --    then pop it with a plain LPOP. If another client took it first,
 --    wait again. STM's `retry` sleeps until the store changes.
+--    While waiting, it also watches the client. If the client hangs
+--    up, it stops and takes nothing (Nothing). Bytes the client sends
+--    meanwhile are kept, and given back with the reply.
 -- BLPOP：リストに何か入るまで（か時間切れまで）待ち、ふつうの LPOP で
 -- 取り出す。先にほかのクライアントに取られたら、また待つ。
--- STM の retry は、ストアが変わるまで眠る
-blockingPop :: Env -> Key -> Int -> IO Wire
-blockingPop env key seconds = do
+-- STM の retry は、ストアが変わるまで眠る。
+-- 待つあいだ、クライアントも見張る。クライアントが切ったら、何も取らずに
+-- やめる（Nothing）。そのあいだに届いたバイトは取っておき、答えと一緒に返す
+blockingPop :: Env -> Socket -> Key -> Int -> IO (Maybe (Wire, ByteString))
+blockingPop env sock key seconds = do
   timeUp <- if seconds == 0 then newTVarIO False
                             else registerDelay (seconds * 1000000)
-  let attempt = do
-        ready <- atomically (waitForItem `orElse` waitForTimeout timeUp)
-        if not ready then pure (WBulk Nothing) else do
-          reply <- runCommand env (LPop key)
-          case reply of
-            WBulk Nothing -> attempt    -- someone was faster / 先を越された
-            other         -> pure other
-  attempt
+  let attempt early = do
+        woke <- race waitForClient
+                     (atomically (waitForItem `orElse` waitForTimeout timeUp))
+        case woke of
+          Left () -> do
+            chunk <- recv sock 4096
+            if BS.null chunk
+              then pure Nothing                 -- hung up / 切られた
+              else attempt (early <> chunk)     -- keep it / 取っておく
+          Right False -> pure (Just (WBulk Nothing, early))
+          Right True  -> do
+            reply <- runCommand env (LPop key)
+            case reply of
+              -- Someone was faster. / 先を越された
+              WBulk Nothing -> attempt early
+              other         -> pure (Just (other, early))
+  attempt BS.empty
   where
+    -- Wait until the client sent something or hung up, reading nothing.
+    -- クライアントが何か送るか、切るまで待つ（読まずに）
+    waitForClient = withFdSocket sock (threadWaitRead . fromIntegral)
     waitForItem = do
       store <- readTVar (storeVar env)
       case fst (apply 0 (LLen key) store) of
@@ -219,10 +259,16 @@ serveClient env sock = loop BS.empty
           answerAll rest
         Right (Subscribe channels) ->
           subscribe env sock channels     -- this connection now listens
+        Right (BLPop key secs) -> do
+          waited <- blockingPop env sock key secs
+          case waited of
+            Nothing             -> pure ()  -- the client left / 帰った
+            Just (reply, early) -> do
+              sendAll sock (render reply)
+              answerAll (rest <> early)
         Right other -> do
           reply <- case other of
             Plain command   -> runCommand env command
-            BLPop key secs  -> blockingPop env key secs
             Publish c m     -> publish env c m
           sendAll sock (render reply)
           answerAll rest

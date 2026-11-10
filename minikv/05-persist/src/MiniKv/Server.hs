@@ -23,7 +23,7 @@ import Control.Concurrent.Async (async, cancel, link, withAsync)
 import Control.Concurrent.STM (STM, TVar, atomically, check, modifyTVar',
                                newTVarIO, readTVar, readTVarIO, writeTVar)
 import Control.Exception (bracket, finally, mask)
-import Control.Monad (forever, unless)
+import Control.Monad (forM_, forever, unless)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
@@ -33,7 +33,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
-import System.Directory (doesFileExist)
+import System.Directory (copyFile, doesFileExist, renameFile)
 import System.IO (Handle, IOMode (..), hClose, hFlush, openFile)
 
 import MiniKv.Persist
@@ -72,10 +72,30 @@ openEnv clk logPath = do
       exists <- doesFileExist path
       if exists then replay <$> BS.readFile path
                 else pure (Replayed emptyStore 0 Nothing)
+  forM_ logPath $ \path -> repairLog path replayed
   var <- newTVarIO (replayedStore replayed)
   lock <- traverse (\path -> openFile path AppendMode >>= newMVar) logPath
   pure (Env clk var lock, replayed)
 -- ANCHOR_END: env
+
+-- ANCHOR: repair
+-- 🩹 If reading stopped early, the log has a broken entry (often the
+--    last one, cut short). Entries added after it would never be read
+--    back: reading stops there again. So keep a copy of the old log,
+--    and put a fresh log of what we could read in its place (renaming
+--    a file is all or nothing).
+-- 読み戻しが途中で止まったら、ログには壊れた1件がある（たいていは、
+-- 途中で切れた最後の1件）。そのあとに足したものは、次も読み戻せない
+-- （また、そこで止まる）。だから、古いログの写しを残し、読めた分から
+-- 作った新しいログに置き換える（ファイルの名前の付け替えは、全部か無しか）
+repairLog :: FilePath -> Replayed -> IO ()
+repairLog path replayed = case problem replayed of
+  Nothing -> pure ()
+  Just _  -> do
+    copyFile path (path <> ".broken")
+    BS.writeFile (path <> ".new") (rewriteLog (replayedStore replayed))
+    renameFile (path <> ".new") path
+-- ANCHOR_END: repair
 
 -- ANCHOR: run
 -- ⚛️ Run one command. Reads look at the store and change nothing, so

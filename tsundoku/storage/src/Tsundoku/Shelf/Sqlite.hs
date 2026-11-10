@@ -48,6 +48,9 @@ withSqliteShelf path action =
 sqliteShelf :: Connection -> IO Shelf
 sqliteShelf conn = do
   runReaderT (execute_ "PRAGMA foreign_keys = ON") conn
+  -- Another program writing the same file: wait for it, up to 5 seconds.
+  -- 同じファイルに、ほかのプログラムが書いている間は、5秒まで待つ
+  runReaderT (execute_ "PRAGMA busy_timeout = 5000") conn
   runReaderT migrate conn
   lock <- newMVar ()
   let -- Run a job: one at a time, in one transaction, on this connection.
@@ -141,12 +144,15 @@ changes = do
   conn <- ask
   liftIO (SQLite.changes conn)
 
--- 🔒 Run a job in a transaction: all of it, or none of it.
--- 仕事をトランザクションの中で動かす。全部か、何もなしか
+-- 🔒 Run a job in a transaction: all of it, or none of it. IMMEDIATE
+--    takes the right to write first, so no other program can write
+--    between our reading and our writing.
+-- 仕事をトランザクションの中で動かす。全部か、何もなしか。IMMEDIATE で、
+-- 書く権利を先に取る。読んでから書くまでに、ほかのプログラムが書けない
 transaction :: Db a -> Db a
 transaction job = do
   conn <- ask
-  liftIO (SQLite.withTransaction conn (runReaderT job conn))
+  liftIO (SQLite.withImmediateTransaction conn (runReaderT job conn))
 -- ANCHOR_END: db
 
 -- ANCHOR: changes

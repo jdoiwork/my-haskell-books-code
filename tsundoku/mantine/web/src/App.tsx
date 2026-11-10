@@ -64,8 +64,13 @@ export function App() {
         <Container size="md">
           {screen.on === "shelf" &&
             <WorkList tag={screen.tag} onTag={shelfOf} onOpen={open} />}
+          {/* A new key for each work: opening a work alike starts a fresh
+              card, with no state (or a note half typed) from the last. */}
+          {/* 作品ごとに新しい key：似ている作品を開くと、前の作品の状態
+              （打ちかけの感想も）を持たない、新しいカードから始まる */}
           {screen.on === "card" &&
-            <CardView id={screen.id} onTag={shelfOf} onOpen={open}
+            <CardView key={screen.id} id={screen.id}
+              onTag={shelfOf} onOpen={open}
               onEdit={() => setScreen({ on: "edit", id: screen.id })} />}
           {screen.on === "new" && <NewWork onAdded={open} />}
           {screen.on === "edit" &&
