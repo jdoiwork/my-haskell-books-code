@@ -325,18 +325,13 @@ data DefProblem
 
 -- ANCHOR: tocProblem
 -- 🚧 What can be wrong with the shape of a table of contents. Each one
---    says where (the path of headings from the top). The page problems
---    are only for a table the AI reads from a printed book (MCP).
--- 目次の形の、まずいところ。どれも、どこか（上からの見出しの道順）を言う。
--- ページのまずいところは、AI が印刷された本から読んだ目次（MCP）だけのもの
+--    says where (the path of headings from the top).
+-- 目次の形の、まずいところ。どれも、どこか（上からの見出しの道順）を言う
 data TocProblem
-  = NoChapters                              -- the table is empty / 空
-  | TooMany      Int                        -- too many items / 多すぎる
+  = TooMany      Int                        -- too many items / 多すぎる
   | EmptyHeading [Text]                     -- under this path / この下に
   | SameHeading  [Text] Text                -- twice under one path / 2回
   | TooDeep      [Text]                     -- deeper than maxDepth
-  | PageOutside  [Text] Int                 -- before 1 or after the end
-  | PageBefore   [Text] Int Text Int        -- starts before the one above
   deriving (Show, Eq)
 -- ANCHOR_END: tocProblem
 -- ANCHOR_END: problems
@@ -399,8 +394,6 @@ data Mistake
   | EmptyTitle                       -- a work with no title / 題がない
   | LongTitle     Int                -- longer than this / この字数より長い題
   | NegativeSize  Text               -- the heading / 量がマイナスの見出し
-  | BadTag        Text               -- blank, comma, too long / 使えないタグ
-  | TooManyTags   Int                -- how many / いくつ
   | BadToc        [TocProblem]       -- every problem / 目次のまずい所の全部
   | EntryTwice    EntryId            -- one number, two lines / 番号が2回
   | NoTable                          -- a film or a game / 目次のない作品

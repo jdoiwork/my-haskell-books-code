@@ -98,14 +98,14 @@ library
                     ShelfAnswers.LiveSearch
                     ShelfAnswers.FinishBoth
                     ShelfAnswers.TuiSearch
+                    ShelfAnswers.EditToc
+                    ShelfAnswers.ByHeading
                     ShelfAnswers.TocDiff
                     ShelfAnswers.Unnoted
                     ShelfAnswers.Reread
                     ShelfAnswers.CsvIn
                     ShelfAnswers.StrictSpoiler
                     ShelfAnswers.Rotate
-                    ShelfAnswers.EditToc
-                    ShelfAnswers.ByHeading
   hs-source-dirs:   src answers
   -- ANCHOR: deps
   -- unicode-show: to show Japanese as it is in GHCi (uprint)
@@ -204,10 +204,10 @@ test-suite tsundoku-test
                     ApiSpec
                     HtmlSpec
                     TuiSpec
+                    EditSpec
                     McpSpec
                     ReviewSpec
                     DeploySpec
-                    EditSpec
   ghc-options:      -threaded
   build-depends:
     , tsundoku

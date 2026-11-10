@@ -106,6 +106,19 @@ sqliteShelf conn = do
           change wid (Card.addEpisodes fresh) (insertGrown wid fresh)
         pure (fmap (\_ -> ()) result)
       -- ANCHOR_END: sqliteGrow
+      -- ANCHOR: sqliteRevise
+      -- A work fixed by hand: new lines take numbers from the next one
+      -- SQLite would give, as the new episodes do.
+      -- 手で直した作品：新しい行は、SQLite が次に振る番号から取る
+      -- （新しい話と同じ）
+      revise :: WorkId -> Revision -> IO (Checked ())
+      revise wid r = do
+        result <- run $ do
+          from <- nextEntryId
+          change wid (Card.revise from r)
+                     (writeRevision wid (notesOnRemoved r))
+        pure (fmap (\_ -> ()) result)
+      -- ANCHOR_END: sqliteRevise
   pure Shelf
     { -- 📚 The works on the shelf
       -- 本棚の作品
@@ -114,6 +127,7 @@ sqliteShelf conn = do
         , removeWork = \wid     -> run (deleteWork wid)
         , getCard    = \wid     -> run (loadCard   wid)
         , listCards  =             run  loadAll
+        , reviseWork = revise
         }
 
     , -- 📖 Reading, notes, and ratings
@@ -125,6 +139,8 @@ sqliteShelf conn = do
             edit_ wid (Card.addNote n)      (insertNote    wid n)
         , logReading = \wid l   ->
             edit_ wid (Card.logReading l)   (insertLog     wid l)
+        , unread     = \wid i   ->
+            edit_ wid (Card.unread i)       (deleteLog     wid i)
         , rate       = \wid s   ->
             edit_ wid (Right . Card.rate s) (updateRating  wid s)
         , rateEntry  = \wid i s ->
@@ -271,6 +287,14 @@ insertLog (WorkId w) l = execute """
   where
     EntryId i = readEntry l
 
+-- ANCHOR: deleteLog
+-- 🧽 Every line of the log about one entry of one work.
+-- 作品1つの、項目1つについてのログの行を全部消す
+deleteLog :: WorkId -> EntryId -> Db ()
+deleteLog (WorkId w) (EntryId i) = execute
+  "DELETE FROM reading_log WHERE work_id = ? AND entry_id = ?" (w, i)
+-- ANCHOR_END: deleteLog
+
 upsertRating :: WorkId -> EntryId -> Score -> Db ()
 upsertRating (WorkId w) (EntryId i) s = execute """
   INSERT INTO entry_ratings (entry_id, work_id, score) VALUES (?, ?, ?)
@@ -348,6 +372,61 @@ insertGrown (WorkId w) fresh card =
     (_, _, toc)        = toPlain (contents (work card))
     number (EntryId i) = i
 -- ANCHOR_END: sqliteRows
+
+-- ANCHOR: writeRevision
+-- 🔢 The number SQLite would give the next entry.
+-- SQLite が次の項目に振る番号
+nextEntryId :: Db EntryId
+nextEntryId = do
+  rows <- query_ "SELECT seq FROM sqlite_sequence WHERE name = 'entries'"
+  pure $ case rows of
+    [Only s] -> EntryId (s + 1)
+    _        -> EntryId 1
+
+-- ✏️ Write a work fixed by hand. The order matters:
+--    1. notes on lines that are gone move to the whole work (or else
+--       ON DELETE CASCADE would take them away), or are deleted, as
+--       chosen;
+--    2. every line is changed or put in, from the top (a parent before
+--       its children);
+--    3. the lines that are gone are deleted; their ratings, log, and
+--       texts go with them (ON DELETE CASCADE).
+-- 手で直した作品を書く。順番が大事：
+--    1. 消える行の感想を、選んだとおりに、作品全体へ移す（でないと
+--       ON DELETE CASCADE に消されてしまう）か、消す
+--    2. どの行も、上から順に書き換えるか、足す（親が子より先）
+--    3. 消える行を消す。その★・ログ・本文も一緒に消える（ON DELETE CASCADE）
+writeRevision :: WorkId -> NotesOnRemoved -> Card -> Db ()
+writeRevision (WorkId w) choice card = do
+  execute "UPDATE works SET title = ?, creator = ? WHERE id = ?"
+    (title (work card), creator (work card), w)
+  before <- query "SELECT id FROM entries WHERE work_id = ?" (Only w)
+  let had  = [ i | Only i <- before ]
+      now  = [ number (entryId e) | (_, _, e) <- placed toc ]
+      gone = [ i | i <- had, i `notElem` now ]
+  forM_ gone $ \i -> case choice of
+    MoveToWork ->
+      execute "UPDATE notes SET entry_id = NULL WHERE entry_id = ?" (Only i)
+    DropNotes  ->
+      execute "DELETE FROM notes WHERE entry_id = ?" (Only i)
+  forM_ (placed toc) $ \(parent, position, e) ->
+    if number (entryId e) `elem` had
+      then execute """
+        UPDATE entries SET parent_id = ?, position = ?, heading = ?, size = ?
+         WHERE id = ?
+        """
+        (fmap number parent, position, heading e, size e, number (entryId e))
+      else execute """
+        INSERT INTO entries (id, work_id, parent_id, position, heading, size)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """
+        (number (entryId e), w, fmap number parent, position, heading e
+        , size e)
+  forM_ gone $ \i -> execute "DELETE FROM entries WHERE id = ?" (Only i)
+  where
+    (_, _, toc)        = toPlain (contents (work card))
+    number (EntryId i) = i
+-- ANCHOR_END: writeRevision
 
 -- ANCHOR: upsertText
 -- 📝 Keep the text of an entry. A new text replaces the old one.
@@ -685,14 +764,60 @@ migrations =
     ]
     -- ANCHOR_END: migration3
     -- ANCHOR: migration4
-  , -- 4: the tags of each work (a JSON array of words)
-    -- 4: 作品ごとのタグ（言葉の JSON の配列）
+  , -- 4: works and entries can now be fixed by hand. documents follows
+    --    a new title, a new heading, a line that is gone, and a note
+    --    that moved to the whole work or was dropped.
+    -- 4: 作品と項目を手で直せるようになった。documents は、新しい題、
+    --    新しい見出し、消えた行、作品全体へ移った感想と消した感想を
+    --    追いかける
+    [ """
+      CREATE TRIGGER work_renamed AFTER UPDATE OF title, creator ON works
+      BEGIN
+        DELETE FROM documents
+         WHERE work_id = old.id AND place IN ('title', 'creator');
+        INSERT INTO documents (body, work_id, place, entry_id, spoiler)
+        VALUES (new.title,   new.id, 'title',   NULL, 0),
+               (new.creator, new.id, 'creator', NULL, 0);
+      END
+      """
+    , """
+      CREATE TRIGGER entry_renamed AFTER UPDATE OF heading ON entries
+      BEGIN
+        UPDATE documents SET body = new.heading
+         WHERE place = 'heading' AND entry_id = old.id;
+      END
+      """
+    , """
+      CREATE TRIGGER entry_removed AFTER DELETE ON entries BEGIN
+        DELETE FROM documents
+         WHERE entry_id = old.id AND place IN ('heading', 'text');
+      END
+      """
+    , """
+      CREATE TRIGGER note_moved AFTER UPDATE OF entry_id ON notes BEGIN
+        UPDATE documents SET entry_id = new.entry_id
+         WHERE place = 'note' AND entry_id = old.entry_id
+           AND body = old.body;
+      END
+      """
+    , """
+      CREATE TRIGGER note_removed AFTER DELETE ON notes BEGIN
+        DELETE FROM documents
+         WHERE place = 'note' AND work_id = old.work_id
+           AND entry_id IS old.entry_id AND body = old.body;
+      END
+      """
+    ]
+    -- ANCHOR_END: migration4
+    -- ANCHOR: migration5
+  , -- 5: the tags of each work (a JSON array of words)
+    -- 5: 作品ごとのタグ（言葉の JSON の配列）
     [ """
       ALTER TABLE works ADD COLUMN
         tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags))
       """
     ]
-    -- ANCHOR_END: migration4
+    -- ANCHOR_END: migration5
   ]
 
 -- 🪜 Run the steps the file has not run yet. SQLite keeps a number of

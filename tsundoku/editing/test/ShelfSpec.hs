@@ -61,10 +61,9 @@ shelfSpec = do
     it "removes the notes with the work" $
       SQLite.withConnection ":memory:" $ \conn -> do
         shelf <- sqliteShelf conn
-        wid   <- shelf.works.addWork dragonBook
-        _     <- shelf.reading.addNote wid
-                   (Note OnWork "!" (onDay 2026 11 9) False)
-        _     <- shelf.works.removeWork wid
+        wid   <- shelf.addWork dragonBook
+        _     <- shelf.addNote wid (Note OnWork "!" (onDay 2026 11 9) False)
+        _     <- shelf.removeWork wid
         left  <- SQLite.query_ conn "SELECT count(*) FROM notes"
         left `shouldBe` [SQLite.Only (0 :: Int)]
     -- ANCHOR: earlierFile
@@ -79,7 +78,7 @@ shelfSpec = do
           "INSERT INTO works (title, creator, kind, reading) \
           \VALUES ('古い本棚の本', 'だれか', 'game', 'Piled')"
         shelf <- sqliteShelf conn
-        fmap (map place) <$> shelf.inside.searchText "古い本棚"
+        fmap (map place) <$> shelf.searchText "古い本棚"
           `shouldReturn` Right [InTitle]
     -- ANCHOR_END: earlierFile
 
@@ -108,11 +107,10 @@ shelfAnswers = do
   it "leaves notes behind without foreign keys" $
     SQLite.withConnection ":memory:" $ \conn -> do
       shelf <- sqliteShelf conn
-      wid   <- shelf.works.addWork dragonBook
-      _     <- shelf.reading.addNote wid
-                 (Note OnWork "!" (onDay 2026 11 9) False)
+      wid   <- shelf.addWork dragonBook
+      _     <- shelf.addNote wid (Note OnWork "!" (onDay 2026 11 9) False)
       SQLite.execute_ conn "PRAGMA foreign_keys = OFF"
-      _     <- shelf.works.removeWork wid
+      _     <- shelf.removeWork wid
       orphanNotes conn `shouldReturn` 1
   -- 「タグは、メモリでも SQLite でも同じに付く」
   it "tags works in memory and in SQLite alike" $
@@ -122,7 +120,7 @@ shelfAnswers = do
       taggings <- sequence [ memoryTagging inMemory
                            , sqliteTagging inSqlite conn ]
       forM_ (zip [inMemory, inSqlite] taggings) $ \(shelf, tags) -> do
-        wid <- shelf.works.addWork dragonBook
+        wid <- shelf.addWork dragonBook
         mapM_ (tags.tagWork wid) [" 魔法 ", "ドラゴン", "魔法"]
         tags.tagsOf wid `shouldReturn` ["ドラゴン", "魔法"]
         tags.tagWork (WorkId 9) "?"
@@ -133,9 +131,9 @@ shelfAnswers = do
     SQLite.withConnection ":memory:" $ \conn -> do
       inMemory <- newMemoryShelf
       inSqlite <- sqliteShelf conn
-      _        <- inMemory.works.addWork tornWork
-      refused  <- try (inSqlite.works.addWork tornWork)
-      map fst <$> inMemory.works.listCards `shouldReturn` [WorkId 1]
+      _        <- inMemory.addWork tornWork
+      refused  <- try (inSqlite.addWork tornWork)
+      map fst <$> inMemory.listCards `shouldReturn` [WorkId 1]
       either (const True) (const False)
         (refused :: Either SomeException WorkId) `shouldBe` True
   -- ANCHOR_END: answerTorn
@@ -148,8 +146,8 @@ shelfAnswers = do
       inSqlite <- sqliteShelf conn
       moved    <- moveShelf inMemory inSqlite
       map snd moved `shouldBe` map WorkId [1 .. 6]
-      before <- inMemory.works.listCards
-      inSqlite.works.listCards `shouldReturn` before
+      before <- inMemory.listCards
+      inSqlite.listCards `shouldReturn` before
       map (title . work . snd) before `shouldBe` map (title . work) myShelf
       map (ratingsOf . snd) before `shouldBe` map ratingsOf myShelf
       map (reading . snd) before `shouldBe` map reading myShelf
@@ -167,12 +165,12 @@ shelfAnswers = do
   it "leaves out spoilers until the work is read" $ do
     shelf <- newMemoryShelf
     _     <- fillForSearch shelf
-    _     <- shelf.reading.applyEvent (WorkId 1) Start
-    Right hits <- shelf.inside.searchText "火を吐"
+    _     <- shelf.applyEvent (WorkId 1) Start
+    Right hits <- shelf.searchText "火を吐"
     any (isNote . place) hits `shouldBe` True
     map place <$> withoutSpoilers shelf hits
       `shouldReturn` filter (not . isNote) (map place hits)
-    _     <- shelf.reading.applyEvent (WorkId 1) Finish
+    _     <- shelf.applyEvent (WorkId 1) Finish
     map place <$> withoutSpoilers shelf hits
       `shouldReturn` map place hits
   -- ANCHOR_END: answerSpoilers

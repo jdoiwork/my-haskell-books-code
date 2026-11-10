@@ -18,5 +18,7 @@
   --done:        #2e8b57;
   --mark:        #ffe58a;
   --danger:      #e06c5a;
+  --warn:        #d9a400;   /* before losing something / 消える前の注意 */
+  --warn-soft:   #fff8dc;
   --danger-soft: #fff3f1;
 }

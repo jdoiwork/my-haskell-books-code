@@ -21,11 +21,6 @@ module Tsundoku.Html.Parts
   , attrsPart
   , hitsPart
   , problemBox
-  , Extras (..)
-  , tagsPart
-  , seenPart
-  , alikePart
-  , statsPage
     -- * htmx attributes / htmx の属性
   , hxGet
   , hxPost
@@ -43,10 +38,6 @@ import Control.Monad (forM_, unless)
 import Data.Aeson (encode, object, (.=))
 import Data.Aeson.Key qualified as Key
 import Data.ByteString.Lazy qualified as LBS
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
-import Data.Set (Set)
-import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
@@ -58,12 +49,9 @@ import Lucid.Base (makeAttribute)
 
 import Tsundoku.Api.Json
 import Tsundoku.Form (FormRow (..), Widget (..))
-import Tsundoku.Card (Card (rating, work))
 import Tsundoku.Labels (eventLabel, stateLabel)
-import Tsundoku.Review (Month (..), MonthStat (..), Seen (..))
 import Tsundoku.Rating (RatingStyle, Score, marks, render, score, scoreValue,
                         snap, step)
-import Tsundoku.Types (Pages (..), Work (title), WorkId (..))
 -- ANCHOR_END: header
 
 -- ANCHOR: htmx
@@ -171,96 +159,24 @@ progressBar p = span_ [class_ "progress"] $ do
 -- 🗂️ The page of one work. Each part has its own id, so that htmx can
 --    swap it alone.
 -- 作品1つのページ。部品ごとに id があるので、htmx は1つだけを差し替えられる
-cardPage :: RatingStyle -> [FormRow] -> Extras -> CardDetail -> Html ()
-cardPage style rows extras card = page card.work.title $ do
+cardPage :: RatingStyle -> [FormRow] -> CardDetail -> Html ()
+cardPage style rows card = page card.work.title $ do
   h1_ (toHtml card.work.title)
   p_ [class_ "creator"] (toHtml card.work.creator)
   div_ [id_ "bar"] (maybe "" progressBar card.work.progress)
   readingPart wid card.work.reading card.next
   ratingPart style wid card.work.rating
-  tagsPart wid extras.tags
   unless (null card.toc) $ do
     h2_ "目次"
     tocPart card.toc
   h2_ "感想"
   noteForm wid card.toc
-  ul_ [id_ "notes"] (forM_ (reverse extras.seen) (seenPart card.toc))
-  unless (null extras.alike) (alikePart extras.alike)
+  ul_ [id_ "notes"] (forM_ (reverse card.notes) (notePart card.toc))
   h2_ "自分で決めた属性と状態"
   attrsPart wid rows
   where
     wid = card.work.id
 -- ANCHOR_END: cardPage
-
--- ANCHOR: extras
--- 🔖 What the review site adds to a card's page: the tags, the notes as
---    I may see them now, and works that look alike.
--- レビューサイトがカードのページに足すもの：タグ、いまの自分に見せてよい
--- 感想、似ている作品
-data Extras = Extras
-  { tags  :: Set Text
-  , seen  :: [(Seen, Text)]        -- a note, and the hint if hidden
-  , alike :: [(Int, Text)]         -- number and title / 番号と題
-  }
-
--- 🔖 The tags, and a box to change them (commas between).
--- タグと、それを変える箱（カンマで区切る）
-tagsPart :: Int -> Set Text -> Html ()
-tagsPart wid ts =
-  form_ [ id_ "tags", class_ "tags"
-        , hxPost (workUrl wid "tags"), hxSwap "outerHTML" ] $ do
-    forM_ (Set.toList ts) $ \t ->
-      a_ [class_ "tag", href_ ("/?tag=" <> t)] (toHtml ("#" <> t))
-    input_ [ type_ "text", name_ "tags", placeholder_ "タグ（カンマで区切る）"
-           , value_ (T.intercalate ", " (Set.toList ts)) ]
-    button_ "タグを保存"
-
--- 🙈 A note as I may see it: shown, or a hint of when it will show.
--- いまの自分に見せてよい感想：見せるか、いつ見えるかのヒント
-seenPart :: [TocItem] -> (Seen, Text) -> Html ()
-seenPart toc (s, hint) = case s of
-  Shown note -> notePart toc (noteItem note)
-  Hidden _   -> li_ [class_ "hidden"] (toHtml hint)
-
--- 🤝 Works that look alike, by their tags.
--- タグで似ている作品
-alikePart :: [(Int, Text)] -> Html ()
-alikePart works = do
-  h2_ "この作品が好きなら"
-  ul_ [class_ "alike"] $ forM_ works $ \(n, title) ->
-    li_ (a_ [href_ ("/works/" <> T.pack (show n))] (toHtml title))
--- ANCHOR_END: extras
-
--- ANCHOR: statsPage
--- 📊 The statistics: month by month, the tag cloud, the best of a year.
--- 統計：月ごと、タグの雲、その年のベスト
-statsPage :: RatingStyle -> Integer -> Map Month MonthStat -> [(Text, Int)]
-          -> [(WorkId, Card)] -> Html ()
-statsPage style y months cloud best = page "読書の統計" $ do
-  h1_ "読書の統計"
-  table_ [class_ "months"] $ do
-    tr_ (th_ "月" <> th_ "読み終えた" <> th_ "ページ")
-    forM_ (Map.toList months) $ \(Month yy mm, MonthStat n (Pages p)) ->
-      tr_ $ do
-        td_ (toHtml (T.pack (show yy) <> "年" <> T.pack (show mm) <> "月"))
-        td_ (toHtml (T.pack (show n) <> "冊"))
-        td_ $ do
-          meter_ [value_ (shown p), max_ (shown (maximum (1 : pagesOf)))] ""
-          toHtml (" " <> shown p)
-  h2_ "タグ"
-  p_ [class_ "cloud"] $ forM_ cloud $ \(t, n) ->
-    a_ [ href_ ("/?tag=" <> t)
-       , style_ ("font-size: " <> T.pack (show (100 + 20 * min 5 n)) <> "%") ]
-       (toHtml ("#" <> t <> " "))
-  h2_ (toHtml (T.pack (show y) <> "年のベスト"))
-  ol_ $ forM_ best $ \(WorkId n, c) ->
-    li_ $ do
-      a_ [href_ ("/works/" <> T.pack (show n))] (toHtml c.work.title)
-      toHtml (" " <> maybe "—" (render style) c.rating)
-  where
-    pagesOf = [ p | MonthStat _ (Pages p) <- Map.elems months ]
-    shown n = T.pack (show (n :: Int))
--- ANCHOR_END: statsPage
 
 -- ANCHOR: toc
 -- 🌳 The table, as nested lists. What I have read gets a check.

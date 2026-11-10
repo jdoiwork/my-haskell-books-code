@@ -33,6 +33,7 @@ library
                     Tsundoku.Chart
                     Tsundoku.Examples
                     Tsundoku.Outline
+                    Tsundoku.TocCheck
                     Tsundoku.Shelf
                     Tsundoku.Shelf.Rows
                     Tsundoku.Shelf.Memory
@@ -96,6 +97,8 @@ library
                     ShelfAnswers.LiveSearch
                     ShelfAnswers.FinishBoth
                     ShelfAnswers.TuiSearch
+                    ShelfAnswers.EditToc
+                    ShelfAnswers.ByHeading
                     ShelfAnswers.TocDiff
                     ShelfAnswers.Unnoted
                     ShelfAnswers.Reread
@@ -199,6 +202,7 @@ test-suite tsundoku-test
                     ApiSpec
                     HtmlSpec
                     TuiSpec
+                    EditSpec
                     McpSpec
                     ReviewSpec
   ghc-options:      -threaded

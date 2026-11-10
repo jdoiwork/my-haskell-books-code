@@ -10,8 +10,6 @@ module Tsundoku.Examples
   , detectiveDrama
   , lastDragonFilm
   , dungeonGame
-  , finishedDragon
-  , taggedShelf
   , onDay
   , nov
   , dragonLog
@@ -56,7 +54,6 @@ module Tsundoku.Examples
 import Control.Monad (foldM)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, UTCTime (..), fromGregorian)
@@ -277,33 +274,6 @@ myShelf =
   , newCard dungeonGame
   ]
 -- ANCHOR_END: shelf
-
--- ANCHOR: tagged
--- 🏁 The dragon book, read to the end: entries 6 to 8 in November too.
--- 最後まで読んだドラゴン学：11月に、項目 6〜8 も読んだ
-finishedDragon :: Card
-finishedDragon = surely $ do
-  logged <- foldM (flip logReading) dragonCard
-    [ LogLine (nov 10) (EntryId 6)
-    , LogLine (nov 11) (EntryId 7)
-    , LogLine (nov 12) (EntryId 8) ]
-  applyEvent Finish logged
-
--- 🔖 My shelf with tags (and the dragon book finished), numbered 1, 2, ...
--- タグを付けた本棚（ドラゴン学は読み終えたもの）。番号は 1, 2, …
-taggedShelf :: [(WorkId, Card)]
-taggedShelf = zip (map WorkId [1 ..]) (zipWith withTags tagLists cards)
-  where
-    cards    = finishedDragon : drop 1 myShelf
-    tagLists =
-      [ ["竜", "図鑑", "魔法"]
-      , ["転生", "図書館", "魔法"]
-      , ["図書館", "迷宮", "魔法"]
-      , ["推理", "王都"]
-      , ["竜", "冒険"]
-      , ["迷宮", "冒険"] ]
-    withTags ts c = c { tags = Set.fromList ts }
--- ANCHOR_END: tagged
 
 -- ANCHOR: short
 -- 🔢 The same numbering, in one line: walk the trees with a counter.

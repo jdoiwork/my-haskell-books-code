@@ -123,7 +123,7 @@ editApp :: Shelf -> Application
 editApp shelf = serve (Proxy :: Proxy EditApi) $ \n -> fresh n [] :<|> save n
   where
     fresh n said = do
-      found <- liftIO (shelf.works.getCard (WorkId n))
+      found <- liftIO (shelf.getCard (WorkId n))
       case found of
         Nothing   -> throwError err404
         Just card -> do
@@ -134,7 +134,7 @@ editApp shelf = serve (Proxy :: Proxy EditApi) $ \n -> fresh n [] :<|> save n
       Right toc -> do
         let r = Revision (field "title" fs) (field "creator" fs) toc
                          MoveToWork
-        result <- liftIO (shelf.works.reviseWork (WorkId n) r)
+        result <- liftIO (shelf.reviseWork (WorkId n) r)
         case result of
           Left mistake -> refused n fs (explain mistake)
           Right ()     -> fresh n []

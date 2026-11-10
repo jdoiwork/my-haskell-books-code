@@ -29,6 +29,7 @@ import Servant.Server.Generic (AsServer)
 
 import Tsundoku.Api.Json
 import Tsundoku.Api.Routes
+import Tsundoku.Card (checkWork)
 import Tsundoku.Form (explain, formFor)
 import Tsundoku.Rating (score)
 import Tsundoku.Shelf
@@ -55,15 +56,16 @@ shelfApp clock shelf =
 -- 本棚の全体のハンドラー。どれも窓口に聞くだけ
 shelfServer :: Clock -> Shelf -> ShelfRoutes AsServer
 shelfServer clock shelf = ShelfRoutes
-  { listWorks = map summaryOf <$> liftIO shelf.works.listCards
+  { listWorks = map summaryOf <$> liftIO shelf.listCards
   , addWork   = addOne
   , work      = workServer clock shelf . WorkId
-  , search    = \typed -> map hitItem <$> answer (shelf.inside.searchText typed)
+  , search    = \typed -> map hitItem <$> answer (shelf.searchText typed)
   }
   where
     addOne new = do
       what <- known "kind" new.kind (workFrom new)
-      wid  <- answer (addChecked shelf.works what)
+      good <- gate (checkWork what)
+      wid  <- liftIO (shelf.addWork good)
       cardOf shelf wid
 -- ANCHOR_END: shelfServer
 
@@ -80,38 +82,38 @@ workServer clock shelf wid = WorkRoutes
   , addNote    = \new      -> writeNote new
   , logReading = \line     -> readOn line
   -- ANCHOR: unreadHandler
-  , unread     = \e        -> done (shelf.reading.unread wid (EntryId e))
+  , unread     = \e        -> done (shelf.unread wid (EntryId e))
   -- ANCHOR_END: unreadHandler
-  , rate       = \p        -> rateWith (shelf.reading.rate wid) p
-  , rateEntry  = \e p      -> rateWith (shelf.reading.rateEntry wid (EntryId e)) p
-  , setText    = \e body   -> done (shelf.inside.setText wid (EntryId e) body)
+  , rate       = \p        -> rateWith (shelf.rate wid) p
+  , rateEntry  = \e p      -> rateWith (shelf.rateEntry wid (EntryId e)) p
+  , setText    = \e body   -> done (shelf.setText wid (EntryId e) body)
   , form       =              formOf
-  , editAttrs  = \fields   -> answer (shelf.custom.editAttrs wid fields) >> formOf
+  , editAttrs  = \fields   -> answer (shelf.editAttrs wid fields) >> formOf
   }
   where
     -- ANCHOR: reviseIt
     reviseIt edited = do
-      answer (shelf.works.reviseWork wid (revisionFrom edited))
+      answer (shelf.reviseWork wid (revisionFrom edited))
       cardOf shelf wid
     -- ANCHOR_END: reviseIt
     removeIt = do
-      gone <- liftIO (shelf.works.removeWork wid)
+      gone <- liftIO (shelf.removeWork wid)
       if gone then pure NoContent else refuse (NoSuchWork wid)
     happenTo h = do
       event <- known "event" h.event (fromName h.event)
-      now   <- answer (shelf.reading.applyEvent wid event)
+      now   <- answer (shelf.applyEvent wid event)
       pure (readingNow now)
     writeNote new = do
       now <- liftIO clock
       let note = noteFrom now new
-      answer (shelf.reading.addNote wid note)
+      answer (shelf.addNote wid note)
       pure (noteItem note)
     readOn line = do
       logLine <- known "day" line.day (logFrom line)
-      done (shelf.reading.logReading wid logLine)
+      done (shelf.logReading wid logLine)
     formOf = do
-      found  <- liftIO (shelf.works.getCard wid)
-      schema <- liftIO shelf.custom.getSchema
+      found  <- liftIO (shelf.getCard wid)
+      schema <- liftIO shelf.getSchema
       case found of
         Just c  -> pure (map formField (formFor schema c))
         Nothing -> refuse (NoSuchWork wid)
@@ -125,7 +127,7 @@ workServer clock shelf wid = WorkRoutes
 -- 作品のカード。なければ 404
 cardOf :: Shelf -> WorkId -> Handler CardDetail
 cardOf shelf wid = do
-  found <- liftIO (shelf.works.getCard wid)
+  found <- liftIO (shelf.getCard wid)
   case found of
     Just card -> pure (detailOf (wid, card))
     Nothing   -> refuse (NoSuchWork wid)
@@ -185,8 +187,6 @@ verdict mistake = case mistake of
   EmptyTitle          -> (err422, "empty-title")
   LongTitle     _     -> (err422, "long-title")
   NegativeSize  _     -> (err422, "negative-size")
-  BadTag        _     -> (err422, "bad-tag")
-  TooManyTags   _     -> (err422, "too-many-tags")
   -- ANCHOR: verdictEdit
   BadToc        _     -> (err422, "bad-toc")
   EntryTwice    _     -> (err422, "entry-twice")

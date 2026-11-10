@@ -9,12 +9,19 @@ import { useCallback, useEffect, useState } from "react";
 import { type Answer, shelf } from "./api";
 import { AttrForm } from "./AttrForm";
 import { Bar } from "./Bar";
+import { dayOf } from "./day";
+import { marksFor } from "./outline";
 import { eventLabel, marks, stars, stateLabel, whereOf } from "./shadows";
 import { Toc } from "./Toc";
 import type { CardDetail, FormField } from "./tsundoku-api";
 
 // ANCHOR: card
-export function CardView({ id }: { id: number }) {
+// ANCHOR: props
+export function CardView({ id, onEdit }: {
+  id: number;
+  onEdit: () => void;
+}) {
+// ANCHOR_END: props
   const [card, setCard] = useState<CardDetail | null>(null);
   const [fields, setFields] = useState<FormField[]>([]);
   const [problem, setProblem] = useState<string[]>([]);
@@ -34,13 +41,31 @@ export function CardView({ id }: { id: number }) {
     await reload();
   };
 
+  // ANCHOR: mark
+  // ✅ A tick writes today in the log, for the entry and every entry
+  //    under it; taking it off drops their lines. One at a time, and
+  //    the first refusal stops the rest.
+  // チェックを入れたら、その項目と下の全部について、今日の日付でログに
+  // 書く。外したら、その行を消す。1つずつ順に、断られたらそこで止める
+  const mark = (entry: number, read: boolean) => {
+    if (card === null) return;
+    const today = dayOf(new Date());
+    const asks = marksFor(card.toc, entry, read).map((e) => () =>
+      read ? shelf.logReading(id, today, e) : shelf.unread(id, e));
+    change(inOrder(asks));
+  };
+  // ANCHOR_END: mark
+
   if (card === null) return <p>読みこみ中…</p>;
   const now = card.work.rating === null
     ? null : Math.floor((card.work.rating + 5) / 10) * 10;
   return (
     <article>
+      {/* ANCHOR: fix */}
       <h1>{card.work.title}</h1>
-      <p className="creator">{card.work.creator}</p>
+      <p className="creator">{card.work.creator}
+        <button className="fix" onClick={onEdit}>✏️ 直す</button></p>
+      {/* ANCHOR_END: fix */}
       {problem.length > 0 && <ul className="problem">
         {problem.map((m) => <li key={m}>{m}</li>)}</ul>}
       {card.work.progress && <Bar p={card.work.progress} />}
@@ -58,7 +83,12 @@ export function CardView({ id }: { id: number }) {
             {stars(m)}
           </button>))}
       </p>
-      {card.toc.length > 0 && <><h2>目次</h2><Toc items={card.toc} /></>}
+      {/* ANCHOR: toc */}
+      {card.toc.length > 0 && <>
+        <h2>目次</h2>
+        <Toc items={card.toc} onMark={mark} />
+      </>}
+      {/* ANCHOR_END: toc */}
       <h2>感想</h2>
       <NoteForm onWrite={(body, spoiler) =>
         change(shelf.addNote(id, body, spoiler))} />
@@ -80,6 +110,21 @@ export function CardView({ id }: { id: number }) {
 }
 // ANCHOR_END: card
 
+// ANCHOR: inOrder
+// 🔁 Ask one after another; the first refusal stops the rest.
+// 1つずつ順に聞く。断られたら、そこで止める
+async function inOrder(
+  asks: (() => Promise<Answer<unknown>>)[],
+): Promise<Answer<unknown>> {
+  let last: Answer<unknown> = { ok: true, value: null };
+  for (const ask of asks) {
+    last = await ask();
+    if (!last.ok) break;
+  }
+  return last;
+}
+// ANCHOR_END: inOrder
+
 // ✍️ The form for a new note.
 // 新しい感想のフォーム
 function NoteForm({ onWrite }: {
@@ -95,7 +140,8 @@ function NoteForm({ onWrite }: {
   };
   return (
     <form className="note-form" onSubmit={write}>
-      <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} />
+      <textarea rows={3} value={body}
+                onChange={(e) => setBody(e.target.value)} />
       <label>
         <input type="checkbox" checked={spoiler}
                onChange={(e) => setSpoiler(e.target.checked)} />

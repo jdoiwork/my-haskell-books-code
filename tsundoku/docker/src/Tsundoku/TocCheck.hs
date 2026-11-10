@@ -1,11 +1,13 @@
 -- ANCHOR: all
 -- | The shape of a table of contents, checked: no blank headings, no
---   heading twice among siblings, not too deep, not too many. The MCP
---   chapter checked the AI's tables this way; now every table that comes
---   in (added by hand, or fixed by hand) goes through the same check.
+--   heading twice among siblings, not too deep, not too many. Every
+--   table that comes in (added by hand, or fixed by hand) goes through
+--   this same check. (The page problems are only for the tables the
+--   AI reads from a printed book: the MCP chapter added them.)
 -- 目次の形を確かめる：空の見出しがない、兄弟に同じ見出しがない、深すぎない、
--- 多すぎない。MCP の章では、AI の目次をこうして確かめた。これからは、入って
--- くる目次（手で足したものも、手で直したものも）が、みな同じ確かめを通る
+-- 多すぎない。入ってくる目次（手で足したものも、手で直したものも）が、
+-- みな同じ確かめを通る（ページのまずいところは、AI が印刷された本から読んだ
+-- 目次だけのもの。MCP の章で足した）
 -- ANCHOR: header
 module Tsundoku.TocCheck
   ( shapeProblems

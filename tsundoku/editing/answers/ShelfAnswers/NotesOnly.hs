@@ -8,7 +8,7 @@ module ShelfAnswers.NotesOnly (searchNotes, isNote) where
 import Data.Text (Text)
 
 import Tsundoku.Search (Hit (..), Place (..))
-import Tsundoku.Shelf (Shelf (..), InsideWindow (..))
+import Tsundoku.Shelf (Shelf (..))
 import Tsundoku.Types (Checked)
 -- ANCHOR_END: head
 
@@ -17,7 +17,7 @@ import Tsundoku.Types (Checked)
 -- 窓口で探して、感想で見つかったものだけを残す
 searchNotes :: Shelf -> Text -> IO (Checked [Hit])
 searchNotes shelf typed = do
-  found <- shelf.inside.searchText typed
+  found <- shelf.searchText typed
   pure (fmap (filter (isNote . place)) found)
 
 -- 📝 Is it a note? / 感想？

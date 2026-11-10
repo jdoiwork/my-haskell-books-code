@@ -28,7 +28,7 @@ import Test.Hspec.Wai.JSON (json)
 import Test.QuickCheck
 
 import Tsundoku.Api.Json
-import Tsundoku.Shelf (Shelf (..), WorkWindow (..))
+import Tsundoku.Shelf (Shelf (..))
 import Tsundoku.Shelf.Memory (newMemoryShelf)
 import Tsundoku.Card
 import Tsundoku.Examples
@@ -348,7 +348,7 @@ answersSpec = describe "the answers" $ do
     form = [("Content-Type", "application/x-www-form-urlencoded")]
     app  = do
       shelf <- newMemoryShelf
-      _     <- shelf.works.addWork dragonBook
+      _     <- shelf.addWork dragonBook
       pure (editApp shelf)
     tocOf w = case contents w of
       Book toc -> toc

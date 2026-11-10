@@ -114,15 +114,15 @@ explain mistake = case mistake of
   EmptyTitle         -> ["題が空っぽです"]
   LongTitle n        -> ["題は " <> T.pack (show n) <> " 字までです"]
   NegativeSize h     -> ["「" <> h <> "」の量がマイナスです"]
-  BadTag t           -> ["タグに使えません：「" <> t <> "」（空・カンマ・"
-                         <> T.pack (show tagLength) <> " 字より長いものは使えません）"]
-  TooManyTags n      -> ["タグは " <> T.pack (show tagLimit) <> " 個までです："
-                         <> T.pack (show n) <> " 個"]
   -- ANCHOR: explainEdit
   BadToc ps          -> map explainToc ps
   EntryTwice _       -> ["同じ項目が、目次に2回出てきます"]
   NoTable            -> ["映画とゲームには、目次がありません"]
   -- ANCHOR_END: explainEdit
+  BadTag t           -> ["タグに使えません：「" <> t <> "」（空・カンマ・"
+                         <> T.pack (show tagLength) <> " 字より長いものは使えません）"]
+  TooManyTags n      -> ["タグは " <> T.pack (show tagLimit) <> " 個までです："
+                         <> T.pack (show n) <> " 個"]
   where
     from Nothing  = "まだ入っていないので、"
     from (Just a) = "「" <> a <> "」から"

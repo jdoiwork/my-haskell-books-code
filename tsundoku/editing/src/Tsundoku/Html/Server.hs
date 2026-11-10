@@ -18,9 +18,7 @@ module Tsundoku.Html.Server
 -- ハンドラーの中の IO、文字列、数を読む
 import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text)
-import Data.Set qualified as Set
 import Data.Text qualified as T
-import Data.Time (toGregorian, utctDay)
 import Text.Read (readMaybe)
 
 -- HTML, HTTP, WAI, and servant
@@ -34,8 +32,7 @@ import Servant.Server.Generic (AsServer)
 
 import Tsundoku.Api.Json
 import Tsundoku.Api.Server (Clock, shelfApp, verdict)
-import Tsundoku.Card (Card (..), readTags)
-import Tsundoku.Review
+import Tsundoku.Card (Card)
 import Tsundoku.Form (explain, formFor)
 import Tsundoku.Html.Parts
 import Tsundoku.Html.Routes
@@ -86,39 +83,26 @@ htmxOnly app request reply
 -- ページ。どれも窓口に聞いて、描くだけ
 pageServer :: RatingStyle -> Clock -> Shelf -> PageRoutes AsServer
 pageServer style clock shelf = PageRoutes
-  { home   = \tag    -> shelfPage style . map summaryOf . withTag tag
-                          <$> liftIO shelf.works.listCards
+  { home   = shelfPage style . map summaryOf <$> liftIO shelf.listCards
   , card   = \wid    -> wholeCard (WorkId wid)
   , part   = \wid    -> partServer style clock shelf (WorkId wid)
   , search = \typed  -> searched typed
-  , stats  =            statsOf
   , static = serveDirectoryEmbedded staticFiles
   }
   where
-    withTag tag cards = case tag of
-      Nothing -> cards
-      Just t  -> [ wc | wc@(_, c) <- cards, t `Set.member` c.tags ]
-    statsOf = do
-      cards <- liftIO shelf.works.listCards
-      today <- liftIO clock
-      let (y, _, _) = toGregorian (utctDay today)
-      pure (statsPage style y (monthly (map snd cards)) (tagCloud (map snd cards))
-                      (yearTop y 10 cards))
     wholeCard wid = do
-      found  <- liftIO (shelf.works.getCard wid)
-      schema <- liftIO shelf.custom.getSchema
+      found  <- liftIO (shelf.getCard wid)
+      schema <- liftIO shelf.getSchema
       case found of
-        Just card -> do
-          cards <- liftIO shelf.works.listCards
-          pure (cardPage style (formFor schema card) (extrasOf cards wid card)
-                         (detailOf (wid, card)))
+        Just card -> pure (cardPage style (formFor schema card)
+                                          (detailOf (wid, card)))
         Nothing   -> throwError err404
           { errBody    = renderBS (page "本棚にない作品"
                                         (p_ "本棚にない作品です"))
           , errHeaders = [(hContentType, "text/html; charset=utf-8")]
           }
     searched typed = do
-      hits <- answer (shelf.inside.searchText typed)
+      hits <- answer (shelf.searchText typed)
       fine (hitsPart (map hitItem hits))
 -- ANCHOR_END: pageServer
 
@@ -134,7 +118,6 @@ partServer style clock shelf wid = PartRoutes
   , notes   = \fs -> writeNote fs
   , attrs   = \fs -> editAttrs fs >> drawn attrsOf
   , flow    = \fs -> moveFlow  fs >> drawn attrsOf
-  , tags    = \fs -> tagWith   fs >> drawn tagsOf
   }
   where
     drawn how = do
@@ -144,7 +127,6 @@ partServer style clock shelf wid = PartRoutes
     readingOf card _      = readingPart n (summary card).reading
                                           (detailOf (wid, card)).next
     attrsOf   card schema = attrsPart n (formFor schema card)
-    tagsOf    card _      = tagsPart n card.tags
     summary   card        = summaryOf (wid, card)
     WorkId n = wid
 
@@ -152,40 +134,22 @@ partServer style clock shelf wid = PartRoutes
       Nothing      -> pure ()                   -- untouched / さわっていない
       Just checked -> do
         points <- gate checked
-        answer (shelf.reading.rate wid points)
+        answer (shelf.rate wid points)
     happen fs = do
       event <- known "event" (field "event" fs) (fromName (field "event" fs))
-      _     <- answer (shelf.reading.applyEvent wid event)
+      _     <- answer (shelf.applyEvent wid event)
       pure ()
     writeNote fs = do
       new  <- known "entry" (field "entry" fs) (newNote fs)
       now  <- liftIO clock
       let note = noteFrom now new
-      answer (shelf.reading.addNote wid note)
+      answer (shelf.addNote wid note)
       (card, _) <- cardAndSchema shelf wid
       fine (notePart (detailOf (wid, card)).toc (noteItem note))
-    editAttrs (Fields m) = answer (shelf.custom.editAttrs wid m)
-    tagWith fs = answer (shelf.tagging.setTags wid (readTags (field "tags" fs)))
-    moveFlow fs = answer (shelf.custom.moveFlow wid (field "flow" fs)
-                                                    (field "to"   fs))
+    editAttrs (Fields m) = answer (shelf.editAttrs wid m)
+    moveFlow fs = answer (shelf.moveFlow wid (field "flow" fs)
+                                             (field "to"   fs))
 -- ANCHOR_END: partServer
-
--- ANCHOR: extrasOf
--- 🔖 The review site's extras for a card: its tags, its notes as I may
---    see them now (a hidden one only with its hint), three works alike.
--- カードの、レビューサイトのおまけ：タグ、いまの自分に見せてよい感想
--- （隠したものはヒントだけ）、似ている作品3つ
-extrasOf :: [(WorkId, Card)] -> WorkId -> Card -> Extras
-extrasOf cards wid card = Extras
-  { tags  = card.tags
-  , seen  = [ (s, hintOf s) | s <- seenNotes card ]
-  , alike = [ (n, c.work.title) | (_, WorkId n, c) <- similarTo 3 wid cards ]
-  }
-  where
-    hintOf s = case s of
-      Shown _  -> ""
-      Hidden t -> hiddenHint card.work.contents t
--- ANCHOR_END: extrasOf
 
 -- ANCHOR: ratingFrom
 -- ⭐ What the rating form asks for. A mark sends its points. A typed
@@ -227,8 +191,8 @@ newNote fs = do
 -- 作品のカードと定義。なければ 404 のページ
 cardAndSchema :: Shelf -> WorkId -> Handler (Card, Schema)
 cardAndSchema shelf wid = do
-  found  <- liftIO (shelf.works.getCard wid)
-  schema <- liftIO shelf.custom.getSchema
+  found  <- liftIO (shelf.getCard wid)
+  schema <- liftIO shelf.getSchema
   case found of
     Just card -> pure (card, schema)
     Nothing   -> refuse (NoSuchWork wid)

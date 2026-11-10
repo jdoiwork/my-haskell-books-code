@@ -102,3 +102,28 @@ mark { background: var(--mark); border-radius: .2rem; padding: 0 .1rem; }
 .problem { position: sticky; top: 0; }
 .problem ul { background: var(--danger-soft); border: 2px solid var(--danger);
               border-radius: .6rem; padding: .5rem 2rem; }
+
+/* ✏️ Adding and fixing a work. / 作品を足す・直す */
+header .add { float: right; font-size: 1rem; font-weight: normal; }
+.creator .fix { margin-left: .8rem; font-size: .8rem; }
+.edit label { display: block; margin: .5rem 0; color: var(--muted); }
+.edit label input { margin-left: .5rem; width: 20rem; color: var(--ink); }
+.edit .outline textarea { display: block; width: 100%; margin-top: .3rem;
+                          box-sizing: border-box; color: var(--ink);
+                          font-family: ui-monospace, Menlo, monospace; }
+.rows { list-style: none; padding: 0; }
+.rows li { display: flex; gap: .4rem; align-items: center; margin: .3rem 0;
+           padding: .25rem .4rem; border-left: 3px solid var(--line);
+           border-radius: .3rem; }
+.rows li.new { border-left-color: var(--accent);
+               background: var(--accent-soft); }
+.rows .heading { flex: 1; min-width: 8rem; }
+.rows .size    { width: 4.5rem; }
+.rows .tools button { padding: .1rem .4rem; }
+button.primary { background: var(--accent); color: var(--on-accent);
+                 border-color: var(--accent); padding: .3rem 1.2rem; }
+button.primary:hover { color: var(--on-accent); opacity: .9; }
+.actions button { margin-right: .6rem; }
+.warning { background: var(--warn-soft); border: 2px solid var(--warn);
+           border-radius: .6rem; padding: .3rem 1rem; margin: 1rem 0; }
+.warning p, .warning ul { margin: .2rem 0; }

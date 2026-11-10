@@ -8,7 +8,13 @@
 -- API のテスト：道ごとの答え（hspec-wai。ネットワークを使わない）と、
 -- 同じ型から作ったクライアントを、このマシンで動かした本物のサーバーに
 -- つないで（servant-client と warp）
-module ApiSpec (apiSpec) where
+module ApiSpec
+  ( apiSpec
+  , stopped
+  , freshApp
+  , send
+  , refusedWith
+  ) where
 
 -- JSON, bytes, time, and HTTP
 -- JSON、バイト列、日時、HTTP

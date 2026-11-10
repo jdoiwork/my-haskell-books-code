@@ -40,6 +40,8 @@ data ShelfRoutes mode = ShelfRoutes
 -- 作品1つ：/works/{id}/…。ここの道は、どれも、どの作品かを知っている
 data WorkRoutes mode = WorkRoutes
   { card       :: mode :- Get '[JSON] CardDetail
+  , revise     :: mode :- ReqBody '[JSON] EditedWork
+                                    :> Put '[JSON] CardDetail
   , remove     :: mode :- DeleteNoContent
   , happen     :: mode :- "reading" :> ReqBody '[JSON] Happened
                                     :> Post '[JSON] ReadingNow
@@ -47,6 +49,10 @@ data WorkRoutes mode = WorkRoutes
                                     :> PostCreated '[JSON] NoteItem
   , logReading :: mode :- "log"     :> ReqBody '[JSON] ReadOn
                                     :> PostNoContent
+  -- ANCHOR: unreadRoute
+  , unread     :: mode :- "log"     :> Capture "entry" Int
+                                    :> DeleteNoContent
+  -- ANCHOR_END: unreadRoute
   , rate       :: mode :- "rating"  :> ReqBody '[JSON] Points
                                     :> PutNoContent
   , rateEntry  :: mode :- "entries" :> Capture "entry" Int :> "rating"

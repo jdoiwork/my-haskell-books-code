@@ -399,11 +399,11 @@ data Mistake
   | EmptyTitle                       -- a work with no title / 題がない
   | LongTitle     Int                -- longer than this / この字数より長い題
   | NegativeSize  Text               -- the heading / 量がマイナスの見出し
-  | BadTag        Text               -- blank, comma, too long / 使えないタグ
-  | TooManyTags   Int                -- how many / いくつ
   | BadToc        [TocProblem]       -- every problem / 目次のまずい所の全部
   | EntryTwice    EntryId            -- one number, two lines / 番号が2回
   | NoTable                          -- a film or a game / 目次のない作品
+  | BadTag        Text               -- empty, too long, a comma / 使えないタグ
+  | TooManyTags   Int                -- how many / いくつ
   deriving (Show, Eq)
 
 -- ✅ An answer the core has checked: the value, or the mistake.

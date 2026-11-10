@@ -185,13 +185,13 @@ verdict mistake = case mistake of
   EmptyTitle          -> (err422, "empty-title")
   LongTitle     _     -> (err422, "long-title")
   NegativeSize  _     -> (err422, "negative-size")
-  BadTag        _     -> (err422, "bad-tag")
-  TooManyTags   _     -> (err422, "too-many-tags")
   -- ANCHOR: verdictEdit
   BadToc        _     -> (err422, "bad-toc")
   EntryTwice    _     -> (err422, "entry-twice")
   NoTable             -> (err422, "no-table")
   -- ANCHOR_END: verdictEdit
+  BadTag        _     -> (err422, "bad-tag")
+  TooManyTags   _     -> (err422, "too-many-tags")
 
 -- 🚫 Refuse with the status of the mistake, and why, as JSON.
 -- まちがいの状態で断る。理由を JSON で添えて

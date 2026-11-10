@@ -74,10 +74,14 @@ shelfServer clock shelf = ShelfRoutes
 workServer :: Clock -> Shelf -> WorkId -> WorkRoutes AsServer
 workServer clock shelf wid = WorkRoutes
   { card       =              cardOf shelf wid
+  , revise     = \edited   -> reviseIt edited
   , remove     =              removeIt
   , happen     = \h        -> happenTo h
   , addNote    = \new      -> writeNote new
   , logReading = \line     -> readOn line
+  -- ANCHOR: unreadHandler
+  , unread     = \e        -> done (shelf.reading.unread wid (EntryId e))
+  -- ANCHOR_END: unreadHandler
   , rate       = \p        -> rateWith (shelf.reading.rate wid) p
   , rateEntry  = \e p      -> rateWith (shelf.reading.rateEntry wid (EntryId e)) p
   , setText    = \e body   -> done (shelf.inside.setText wid (EntryId e) body)
@@ -85,6 +89,11 @@ workServer clock shelf wid = WorkRoutes
   , editAttrs  = \fields   -> answer (shelf.custom.editAttrs wid fields) >> formOf
   }
   where
+    -- ANCHOR: reviseIt
+    reviseIt edited = do
+      answer (shelf.works.reviseWork wid (revisionFrom edited))
+      cardOf shelf wid
+    -- ANCHOR_END: reviseIt
     removeIt = do
       gone <- liftIO (shelf.works.removeWork wid)
       if gone then pure NoContent else refuse (NoSuchWork wid)
@@ -176,6 +185,11 @@ verdict mistake = case mistake of
   EmptyTitle          -> (err422, "empty-title")
   LongTitle     _     -> (err422, "long-title")
   NegativeSize  _     -> (err422, "negative-size")
+  -- ANCHOR: verdictEdit
+  BadToc        _     -> (err422, "bad-toc")
+  EntryTwice    _     -> (err422, "entry-twice")
+  NoTable             -> (err422, "no-table")
+  -- ANCHOR_END: verdictEdit
   BadTag        _     -> (err422, "bad-tag")
   TooManyTags   _     -> (err422, "too-many-tags")
 

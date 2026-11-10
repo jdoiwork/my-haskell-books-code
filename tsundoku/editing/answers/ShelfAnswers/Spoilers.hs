@@ -10,7 +10,7 @@ import Control.Monad (filterM)
 
 import Tsundoku.Card (Card (..))
 import Tsundoku.Search (Hit (..), Place (..))
-import Tsundoku.Shelf (Shelf (..), WorkWindow (..))
+import Tsundoku.Shelf (Shelf (..))
 import Tsundoku.Types (ReadingState (..))
 -- ANCHOR_END: head
 
@@ -24,7 +24,7 @@ withoutSpoilers shelf = filterM safe
   where
     safe hit = case place hit of
       InNote _ True -> do
-        found <- shelf.works.getCard (hitWork hit)
+        found <- shelf.getCard (hitWork hit)
         pure (maybe False readToTheEnd found)
       _             -> pure True
     readToTheEnd card = reading card == Finished

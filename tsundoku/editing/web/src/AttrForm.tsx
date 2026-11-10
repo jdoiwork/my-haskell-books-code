@@ -16,7 +16,8 @@ export function AttrForm({ fields, onSave }: {
   const [edits, setEdits] = useState<Record<string, string>>({});
   useEffect(() => { setEdits({}); }, [fields]);
   const value = (f: FormField) => edits[f.label] ?? f.current;
-  const set = (f: FormField, v: string) => setEdits({ ...edits, [f.label]: v });
+  const set = (f: FormField, v: string) =>
+    setEdits({ ...edits, [f.label]: v });
 
   // ANCHOR: input
   const input = (f: FormField) => {
@@ -26,7 +27,8 @@ export function AttrForm({ fields, onSave }: {
                       onChange={(e) => set(f, e.target.value)} />;
       case "yesno":
         return <input type="checkbox" checked={value(f) === "はい"}
-                      onChange={(e) => set(f, e.target.checked ? "はい" : "")} />;
+                      onChange={(e) =>
+                        set(f, e.target.checked ? "はい" : "")} />;
       case "choice":
         return (
           <select value={value(f)} onChange={(e) => set(f, e.target.value)}>

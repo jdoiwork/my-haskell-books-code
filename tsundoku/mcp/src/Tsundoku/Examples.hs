@@ -45,6 +45,8 @@ module Tsundoku.Examples
   , filledCards
   , oshi
   , boughtOn
+    -- * Fixing a work by hand / 作品を手で直す
+  , dragonFix
   ) where
 
 -- trees, time, walking with a counter, and folding with effects
@@ -400,4 +402,34 @@ oshi = Field "推し度" NumberK
 boughtOn :: Field Day
 boughtOn = Field "買った日" DateK
 -- ANCHOR_END: fields
+
+-- ANCHOR: dragonFix
+-- ✏️ The dragon book, fixed by hand. 1.1 and 1.2 were one section in the
+--    real book (so 1.2, number 4, is gone), a fifth chapter was missed
+--    (new: no number yet), and the creator was not quite right.
+-- 手で直したドラゴン学。本物の本では 1.1 と 1.2 は1つの節だった（だから
+-- 番号 4 の 1.2 は消える）。第5章を入れ忘れていた（新しい行：番号はまだ
+-- ない）。作者も、少しちがっていた
+dragonFix :: Revision
+dragonFix = Revision
+  { newTitle       = "はじめてのドラゴン学"
+  , newCreator     = "ギルド図書室・竜の会"
+  , newToc         =
+      [ Node (kept 1 "第1部 ドラゴンを知る" 2)
+          [ Node (kept 2 "第1章 見分け方" 4)
+              [ Node (kept 3 "1.1 うろこの色と火" 18) [] ]
+          , Node (kept 5 "第2章 すみかと季節" 24) []
+          ]
+      , Node (kept 6 "第2部 ドラゴンと話す" 2)
+          [ Node (kept 7 "第3章 あいさつの作法" 16) []
+          , Node (kept 8 "第4章 怒らせたときは" 12) []
+          , Node (fresh  "第5章 ドラゴンと暮らす" 20) []
+          ]
+      ]
+  , notesOnRemoved = MoveToWork
+  }
+  where
+    kept i = Item (Just (EntryId i))
+    fresh  = Item Nothing
+-- ANCHOR_END: dragonFix
 -- ANCHOR_END: all

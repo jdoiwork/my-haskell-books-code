@@ -34,7 +34,7 @@ import Tsundoku.Import.Epub (bodyChars, bodyText, readEpubWith)
 import Tsundoku.Import.Narou (Novel (..))
 import Tsundoku.Import.Pdf (readPdf)
 import Tsundoku.Import.Types
-import Tsundoku.Shelf (Shelf (..), WorkWindow (..), InsideWindow (..))
+import Tsundoku.Shelf (Shelf (..))
 import Tsundoku.Types
 -- ANCHOR_END: header
 
@@ -99,11 +99,11 @@ textsFor what d =
 -- 項目ごとの本文
 shelveBook :: Shelf -> Text -> Draft (Pages, Text) -> IO WorkId
 shelveBook shelf name d = do
-  wid   <- shelf.works.addWork (bookWork name (fmap fst d))
-  found <- shelf.works.getCard wid
+  wid   <- shelf.addWork (bookWork name (fmap fst d))
+  found <- shelf.getCard wid
   forM_ found $ \card ->
     forM_ (textsFor (contents (work card)) (fmap snd d)) $ \(i, text) ->
-      shelf.inside.setText wid i text
+      shelf.setText wid i text
   pure wid
 -- ANCHOR_END: shelveBook
 

@@ -34,6 +34,11 @@ module Tsundoku.Types
   , Schema (..)
   , AttrProblem (..)
   , DefProblem (..)
+  , TocProblem (..)
+    -- * Fixing a work by hand / 作品を手で直す
+  , Item (..)
+  , Revision (..)
+  , NotesOnRemoved (..)
     -- * Mistakes / まちがい
   , Mistake (..)
   , Checked
@@ -317,7 +322,62 @@ data DefProblem
   | NoSuchState Text       -- an arrow to nowhere / 矢印の先や元にない
   | Unreachable Text       -- no way from the start / はじめから行けない
   deriving (Show, Eq)
+
+-- ANCHOR: tocProblem
+-- 🚧 What can be wrong with the shape of a table of contents. Each one
+--    says where (the path of headings from the top). The page problems
+--    are only for a table the AI reads from a printed book (MCP).
+-- 目次の形の、まずいところ。どれも、どこか（上からの見出しの道順）を言う。
+-- ページのまずいところは、AI が印刷された本から読んだ目次（MCP）だけのもの
+data TocProblem
+  = NoChapters                              -- the table is empty / 空
+  | TooMany      Int                        -- too many items / 多すぎる
+  | EmptyHeading [Text]                     -- under this path / この下に
+  | SameHeading  [Text] Text                -- twice under one path / 2回
+  | TooDeep      [Text]                     -- deeper than maxDepth
+  | PageOutside  [Text] Int                 -- before 1 or after the end
+  | PageBefore   [Text] Int Text Int        -- starts before the one above
+  deriving (Show, Eq)
+-- ANCHOR_END: tocProblem
 -- ANCHOR_END: problems
+
+-- ANCHOR: revision
+-- ✏️ One line of a table, as fixed by hand. A line that was there keeps
+--    its number (Just); a new line has none yet (Nothing). The size is a
+--    plain number, in the unit of the work (pages, episodes, minutes).
+-- 手で直した目次の1行。もとからある行は番号を持ったまま（Just）、新しい
+-- 行は、まだ番号がない（Nothing）。量はただの数で、単位は作品のもの
+-- （ページ・話・分）
+data Item = Item
+  { itemId      :: Maybe EntryId
+  , itemHeading :: Text
+  , itemSize    :: Int
+  }
+  deriving (Show, Eq)
+
+-- ✏️ A work as fixed by hand: its title, its creator, and its whole
+--    table, as it should be from now on. What it is (a book, a serial,
+--    ...) does not change.
+-- 手で直した作品：題、作者、これからの目次の全部。種類（本・連載……）は
+-- 変えない
+data Revision = Revision
+  { newTitle       :: Text
+  , newCreator     :: Text
+  , newToc         :: Forest Item
+  , notesOnRemoved :: NotesOnRemoved
+  }
+  deriving (Show, Eq)
+
+-- 🧳 What to do with the notes on a line that is gone. A note is my own
+--    words, and once dropped it does not come back, so the safe choice
+--    is to move it to the whole work. But sometimes I do want it gone.
+-- 消える行に書いた感想をどうするか。感想は自分の言葉で、消すと戻らない。
+-- だから安全なのは、作品全体へ移すこと。でも、消したいときもある
+data NotesOnRemoved
+  = MoveToWork  -- to the whole work (the default) / 作品全体へ（既定）
+  | DropNotes   -- gone with the line / 行と一緒に消す
+  deriving (Show, Eq)
+-- ANCHOR_END: revision
 
 -- ANCHOR: mistake
 -- 🚫 Everything the core can refuse, with what was wrong.
@@ -339,6 +399,9 @@ data Mistake
   | EmptyTitle                       -- a work with no title / 題がない
   | LongTitle     Int                -- longer than this / この字数より長い題
   | NegativeSize  Text               -- the heading / 量がマイナスの見出し
+  | BadToc        [TocProblem]       -- every problem / 目次のまずい所の全部
+  | EntryTwice    EntryId            -- one number, two lines / 番号が2回
+  | NoTable                          -- a film or a game / 目次のない作品
   | BadTag        Text               -- empty, too long, a comma / 使えないタグ
   | TooManyTags   Int                -- how many / いくつ
   deriving (Show, Eq)

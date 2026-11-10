@@ -165,12 +165,12 @@ customAnswers = do
   it "cannot read a card after the definition changed under it" $
     SQLite.withConnection ":memory:" $ \conn -> do
       shelf <- sqliteShelf conn
-      _     <- shelf.custom.defineAttr oshiDef
-      wid   <- shelf.works.addWork dragonBook
-      _     <- shelf.custom.editAttrs wid (Map.fromList [("推し度", "4")])
+      _     <- shelf.defineAttr oshiDef
+      wid   <- shelf.addWork dragonBook
+      _     <- shelf.editAttrs wid (Map.fromList [("推し度", "4")])
       SQLite.execute_ conn
         "UPDATE definitions SET body = '{\"kind\": \"yesno\"}'"
-      result <- try (shelf.works.getCard wid)
+      result <- try (shelf.getCard wid)
       case result of
         Left (BrokenRow what) -> what `shouldBe` "attrs: 推し度"
         Right _               -> expectationFailure "read a broken card"

@@ -28,7 +28,6 @@ module Tsundoku.Mcp.Toc
 -- 鍵のためのビットと数、リスト、文字列、木
 import Data.Bits (xor)
 import Data.Char (ord)
-import Data.List (group, sort)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Tree (Tree (..))
@@ -41,6 +40,7 @@ import Tsundoku.Card (Card (..), checkWork)
 import Tsundoku.Form (explain)
 import Tsundoku.Import.Types (fromStarts)
 import Tsundoku.Outline (outline)
+import Tsundoku.TocCheck (explainToc, maxDepth, maxItems, shapeProblems)
 import Tsundoku.Types
 -- ANCHOR_END: header
 
@@ -81,38 +81,16 @@ instance FromJSON Chapter where
 -- ANCHOR_END: draft
 
 -- ANCHOR: problems
--- 🚧 What can be wrong with the tree. Each one says where (the path of
---    headings from the top).
--- 木のまずいところ。どれも、どこか（上からの見出しの道順）を言う
-data TocProblem
-  = NoChapters                              -- the table is empty / 空
-  | TooMany      Int                        -- too many items / 多すぎる
-  | EmptyHeading [Text]                     -- under this path / この下に
-  | SameHeading  [Text] Text                -- twice under one path / 2回
-  | TooDeep      [Text]                     -- deeper than maxDepth
-  | PageOutside  [Text] Int                 -- before 1 or after the end
-  | PageBefore   [Text] Int Text Int        -- starts before the one above
-  deriving (Show, Eq)
-
--- 📏 How deep, and how many, at most.
--- 深さと数の上限
-maxDepth, maxItems :: Int
-maxDepth = 4
-maxItems = 500
-
 -- 🔍 Every problem of the tree, all at once (not only the first), so
---    that the AI can fix them in one go.
+--    that the AI can fix them in one go. The shape is checked as every
+--    table is (TocCheck); the pages only here.
 -- 木のまずいところを、全部いっぺんに（最初の1つだけでなく）。AI が
--- 一度に直せるように
+-- 一度に直せるように。形は、どの目次とも同じように確かめ（TocCheck）、
+-- ページはここだけで確かめる
 tocProblems :: TocDraft -> [TocProblem]
 tocProblems d = concat
   [ [ NoChapters | null d.toc ]
-  , [ TooMany (length rows) | length rows > maxItems ]
-  , [ EmptyHeading above | (above, c) <- rows, T.null (T.strip c.heading) ]
-  , [ SameHeading above h | (above, siblings) <- families
-                          , h <- twice (map (.heading) siblings) ]
-  , [ TooDeep (pathOf above c) | (above, c) <- rows
-                               , length above >= maxDepth ]
+  , shapeProblems (map headings d.toc)
   , [ PageOutside (pathOf above c) c.page
     | (above, c) <- rows, c.page < 1 || c.page > d.lastPage ]
   , [ PageBefore (pathOf above c) c.page before.heading before.page
@@ -120,11 +98,9 @@ tocProblems d = concat
     , c.page < before.page ]
   ]
   where
-    rows     = walk [] d.toc
-    families = ([], d.toc) : [ (pathOf above c, c.children)
-                             | (above, c) <- rows, not (null c.children) ]
+    rows = walk [] d.toc
     pathOf above c = above ++ [c.heading]
-    twice xs = [ x | x : _ : _ <- group (sort xs), not (T.null (T.strip x)) ]
+    headings c = Node c.heading (map headings c.children)
 
 -- 🚶 Every chapter, from the top, with the headings above it.
 -- すべての章を上から順に、その上の見出しと一緒に
@@ -132,37 +108,6 @@ walk :: [Text] -> [Chapter] -> [([Text], Chapter)]
 walk above = concatMap $ \c ->
   (above, c) : walk (above ++ [c.heading]) c.children
 -- ANCHOR_END: problems
-
--- ANCHOR: explain
--- 💬 A problem, in words that say what to fix.
--- まずいところを、何を直せばよいかがわかる言葉で
-explainToc :: TocProblem -> Text
-explainToc problem = case problem of
-  NoChapters ->
-    "目次が空です。章を1つ以上入れてください"
-  TooMany n ->
-    "項目が " <> num n <> " 個あります。一度に送れるのは "
-      <> num maxItems <> " 個までです"
-  EmptyHeading above ->
-    where_ above <> "に、見出しが空の項目があります。見出しを入れてください"
-  SameHeading above h ->
-    where_ above <> "に「" <> h <> "」が2つあります。"
-      <> "番号の打ちまちがいか、同じ章を2回入れていないか見てください"
-  TooDeep path ->
-    "「" <> trail path <> "」は深すぎます。深さは " <> num maxDepth
-      <> " 段までにしてください"
-  PageOutside path p ->
-    "「" <> trail path <> "」の始まりのページ " <> num p
-      <> " が、本の外です（1 から last_page まで）"
-  PageBefore path p before q ->
-    "「" <> trail path <> "」の始まりのページ " <> num p <> " が、前の「"
-      <> before <> "」の " <> num q <> " より前です。ページを見直してください"
-  where
-    num      = T.pack . show
-    trail    = T.intercalate " > "
-    where_ [] = "目次のいちばん上"
-    where_ ps = "「" <> trail ps <> "」の下"
--- ANCHOR_END: explain
 
 -- ANCHOR: work
 -- 📗 The draft as a book, if the tree has no problems. Pages come from

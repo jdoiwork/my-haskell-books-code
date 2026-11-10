@@ -21,6 +21,7 @@ import Data.Text qualified as T
 
 import Tsundoku.Card (Card (..), stateOf)
 import Tsundoku.Custom
+import Tsundoku.TocCheck (explainToc)
 import Tsundoku.Types
 -- ANCHOR_END: header
 
@@ -113,6 +114,11 @@ explain mistake = case mistake of
   EmptyTitle         -> ["題が空っぽです"]
   LongTitle n        -> ["題は " <> T.pack (show n) <> " 字までです"]
   NegativeSize h     -> ["「" <> h <> "」の量がマイナスです"]
+  -- ANCHOR: explainEdit
+  BadToc ps          -> map explainToc ps
+  EntryTwice _       -> ["同じ項目が、目次に2回出てきます"]
+  NoTable            -> ["映画とゲームには、目次がありません"]
+  -- ANCHOR_END: explainEdit
   where
     from Nothing  = "まだ入っていないので、"
     from (Just a) = "「" <> a <> "」から"

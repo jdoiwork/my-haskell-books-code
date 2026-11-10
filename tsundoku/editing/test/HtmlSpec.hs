@@ -57,8 +57,8 @@ stopped = pure (UTCTime (fromGregorian 2026 11 9) 0)
 siteWith :: RatingStyle -> IO Application
 siteWith style = do
   shelf <- newMemoryShelf
-  _     <- shelf.works.addWork dragonBook
-  mapM_ shelf.custom.defineAttr libraryAttrs
+  _     <- shelf.addWork dragonBook
+  mapM_ shelf.defineAttr libraryAttrs
   pure (siteApp style stopped shelf)
 
 -- 📮 What htmx sends: a form, with the header HX-Request.
@@ -231,8 +231,8 @@ answersSpec = describe "the answers" $ do
   where
     finishSite = do
       shelf <- newMemoryShelf
-      _     <- shelf.works.addWork dragonBook
-      _     <- shelf.reading.applyEvent (WorkId 1) Start
+      _     <- shelf.addWork dragonBook
+      _     <- shelf.applyEvent (WorkId 1) Start
       pure (finishApp (pure (UTCTime (fromGregorian 2026 11 9) 0)) shelf)
 -- ANCHOR_END: answersSpec
 -- ANCHOR_END: all

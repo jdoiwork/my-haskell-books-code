@@ -82,7 +82,7 @@ data PagedRoutes mode = PagedRoutes
 pagedServer :: Shelf -> PagedRoutes AsServer
 pagedServer shelf = PagedRoutes
   { pageOfWorks = \l o -> do
-      cards <- liftIO shelf.works.listCards
+      cards <- liftIO shelf.listCards
       let howMany = fromMaybe (Limit 20) l
           skipped = fromMaybe (Offset 0) o
       pure (map summaryOf (page howMany skipped cards))

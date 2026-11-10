@@ -61,12 +61,11 @@ field name (Fields m) = Map.findWithDefault "" name m
 -- 🧭 The pages, and the parts of one work that htmx asks for.
 -- ページと、htmx が頼む、作品1つの部品
 data PageRoutes mode = PageRoutes
-  { home   :: mode :- QueryParam "tag" Text :> Get '[HTML] (Html ())
+  { home   :: mode :- Get '[HTML] (Html ())
   , card   :: mode :- "works" :> Capture "id" Int :> Get '[HTML] (Html ())
   , part   :: mode :- "works" :> Capture "id" Int :> NamedRoutes PartRoutes
   , search :: mode :- "search" :> QueryParam' '[Required, Strict] "q" Text
                    :> Get '[HTML] (Html ())
-  , stats  :: mode :- "stats" :> Get '[HTML] (Html ())
   , static :: mode :- "static" :> Raw
   }
   deriving stock Generic
@@ -77,7 +76,6 @@ data PartRoutes mode = PartRoutes
   , notes   :: mode :- "notes"   :> FormBody :> Post '[HTML] (Html ())
   , attrs   :: mode :- "attrs"   :> FormBody :> Post '[HTML] (Html ())
   , flow    :: mode :- "flow"    :> FormBody :> Post '[HTML] (Html ())
-  , tags    :: mode :- "tags"    :> FormBody :> Post '[HTML] (Html ())
   }
   deriving stock Generic
 

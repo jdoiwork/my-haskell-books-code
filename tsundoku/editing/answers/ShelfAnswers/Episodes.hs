@@ -47,7 +47,7 @@ data EpisodeRoutes mode = EpisodeRoutes
 episodeServer :: Shelf -> EpisodeRoutes AsServer
 episodeServer shelf = EpisodeRoutes
   { addEpisodes = \wid new -> do
-      result <- liftIO (shelf.intake.addEpisodes (WorkId wid) new.howMany)
+      result <- liftIO (shelf.addEpisodes (WorkId wid) new.howMany)
       case result of
         Right ()     -> pure NoContent
         Left mistake -> do

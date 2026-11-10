@@ -12,6 +12,7 @@ module Tsundoku.Card
   , rate
   , visibleTo
   , logReading
+  , unread
   , rateEntry
   , ratingsOf
   , editAttrs
@@ -26,6 +27,10 @@ module Tsundoku.Card
   , tagLimit
   , tagLength
   , titleLimit
+  , revise
+  , asRevision
+  , newItems
+  , followTable
   ) where
 
 -- `when`, dictionaries, Maybe, and text
@@ -38,12 +43,14 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Tree (flatten)
+import Data.Traversable (mapAccumL)
+import Data.Tree (Forest, flatten)
 
 import Tsundoku.Custom (findFlow, nextStates, readFields)
 import Tsundoku.Progress (growWith)
 import Tsundoku.Rating (Score)
 import Tsundoku.Reading (advance)
+import Tsundoku.TocCheck (shapeProblems)
 import Tsundoku.Types
 -- ANCHOR_END: header
 
@@ -149,6 +156,19 @@ logReading line card = do
   pure card { readLog = readLog card ++ [line] }
 -- ANCHOR_END: logReading
 
+-- ANCHOR: unread
+-- 🧽 Take back "I read it": drop every line of the log about this
+--    entry (read twice, both lines go), if the entry is in the table.
+--    The other entries keep their lines, so their marks stay.
+-- 「読んだ」を取り消す：この項目のログの行を全部消す（2回読んでいれば、
+-- 2行とも）。目次にある項目のときだけ。ほかの項目の行は残るので、
+-- ほかの印はそのまま
+unread :: EntryId -> Card -> Checked Card
+unread i card = do
+  checkTarget (contents (work card)) (OnEntry i)
+  pure card { readLog = [ l | l <- readLog card, readEntry l /= i ] }
+-- ANCHOR_END: unread
+
 -- ANCHOR: rateEntry
 -- ⭐ Rate one entry, like an episode, if it is in the table
 --    (a new rating replaces the old one, as with `rate`).
@@ -230,16 +250,33 @@ titleLimit :: Int
 titleLimit = 200
 
 -- 🚪 A work that came from outside: it needs a title (not too long),
---    and no amount may be below zero. The first thing wrong is told.
--- 外から来た作品を確かめる：題があって（長すぎず）、どの量もマイナスで
--- ないこと。まずいところの、最初の1つを言う
+--    its table must have a good shape (TocCheck: every problem at
+--    once), and no amount may be below zero.
+-- 外から来た作品を確かめる：題があって（長すぎず）、目次の形がよく
+-- （TocCheck。まずい所は全部いっぺんに）、どの量もマイナスでないこと
 checkWork :: Work -> Checked Work
 checkWork w = do
   when (T.null (T.strip (title w)))       (Left EmptyTitle)
   when (T.length (title w) > titleLimit) (Left (LongTitle titleLimit))
+  case shapeProblems (headingsOf (contents w)) of
+    []       -> Right ()
+    problems -> Left (BadToc problems)
   case [ name | (name, n) <- amountsIn w, n < 0 ] of
     name : _ -> Left (NegativeSize name)
     []       -> Right w
+
+-- 🌲 Only the headings of a table, as a tree.
+-- 目次の見出しだけを、木のまま
+headingsOf :: Contents -> Forest Text
+headingsOf what = case what of
+  Book   toc -> names toc
+  Serial toc -> names toc
+  Series toc -> names toc
+  Film   _   -> []
+  Game       -> []
+  where
+    names :: Toc u -> Forest Text
+    names = map (fmap heading)
 
 -- 🧮 Every amount of a work, with the name it goes by: the headings of
 --    the table, or the title of a film.
@@ -256,6 +293,103 @@ amountsIn w = case contents w of
     headings toc =
       [ (heading e, count (size e)) | e <- concatMap flatten toc ]
 -- ANCHOR_END: checkWork
+-- ANCHOR: revise
+-- ✏️ Fix a work by hand: a new title, creator, and table. A line with a
+--    number keeps it, wherever it moved; a new line gets the next number
+--    from `from` on (the shelf keeps that many free: newItems). Then the
+--    new work goes through the same gate as a new one (checkWork), and
+--    what hung on a line that is gone is carried over (followTable).
+-- 作品を手で直す：新しい題・作者・目次。番号のある行は、どこへ動いても
+-- 番号を保つ。新しい行は from から順に番号をもらう（本棚はその分を空けて
+-- おく：newItems）。そのあと、新しい作品と同じ門（checkWork）を通し、
+-- 消えた行にぶら下がっていたものを引き継ぐ（followTable）
+revise :: EntryId -> Revision -> Card -> Checked Card
+revise from r card = do
+  table <- retable from r (contents (work card))
+  fixed <- checkWork (Work (newTitle r) (newCreator r) table)
+  pure (followTable (notesOnRemoved r) (entryIds table)
+                    card { work = fixed })
+
+-- 🪞 A work as a revision that changes nothing: every line keeps its
+--    number, heading, and size. An edit screen starts from this, with
+--    the safe choice for notes.
+-- 何も変えない Revision としての作品：どの行も、番号・見出し・量を
+-- そのまま持つ。直す画面は、ここから始める。感想は、安全な方を選んでおく
+asRevision :: Work -> Revision
+asRevision w = Revision
+  { newTitle       = title w
+  , newCreator     = creator w
+  , newToc         = case contents w of
+      Book   toc -> items toc
+      Serial toc -> items toc
+      Series toc -> items toc
+      Film   _   -> []
+      Game       -> []
+  , notesOnRemoved = MoveToWork
+  }
+  where
+    items :: Amount u => Toc u -> Forest Item
+    items = map (fmap (\e -> Item (Just (entryId e)) (heading e)
+                                  (count (size e))))
+
+-- 🔢 How many lines of the revision are new (need a number).
+-- 直した目次の、新しい行（番号の要る行）の数
+newItems :: Revision -> Int
+newItems r =
+  length [ () | Item Nothing _ _ <- concatMap flatten (newToc r) ]
+
+-- 🌳 The new table, in the unit of the work. Every number must be one
+--    of this work's, and used once. A film or a game has no table.
+-- 新しい目次を、作品の単位で。番号はどれも、この作品のもので、1回だけ。
+-- 映画とゲームには、目次がない
+retable :: EntryId -> Revision -> Contents -> Checked Contents
+retable (EntryId from) r what = case what of
+  Book   _ -> Book   <$> filled Pages
+  Serial _ -> Serial <$> filled Episodes
+  Series _ -> Series <$> filled Minutes
+  Film   m -> if null (newToc r) then Right (Film m) else Left NoTable
+  Game     -> if null (newToc r) then Right Game     else Left NoTable
+  where
+    filled :: (Int -> u) -> Checked (Toc u)
+    filled unit = do
+      mapM_ known given
+      case twice given of
+        i : _ -> Left (EntryTwice i)
+        []    -> Right ()
+      pure (snd (mapAccumL (mapAccumL (give unit)) from (newToc r)))
+    given = [ i | Item (Just i) _ _ <- concatMap flatten (newToc r) ]
+    known i
+      | i `elem` entryIds what = Right ()
+      | otherwise              = Left (NoSuchEntry i)
+    twice xs = [ x | (x, n) <- Map.toList (Map.fromListWith (+)
+                                 [ (x, 1 :: Int) | x <- xs ]), n > 1 ]
+    -- From the top down, a new line takes the next free number.
+    -- 上から順に、新しい行が次の空いた番号を取る
+    give unit next item = case item of
+      Item Nothing  h n -> (next + 1, Entry (EntryId next) h (unit n))
+      Item (Just i) h n -> (next,     Entry i h (unit n))
+
+-- 🧳 What hung on lines that are gone, given the numbers still there.
+--    A note is my own words, so I choose: move it to the whole work, or
+--    drop it with the line. A rating or a log line of a line that is
+--    gone means nothing any more, so it always goes with the line.
+-- 消えた行にぶら下がっていたものを、残った番号から決める。感想は自分の
+-- 言葉なので、作品全体へ移すか、行と一緒に消すかを選ぶ。消えた行の★と
+-- 読書ログは、もう意味がないので、いつも行と一緒に消える
+followTable :: NotesOnRemoved -> [EntryId] -> Card -> Card
+followTable choice kept card = card
+  { notes        = concatMap follow (notes card)
+  , readLog      = [ l | l <- readLog card, readEntry l `elem` kept ]
+  , entryRatings = Map.filterWithKey (\i _ -> i `elem` kept)
+                                     (entryRatings card)
+  }
+  where
+    follow note = case target note of
+      OnEntry i | i `notElem` kept -> case choice of
+        MoveToWork -> [note { target = OnWork }]
+        DropNotes  -> []
+      _                            -> [note]
+-- ANCHOR_END: revise
 -- ANCHOR: tags
 -- 🏷️ How many tags a card may have, and how long one may be.
 -- カードに付けられるタグの数と、1つの長さ

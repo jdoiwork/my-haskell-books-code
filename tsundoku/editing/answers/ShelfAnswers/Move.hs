@@ -26,7 +26,7 @@ import Tsundoku.Types
 -- 本棚のカードを全部、別の本棚へ写す。古い番号と新しい番号を返す
 moveShelf :: Shelf -> Shelf -> IO [(WorkId, WorkId)]
 moveShelf from to = do
-  cards <- from.works.listCards
+  cards <- from.listCards
   traverse (\(old, card) -> (,) old <$> copyCard to card) cards
 
 -- 📇 Copy one card. The new shelf gives new numbers, so every entry
@@ -36,19 +36,19 @@ moveShelf from to = do
 -- 番号を、新しい番号に付け替える（目次の同じ場所、上から順）
 copyCard :: Shelf -> Card -> IO WorkId
 copyCard to card = do
-  wid  <- to.works.addWork (work card)
-  made <- to.works.getCard wid
+  wid  <- to.addWork (work card)
+  made <- to.getCard wid
   let newIds = maybe [] (entryIds . contents . work) made
       table  = Map.fromList (zip (entryIds (contents (work card))) newIds)
       moved i = Map.findWithDefault i i table
-  forM_ (pathTo (reading card)) (void . to.reading.applyEvent wid)
+  forM_ (pathTo (reading card)) (void . to.applyEvent wid)
   forM_ (notes card) $ \n ->
-    to.reading.addNote wid n { target = onEntry moved (target n) }
+    to.addNote wid n { target = onEntry moved (target n) }
   forM_ (readLog card) $ \l ->
-    to.reading.logReading wid l { readEntry = moved (readEntry l) }
-  forM_ (rating card) (to.reading.rate wid)
+    to.logReading wid l { readEntry = moved (readEntry l) }
+  forM_ (rating card) (to.rate wid)
   forM_ (Map.toList (entryRatings card)) $ \(i, s) ->
-    to.reading.rateEntry wid (moved i) s
+    to.rateEntry wid (moved i) s
   pure wid
   where
     onEntry _     OnWork      = OnWork

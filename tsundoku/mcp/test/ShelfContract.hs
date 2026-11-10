@@ -22,6 +22,7 @@ import Data.Tree (Tree (..), flatten)
 import Test.Hspec
 
 import Tsundoku.Card (Card (..), newCard)
+import Tsundoku.Card qualified as Card
 import Tsundoku.Custom (emptySchema, showValue)
 import Tsundoku.Examples
 import Tsundoku.Import (readEpubBook, shelveBook, textsFor)
@@ -130,6 +131,10 @@ shelfContract = do
   -- 取り込み（6章目）
   importContract
   searchContract
+  -- 作品を手で直す（11章目）
+  reviseContract
+  -- 読んだ印を外す（11章目）
+  unreadContract
   where
     examples =
       [ ("book",   dragonBook)
@@ -452,4 +457,118 @@ tornWork = Work "破れた本" "だれか" (Book (numbered
       ]
   ]))
 -- ANCHOR_END: torn
+-- ANCHOR: reviseContract
+-- ✏️ Fixing a work by hand, on any shelf.
+-- 作品を手で直す（どの本棚でも）
+reviseContract :: SpecWith Shelf
+reviseContract = do
+
+  -- 「核が直したカードと、窓口で直したカードは、同じ」
+  it "keeps the fixed card just as the core made it" $ \shelf -> do
+    wid <- addDragon shelf
+    shelf.works.reviseWork wid dragonFix `shouldReturn` Right ()
+    shelf.works.getCard wid `shouldReturn` Just
+      (surely (Card.revise (EntryId 9) dragonFix dragonCard))
+
+  -- 「残る行は番号を保ち、新しい行は続きの番号。次の作品はその先から」
+  it "keeps the numbers, and goes on after the new ones" $ \shelf -> do
+    wid  <- shelf.works.addWork dragonBook
+    _    <- shelf.works.reviseWork wid dragonFix
+    card <- fromJust <$> shelf.works.getCard wid
+    entryIds (contents (work card))
+      `shouldBe` map EntryId [1, 2, 3, 5, 6, 7, 8, 9]
+    next  <- shelf.works.addWork librarianSerial
+    later <- fromJust <$> shelf.works.getCard next
+    take 1 (entryIds (contents (work later))) `shouldBe` [EntryId 10]
+
+  -- 「探すものも、直したとおりに変わる」
+  it "finds what the fixed work says, and not what it said" $ \shelf -> do
+    wid <- addDragon shelf
+    _   <- shelf.inside.setText wid (EntryId 4) "火を吐く竜の本文"
+    _   <- shelf.inside.setText wid (EntryId 3) "うろこの本文"
+    _   <- shelf.works.reviseWork wid dragonFix
+    places shelf "火を吐く竜" `shouldReturn` Right []
+    places shelf "うろこの本文" `shouldReturn` Right [InText (EntryId 3)]
+    places shelf "火を吐くもの" `shouldReturn` Right []
+    places shelf "暮らす" `shouldReturn` Right [InHeading (EntryId 9)]
+    places shelf "竜の会" `shouldReturn` Right [InCreator]
+    places shelf "吐かない種" `shouldReturn` Right [InNote OnWork True]
+
+  -- 「消すと選べば、消える行の感想も消え、探しても見つからない」
+  it "drops the notes on lines that are gone, when asked" $ \shelf -> do
+    wid  <- addDragon shelf
+    shelf.works.reviseWork wid dragonFix { notesOnRemoved = DropNotes }
+      `shouldReturn` Right ()
+    card <- fromJust <$> shelf.works.getCard wid
+    map target (notes card) `shouldBe` [OnWork]
+    places shelf "吐かない種" `shouldReturn` Right []
+    places shelf "読みやすい" `shouldReturn` Right [InNote OnWork False]
+
+  -- 「よその番号・2回出る番号・形のまずい目次は断り、カードはそのまま」
+  it "refuses bad numbers and shapes, and keeps the card" $ \shelf -> do
+    wid    <- addDragon shelf
+    _      <- shelf.works.addWork librarianSerial    -- 9 to 13 / 番号 9〜13
+    before <- shelf.works.getCard wid
+    let line i h = Node (Item (Just (EntryId i)) h 1) []
+        with ls  = dragonFix { newToc = ls }
+    shelf.works.reviseWork wid (with [line 9 "よその話"])
+      `shouldReturn` Left (NoSuchEntry (EntryId 9))
+    shelf.works.reviseWork wid (with [line 1 "あ", line 1 "い"])
+      `shouldReturn` Left (EntryTwice (EntryId 1))
+    shelf.works.reviseWork wid (with [line 1 "同じ", line 2 "同じ"])
+      `shouldReturn` Left (BadToc [SameHeading [] "同じ"])
+    shelf.works.reviseWork (WorkId 42) dragonFix
+      `shouldReturn` Left (NoSuchWork (WorkId 42))
+    shelf.works.getCard wid `shouldReturn` before
+
+  -- 「映画は題を直せるが、目次は持てない」
+  it "fixes the title of a film, but gives it no table" $ \shelf -> do
+    wid <- shelf.works.addWork lastDragonFilm
+    let renamed = Revision "最後のドラゴン（完全版）" "竜の会" [] MoveToWork
+    shelf.works.reviseWork wid renamed { newToc = newToc dragonFix }
+      `shouldReturn` Left NoTable
+    shelf.works.reviseWork wid renamed `shouldReturn` Right ()
+    fmap (title . work) <$> shelf.works.getCard wid
+      `shouldReturn` Just "最後のドラゴン（完全版）"
+  where
+    places shelf typed = fmap (map place) <$> shelf.inside.searchText typed
+-- ANCHOR_END: reviseContract
+
+-- ANCHOR: unreadContract
+-- 🧽 Taking back a mark, on any shelf.
+-- 読んだ印を外す（どの本棚でも）
+unreadContract :: SpecWith Shelf
+unreadContract = do
+
+  -- 「核が外したカードと、窓口で外したカードは、同じ」
+  it "takes back a mark just as the core does" $ \shelf -> do
+    wid <- addDragon shelf
+    shelf.reading.unread wid (EntryId 4) `shouldReturn` Right ()
+    shelf.works.getCard wid
+      `shouldReturn` Just (surely (Card.unread (EntryId 4) dragonCard))
+
+  -- 「2回読んだ項目も、1回で外れる。ほかの印は残る」
+  it "drops every line of the entry, and only of it" $ \shelf -> do
+    wid <- addDragon shelf
+    _   <- shelf.reading.logReading wid (LogLine (nov 9) (EntryId 3))
+    _   <- shelf.reading.unread wid (EntryId 3)
+    card <- fromJust <$> shelf.works.getCard wid
+    map readEntry (readLog card) `shouldBe` map EntryId [1, 2, 4, 5]
+
+  -- 「読んでいない項目を外しても、何も変わらない」
+  it "changes nothing for an entry not read yet" $ \shelf -> do
+    wid    <- shelf.works.addWork dragonBook
+    before <- shelf.works.getCard wid
+    shelf.reading.unread wid (EntryId 6) `shouldReturn` Right ()
+    shelf.works.getCard wid `shouldReturn` before
+
+  -- 「ない項目、ない作品は断る」
+  it "refuses an entry or a work that is not there" $ \shelf -> do
+    wid <- addDragon shelf
+    shelf.reading.unread wid (EntryId 99)
+      `shouldReturn` Left (NoSuchEntry (EntryId 99))
+    shelf.reading.unread (WorkId 42) (EntryId 1)
+      `shouldReturn` Left (NoSuchWork (WorkId 42))
+    shelf.works.getCard wid `shouldReturn` Just dragonCard
+-- ANCHOR_END: unreadContract
 -- ANCHOR_END: all

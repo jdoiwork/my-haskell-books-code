@@ -153,8 +153,8 @@ runSpec = describe "the runner" $
   -- 「本物のサーバー（/api の下）に、servant-client で聞く」
   it "asks a real server under /api, with servant-client" $ do
     shelf <- newMemoryShelf
-    _     <- shelf.works.addWork dragonBook
-    mapM_ shelf.custom.defineAttr libraryAttrs
+    _     <- shelf.addWork dragonBook
+    mapM_ shelf.defineAttr libraryAttrs
     let clock = pure (UTCTime (fromGregorian 2026 11 9) 0)
     testWithApplication (pure (siteApp FiveStars clock shelf)) $ \port -> do
       env <- remoteApi (BaseUrl Http "127.0.0.1" port "api")

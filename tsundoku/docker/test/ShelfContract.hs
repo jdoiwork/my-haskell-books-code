@@ -132,12 +132,12 @@ shelfContract = do
   -- 取り込み（6章目）
   importContract
   searchContract
-  -- タグ（12章目）
-  tagContract
-  -- 作品を手で直す（14章目）
+  -- 作品を手で直す（11章目）
   reviseContract
-  -- 読んだ印を外す（14章目）
+  -- 読んだ印を外す（11章目）
   unreadContract
+  -- タグ（13章目）
+  tagContract
   where
     examples =
       [ ("book",   dragonBook)
@@ -460,30 +460,6 @@ tornWork = Work "破れた本" "だれか" (Book (numbered
       ]
   ]))
 -- ANCHOR_END: torn
--- ANCHOR: tagContract
--- 🔖 Tags, on any shelf.
--- タグ（どの本棚でも）
-tagContract :: SpecWith Shelf
-tagContract = do
-  -- 「タグを付けて、読み戻す。付け直すと取り替わる」
-  it "keeps tags, and replaces them when set again" $ \shelf -> do
-    wid <- shelf.works.addWork dragonBook
-    shelf.tagging.setTags wid (Set.fromList ["竜", "図鑑"]) `shouldReturn` Right ()
-    fmap tags <$> shelf.works.getCard wid
-      `shouldReturn` Just (Set.fromList ["竜", "図鑑"])
-    shelf.tagging.setTags wid (Set.fromList ["魔法"]) `shouldReturn` Right ()
-    fmap tags <$> shelf.works.getCard wid `shouldReturn` Just (Set.fromList ["魔法"])
-  -- 「使えないタグは核が断り、前のタグは残る」
-  it "refuses a tag the core will not take, and keeps the old ones" $ \shelf -> do
-    wid <- shelf.works.addWork dragonBook
-    _   <- shelf.tagging.setTags wid (Set.fromList ["竜"])
-    shelf.tagging.setTags wid (Set.fromList ["推理, 魔法"])
-      `shouldReturn` Left (BadTag "推理, 魔法")
-    shelf.tagging.setTags (WorkId 99) (Set.fromList ["竜"])
-      `shouldReturn` Left (NoSuchWork (WorkId 99))
-    fmap tags <$> shelf.works.getCard wid `shouldReturn` Just (Set.fromList ["竜"])
--- ANCHOR_END: tagContract
-
 -- ANCHOR: reviseContract
 -- ✏️ Fixing a work by hand, on any shelf.
 -- 作品を手で直す（どの本棚でも）
@@ -598,4 +574,27 @@ unreadContract = do
       `shouldReturn` Left (NoSuchWork (WorkId 42))
     shelf.works.getCard wid `shouldReturn` Just dragonCard
 -- ANCHOR_END: unreadContract
+-- ANCHOR: tagContract
+-- 🔖 Tags, on any shelf.
+-- タグ（どの本棚でも）
+tagContract :: SpecWith Shelf
+tagContract = do
+  -- 「タグを付けて、読み戻す。付け直すと取り替わる」
+  it "keeps tags, and replaces them when set again" $ \shelf -> do
+    wid <- shelf.works.addWork dragonBook
+    shelf.tagging.setTags wid (Set.fromList ["竜", "図鑑"]) `shouldReturn` Right ()
+    fmap tags <$> shelf.works.getCard wid
+      `shouldReturn` Just (Set.fromList ["竜", "図鑑"])
+    shelf.tagging.setTags wid (Set.fromList ["魔法"]) `shouldReturn` Right ()
+    fmap tags <$> shelf.works.getCard wid `shouldReturn` Just (Set.fromList ["魔法"])
+  -- 「使えないタグは核が断り、前のタグは残る」
+  it "refuses a tag the core will not take, and keeps the old ones" $ \shelf -> do
+    wid <- shelf.works.addWork dragonBook
+    _   <- shelf.tagging.setTags wid (Set.fromList ["竜"])
+    shelf.tagging.setTags wid (Set.fromList ["推理, 魔法"])
+      `shouldReturn` Left (BadTag "推理, 魔法")
+    shelf.tagging.setTags (WorkId 99) (Set.fromList ["竜"])
+      `shouldReturn` Left (NoSuchWork (WorkId 99))
+    fmap tags <$> shelf.works.getCard wid `shouldReturn` Just (Set.fromList ["竜"])
+-- ANCHOR_END: tagContract
 -- ANCHOR_END: all

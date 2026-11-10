@@ -203,12 +203,12 @@ apiSpec = do
     -- 「新しい話の道：足すと目次が育つ。本には 409」
     it "adds new episodes to a serial, and not to a book" $
       withShelfOn episodeApp $ \shelf env -> do
-        serial <- shelf.works.addWork librarianSerial
-        book   <- shelf.works.addWork dragonBook
+        serial <- shelf.addWork librarianSerial
+        book   <- shelf.addWork dragonBook
         let WorkId s = serial
             WorkId b = book
         ok_ env (episodeClient.addEpisodes s (NewEpisodes 2))
-        Just card <- shelf.works.getCard serial
+        Just card <- shelf.getCard serial
         fmap (.total) (summaryOf (serial, card)).progress `shouldBe` Just 5
         failed <- call env (episodeClient.addEpisodes b (NewEpisodes 1))
         fmap (.mistake) (either problemOf (const Nothing) failed)
@@ -216,7 +216,7 @@ apiSpec = do
     -- 「ページ送り：limit は 1〜100。それ以外は servant が 400」
     it "gives a page of works, and refuses a limit of 0" $
       withShelfOn pagedApp $ \shelf env -> do
-        mapM_ shelf.works.addWork examples
+        mapM_ shelf.addWork examples
         Right two  <- pure (limit 2)
         Right skip <- pure (offset 1)
         got <- ok env (pagedClient.pageOfWorks (Just two) (Just skip))
@@ -256,9 +256,9 @@ clientSpec = do
     map (.done) card.toc `shouldBe` [True, False]
   -- 「クライアントの一覧は、窓口の一覧と同じ」
   it "lists what the window lists" $ \(shelf, env) -> do
-    mapM_ shelf.works.addWork examples
+    mapM_ shelf.addWork examples
     fromApi    <- ok env shelfClient.listWorks
-    fromWindow <- map summaryOf <$> shelf.works.listCards
+    fromWindow <- map summaryOf <$> shelf.listCards
     fromApi `shouldBe` fromWindow
   -- 「断られたら、理由が Problem で読める」
   it "reads why, when the server says no" $ \(_, env) -> do
@@ -284,7 +284,7 @@ clientSpec = do
   -- 「属性のフォームは定義から。まずい値は 422」
   it "sends the form from the definitions, and checks edits" $
     \(shelf, env) -> do
-      mapM_ shelf.custom.defineAttr libraryAttrs
+      mapM_ shelf.defineAttr libraryAttrs
       added <- ok env (shelfClient.addWork (asNewWork dragonBook))
       let here = shelfClient.work added.work.id
       fields <- ok env here.form

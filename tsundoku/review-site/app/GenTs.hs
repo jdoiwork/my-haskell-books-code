@@ -36,5 +36,7 @@ main = do
       , getTypeScriptDeclarations (Proxy @ReadOn)
       , getTypeScriptDeclarations (Proxy @Points)
       , getTypeScriptDeclarations (Proxy @FormField)
+      , getTypeScriptDeclarations (Proxy @EditedWork)
+      , getTypeScriptDeclarations (Proxy @EditedItem)
       ]
 -- ANCHOR_END: all

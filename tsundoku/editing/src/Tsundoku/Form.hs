@@ -19,7 +19,7 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 
-import Tsundoku.Card (Card (..), stateOf, tagLength, tagLimit)
+import Tsundoku.Card (Card (..), stateOf)
 import Tsundoku.Custom
 import Tsundoku.TocCheck (explainToc)
 import Tsundoku.Types
@@ -114,10 +114,6 @@ explain mistake = case mistake of
   EmptyTitle         -> ["題が空っぽです"]
   LongTitle n        -> ["題は " <> T.pack (show n) <> " 字までです"]
   NegativeSize h     -> ["「" <> h <> "」の量がマイナスです"]
-  BadTag t           -> ["タグに使えません：「" <> t <> "」（空・カンマ・"
-                         <> T.pack (show tagLength) <> " 字より長いものは使えません）"]
-  TooManyTags n      -> ["タグは " <> T.pack (show tagLimit) <> " 個までです："
-                         <> T.pack (show n) <> " 個"]
   -- ANCHOR: explainEdit
   BadToc ps          -> map explainToc ps
   EntryTwice _       -> ["同じ項目が、目次に2回出てきます"]

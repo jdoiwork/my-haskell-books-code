@@ -33,6 +33,7 @@ library
                     Tsundoku.Chart
                     Tsundoku.Examples
                     Tsundoku.Outline
+                    Tsundoku.TocCheck
                     Tsundoku.Shelf
                     Tsundoku.Shelf.Rows
                     Tsundoku.Shelf.Memory
@@ -95,6 +96,8 @@ library
                     ShelfAnswers.LiveSearch
                     ShelfAnswers.FinishBoth
                     ShelfAnswers.TuiSearch
+                    ShelfAnswers.EditToc
+                    ShelfAnswers.ByHeading
                     ShelfAnswers.TocDiff
                     ShelfAnswers.Unnoted
   hs-source-dirs:   src answers
@@ -195,6 +198,7 @@ test-suite tsundoku-test
                     ApiSpec
                     HtmlSpec
                     TuiSpec
+                    EditSpec
                     McpSpec
   ghc-options:      -threaded
   build-depends:

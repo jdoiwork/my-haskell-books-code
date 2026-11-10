@@ -32,12 +32,12 @@ finishApp clock shelf = serve (Proxy :: Proxy FinishApi) finish
     finish n = do
       let wid = WorkId n
       today <- utctDay <$> liftIO clock
-      found <- liftIO (shelf.works.getCard wid)
+      found <- liftIO (shelf.getCard wid)
       card  <- maybe (throwError err404) pure found
-      liftIO $ mapM_ (shelf.reading.logReading wid . LogLine today)
+      liftIO $ mapM_ (shelf.logReading wid . LogLine today)
                      (entryIds card.work.contents)
-      _     <- liftIO (shelf.reading.applyEvent wid Finish)
-      after <- liftIO (shelf.works.getCard wid)
+      _     <- liftIO (shelf.applyEvent wid Finish)
+      after <- liftIO (shelf.getCard wid)
       maybe (throwError err404) (pure . finishedParts . (,) wid) after
 
 -- 🧩 The reading part, and the bar that replaces id="bar" wherever it is.

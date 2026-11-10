@@ -8,7 +8,7 @@ build-type:    Simple
 extra-source-files: static/*
 
 -- 総合演習：読書メモのレビューサイトを作る
--- （12. レビューサイトに仕上げる：本棚・タグ・ネタバレ・読書の統計）
+-- （10. 画面を取り替える2：React と brick で同じ API を使う）
 
 common shared
   default-language: GHC2024
@@ -67,10 +67,6 @@ library
                     Tsundoku.Tui.Model
                     Tsundoku.Tui.View
                     Tsundoku.Tui.Run
-                    Tsundoku.Mcp.Wire
-                    Tsundoku.Mcp.Toc
-                    Tsundoku.Mcp.Tools
-                    Tsundoku.Review
                     ShelfAnswers.Podcast
                     ShelfAnswers.Grades
                     ShelfAnswers.LookBack
@@ -97,11 +93,6 @@ library
                     ShelfAnswers.LiveSearch
                     ShelfAnswers.FinishBoth
                     ShelfAnswers.TuiSearch
-                    ShelfAnswers.TocDiff
-                    ShelfAnswers.Unnoted
-                    ShelfAnswers.Reread
-                    ShelfAnswers.CsvIn
-                    ShelfAnswers.StrictSpoiler
                     ShelfAnswers.EditToc
                     ShelfAnswers.ByHeading
   hs-source-dirs:   src answers
@@ -202,8 +193,6 @@ test-suite tsundoku-test
                     ApiSpec
                     HtmlSpec
                     TuiSpec
-                    McpSpec
-                    ReviewSpec
                     EditSpec
   ghc-options:      -threaded
   build-depends:

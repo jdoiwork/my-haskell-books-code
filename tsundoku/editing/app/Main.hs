@@ -41,12 +41,8 @@ import Tsundoku.Import.Sample
 import Tsundoku.Import.Types
 import Tsundoku.Isbn
 import Tsundoku.Labels (stateLabel)
-import Tsundoku.Mcp.Tools (Mode (..), shelfTools)
-import Tsundoku.Mcp.Wire (serveStdio)
 import Tsundoku.Outline (outline)
 import Tsundoku.Rating
-import Tsundoku.Review (Month (..), MonthStat (..), monthly, tagCloud, toCsv,
-                        toMarkdown)
 import Tsundoku.Search
 import Tsundoku.Shelf
 import Tsundoku.Shelf.Config
@@ -66,33 +62,24 @@ main = do
   case args of
     ["samples"] -> writeSamples
     _           -> withShelf config $ \shelf -> case args of
-      ["add-examples"]   -> addExamples shelf
-      ["list"]           -> listShelf shelf
-      ["find", typed]    -> findCards shelf (T.pack typed)
-      ["import", path]   -> importInto shelf path
-      ["isbn", typed]    -> isbnInto shelf (T.pack typed)
-      ["updates"]        -> checkUpdates shelf
-      "search" : typed   -> searchShelf shelf (T.pack (unwords typed))
+      ["add-examples"] -> addExamples shelf
+      ["list"]         -> listShelf shelf
+      ["find", typed]  -> findCards shelf (T.pack typed)
+      ["import", path] -> importInto shelf path
+      ["isbn", typed]  -> isbnInto shelf (T.pack typed)
+      ["updates"]      -> checkUpdates shelf
+      "search" : typed -> searchShelf shelf (T.pack (unwords typed))
       -- ANCHOR: serveArgs
-      ["serve"]          -> serveShelf shelf 8080
-      ["serve", port]    -> maybe (die usage) (serveShelf shelf) (readMaybe port)
+      ["serve"]        -> serveShelf shelf 8080
+      ["serve", port]  -> maybe (die usage) (serveShelf shelf) (readMaybe port)
       -- ANCHOR_END: serveArgs
-      -- ANCHOR: mcpArgs
-      "mcp" : opts       -> maybe (die usage) (`serveMcp` shelf) (mcpMode opts)
-      -- ANCHOR_END: mcpArgs
-      -- ANCHOR: exportArgs
-      ["export", "md"]   -> shelf.works.listCards >>= T.putStr . toMarkdown
-      ["export", "csv"]  -> shelf.works.listCards >>= T.putStr . toCsv
-      ["stats"]          -> showStats shelf
-      -- ANCHOR_END: exportArgs
-      _                  -> die usage
+      _                -> die usage
   where
     usage = unlines
       [ "usage: shelf add-examples | shelf list | shelf find SEARCH"
       , "       shelf samples | shelf import FILE | shelf isbn ISBN"
       , "       shelf updates | shelf search WORDS..."
-      , "       shelf serve [PORT] | shelf mcp [--read-only]"
-      , "       shelf export md|csv | shelf stats" ]
+      , "       shelf serve [PORT]" ]
 
 -- 📚 Put five works on the shelf, through the window only: first what
 --    the library defined, then the works and what I wrote on them.
@@ -100,45 +87,45 @@ main = do
 -- それから作品と、そこに書いたもの
 addExamples :: Shelf -> IO ()
 addExamples shelf = do
-  mapM_ shelf.custom.defineAttr (libraryAttrs ++ [ncodeDef, publisherDef])
-  mapM_ shelf.custom.defineFlow libraryFlows
-  dragon <- shelf.works.addWork dragonBook
-  void (shelf.reading.applyEvent dragon Start)
-  forM_ (notes dragonCard) (shelf.reading.addNote dragon)
-  forM_ (parse FiveStars "★4.5") (shelf.reading.rate dragon)
-  void (shelf.custom.editAttrs dragon dragonForm)
-  void (shelf.custom.moveFlow dragon "貸し出し" "本棚にある")
-  serial <- shelf.works.addWork librarianSerial
-  void (shelf.reading.applyEvent serial Start)
-  forM_ (parse FiveStars "★5") (shelf.reading.rate serial)
-  void (shelf.custom.editAttrs serial librarianForm)
-  void (shelf.custom.moveFlow serial "連載の状態" "連載中")
-  void (shelf.custom.editAttrs serial (Map.singleton "Nコード" "n0000xx"))
-  copyist <- shelf.works.addWork copyistSerial
-  void (shelf.reading.applyEvent copyist Start)
-  forM_ (parse FiveStars "★4") (shelf.reading.rate copyist)
-  void (shelf.custom.editAttrs copyist copyistForm)
-  void (shelf.custom.moveFlow copyist "連載の状態" "連載中")
-  void (shelf.custom.moveFlow copyist "連載の状態" "休止")
-  void (shelf.custom.editAttrs copyist (Map.singleton "Nコード" "n0000yy"))
-  film <- shelf.works.addWork lastDragonFilm
-  void (shelf.reading.applyEvent film Start)
-  void (shelf.reading.applyEvent film Finish)
-  void (shelf.works.addWork dungeonGame)
+  mapM_ shelf.defineAttr (libraryAttrs ++ [ncodeDef, publisherDef])
+  mapM_ shelf.defineFlow libraryFlows
+  dragon <- shelf.addWork dragonBook
+  void (shelf.applyEvent dragon Start)
+  forM_ (notes dragonCard) (shelf.addNote dragon)
+  forM_ (parse FiveStars "★4.5") (shelf.rate dragon)
+  void (shelf.editAttrs dragon dragonForm)
+  void (shelf.moveFlow dragon "貸し出し" "本棚にある")
+  serial <- shelf.addWork librarianSerial
+  void (shelf.applyEvent serial Start)
+  forM_ (parse FiveStars "★5") (shelf.rate serial)
+  void (shelf.editAttrs serial librarianForm)
+  void (shelf.moveFlow serial "連載の状態" "連載中")
+  void (shelf.editAttrs serial (Map.singleton "Nコード" "n0000xx"))
+  copyist <- shelf.addWork copyistSerial
+  void (shelf.applyEvent copyist Start)
+  forM_ (parse FiveStars "★4") (shelf.rate copyist)
+  void (shelf.editAttrs copyist copyistForm)
+  void (shelf.moveFlow copyist "連載の状態" "連載中")
+  void (shelf.moveFlow copyist "連載の状態" "休止")
+  void (shelf.editAttrs copyist (Map.singleton "Nコード" "n0000yy"))
+  film <- shelf.addWork lastDragonFilm
+  void (shelf.applyEvent film Start)
+  void (shelf.applyEvent film Finish)
+  void (shelf.addWork dungeonGame)
   putStrLn "added 5 works"
 
 -- 📋 One line for each card.
 -- カード1枚に1行
 listShelf :: Shelf -> IO ()
 listShelf shelf = do
-  cards <- shelf.works.listCards
+  cards <- shelf.listCards
   mapM_ (T.putStrLn . cardLine) cards
 
 -- 🔎 The cards a search finds, or why it could not search.
 -- 絞り込みで見つかったカード。絞り込めなければ、その理由
 findCards :: Shelf -> Text -> IO ()
 findCards shelf typed = do
-  found <- shelf.custom.findCards typed
+  found <- shelf.findCards typed
   case found of
     Left why    -> refuse why
     Right cards -> mapM_ (T.putStrLn . cardLine) cards
@@ -197,7 +184,7 @@ isbnInto shelf typed = do
   book    <- either stop pure =<< fetchBook manager base asked
   let got = bookDraft book
   mapM_ (T.hPutStrLn stderr . explainImport) (missed got)
-  wid     <- shelf.works.addWork (bookWork (isbnText asked) (draft got))
+  wid     <- shelf.addWork (bookWork (isbnText asked) (draft got))
   added shelf wid
   keepPublisher shelf wid (publisher book)
 
@@ -207,7 +194,7 @@ isbnInto shelf typed = do
 -- ものの目次を育てる
 checkUpdates :: Shelf -> IO ()
 checkUpdates shelf = do
-  serials <- narouSerials <$> shelf.works.listCards
+  serials <- narouSerials <$> shelf.listCards
   base    <- fromMaybe narou <$> lookupEnv "TSUNDOKU_NAROU"
   manager <- newTlsManager
   found   <- either stop pure
@@ -217,7 +204,7 @@ checkUpdates shelf = do
     Right (novel, 0)  ->
       T.putStrLn (novelTitle novel <> "：新しい話はありません")
     Right (novel, n)  -> do
-      grown <- shelf.intake.addEpisodes wid n
+      grown <- shelf.addEpisodes wid n
       case grown of
         Left why -> mapM_ (T.hPutStrLn stderr) (explain why)
         Right () -> T.putStrLn (novelTitle novel <> "：新しく "
@@ -227,7 +214,7 @@ checkUpdates shelf = do
 -- 本棚に置いたばかりの作品を見せる：その1行と目次
 added :: Shelf -> WorkId -> IO ()
 added shelf wid = do
-  found <- shelf.works.getCard wid
+  found <- shelf.getCard wid
   forM_ found $ \card -> do
     T.putStrLn ("added " <> cardLine (wid, card))
     forM_ (cardSummary 10 card) T.putStrLn
@@ -245,11 +232,11 @@ keepPublisher :: Shelf -> WorkId -> Text -> IO ()
 keepPublisher shelf wid name
   | T.null name = pure ()
   | otherwise   = do
-      schema <- shelf.custom.getSchema
+      schema <- shelf.getSchema
       let known = map attrName (attrDefs schema)
       unless (attrName publisherDef `elem` known)
-        (void (shelf.custom.defineAttr publisherDef))
-      kept <- shelf.custom.editAttrs wid (Map.singleton (attrName publisherDef) name)
+        (void (shelf.defineAttr publisherDef))
+      kept <- shelf.editAttrs wid (Map.singleton (attrName publisherDef) name)
       case kept of
         Left why -> mapM_ (T.hPutStrLn stderr) (explain why)
         Right () -> T.putStrLn ("  出版社：" <> name)
@@ -267,7 +254,7 @@ stop why = do
 -- 探して見つかったもの。1件を2行で
 searchShelf :: Shelf -> Text -> IO ()
 searchShelf shelf typed = do
-  found <- shelf.inside.searchText typed
+  found <- shelf.searchText typed
   case found of
     Left why   -> refuse why
     Right []   -> T.putStrLn "見つかりませんでした"
@@ -300,37 +287,6 @@ placeLabel found = case found of
   InNote _ True  -> "感想・ネタバレ"
   InText _       -> "本文"
 -- ANCHOR_END: search
-
--- ANCHOR: mcp
--- 🤖 Serve the shelf to an AI over MCP (JSON-RPC on stdin and stdout).
---    With --read-only, the AI gets only the tools that look.
--- 本棚を MCP で AI に出す（標準入力と標準出力の JSON-RPC）。
--- --read-only なら、AI がもらうのは見る道具だけ
-serveMcp :: Mode -> Shelf -> IO ()
-serveMcp mode shelf =
-  serveStdio "tsundoku" (shelfTools mode getCurrentTime shelf)
-
--- 🔐 The mode from the options: nothing, or --read-only.
--- オプションからモードを：なにもなしか、--read-only
-mcpMode :: [String] -> Maybe Mode
-mcpMode opts = case opts of
-  []              -> Just ReadWrite
-  ["--read-only"] -> Just ReadOnly
-  _               -> Nothing
--- ANCHOR_END: mcp
-
--- ANCHOR: stats
--- 📊 The statistics in the terminal: month by month, and the tags.
--- 端末で統計を：月ごとと、タグ
-showStats :: Shelf -> IO ()
-showStats shelf = do
-  cards <- map snd <$> shelf.works.listCards
-  forM_ (Map.toList (monthly cards)) $ \(Month y m, MonthStat n (Pages p)) ->
-    T.putStrLn (T.pack (show y <> "-" <> show m) <> "  " <> T.pack (show n)
-                <> "冊  " <> T.pack (show p) <> "ページ")
-  T.putStrLn (T.unwords [ "#" <> t <> "(" <> T.pack (show k) <> ")"
-                        | (t, k) <- tagCloud cards ])
--- ANCHOR_END: stats
 
 -- ANCHOR: serve
 -- 🌐 Serve the shelf until stopped (Ctrl-C): the pages at /, the JSON

@@ -88,6 +88,7 @@ postgresShelf conn = Shelf
       , removeWork = \wid     -> run (deleteWork wid)
       , getCard    = \wid     -> run (loadCard   wid)
       , listCards  =             run  loadAll
+      , reviseWork = revise
       }
 
   , -- 📖 Reading, notes, and ratings
@@ -99,6 +100,8 @@ postgresShelf conn = Shelf
           edit_ wid (Card.addNote n)      (insertNote    wid n)
       , logReading = \wid l   ->
           edit_ wid (Card.logReading l)   (insertLog     wid l)
+      , unread     = \wid i   ->
+          edit_ wid (Card.unread i)       (deleteLog     wid i)
       , rate       = \wid s   ->
           edit_ wid (Right . Card.rate s) (updateRating  wid s)
       , rateEntry  = \wid i s ->
@@ -182,6 +185,18 @@ postgresShelf conn = Shelf
         change wid (Card.addEpisodes fresh) (insertGrown wid fresh)
       pure (fmap (\_ -> ()) result)
     -- ANCHOR_END: pgGrow
+    -- ANCHOR: pgRevise
+    -- A work fixed by hand: the new lines take numbers in a row from
+    -- the entries' sequence.
+    -- 手で直した作品：新しい行は、項目の番号の列から続けて番号を取る
+    revise :: WorkId -> Revision -> IO (Checked ())
+    revise wid r = do
+      result <- run $ do
+        from <- reserveFrom (Card.newItems r)
+        change wid (Card.revise from r)
+                   (writeRevision wid (notesOnRemoved r))
+      pure (fmap (\_ -> ()) result)
+    -- ANCHOR_END: pgRevise
 
 -- 🔁 Read, decide, write: one change to one card, in a transaction.
 -- 読む → 決める → 書く：カード1枚の変更を、トランザクションの中で
@@ -347,6 +362,19 @@ insertLog wid l = statement (wid, l) (preparable sql encoder D.noResult)
       , (readOn . snd)    >$< param E.date
       ]
 
+-- ANCHOR: pgDeleteLog
+-- 🧽 The same as SQLite's: every line about one entry of one work.
+-- SQLite と同じ：作品1つの、項目1つについての行を全部消す
+deleteLog :: WorkId -> EntryId -> Transaction ()
+deleteLog wid i = statement (wid, i) (preparable sql encoder D.noResult)
+  where
+    sql = "DELETE FROM reading_log WHERE work_id = $1 AND entry_id = $2"
+    encoder = mconcat
+      [ fst >$< param workId
+      , snd >$< param entryNo
+      ]
+-- ANCHOR_END: pgDeleteLog
+
 upsertRating :: WorkId -> EntryId -> Score -> Transaction ()
 upsertRating wid i s =
   statement (wid, i, s) (preparable sql encoder D.noResult)
@@ -449,6 +477,111 @@ insertGrown wid fresh card =
       , (\(_, _, _, e) -> size e)    >$< param int
       ]
 -- ANCHOR_END: pgRows
+
+-- ANCHOR: pgWriteRevision
+-- 🔢 Take n numbers in a row from the entries' sequence, and say the
+--    first. (Nothing new: no number is taken, and the first is not used.)
+-- 項目の番号の列から、続けて n 個を取り、最初の番号を言う。
+-- （新しい行がなければ、番号は取らない。最初の番号も使われない）
+reserveFrom :: Int -> Transaction EntryId
+reserveFrom 0 = pure (EntryId 0)
+reserveFrom n = statement n $ preparable sql (param int) decoder
+  where
+    sql = """
+      SELECT setval(seq, nextval(seq) + $1 - 1) - $1 + 1
+        FROM (SELECT pg_get_serial_sequence('entries', 'id') AS seq)
+      """
+    decoder = D.singleRow (EntryId <$> column intColumn)
+
+-- ✏️ Write a work fixed by hand, in the same order as SQLite's: move (or
+--    delete, as chosen) the notes of lines that are gone, change or put
+--    in every line from the top, then delete the lines that are gone
+--    (ON DELETE CASCADE takes their ratings, log, and texts).
+-- 手で直した作品を、SQLite と同じ順番で書く：消える行の感想を、選んだ
+-- とおりに移すか消し、どの行も上から書き換えるか足し、最後に消える行を
+-- 消す（その★・ログ・本文は、ON DELETE CASCADE が一緒に消す）
+writeRevision :: WorkId -> NotesOnRemoved -> Card -> Transaction ()
+writeRevision wid choice card = do
+  statement (wid, work card) renameWork
+  had <- statement wid entriesOf
+  let now  = [ entryId e | (_, _, e) <- placed toc ]
+      gone = [ i | i <- had, i `notElem` now ]
+  forM_ gone $ \i -> statement i $ case choice of
+    MoveToWork -> moveNotes
+    DropNotes  -> dropNotes
+  forM_ (placed toc) $ \(parent, position, e) ->
+    if entryId e `elem` had
+      then statement (parent, position, e) changeEntry
+      else statement (wid, parent, position, e) putEntry
+  forM_ gone $ \i -> statement i dropEntry
+  where
+    (_, _, toc) = toPlain (contents (work card))
+
+renameWork :: Statement (WorkId, Work) ()
+renameWork = preparable
+  "UPDATE works SET title = $2, creator = $3 WHERE id = $1"
+  (mconcat [ fst             >$< param workId
+           , (title . snd)   >$< param E.text
+           , (creator . snd) >$< param E.text ])
+  D.noResult
+
+entriesOf :: Statement WorkId [EntryId]
+entriesOf = preparable
+  "SELECT id FROM entries WHERE work_id = $1"
+  (param workId)
+  (D.rowList (EntryId <$> column intColumn))
+
+moveNotes :: Statement EntryId ()
+moveNotes = preparable
+  "UPDATE notes SET entry_id = NULL WHERE entry_id = $1"
+  (param entryNo)
+  D.noResult
+
+dropNotes :: Statement EntryId ()
+dropNotes = preparable
+  "DELETE FROM notes WHERE entry_id = $1"
+  (param entryNo)
+  D.noResult
+
+changeEntry :: Statement (Maybe EntryId, Int, Entry Int) ()
+changeEntry = preparable sql encoder D.noResult
+  where
+    sql = """
+      UPDATE entries SET parent_id = $2, position = $3, heading = $4,
+                         size = $5
+       WHERE id = $1
+      """
+    encoder = mconcat
+      [ (\(_, _, e) -> entryId e) >$< param entryNo
+      , (\(p, _, _) -> p)         >$< nullableParam entryNo
+      , (\(_, n, _) -> n)         >$< param int
+      , (\(_, _, e) -> heading e) >$< param E.text
+      , (\(_, _, e) -> size e)    >$< param int
+      ]
+
+putEntry :: Statement (WorkId, Maybe EntryId, Int, Entry Int) ()
+putEntry = preparable sql encoder D.noResult
+  where
+    sql = """
+      INSERT INTO entries (id, work_id, parent_id, position, heading, size)
+      OVERRIDING SYSTEM VALUE
+      VALUES ($1, $2, $3, $4, $5, $6)
+      """
+    encoder = mconcat
+      [ (\(_, _, _, e) -> entryId e) >$< param entryNo
+      , (\(w, _, _, _) -> w)         >$< param workId
+      , (\(_, p, _, _) -> p)         >$< nullableParam entryNo
+      , (\(_, _, n, _) -> n)         >$< param int
+      , (\(_, _, _, e) -> heading e) >$< param E.text
+      , (\(_, _, _, e) -> size e)    >$< param int
+      ]
+
+dropEntry :: Statement EntryId ()
+dropEntry = preparable
+  "DELETE FROM entries WHERE id = $1"
+  (param entryNo)
+  D.noResult
+-- ANCHOR_END: pgWriteRevision
 
 -- ANCHOR: upsertText
 -- 📝 Keep the text of an entry. A new text replaces the old one.

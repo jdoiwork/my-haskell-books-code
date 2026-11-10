@@ -19,7 +19,6 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Data.Aeson (Value, toJSON)
 import Data.String (fromString)
-import Data.Set (Set)
 import Data.Text (Text)
 import Data.Traversable (for)
 import Data.Tree (Tree (..))
@@ -122,66 +121,53 @@ sqliteShelf conn = do
   pure Shelf
     { -- 📚 The works on the shelf
       -- 本棚の作品
-      works = WorkWindow
-        { addWork    = \w       -> run (insertWork w)
-        , removeWork = \wid     -> run (deleteWork wid)
-        , getCard    = \wid     -> run (loadCard   wid)
-        , listCards  =             run  loadAll
-        , reviseWork = revise
-        }
+      addWork     = \w       -> run (insertWork w)
+    , removeWork  = \wid     -> run (deleteWork wid)
+    , getCard     = \wid     -> run (loadCard   wid)
+    , listCards   =             run  loadAll
+    , reviseWork  = revise
 
-    , -- 📖 Reading, notes, and ratings
+      -- 📖 Reading, notes, and ratings
       -- 読む・感想・評価
-      reading = ReadingWindow
-        { applyEvent = \wid e   -> fmap reading <$>
-            edit  wid (Card.applyEvent e)   (updateReading wid)
-        , addNote    = \wid n   ->
-            edit_ wid (Card.addNote n)      (insertNote    wid n)
-        , logReading = \wid l   ->
-            edit_ wid (Card.logReading l)   (insertLog     wid l)
-        , unread     = \wid i   ->
-            edit_ wid (Card.unread i)       (deleteLog     wid i)
-        , rate       = \wid s   ->
-            edit_ wid (Right . Card.rate s) (updateRating  wid s)
-        , rateEntry  = \wid i s ->
-            edit_ wid (Card.rateEntry i s)  (upsertRating  wid i s)
-        }
+    , applyEvent  = \wid e   -> fmap reading <$>
+        edit  wid (Card.applyEvent e)   (updateReading wid)
+    , addNote     = \wid n   ->
+        edit_ wid (Card.addNote n)      (insertNote    wid n)
+    , logReading  = \wid l   ->
+        edit_ wid (Card.logReading l)   (insertLog     wid l)
+    , unread      = \wid i   ->
+        edit_ wid (Card.unread i)       (deleteLog     wid i)
+    , rate        = \wid s   ->
+        edit_ wid (Right . Card.rate s) (updateRating  wid s)
+    , rateEntry   = \wid i s ->
+        edit_ wid (Card.rateEntry i s)  (upsertRating  wid i s)
 
-    , -- 🏷️ My own attributes and states
+      -- 🏷️ My own attributes and states
       -- 自分で決める属性と状態
-      custom = CustomWindow
-        { getSchema  =             run  loadSchema
-        , defineAttr = \d       ->
-            define (Custom.defineAttr d)    (insertDefinition (Left  d))
-        , defineFlow = \f       ->
-            define (Custom.defineFlow f)    (insertDefinition (Right f))
-        , editAttrs  = \wid t   ->
-            custom wid (Card.editAttrs t)   (updateAttrs  wid)
-        , moveFlow   = \wid f s ->
-            custom wid (Card.moveFlow f s)  (updateStates wid)
-        , findCards  = \q       -> run (searchAll q)
-        }
+    , getSchema   =             run  loadSchema
+    , defineAttr  = \d       ->
+        define (Custom.defineAttr d)    (insertDefinition (Left  d))
+    , defineFlow  = \f       ->
+        define (Custom.defineFlow f)    (insertDefinition (Right f))
+    , editAttrs   = \wid t   ->
+        custom wid (Card.editAttrs t)   (updateAttrs  wid)
+    , moveFlow    = \wid f s ->
+        custom wid (Card.moveFlow f s)  (updateStates wid)
+    , findCards   = \q       -> run (searchAll q)
 
-    , -- 📥 Taking things in from outside
+      -- ANCHOR: sqliteAdd
+      -- 📥 Taking things in from outside
       -- 外から取り込む
-      intake = IntakeWindow
-        { addEpisodes = grow
-        }
+    , addEpisodes = grow
+      -- ANCHOR_END: sqliteAdd
 
-    , -- 🔎 Searching what is inside
+      -- ANCHOR: sqliteSearch
+      -- 🔎 Searching what is inside
       -- 中身を探す
-      inside = InsideWindow
-        { setText    = \wid i t ->
-            edit_ wid (Card.hasEntry i)     (upsertText   wid i t)
-        , searchText = searchWith (run . searchDocuments)
-        }
-
-    , -- 🔖 Tags
-      -- タグ
-      tagging = TagWindow
-        { setTags = \wid ts ->
-            edit_ wid (Card.setTags ts)     (updateTags   wid ts)
-        }
+    , setText     = \wid i t ->
+        edit_ wid (Card.hasEntry i)     (upsertText   wid i t)
+    , searchText  = searchWith (run . searchDocuments)
+      -- ANCHOR_END: sqliteSearch
     }
 
 -- 🔁 Read, decide, write: one change to one card, as a job.
@@ -308,14 +294,6 @@ updateAttrs :: WorkId -> Card -> Db ()
 updateAttrs (WorkId w) card =
   execute "UPDATE works SET attrs = ? WHERE id = ?"
     (jsonText (attrsJson (attrs card)), w)
-
--- ANCHOR: updateTags
--- 🔖 Write the tags, as JSON text.
--- タグを、JSON の文字で書く
-updateTags :: WorkId -> Set Text -> Db ()
-updateTags (WorkId w) ts =
-  execute "UPDATE works SET tags = ? WHERE id = ?" (jsonText (tagsJson ts), w)
--- ANCHOR_END: updateTags
 
 updateStates :: WorkId -> Card -> Db ()
 updateStates (WorkId w) card =
@@ -498,13 +476,12 @@ loadCard :: WorkId -> Db (Maybe Card)
 loadCard (WorkId w) = do
   schema <- loadSchema
   rows   <- query """
-    SELECT title, creator, kind, minutes, reading, rating, attrs, states,
-           tags
+    SELECT title, creator, kind, minutes, reading, rating, attrs, states
       FROM works WHERE id = ?
     """ (Only w)
   case rows of
     []                               -> pure Nothing
-    (t, c, k, m, r, s, a, st, tg) : _ -> do
+    (t, c, k, m, r, s, a, st) : _ -> do
       toc     <- query tocQuery (Only w)
       notes'  <- query """
         SELECT entry_id, body, written_at, spoiler
@@ -520,9 +497,7 @@ loadCard (WorkId w) = do
       either (liftIO . throwIO) (pure . Just) $ do
         a'  <- fromJsonText a
         st' <- fromJsonText st
-        tg' <- fromJsonText tg
-        let row = WorkRow t c k m r s a' st' tg'
-        assemble schema row toc notes' log' ratings
+        assemble schema (WorkRow t c k m r s a' st') toc notes' log' ratings
 -- ANCHOR_END: loadCard
 
 -- ANCHOR: tocQuery
@@ -764,19 +739,10 @@ migrations =
     ]
     -- ANCHOR_END: migration3
     -- ANCHOR: migration4
-  , -- 4: the tags of each work (a JSON array of words)
-    -- 4: 作品ごとのタグ（言葉の JSON の配列）
-    [ """
-      ALTER TABLE works ADD COLUMN
-        tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags))
-      """
-    ]
-    -- ANCHOR_END: migration4
-    -- ANCHOR: migration5
-  , -- 5: works and entries can now be fixed by hand. documents follows
+  , -- 4: works and entries can now be fixed by hand. documents follows
     --    a new title, a new heading, a line that is gone, and a note
     --    that moved to the whole work or was dropped.
-    -- 5: 作品と項目を手で直せるようになった。documents は、新しい題、
+    -- 4: 作品と項目を手で直せるようになった。documents は、新しい題、
     --    新しい見出し、消えた行、作品全体へ移った感想と消した感想を
     --    追いかける
     [ """
@@ -817,7 +783,7 @@ migrations =
       END
       """
     ]
-    -- ANCHOR_END: migration5
+    -- ANCHOR_END: migration4
   ]
 
 -- 🪜 Run the steps the file has not run yet. SQLite keeps a number of

@@ -77,6 +77,9 @@ newMemoryShelf = do
         , removeWork = \wid     -> step (unshelve wid)
         , getCard    = \wid     -> look (Map.lookup wid . cards)
         , listCards  =             look (Map.toList     . cards)
+        -- ANCHOR: memoryRevise
+        , reviseWork = \wid r   -> step (reviseCard wid r)
+        -- ANCHOR_END: memoryRevise
         }
 
     , -- 📖 Reading, notes, and ratings
@@ -86,6 +89,9 @@ newMemoryShelf = do
                                      edit  wid (Card.applyEvent e)
         , addNote    = \wid n   -> edit_ wid (Card.addNote n)
         , logReading = \wid l   -> edit_ wid (Card.logReading l)
+        -- ANCHOR: memoryUnread
+        , unread     = \wid i   -> edit_ wid (Card.unread i)
+        -- ANCHOR_END: memoryUnread
         , rate       = \wid s   -> edit_ wid (Right . Card.rate s)
         , rateEntry  = \wid i s -> edit_ wid (Card.rateEntry i s)
         }
@@ -150,6 +156,24 @@ growCard wid n m =
     fresh = map EntryId (take n [nextEntry m ..])
     next  = nextEntry m + length fresh
 -- ANCHOR_END: growCard
+
+-- ANCHOR: reviseCard
+-- ✏️ Fix a work by hand. New lines take the next free numbers; the texts
+--    of lines that are gone go with them (the core carries the rest).
+-- 作品を手で直す。新しい行は、次に空いている番号を取る。消えた行の本文は、
+-- 行と一緒に消える（ほかのものは、核が引き継ぐ）
+reviseCard :: WorkId -> Revision -> Memory -> (Memory, Checked ())
+reviseCard wid r m =
+  case changeCard wid (Card.revise (EntryId (nextEntry m)) r) m of
+    (_,     Left why) -> (m, Left why)
+    (after, Right new) ->
+      ( after { nextEntry = nextEntry m + Card.newItems r
+              , texts     = Map.adjust (keepOnly new) wid (texts after) }
+      , Right () )
+  where
+    keepOnly new = Map.filterWithKey
+      (\i _ -> i `elem` entryIds (contents (work new)))
+-- ANCHOR_END: reviseCard
 
 -- 📒 Read, decide, write, for the definitions.
 -- 定義も、読む → 決める → 書く

@@ -15,7 +15,6 @@ import Data.Aeson (Value)
 import Control.Monad (forM_, when)
 import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
-import Data.Set (Set)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Time (Day, UTCTime)
@@ -83,66 +82,53 @@ postgresShelf :: Connection -> Shelf
 postgresShelf conn = Shelf
   { -- 📚 The works on the shelf
     -- 本棚の作品
-    works = WorkWindow
-      { addWork    = \w       -> run (insertWork w)
-      , removeWork = \wid     -> run (deleteWork wid)
-      , getCard    = \wid     -> run (loadCard   wid)
-      , listCards  =             run  loadAll
-      , reviseWork = revise
-      }
+    addWork     = \w       -> run (insertWork w)
+  , removeWork  = \wid     -> run (deleteWork wid)
+  , getCard     = \wid     -> run (loadCard   wid)
+  , listCards   =             run  loadAll
+  , reviseWork  = revise
 
-  , -- 📖 Reading, notes, and ratings
+    -- 📖 Reading, notes, and ratings
     -- 読む・感想・評価
-    reading = ReadingWindow
-      { applyEvent = \wid e   -> fmap reading <$>
-          edit  wid (Card.applyEvent e)   (updateReading wid)
-      , addNote    = \wid n   ->
-          edit_ wid (Card.addNote n)      (insertNote    wid n)
-      , logReading = \wid l   ->
-          edit_ wid (Card.logReading l)   (insertLog     wid l)
-      , unread     = \wid i   ->
-          edit_ wid (Card.unread i)       (deleteLog     wid i)
-      , rate       = \wid s   ->
-          edit_ wid (Right . Card.rate s) (updateRating  wid s)
-      , rateEntry  = \wid i s ->
-          edit_ wid (Card.rateEntry i s)  (upsertRating  wid i s)
-      }
+  , applyEvent  = \wid e   -> fmap reading <$>
+      edit  wid (Card.applyEvent e)   (updateReading wid)
+  , addNote     = \wid n   ->
+      edit_ wid (Card.addNote n)      (insertNote    wid n)
+  , logReading  = \wid l   ->
+      edit_ wid (Card.logReading l)   (insertLog     wid l)
+  , unread      = \wid i   ->
+      edit_ wid (Card.unread i)       (deleteLog     wid i)
+  , rate        = \wid s   ->
+      edit_ wid (Right . Card.rate s) (updateRating  wid s)
+  , rateEntry   = \wid i s ->
+      edit_ wid (Card.rateEntry i s)  (upsertRating  wid i s)
 
-  , -- 🏷️ My own attributes and states
+    -- 🏷️ My own attributes and states
     -- 自分で決める属性と状態
-    custom = CustomWindow
-      { getSchema  =             run  loadSchema
-      , defineAttr = \d       ->
-          define (Custom.defineAttr d)    (insertDefinition (Left  d))
-      , defineFlow = \f       ->
-          define (Custom.defineFlow f)    (insertDefinition (Right f))
-      , editAttrs  = \wid t   ->
-          custom wid (Card.editAttrs t)   (updateAttrs  wid)
-      , moveFlow   = \wid f s ->
-          custom wid (Card.moveFlow f s)  (updateStates wid)
-      , findCards  = \q       -> run (searchAll q)
-      }
+  , getSchema   =             run  loadSchema
+  , defineAttr  = \d       ->
+      define (Custom.defineAttr d)    (insertDefinition (Left  d))
+  , defineFlow  = \f       ->
+      define (Custom.defineFlow f)    (insertDefinition (Right f))
+  , editAttrs   = \wid t   ->
+      custom wid (Card.editAttrs t)   (updateAttrs  wid)
+  , moveFlow    = \wid f s ->
+      custom wid (Card.moveFlow f s)  (updateStates wid)
+  , findCards   = \q       -> run (searchAll q)
 
-  , -- 📥 Taking things in from outside
+    -- ANCHOR: pgAdd
+    -- 📥 Taking things in from outside
     -- 外から取り込む
-    intake = IntakeWindow
-      { addEpisodes = grow
-      }
+  , addEpisodes = grow
+    -- ANCHOR_END: pgAdd
 
-  , -- 🔎 Searching what is inside
+    -- ANCHOR: pgSearch
+    -- 🔎 Searching what is inside
     -- 中身を探す
-    inside = InsideWindow
-      { setText    = \wid i t ->
-          edit_ wid (Card.hasEntry i)     (upsertText   wid i t)
-      , searchText = searchWith (run . searchDocuments)
-      }
-
-  , -- 🔖 Tags
-    -- タグ
-    tagging = TagWindow
-      { setTags = \wid ts ->
-          edit_ wid (Card.setTags ts)     (updateTags   wid ts)
-      }
+  , setText     = \wid i t ->
+      edit_ wid (Card.hasEntry i)     (upsertText   wid i t)
+  , searchText  = searchWith (run . searchDocuments)
+    -- ANCHOR_END: pgSearch
   }
   where
     -- Run a job in a transaction on this connection.
@@ -398,13 +384,6 @@ updateAttrs wid card =
     ((fst >$< param workId) <> (snd >$< param E.jsonb))
     D.noResult
 
-updateTags :: WorkId -> Set Text -> Transaction ()
-updateTags wid ts =
-  statement (wid, tagsJson ts) $ preparable
-    "UPDATE works SET tags = $2 WHERE id = $1"
-    ((fst >$< param workId) <> (snd >$< param E.jsonb))
-    D.noResult
-
 updateStates :: WorkId -> Card -> Transaction ()
 updateStates wid card =
   statement (wid, statesJson (states card)) $ preparable
@@ -643,8 +622,7 @@ selectWork :: Statement WorkId (Maybe WorkRow)
 selectWork = preparable sql (param workId) (D.rowMaybe row)
   where
     sql = """
-      SELECT title, creator, kind, minutes, reading, rating, attrs, states,
-             tags
+      SELECT title, creator, kind, minutes, reading, rating, attrs, states
         FROM works WHERE id = $1
       """
     row = WorkRow
@@ -654,7 +632,6 @@ selectWork = preparable sql (param workId) (D.rowMaybe row)
       <*> nullableColumn intColumn
       <*> column D.text
       <*> nullableColumn intColumn
-      <*> column D.jsonb
       <*> column D.jsonb
       <*> column D.jsonb
 
@@ -869,13 +846,6 @@ migrations =
         FROM texts;
     """
     -- ANCHOR_END: migration3
-    -- ANCHOR: migration4
-  , -- 4: the tags of each work (a jsonb array of words)
-    -- 4: 作品ごとのタグ（言葉の jsonb の配列）
-    """
-    ALTER TABLE works ADD COLUMN tags jsonb NOT NULL DEFAULT '[]';
-    """
-    -- ANCHOR_END: migration4
   ]
 
 -- 🪜 Run the steps not run yet. PostgreSQL has no user_version, so we

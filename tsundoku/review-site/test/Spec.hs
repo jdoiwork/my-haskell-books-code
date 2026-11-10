@@ -35,6 +35,7 @@ import ShelfAnswers.Weights
 import ApiSpec
 import HtmlSpec
 import TuiSpec
+import EditSpec
 import McpSpec
 import ReviewSpec
 import CustomSpec
@@ -558,6 +559,7 @@ main = hspec $ do
   apiSpec
   htmlSpec
   tuiSpec
+  editSpec
   mcpSpec
   reviewSpec
   -- ANCHOR_END: shelfSpec

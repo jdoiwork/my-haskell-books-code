@@ -18,7 +18,6 @@ module Tsundoku.Shelf.Rows
     -- * JSON for what I defined / 自分で決めたものの JSON
   , attrsJson
   , statesJson
-  , tagsJson
   , definitionRow
   , schemaFromRows
   , jsonText
@@ -33,7 +32,6 @@ import Control.Exception (Exception)
 import Control.Monad (foldM)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Set (Set)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as TL
@@ -132,7 +130,6 @@ data WorkRow = WorkRow
   , rowRating  :: Maybe Int
   , rowAttrs   :: Value
   , rowStates  :: Value
-  , rowTags    :: Value
   }
 
 -- 🧩 Put a card together from the rows of its tables: the work, the
@@ -157,7 +154,6 @@ assemble schema row tocRows noteRows logRows ratingRows = do
   given     <- traverse (\(i, n) -> (,) (EntryId i) <$> points n) ratingRows
   attrs'    <- attrsFromJson  schema (rowAttrs  row)
   states'   <- statesFromJson schema (rowStates row)
-  tags'     <- fromJson "tags" (rowTags row)
   pure Card
     { work         = Work (rowTitle row) (rowCreator row) contents'
     , reading      = reading'
@@ -167,7 +163,6 @@ assemble schema row tocRows noteRows logRows ratingRows = do
     , entryRatings = Map.fromList given
     , attrs        = attrs'
     , states       = states'
-    , tags         = tags'
     }
   where
     toc = fromOutline
@@ -238,11 +233,6 @@ statesFromJson schema json = do
   where
     inFlow name now =
       or [ flowName f == name && now `elem` flowStates f | f <- flows schema ]
-
--- 🏷️ The tags, as a JSON array of words: ["推理", "魔法"].
--- タグを、言葉の JSON の配列に：["推理", "魔法"]
-tagsJson :: Set Text -> Value
-tagsJson = Aeson.toJSON
 -- ANCHOR_END: values
 
 -- ANCHOR: definitions

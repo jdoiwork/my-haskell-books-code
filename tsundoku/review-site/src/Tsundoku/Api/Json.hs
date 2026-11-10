@@ -33,12 +33,15 @@ module Tsundoku.Api.Json
     -- * Coming in / 入ってくるもの
   , NewWork (..)
   , Outline (..)
+  , EditedWork (..)
+  , EditedItem (..)
   , NewNote (..)
   , Happened (..)
   , ReadOn (..)
   , Points (..)
   , workFrom
   , asNewWork
+  , revisionFrom
   , noteFrom
   , logFrom
     -- * Words / 言葉
@@ -247,6 +250,37 @@ data Outline = Outline
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
+-- ANCHOR: edited
+-- ✏️ A work as fixed in the edit screen: its title, its creator, and
+--    the whole table as it should be from now on. What it is (a book,
+--    a serial, ...) cannot be changed here. The notes on lines that are
+--    gone move to the whole work ("move") or go with them ("drop").
+-- 直す画面で直した作品：題、作者、これからの目次の全部。種類（本・連載
+-- ……）は、ここでは変えられない。消える行の感想は、作品全体へ移すか
+-- （"move"）、一緒に消すか（"drop"）
+data EditedWork = EditedWork
+  { title        :: Text
+  , creator      :: Text
+  , toc          :: [EditedItem]
+  , removedNotes :: Text  -- "move" or "drop" / 移すか、消すか
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+-- 🌿 One line of the fixed table. A line that was there sends its
+--    number back (id); a new line sends null.
+-- 直した目次の1行。もとからある行は、その番号（id）を送り返す。
+-- 新しい行は null を送る
+data EditedItem = EditedItem
+  { id       :: Maybe Int
+  , heading  :: Text
+  , size     :: Int
+  , children :: [EditedItem]
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+-- ANCHOR_END: edited
+
 -- ✍️ A new note. The time is the server's clock, not the screen's.
 -- 新しい感想。書いた時刻は、画面ではなくサーバーの時計で付ける
 data NewNote = NewNote
@@ -444,6 +478,25 @@ asNewWork w = NewWork
       , children = map outlineOf kids
       }
 
+-- ANCHOR: revisionFrom
+-- ✏️ The core's revision, from what the edit screen sent.
+-- 直す画面が送ってきたものから、核の Revision を
+revisionFrom :: EditedWork -> Revision
+revisionFrom edited = Revision
+  { newTitle       = edited.title
+  , newCreator     = edited.creator
+  , newToc         = map line edited.toc
+  , notesOnRemoved = choice edited.removedNotes
+  }
+  where
+    -- Only a plain "drop" drops; anything else takes the safe way.
+    -- はっきり "drop" のときだけ消す。それ以外は、安全な方へ
+    choice "drop" = DropNotes
+    choice _      = MoveToWork
+    line i = Node (Item (EntryId <$> i.id) i.heading i.size)
+                  (map line i.children)
+-- ANCHOR_END: revisionFrom
+
 -- ✍️ A note, written now.
 -- いま書いた感想
 noteFrom :: UTCTime -> NewNote -> Note
@@ -473,7 +526,7 @@ $(concat <$> traverse (deriveTypeScript defaultOptions)
     [ ''WorkSummary, ''ProgressNumbers, ''CardDetail, ''TocItem
     , ''NoteItem, ''ReadingNow, ''HitItem, ''Snip, ''Problem
     , ''NewWork, ''Outline, ''NewNote, ''Happened, ''ReadOn, ''Points
-    , ''FormField
+    , ''FormField, ''EditedWork, ''EditedItem
     ])
 -- ANCHOR_END: typescript
 -- ANCHOR_END: all

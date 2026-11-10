@@ -775,19 +775,10 @@ migrations =
     ]
     -- ANCHOR_END: migration3
     -- ANCHOR: migration4
-  , -- 4: the tags of each work (a JSON array of words)
-    -- 4: 作品ごとのタグ（言葉の JSON の配列）
-    [ """
-      ALTER TABLE works ADD COLUMN
-        tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags))
-      """
-    ]
-    -- ANCHOR_END: migration4
-    -- ANCHOR: migration5
-  , -- 5: works and entries can now be fixed by hand. documents follows
+  , -- 4: works and entries can now be fixed by hand. documents follows
     --    a new title, a new heading, a line that is gone, and a note
     --    that moved to the whole work or was dropped.
-    -- 5: 作品と項目を手で直せるようになった。documents は、新しい題、
+    -- 4: 作品と項目を手で直せるようになった。documents は、新しい題、
     --    新しい見出し、消えた行、作品全体へ移った感想と消した感想を
     --    追いかける
     [ """
@@ -826,6 +817,15 @@ migrations =
          WHERE place = 'note' AND work_id = old.work_id
            AND entry_id IS old.entry_id AND body = old.body;
       END
+      """
+    ]
+    -- ANCHOR_END: migration4
+    -- ANCHOR: migration5
+  , -- 5: the tags of each work (a JSON array of words)
+    -- 5: 作品ごとのタグ（言葉の JSON の配列）
+    [ """
+      ALTER TABLE works ADD COLUMN
+        tags TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(tags))
       """
     ]
     -- ANCHOR_END: migration5

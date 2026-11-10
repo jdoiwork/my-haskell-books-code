@@ -69,7 +69,7 @@ sqliteTagging shelf conn = do
 -- 本棚に作品があるときだけ、する
 onWork :: Shelf -> WorkId -> IO () -> IO (Checked ())
 onWork shelf wid action = do
-  found <- shelf.works.getCard wid
+  found <- shelf.getCard wid
   case found of
     Nothing -> pure (Left (NoSuchWork wid))
     Just _  -> Right <$> action

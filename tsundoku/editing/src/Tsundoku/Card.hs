@@ -22,10 +22,6 @@ module Tsundoku.Card
   , addEpisodes
   , hasEntry
   , checkWork
-  , setTags
-  , readTags
-  , tagLimit
-  , tagLength
   , titleLimit
   , revise
   , asRevision
@@ -39,8 +35,6 @@ import Control.Monad (when)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (maybeToList)
-import Data.Set (Set)
-import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Traversable (mapAccumL)
@@ -71,7 +65,6 @@ data Card = Card
   , entryRatings :: Map EntryId Score
   , attrs        :: Map Text AttrValue
   , states       :: Map Text Text
-  , tags         :: Set Text
   }
   deriving (Show, Eq)
 
@@ -89,7 +82,6 @@ newCard w = Card
   , entryRatings = Map.empty
   , attrs        = Map.empty
   , states       = Map.empty
-  , tags         = Set.empty
   }
 -- ANCHOR_END: card
 
@@ -390,34 +382,4 @@ followTable choice kept card = card
         DropNotes  -> []
       _                            -> [note]
 -- ANCHOR_END: revise
--- ANCHOR: tags
--- 🏷️ How many tags a card may have, and how long one may be.
--- カードに付けられるタグの数と、1つの長さ
-tagLimit, tagLength :: Int
-tagLimit  = 20
-tagLength = 30
-
--- 🏷️ Put these tags on a card (replacing the old ones). A tag must not
---    be blank, hold a comma, or be too long; and not too many of them.
--- カードにタグを付ける（前のタグと取り替える）。空白だけ、カンマ入り、
--- 長すぎるタグは使えない。数も多すぎてはいけない
-setTags :: Set Text -> Card -> Checked Card
-setTags new card
-  | Set.size new > tagLimit = Left (TooManyTags (Set.size new))
-  | otherwise = case filter unusable (Set.toList new) of
-      bad : _ -> Left (BadTag bad)
-      []      -> Right card { tags = new }
-  where
-    unusable t = T.null (T.strip t) || T.strip t /= t
-              || T.any (`elem` [',', '、']) t || T.length t > tagLength
-
--- ✂️ Tags typed in one box: "推理, 魔法、図書館" → {図書館, 推理, 魔法}.
---    Commas (, or 、) split them; blanks around them go away.
--- 1つの箱に打ったタグ：「推理, 魔法、図書館」→ {図書館, 推理, 魔法}。
--- カンマ（, か 、）で分け、前後の空白は落とす
-readTags :: Text -> Set Text
-readTags typed = Set.fromList
-  [ t | piece <- T.split (`elem` [',', '、']) typed
-      , let t = T.strip piece, not (T.null t) ]
--- ANCHOR_END: tags
 -- ANCHOR_END: all

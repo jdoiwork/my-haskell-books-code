@@ -1,11 +1,11 @@
 -- ANCHOR: all
 -- | The shape of a table of contents, checked: no blank headings, no
---   heading twice among siblings, not too deep, not too many. The MCP
---   chapter checked the AI's tables this way; now every table that comes
---   in (added by hand, or fixed by hand) goes through the same check.
+--   heading twice among siblings, not too deep, not too many. Every
+--   table that comes in (added by hand, or fixed by hand) goes through
+--   this same check.
 -- 目次の形を確かめる：空の見出しがない、兄弟に同じ見出しがない、深すぎない、
--- 多すぎない。MCP の章では、AI の目次をこうして確かめた。これからは、入って
--- くる目次（手で足したものも、手で直したものも）が、みな同じ確かめを通る
+-- 多すぎない。入ってくる目次（手で足したものも、手で直したものも）が、
+-- みな同じ確かめを通る
 -- ANCHOR: header
 module Tsundoku.TocCheck
   ( shapeProblems
@@ -64,8 +64,6 @@ walk above = concatMap $ \t ->
 -- まずいところを、何を直せばよいかがわかる言葉で
 explainToc :: TocProblem -> Text
 explainToc problem = case problem of
-  NoChapters ->
-    "目次が空です。章を1つ以上入れてください"
   TooMany n ->
     "項目が " <> num n <> " 個あります。一度に送れるのは "
       <> num maxItems <> " 個までです"
@@ -77,12 +75,6 @@ explainToc problem = case problem of
   TooDeep path ->
     "「" <> trail path <> "」は深すぎます。深さは " <> num maxDepth
       <> " 段までにしてください"
-  PageOutside path p ->
-    "「" <> trail path <> "」の始まりのページ " <> num p
-      <> " が、本の外です（1 から last_page まで）"
-  PageBefore path p before q ->
-    "「" <> trail path <> "」の始まりのページ " <> num p <> " が、前の「"
-      <> before <> "」の " <> num q <> " より前です。ページを見直してください"
   where
     num      = T.pack . show
     trail    = T.intercalate " > "

@@ -68,67 +68,50 @@ newMemoryShelf = do
       -- Change the definitions, if the core says yes.
       -- 核が「よし」と言えば、定義を変える
       define core = step (changeSchema core)
-  -- ANCHOR: memoryShelf
   pure Shelf
     { -- 📚 The works on the shelf
       -- 本棚の作品
-      works = WorkWindow
-        { addWork    = \w       -> step (shelve w)
-        , removeWork = \wid     -> step (unshelve wid)
-        , getCard    = \wid     -> look (Map.lookup wid . cards)
-        , listCards  =             look (Map.toList     . cards)
-        -- ANCHOR: memoryRevise
-        , reviseWork = \wid r   -> step (reviseCard wid r)
-        -- ANCHOR_END: memoryRevise
-        }
+      addWork     = \w       -> step (shelve w)
+    , removeWork  = \wid     -> step (unshelve wid)
+    , getCard     = \wid     -> look (Map.lookup wid . cards)
+    , listCards   =             look (Map.toList     . cards)
+      -- ANCHOR: memoryRevise
+    , reviseWork  = \wid r   -> step (reviseCard wid r)
+      -- ANCHOR_END: memoryRevise
 
-    , -- 📖 Reading, notes, and ratings
+      -- 📖 Reading, notes, and ratings
       -- 読む・感想・評価
-      reading = ReadingWindow
-        { applyEvent = \wid e   -> fmap reading <$>
-                                     edit  wid (Card.applyEvent e)
-        , addNote    = \wid n   -> edit_ wid (Card.addNote n)
-        , logReading = \wid l   -> edit_ wid (Card.logReading l)
-        -- ANCHOR: memoryUnread
-        , unread     = \wid i   -> edit_ wid (Card.unread i)
-        -- ANCHOR_END: memoryUnread
-        , rate       = \wid s   -> edit_ wid (Right . Card.rate s)
-        , rateEntry  = \wid i s -> edit_ wid (Card.rateEntry i s)
-        }
+    , applyEvent  = \wid e   -> fmap reading <$> edit wid (Card.applyEvent e)
+    , addNote     = \wid n   -> edit_ wid (Card.addNote n)
+    , logReading  = \wid l   -> edit_ wid (Card.logReading l)
+      -- ANCHOR: memoryUnread
+    , unread      = \wid i   -> edit_ wid (Card.unread i)
+      -- ANCHOR_END: memoryUnread
+    , rate        = \wid s   -> edit_ wid (Right . Card.rate s)
+    , rateEntry   = \wid i s -> edit_ wid (Card.rateEntry i s)
 
-    , -- 🏷️ My own attributes and states
+      -- 🏷️ My own attributes and states
       -- 自分で決める属性と状態
-      custom = CustomWindow
-        { getSchema  =             look schema
-        , defineAttr = \d       -> define (Custom.defineAttr d)
-        , defineFlow = \f       -> define (Custom.defineFlow f)
-        , editAttrs  = \wid t   -> custom wid (Card.editAttrs t)
-        , moveFlow   = \wid f s -> custom wid (Card.moveFlow f s)
-        , findCards  = \q       -> look (searchIn q)
-        }
+    , getSchema   =             look schema
+    , defineAttr  = \d       -> define (Custom.defineAttr d)
+    , defineFlow  = \f       -> define (Custom.defineFlow f)
+    , editAttrs   = \wid t   -> custom wid (Card.editAttrs t)
+    , moveFlow    = \wid f s -> custom wid (Card.moveFlow f s)
+    , findCards   = \q       -> look (searchIn q)
 
-    , -- 📥 Taking things in from outside
+      -- ANCHOR: memoryAdd
+      -- 📥 Taking things in from outside
       -- 外から取り込む
-      intake = IntakeWindow
-        { addEpisodes = \wid n   -> step (growCard wid n)
-        }
+    , addEpisodes = \wid n   -> step (growCard wid n)
+      -- ANCHOR_END: memoryAdd
 
-    , -- 🔎 Searching what is inside
+      -- ANCHOR: memorySearch
+      -- 🔎 Searching what is inside
       -- 中身を探す
-      inside = InsideWindow
-        { setText    = \wid i t -> step (keepText wid i t)
-        , searchText = searchWith (\s -> look (searchTexts s))
-        }
-
-      -- ANCHOR: memoryTags
-    , -- 🔖 Tags
-      -- タグ
-      tagging = TagWindow
-        { setTags = \wid ts -> edit_ wid (Card.setTags ts)
-        }
-      -- ANCHOR_END: memoryTags
+    , setText     = \wid i t -> step (keepText wid i t)
+    , searchText  = searchWith (\s -> look (searchTexts s))
+      -- ANCHOR_END: memorySearch
     }
-  -- ANCHOR_END: memoryShelf
 
 -- 🔁 Read, decide, write: one change to one card. No card, or the
 --    core says no: the shelf stays as it was.

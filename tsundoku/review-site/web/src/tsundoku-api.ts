@@ -138,3 +138,21 @@ export interface IFormField {
   choices: string[];
   current: string;
 }
+
+export type EditedWork = IEditedWork;
+
+export interface IEditedWork {
+  title: string;
+  creator: string;
+  toc: EditedItem[];
+  removedNotes: string;
+}
+
+export type EditedItem = IEditedItem;
+
+export interface IEditedItem {
+  id: number | null;
+  heading: string;
+  size: number;
+  children: EditedItem[];
+}

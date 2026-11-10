@@ -49,6 +49,7 @@ data Shelf = Shelf
 -- ANCHOR_END: shelf
 
 -- ANCHOR: windows
+-- ANCHOR: workWindow
 -- 📚 The works on the shelf.
 -- 本棚の作品
 data WorkWindow = WorkWindow
@@ -56,17 +57,22 @@ data WorkWindow = WorkWindow
   , removeWork :: WorkId -> IO Bool
   , getCard    :: WorkId -> IO (Maybe Card)
   , listCards  ::           IO [(WorkId, Card)]
+  , reviseWork :: WorkId -> Revision -> IO (Checked ())
   }
+-- ANCHOR_END: workWindow
 
+-- ANCHOR: readingWindow
 -- 📖 Reading, notes, and ratings.
 -- 読む・感想・評価
 data ReadingWindow = ReadingWindow
   { applyEvent :: WorkId -> Event            -> IO (Checked ReadingState)
   , addNote    :: WorkId -> Note             -> IO (Checked ())
   , logReading :: WorkId -> LogLine          -> IO (Checked ())
+  , unread     :: WorkId -> EntryId          -> IO (Checked ())
   , rate       :: WorkId -> Score            -> IO (Checked ())
   , rateEntry  :: WorkId -> EntryId -> Score -> IO (Checked ())
   }
+-- ANCHOR_END: readingWindow
 
 -- 🏷️ My own attributes and states.
 -- 自分で決める属性と状態
