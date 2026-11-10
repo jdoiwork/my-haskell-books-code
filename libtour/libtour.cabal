@@ -9,6 +9,7 @@ common shared
   default-language: GHC2024
   ghc-options:      -Wall
   build-depends:
+    , array      ^>=0.5
     , base       ^>=4.22.0.0
     , bytestring ^>=0.12
     , containers ^>=0.8

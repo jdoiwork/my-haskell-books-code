@@ -72,6 +72,17 @@ totalHp' :: [Int] -> Int
 totalHp' hps = foldr (+) 0 hps
 -- ANCHOR_END: totalHpFold
 
+-- ANCHOR: countAndTotal
+-- 🧾 Count the survivors and add up their HP, in one pass. (foldl')
+-- 生き残りの数と HP の合計を、1回たどるだけで数える（foldl'）
+countAndTotal :: [Int] -> (Int, Int)
+countAndTotal hps = foldl' step (0, 0) hps
+  where
+    step (count, total) hp
+      | hp > 0    = (count + 1, total + hp)
+      | otherwise = (count, total)
+-- ANCHOR_END: countAndTotal
+
 -- ANCHOR: remainingHp
 -- 🔗 Attack the enemies, then add up the HP of the survivors.
 -- 群れを攻撃してから、生き残ったゴブリンの HP を合計する

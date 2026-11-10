@@ -160,6 +160,17 @@ fibonacci = unfoldr step [0, 1]
     step _           = Nothing
 -- ANCHOR_END: fibonacci
 
+-- ANCHOR: history
+-- 📜 The boss's HP, 30 less each turn, from 100. (unfoldr)
+-- ボスの HP を、100 から 1ターンに 30 ずつ減らして記録する（unfoldr）
+history :: [Int]
+history = unfoldr step 100
+  where
+    step hp
+      | hp <= 0   = Nothing
+      | otherwise = Just (hp, hp - 30)
+-- ANCHOR_END: history
+
 -- ANCHOR: battleLog
 -- 📝 Which enemy was defeated on which turn: (turn, name).
 -- どのターンにどの敵を倒したか：（ターン, 名前）
