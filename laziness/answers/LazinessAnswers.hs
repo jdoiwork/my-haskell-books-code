@@ -3,8 +3,10 @@
 -- トレーニングの解答
 module LazinessAnswers (average, countHits) where
 
+-- ANCHOR: imports
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+-- ANCHOR_END: imports
 
 -- ANCHOR: average
 -- 📊 A running sum and count, both worked out at each step.

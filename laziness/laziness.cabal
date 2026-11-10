@@ -38,6 +38,16 @@ executable hallio
   main-is:          HallIO.hs
   hs-source-dirs:   app
 
+-- The memo table with Data.Map.Strict, compiled (it stops with <<loop>>).
+-- Data.Map.Strict のメモの表を、コンパイルして動かす（<<loop>> で止まる）
+-- ANCHOR: memo
+executable memo
+  import:           shared
+  main-is:          MemoMain.hs
+  hs-source-dirs:   app
+  build-depends:    laziness
+-- ANCHOR_END: memo
+
 -- Answers for the training.
 -- トレーニングの解答
 library

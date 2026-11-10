@@ -6,8 +6,10 @@ module Memo
   , memoFibStrict
   ) where
 
+-- ANCHOR: imports
 import qualified Data.Map.Lazy   as ML
 import qualified Data.Map.Strict as MS
+-- ANCHOR_END: imports
 
 -- ANCHOR: lazy
 -- 🐇 Fibonacci with a table. Each entry is computed only when someone
