@@ -60,7 +60,8 @@ handle server tools message =
       "initialize" -> pure (success rid (hello server message))
       "ping"       -> pure (success rid (object []))
       "tools/list" -> pure (success rid toolList)
-      "tools/call" -> success rid <$> call tools message
+      "tools/call" -> either (uncurry (failure rid)) (success rid)
+                        <$> call tools message
       _            -> pure (failure rid (-32601) "Method not found")
     _ -> pure Nothing
   where
@@ -91,17 +92,20 @@ hello server message = object
     supported = ["2025-06-18", latest]
     latest    = "2025-11-25" :: Text
 
--- 🔧 Call the tool the AI named, with its arguments.
--- AI が名指しした道具を、その引数で呼ぶ
-call :: [Tool] -> Value -> IO Value
+-- 🔧 Call the tool the AI named, with its arguments. No name, or a tool
+--    we do not have, is a protocol error (the MCP spec); a refusal of the
+--    tool itself is a tool result with isError.
+-- AI が名指しした道具を、その引数で呼ぶ。名前がない・ない道具は、MCP の
+-- 仕様のとおりプロトコルのエラー。道具そのものの断りは isError の結果
+call :: [Tool] -> Value -> IO (Either (Int, Text) Value)
 call tools message = case parseMaybe nameAndArgs message of
-  Nothing -> pure (result True "no tool name")
+  Nothing -> pure (Left (-32602, "params.name is missing"))
   Just (wanted, args) ->
     case [ t | t <- tools, t.name == wanted ] of
-      []    -> pure (result True ("no such tool: " <> wanted))
+      []    -> pure (Left (-32602, "Unknown tool: " <> wanted))
       t : _ -> do
         reply <- t.run args
-        pure $ case reply of
+        pure $ Right $ case reply of
           Answer text -> result False text
           Refuse text -> result True  text
   where

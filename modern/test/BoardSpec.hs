@@ -94,7 +94,7 @@ spec = do
       in decode (encode board) === Just board
     -- ANCHOR_END: props
 
-  describe "board-mcp" $
+  describe "board-mcp" $ do
     -- 道具で依頼を出せて、断りは「道具のエラー」として届く
     it "posts through a tool, and a refusal is a tool error" $ do
       tmp <- getTemporaryDirectory
@@ -110,6 +110,19 @@ spec = do
       missing <- callTool path "take_quest" (object ["id" .= (1 :: Int)])
       fmap fst missing `shouldBe` Just True
       removeFile path
+
+    -- 知らない道具は、道具の結果ではなく、プロトコルのエラー（-32602）
+    it "answers an unknown tool with a protocol error" $ do
+      answer <- handleWith "board-mcp" (boardTools "unused.json") $
+        object
+          [ "jsonrpc" .= ("2.0" :: Text)
+          , "id"      .= (1 :: Int)
+          , "method"  .= ("tools/call" :: Text)
+          , "params"  .= object ["name" .= ("fly" :: Text)]
+          ]
+      let code = answer >>= parseMaybe (withObject "answer" $ \o ->
+                   o .: "error" >>= (.: "code"))
+      code `shouldBe` Just (-32602 :: Int)
 
   describe "answers" $ do
     -- 1人が引き受けられるのは、一度に1つまで

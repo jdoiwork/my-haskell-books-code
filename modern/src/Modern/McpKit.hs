@@ -56,7 +56,8 @@ handleWith server tools request =
         "initialize" -> pure (success rid (hello server request))
         "ping"       -> pure (success rid (object []))
         "tools/list" -> pure (success rid (listOf tools))
-        "tools/call" -> success rid <$> call tools request
+        "tools/call" -> either (uncurry (failure rid)) (success rid)
+                          <$> call tools request
         _            -> pure (failure rid (-32601) "Method not found")
   where
     idAndMethod :: Value -> Parser (Maybe Value, Text)
@@ -81,17 +82,22 @@ listOf tools = object ["tools" .= map describe tools]
             ]
         ]
 
--- 🔧 Find the tool by name and run it.
--- 名前で道具を探して、動かす
-call :: [Tool] -> Value -> IO Value
+-- 🔧 Find the tool by name and run it. A request we cannot read, or a
+--    tool we do not have, is a protocol error (a JSON-RPC error with its
+--    code), as the MCP spec says. A refusal of the tool itself is a tool
+--    result with isError, which the AI reads to fix its request.
+-- 名前で道具を探して、動かす。読めない頼みごとと、ない道具は、MCP の仕様の
+-- とおりプロトコルのエラー（番号つきの JSON-RPC のエラー）。道具そのものの
+-- 断りは isError の道具の結果で、AI が読んで頼み方を直す
+call :: [Tool] -> Value -> IO (Either (Int, Text) Value)
 call tools request =
   case parseMaybe nameAndArguments request of
-    Nothing -> pure (result (Refuse "params.name is missing"))
+    Nothing -> pure (Left (-32602, "params.name is missing"))
     Just (name, arguments) ->
       case find (\t -> toolName t == name) tools of
         -- 「そんな道具はありません」
-        Nothing -> pure (result (Refuse ("no such tool: " <> name)))
-        Just t  -> result <$> toolRun t arguments
+        Nothing -> pure (Left (-32602, "Unknown tool: " <> name))
+        Just t  -> Right . result <$> toolRun t arguments
   where
     nameAndArguments :: Value -> Parser (Text, Object)
     nameAndArguments = withObject "request" $ \o -> do

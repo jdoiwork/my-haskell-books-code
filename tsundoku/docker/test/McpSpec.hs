@@ -148,9 +148,16 @@ toolSpec = describe "the tools" $ do
     let names = parseMaybe (withObject "a" $ \o ->
                   o .: "result" >>= (.: "tools") >>= mapM (.: "name")) answer
     names `shouldBe` Just (["list_works", "show_work", "search"] :: [Text])
-    (failed, _) <- callTool (shelfTools ReadOnly clock shelf) "add_toc"
-                            (object eggsArgs)
-    failed `shouldBe` True
+    -- A tool it does not have is a protocol error (-32602; the MCP spec).
+    -- 持っていない道具は、MCP の仕様のとおりプロトコルのエラー（-32602）
+    Just refused <- handle "test" (shelfTools ReadOnly clock shelf) $ object
+      [ "jsonrpc" .= ("2.0" :: Text), "id" .= (2 :: Int)
+      , "method"  .= ("tools/call" :: Text)
+      , "params"  .= object [ "name"      .= ("add_toc" :: Text)
+                            , "arguments" .= object eggsArgs ] ]
+    let code = parseMaybe (withObject "a" $ \o ->
+                 o .: "error" >>= (.: "code")) refused
+    code `shouldBe` Just (-32602 :: Int)
   -- 「下書き → commit → もう一度でも1回分」
   it "drafts, commits with the key, and never adds twice" $ do
     shelf <- newMemoryShelf
