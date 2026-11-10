@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Answers to the training of "Reader, Writer and State".
 -- 「Reader・Writer・State」のトレーニングの解答
 module RwsAnswers
@@ -11,6 +12,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 
 import Config
+-- ANCHOR_END: imports
 
 -- ANCHOR: label
 -- 🏷️ Step 2: hand out numbers 1, 2, 3, ... one at a time.

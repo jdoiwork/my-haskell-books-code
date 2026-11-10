@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Passing settings around: by hand, and with Reader.
 -- 設定を持ち回る：手で、そして Reader で
 module Config
@@ -11,7 +12,6 @@ module Config
   , bossFloor
   ) where
 
--- ANCHOR: imports
 import Control.Monad.Reader
 -- ANCHOR_END: imports
 

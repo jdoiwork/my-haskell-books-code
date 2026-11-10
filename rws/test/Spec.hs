@@ -1,7 +1,8 @@
 module Main (main) where
 
+import Control.Monad (replicateM)
 import Control.Monad.Reader (runReader)
-import Control.Monad.State (evalState, execState, runState)
+import Control.Monad.State (State, evalState, execState, runState)
 import Control.Monad.Writer.CPS (runWriter)
 import Test.Hspec
 import Test.QuickCheck
@@ -14,6 +15,11 @@ import Logged
 import qualified MyState as My
 import RwsAnswers
 import StRef
+
+-- 🎲 n rolls in a row (to compare with rollTwice).
+-- n 回続けて振る（rollTwice とくらべるため）
+replicateRolls :: Int -> State Arena [Int]
+replicateRolls n = replicateM n roll
 
 main :: IO ()
 main = hspec $ do

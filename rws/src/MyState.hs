@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | State, written by hand: a function from the old state to a result
 --   and the new state.
 -- 手で書く State：古い状態から、結果と新しい状態を作る関数
@@ -14,6 +15,7 @@ module MyState
   ) where
 
 import Dice
+-- ANCHOR_END: imports
 
 -- ANCHOR: state
 -- 📦 A step that reads the state and leaves a new one behind.

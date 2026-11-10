@@ -9,6 +9,6 @@ import Battle (fight, start)
 -- ANCHOR: arrow
 main :: IO ()
 main = do
-  (winner, _) <- runState fight (start 42)
-  putStrLn winner
+  result <- runState fight (start 42)
+  print result
 -- ANCHOR_END: arrow

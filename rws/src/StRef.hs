@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | ST and State: two ways to "change" something inside a pure function.
 -- ST と State：純粋な関数の中で、何かを「書き換える」2つのやり方
 module StRef
@@ -6,7 +7,6 @@ module StRef
   , sumST
   ) where
 
--- ANCHOR: imports
 import Control.Monad.ST
 import Control.Monad.State.Strict (execState, modify')
 import Data.STRef

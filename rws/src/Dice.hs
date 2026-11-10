@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Dice with a seed passed around by hand.
 -- 種を手で渡していくサイコロ
 module Dice
@@ -6,6 +7,7 @@ module Dice
   , rollDie
   , threeRolls
   ) where
+-- ANCHOR_END: imports
 
 -- ANCHOR: roll
 -- 🌱 The seed: a number that decides the next roll.

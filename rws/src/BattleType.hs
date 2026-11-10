@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | A name for the type of battle steps.
 -- バトルの手順の型に、名前を付ける
 module BattleType (Battle, rollTwice) where
@@ -6,6 +7,7 @@ module BattleType (Battle, rollTwice) where
 import Control.Monad.State (State)
 
 import Battle (Arena, roll)
+-- ANCHOR_END: imports
 
 -- ANCHOR: alias
 -- ⚔️ A battle step: State over the arena.

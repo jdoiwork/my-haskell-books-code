@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | A battle with mtl's State: the hero and a goblin take turns.
 -- mtl の State でバトル：勇者とゴブリンが交互に攻撃する
 module Battle
@@ -8,11 +9,8 @@ module Battle
   , heroTurn
   , goblinTurn
   , fight
-  , replicateRolls
   ) where
 
--- ANCHOR: imports
-import Control.Monad (replicateM)
 import Control.Monad.State
 
 import Dice (Seed, rollDie)
@@ -72,9 +70,4 @@ fight = do
       hero <- gets heroHp
       if hero <= 0 then pure "goblin" else fight
 -- ANCHOR_END: turns
-
--- 🎲 n rolls in a row.
--- n 回続けて振る
-replicateRolls :: Int -> State Arena [Int]
-replicateRolls n = replicateM n roll
 -- ANCHOR_END: all

@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Keeping a log: by hand with pairs, and with Writer.
 -- 記録をためる：組を使って手で、そして Writer で
 module Logged
@@ -8,7 +9,6 @@ module Logged
   , twoAttacks
   ) where
 
--- ANCHOR: imports
 import Control.Monad.Writer.CPS
 -- ANCHOR_END: imports
 
