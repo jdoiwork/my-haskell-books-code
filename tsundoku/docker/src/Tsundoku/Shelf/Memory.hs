@@ -89,6 +89,9 @@ newMemoryShelf = do
                                      edit  wid (Card.applyEvent e)
         , addNote    = \wid n   -> edit_ wid (Card.addNote n)
         , logReading = \wid l   -> edit_ wid (Card.logReading l)
+        -- ANCHOR: memoryUnread
+        , unread     = \wid i   -> edit_ wid (Card.unread i)
+        -- ANCHOR_END: memoryUnread
         , rate       = \wid s   -> edit_ wid (Right . Card.rate s)
         , rateEntry  = \wid i s -> edit_ wid (Card.rateEntry i s)
         }

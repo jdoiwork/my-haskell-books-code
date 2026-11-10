@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type Answer, shelf } from "./api";
 import { AttrForm } from "./AttrForm";
 import { Bar } from "./Bar";
+import { dayOf } from "./day";
 import { eventLabel, marks, stars, stateLabel, whereOf } from "./shadows";
 import { Toc } from "./Toc";
 import type { CardDetail, FormField } from "./tsundoku-api";
@@ -39,6 +40,14 @@ export function CardView({ id, onEdit }: {
     await reload();
   };
 
+  // ANCHOR: mark
+  // ✅ A tick writes today in the log; taking it off drops the lines.
+  // チェックを入れたら今日の日付でログに書き、外したら行を消す
+  const mark = (entry: number, read: boolean) =>
+    change(read ? shelf.logReading(id, dayOf(new Date()), entry)
+                : shelf.unread(id, entry));
+  // ANCHOR_END: mark
+
   if (card === null) return <p>読みこみ中…</p>;
   const now = card.work.rating === null
     ? null : Math.floor((card.work.rating + 5) / 10) * 10;
@@ -66,7 +75,12 @@ export function CardView({ id, onEdit }: {
             {stars(m)}
           </button>))}
       </p>
-      {card.toc.length > 0 && <><h2>目次</h2><Toc items={card.toc} /></>}
+      {/* ANCHOR: toc */}
+      {card.toc.length > 0 && <>
+        <h2>目次</h2>
+        <Toc items={card.toc} onMark={mark} />
+      </>}
+      {/* ANCHOR_END: toc */}
       <h2>感想</h2>
       <NoteForm onWrite={(body, spoiler) =>
         change(shelf.addNote(id, body, spoiler))} />

@@ -100,6 +100,8 @@ postgresShelf conn = Shelf
           edit_ wid (Card.addNote n)      (insertNote    wid n)
       , logReading = \wid l   ->
           edit_ wid (Card.logReading l)   (insertLog     wid l)
+      , unread     = \wid i   ->
+          edit_ wid (Card.unread i)       (deleteLog     wid i)
       , rate       = \wid s   ->
           edit_ wid (Right . Card.rate s) (updateRating  wid s)
       , rateEntry  = \wid i s ->
@@ -359,6 +361,19 @@ insertLog wid l = statement (wid, l) (preparable sql encoder D.noResult)
       , (readEntry . snd) >$< param entryNo
       , (readOn . snd)    >$< param E.date
       ]
+
+-- ANCHOR: pgDeleteLog
+-- 🧽 The same as SQLite's: every line about one entry of one work.
+-- SQLite と同じ：作品1つの、項目1つについての行を全部消す
+deleteLog :: WorkId -> EntryId -> Transaction ()
+deleteLog wid i = statement (wid, i) (preparable sql encoder D.noResult)
+  where
+    sql = "DELETE FROM reading_log WHERE work_id = $1 AND entry_id = $2"
+    encoder = mconcat
+      [ fst >$< param workId
+      , snd >$< param entryNo
+      ]
+-- ANCHOR_END: pgDeleteLog
 
 upsertRating :: WorkId -> EntryId -> Score -> Transaction ()
 upsertRating wid i s =

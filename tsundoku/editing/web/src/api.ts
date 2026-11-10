@@ -55,6 +55,14 @@ export const shelf = {
   rate: async (id: number, points: number) =>
     ask<void>(await fetch(`${base}/works/${id}/rating`,
                           send("PUT", { points }))),
+  // ANCHOR: marks
+  logReading: async (id: number, day: string, entry: number) =>
+    ask<void>(await fetch(`${base}/works/${id}/log`,
+                          send("POST", { day, entry }))),
+  unread: async (id: number, entry: number) =>
+    ask<void>(await fetch(`${base}/works/${id}/log/${entry}`,
+                          { method: "DELETE" })),
+  // ANCHOR_END: marks
   addNote: async (id: number, body: string, spoiler: boolean) =>
     ask<NoteItem>(await fetch(`${base}/works/${id}/notes`,
                               send("POST", { entry: null, body, spoiler }))),

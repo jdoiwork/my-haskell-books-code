@@ -12,6 +12,7 @@ module Tsundoku.Card
   , rate
   , visibleTo
   , logReading
+  , unread
   , rateEntry
   , ratingsOf
   , editAttrs
@@ -154,6 +155,19 @@ logReading line card = do
   checkTarget (contents (work card)) (OnEntry (readEntry line))
   pure card { readLog = readLog card ++ [line] }
 -- ANCHOR_END: logReading
+
+-- ANCHOR: unread
+-- 🧽 Take back "I read it": drop every line of the log about this
+--    entry (read twice, both lines go), if the entry is in the table.
+--    The other entries keep their lines, so their marks stay.
+-- 「読んだ」を取り消す：この項目のログの行を全部消す（2回読んでいれば、
+-- 2行とも）。目次にある項目のときだけ。ほかの項目の行は残るので、
+-- ほかの印はそのまま
+unread :: EntryId -> Card -> Checked Card
+unread i card = do
+  checkTarget (contents (work card)) (OnEntry i)
+  pure card { readLog = [ l | l <- readLog card, readEntry l /= i ] }
+-- ANCHOR_END: unread
 
 -- ANCHOR: rateEntry
 -- ⭐ Rate one entry, like an episode, if it is in the table

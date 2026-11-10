@@ -136,6 +136,8 @@ shelfContract = do
   tagContract
   -- 作品を手で直す（14章目）
   reviseContract
+  -- 読んだ印を外す（14章目）
+  unreadContract
   where
     examples =
       [ ("book",   dragonBook)
@@ -558,4 +560,42 @@ reviseContract = do
   where
     places shelf typed = fmap (map place) <$> shelf.inside.searchText typed
 -- ANCHOR_END: reviseContract
+
+-- ANCHOR: unreadContract
+-- 🧽 Taking back a mark, on any shelf.
+-- 読んだ印を外す（どの本棚でも）
+unreadContract :: SpecWith Shelf
+unreadContract = do
+
+  -- 「核が外したカードと、窓口で外したカードは、同じ」
+  it "takes back a mark just as the core does" $ \shelf -> do
+    wid <- addDragon shelf
+    shelf.reading.unread wid (EntryId 4) `shouldReturn` Right ()
+    shelf.works.getCard wid
+      `shouldReturn` Just (surely (Card.unread (EntryId 4) dragonCard))
+
+  -- 「2回読んだ項目も、1回で外れる。ほかの印は残る」
+  it "drops every line of the entry, and only of it" $ \shelf -> do
+    wid <- addDragon shelf
+    _   <- shelf.reading.logReading wid (LogLine (nov 9) (EntryId 3))
+    _   <- shelf.reading.unread wid (EntryId 3)
+    card <- fromJust <$> shelf.works.getCard wid
+    map readEntry (readLog card) `shouldBe` map EntryId [1, 2, 4, 5]
+
+  -- 「読んでいない項目を外しても、何も変わらない」
+  it "changes nothing for an entry not read yet" $ \shelf -> do
+    wid    <- shelf.works.addWork dragonBook
+    before <- shelf.works.getCard wid
+    shelf.reading.unread wid (EntryId 6) `shouldReturn` Right ()
+    shelf.works.getCard wid `shouldReturn` before
+
+  -- 「ない項目、ない作品は断る」
+  it "refuses an entry or a work that is not there" $ \shelf -> do
+    wid <- addDragon shelf
+    shelf.reading.unread wid (EntryId 99)
+      `shouldReturn` Left (NoSuchEntry (EntryId 99))
+    shelf.reading.unread (WorkId 42) (EntryId 1)
+      `shouldReturn` Left (NoSuchWork (WorkId 42))
+    shelf.works.getCard wid `shouldReturn` Just dragonCard
+-- ANCHOR_END: unreadContract
 -- ANCHOR_END: all

@@ -20,7 +20,7 @@ import Data.Tree (Tree (..), flatten)
 
 -- the tests: hspec, QuickCheck, and hspec-wai
 -- テスト：hspec、QuickCheck、hspec-wai
-import Network.HTTP.Types (methodPost, methodPut)
+import Network.HTTP.Types (methodDelete, methodPost, methodPut)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.Hspec.Wai hiding (pending)
@@ -46,6 +46,7 @@ editSpec = do
   coreSpec
   shapeSpec
   routeSpec
+  markSpec
   answersSpec
 
 -- ANCHOR: coreSpec
@@ -254,6 +255,51 @@ routeSpec = describe "the route to fix a work" $ with freshApp $ do
             _ -> Just ("not the notes expected: " <> show body)
       }
 -- ANCHOR_END: routeSpec
+
+-- ANCHOR: markSpec
+-- ✅ POST and DELETE /works/{id}/log: put a mark on, and take it back.
+-- POST と DELETE /works/{id}/log：読んだ印を付けて、外す
+markSpec :: Spec
+markSpec = describe "the route to mark an entry read" $ with freshApp $ do
+  -- 「付けた印は、カードと進み具合に出る」
+  it "shows a mark on the card and in the progress" $ do
+    _ <- send methodPost "/works" parts
+    send methodPost "/works/1/log" (readOn 2) `shouldRespondWith` 204
+    get "/works/1" `shouldRespondWith` marked [False, True] 4
+
+  -- 「外すと、カードも進み具合も、読む前に戻る」
+  it "takes a mark back, and the progress with it" $ do
+    _ <- send methodPost "/works" parts
+    _ <- send methodPost "/works/1/log" (readOn 1)
+    _ <- send methodPost "/works/1/log" (readOn 2)
+    send methodDelete "/works/1/log/2" "" `shouldRespondWith` 204
+    get "/works/1" `shouldRespondWith` marked [True, False] 2
+
+  -- 「ない項目・ない作品は 404」
+  it "refuses an entry or a work that is not there with 404" $ do
+    _ <- send methodPost "/works" parts
+    send methodDelete "/works/1/log/9" ""
+      `shouldRespondWith` refusedWith 404 "no-such-entry"
+    send methodDelete "/works/9/log/1" ""
+      `shouldRespondWith` refusedWith 404 "no-such-work"
+  where
+    parts = [json|{
+      title: "はじめてのドラゴン学", creator: "ギルド図書室", kind: "book",
+      toc: [ { heading: "第1部", size: 2, children: [] },
+             { heading: "第2部", size: 4, children: [] } ]
+    }|]
+    readOn :: Int -> LBS.ByteString
+    readOn entry = [json|{day: "2026-11-10", entry: #{entry}}|]
+    -- The marks of the rows, and the pages read.
+    -- 行ごとの印と、読んだページ数
+    marked marks pages = 200
+      { matchBody = MatchBody $ \_ body ->
+          case decode body :: Maybe CardDetail of
+            Just c | map (.done) c.toc == marks
+                   , fmap (.done) c.work.progress == Just pages -> Nothing
+            _ -> Just ("not the marks expected: " <> show body)
+      }
+-- ANCHOR_END: markSpec
 
 -- ANCHOR: answersSpec
 -- 🏋️ The training: fixing a work with htmx, as lines with "#numbers".

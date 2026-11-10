@@ -78,9 +78,13 @@ progress { width: 8rem; vertical-align: middle; accent-color: var(--accent); }
                      color: var(--ink); font-weight: bold; }
 
 /* 🌳 The table and the notes. / 目次と感想 */
-.toc .done   { color: var(--done); }
-.toc .unread { color: var(--line); }
 .toc, .toc ul { list-style: none; padding-left: 1.2rem; }
+/* A row is a box to tick and its heading; the whole row can be clicked.
+   行は、チェックと見出し。行のどこを押してもよい */
+.toc label { display: inline-flex; align-items: center; gap: .4rem;
+             padding: .1rem 0; cursor: pointer; }
+.toc input[type="checkbox"] { margin: 0; accent-color: var(--done); }
+.toc .done   { color: var(--done); }
 .notes { padding-left: 1.2rem; }
 .where, time { margin-right: .6rem; color: var(--muted); }
 details summary { cursor: pointer; color: var(--accent-ink); }

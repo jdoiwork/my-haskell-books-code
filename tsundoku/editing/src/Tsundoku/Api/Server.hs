@@ -79,6 +79,9 @@ workServer clock shelf wid = WorkRoutes
   , happen     = \h        -> happenTo h
   , addNote    = \new      -> writeNote new
   , logReading = \line     -> readOn line
+  -- ANCHOR: unreadHandler
+  , unread     = \e        -> done (shelf.reading.unread wid (EntryId e))
+  -- ANCHOR_END: unreadHandler
   , rate       = \p        -> rateWith (shelf.reading.rate wid) p
   , rateEntry  = \e p      -> rateWith (shelf.reading.rateEntry wid (EntryId e)) p
   , setText    = \e body   -> done (shelf.inside.setText wid (EntryId e) body)

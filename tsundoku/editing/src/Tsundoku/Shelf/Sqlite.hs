@@ -139,6 +139,8 @@ sqliteShelf conn = do
             edit_ wid (Card.addNote n)      (insertNote    wid n)
         , logReading = \wid l   ->
             edit_ wid (Card.logReading l)   (insertLog     wid l)
+        , unread     = \wid i   ->
+            edit_ wid (Card.unread i)       (deleteLog     wid i)
         , rate       = \wid s   ->
             edit_ wid (Right . Card.rate s) (updateRating  wid s)
         , rateEntry  = \wid i s ->
@@ -284,6 +286,14 @@ insertLog (WorkId w) l = execute """
   (w, i, readOn l)
   where
     EntryId i = readEntry l
+
+-- ANCHOR: deleteLog
+-- 🧽 Every line of the log about one entry of one work.
+-- 作品1つの、項目1つについてのログの行を全部消す
+deleteLog :: WorkId -> EntryId -> Db ()
+deleteLog (WorkId w) (EntryId i) = execute
+  "DELETE FROM reading_log WHERE work_id = ? AND entry_id = ?" (w, i)
+-- ANCHOR_END: deleteLog
 
 upsertRating :: WorkId -> EntryId -> Score -> Db ()
 upsertRating (WorkId w) (EntryId i) s = execute """

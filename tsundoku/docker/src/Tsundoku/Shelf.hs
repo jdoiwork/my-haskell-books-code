@@ -64,15 +64,18 @@ data WorkWindow = WorkWindow
   }
 -- ANCHOR_END: workWindow
 
+-- ANCHOR: readingWindow
 -- 📖 Reading, notes, and ratings.
 -- 読む・感想・評価
 data ReadingWindow = ReadingWindow
   { applyEvent :: WorkId -> Event            -> IO (Checked ReadingState)
   , addNote    :: WorkId -> Note             -> IO (Checked ())
   , logReading :: WorkId -> LogLine          -> IO (Checked ())
+  , unread     :: WorkId -> EntryId          -> IO (Checked ())
   , rate       :: WorkId -> Score            -> IO (Checked ())
   , rateEntry  :: WorkId -> EntryId -> Score -> IO (Checked ())
   }
+-- ANCHOR_END: readingWindow
 
 -- 🏷️ My own attributes and states.
 -- 自分で決める属性と状態
