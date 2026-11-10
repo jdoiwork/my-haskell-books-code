@@ -1,9 +1,11 @@
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | minisearch-server: serve an index over HTTP.
 -- minisearch-server：インデックスを HTTP で公開する。
 module Main (main) where
 
-import Network.Wai.Handler.Warp (run)
+import Network.Wai.Handler.Warp
+  (Settings, defaultSettings, runSettings, setHost, setPort)
 import System.Environment (lookupEnv)
 import System.Exit (die)
 
@@ -22,5 +24,10 @@ main = do
     Right index -> do
       -- 「http://localhost:8080 で待っています」
       putStrLn ("Listening on http://localhost:" <> show port)
-      run port (app index)
+      runSettings (onlyThisMachine port) (app index)
+-- 🔒 Listen on 127.0.0.1 only: other machines on the same network
+--    cannot come in.
+-- 127.0.0.1 だけで待つ。同じネットワークのほかの機械からは入れない
+onlyThisMachine :: Int -> Settings
+onlyThisMachine port = setHost "127.0.0.1" (setPort port defaultSettings)
 -- ANCHOR_END: all

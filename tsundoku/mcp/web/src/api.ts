@@ -18,14 +18,34 @@ import type {
 } from "./tsundoku-api";
 
 // ANCHOR: answer
-export type Answer<T> = { ok: true; value: T } | { ok: false; problem: Problem };
+export type Answer<T> =
+  | { ok: true; value: T }
+  | { ok: false; problem: Problem };
 
 async function ask<T>(res: Response): Promise<Answer<T>> {
   if (res.ok) {
     const value = res.status === 204 ? undefined : await res.json();
     return { ok: true, value: value as T };
   }
-  return { ok: false, problem: (await res.json()) as Problem };
+  return { ok: false, problem: problemOf(res, await res.text()) };
+}
+
+// 💬 Our own refusals are a Problem in JSON. Others are not: servant's
+//    405 and 415, warp's 500 when a handler throws, the dev server's 502
+//    when `shelf serve` is down. Make a Problem of those too.
+// 自分で返す断りは、JSON の Problem。ほかはちがう：servant の 405・415、
+// ハンドラーが例外で止まったときの warp の 500、shelf serve が止まって
+// いるときの開発サーバーの 502。それも Problem にする
+function problemOf(res: Response, body: string): Problem {
+  try {
+    const said = JSON.parse(body);
+    if (Array.isArray(said?.messages)) return said as Problem;
+  } catch {
+    // Not JSON: say the status and the words as they came.
+    // JSON ではない：状態と、届いた言葉をそのまま言う
+  }
+  const words = `${res.status} ${res.statusText} ${body}`.trim();
+  return { mistake: "not-a-problem", messages: [words] };
 }
 // ANCHOR_END: answer
 

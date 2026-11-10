@@ -125,6 +125,11 @@ test-suite tsundoku-test
                     CustomSpec
                     ImportSpec
                     SearchSpec
+  -- The overlap test waits in libpq (C) on one thread while another
+  -- thread goes on: that needs the threaded runtime.
+  -- 重なりのテストは、1つのスレッドが libpq（C）の中で待つあいだに、
+  -- ほかのスレッドが進む。それには threaded のランタイムが要る
+  ghc-options:      -threaded
   build-depends:
     , tsundoku
     , bytestring       ^>=0.12

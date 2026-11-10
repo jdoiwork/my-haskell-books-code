@@ -1,9 +1,11 @@
 -- ANCHOR: all
+{-# LANGUAGE OverloadedStrings #-}
 -- | minisearch-server: serve a live index over HTTP.
 -- minisearch-server：生きているインデックスを HTTP で公開する。
 module Main (main) where
 
-import Network.Wai.Handler.Warp (run)
+import Network.Wai.Handler.Warp
+  (Settings, defaultSettings, runSettings, setHost, setPort)
 import System.Environment (lookupEnv)
 
 import MiniSearch.Api (app)
@@ -21,5 +23,10 @@ main = do
   live <- newLive (readDocuments dir)
   -- 「http://localhost:8080 で待っています」
   putStrLn ("Listening on http://localhost:" <> show port)
-  run port (app live)
+  runSettings (onlyThisMachine port) (app live)
+-- 🔒 Listen on 127.0.0.1 only: other machines on the same network
+--    cannot come in.
+-- 127.0.0.1 だけで待つ。同じネットワークのほかの機械からは入れない
+onlyThisMachine :: Int -> Settings
+onlyThisMachine port = setHost "127.0.0.1" (setPort port defaultSettings)
 -- ANCHOR_END: all

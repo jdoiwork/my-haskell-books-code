@@ -800,13 +800,19 @@ migrations =
 
 -- 🪜 Run the steps the file has not run yet. SQLite keeps a number of
 --    our own in the file: PRAGMA user_version (0 for a new file).
+--    Everything, from reading the number on, is one IMMEDIATE
+--    transaction: when two programs open a new file at once, the second
+--    waits, reads the number the first wrote, and runs no step twice.
 -- ファイルがまだ動かしていない手順を動かす。SQLite は、自由に使える
--- 番号を1つ、ファイルにしまえる：PRAGMA user_version（新しいファイルは 0）
+-- 番号を1つ、ファイルにしまえる：PRAGMA user_version（新しいファイルは 0）。
+-- 番号を読むところから全部を、1つの IMMEDIATE のトランザクションで。
+-- 2つのプログラムが同時に新しいファイルを開いても、後のほうは待って、
+-- 先のほうが書いた番号を読むので、同じ手順を2回動かさない
 migrate :: Db ()
-migrate = do
+migrate = transaction $ do
   [Only done] <- query_ "PRAGMA user_version"
   forM_ (zip [1 :: Int ..] migrations) $ \(n, step) ->
-    when (n > done) $ transaction $ do
+    when (n > done) $ do
       mapM_ execute_ step
       execute_ (fromString ("PRAGMA user_version = " <> show n))
 -- ANCHOR_END: migrations

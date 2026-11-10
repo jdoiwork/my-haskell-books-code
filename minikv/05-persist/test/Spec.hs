@@ -4,19 +4,24 @@ module Main (main) where
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
-import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
-import Control.Concurrent.Async (cancel, forConcurrently_, withAsync)
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay,
+                           withMVar)
+import Control.Concurrent.Async (cancel, concurrently, forConcurrently_,
+                                 withAsync)
+import Control.Concurrent.STM (readTVarIO)
 import Control.Exception (IOException, try)
 import Data.Either (isLeft)
 import Data.IORef
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
+import System.IO (hClose, openTempFile)
 import System.Timeout (timeout)
-import Control.Monad (forever, replicateM_)
+import Control.Monad (forM_, forever, replicateM_)
 import Test.Hspec
 import Test.QuickCheck hiding (replay)
 
 import KvAnswers
+import PersistAnswers
 import MiniKv.Client
 import MiniKv.Persist
 import MiniKv.Protocol
@@ -323,6 +328,40 @@ main = hspec $ do
       kindCounts (snd (applyAll 0 [Set "a" "1", Set "b" "2", SAdd "s" ["x"]]
                                 emptyStore))
         `shouldBe` [(KString, 2), (KSet, 1)]
+    -- ANCHOR: compactSpec
+    -- ログを書き直すあいだに書いたものも、なくならない
+    it "compactLog loses nothing written meanwhile" $ do
+      dir <- getTemporaryDirectory
+      (path, h) <- openTempFile dir "minikv-compact.log"
+      hClose h
+      (env, _) <- openEnv systemClock (Just path)
+      let name i = "n" <> show (i :: Int)
+          -- 10 writers add 1 to their own key, 200 times each.
+          -- 10 人が、自分のキーに 1 を足す。200 回ずつ
+          writers = forConcurrently_ [1 .. 10] $ \i ->
+            replicateM_ 200 (runCommand env ["INCR", BC.pack (name i)])
+          -- Meanwhile, the log is made short again and again, until
+          --   the writers are done.
+          -- そのあいだ、書く人が終わるまで、ログを何度も短くする
+          compactor done n = do
+            finished <- readIORef done
+            if finished
+              then pure n
+              else compactLog env path >> compactor done (n + 1 :: Int)
+      done <- newIORef False
+      (_, times) <- concurrently (writers >> writeIORef done True)
+                                 (compactor done 0)
+      forM_ (journal env) $ \lock -> withMVar lock hClose
+      r <- replay <$> BS.readFile path
+      live <- readTVarIO (storeVar env)
+      removeFile path
+      -- The log gives the store back, all 200s.
+      -- ログから、ストアがそのまま戻る。どれも 200
+      times `shouldSatisfy` (> 0)
+      (problem r, replayedStore r) `shouldBe` (Nothing, live)
+      [ fst (apply 0 (Get (T.pack (name i))) live) | i <- [1 .. 10] ]
+        `shouldBe` replicate 10 (Bulk "200")
+    -- ANCHOR_END: compactSpec
   where
     emptyCollection v = case v of
       List l    -> null l

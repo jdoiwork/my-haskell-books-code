@@ -35,6 +35,8 @@ library
                     MiniKv.Request
                     MiniKv.Typed
                     KvAnswers
+                    PersistAnswers
+                    PubSubAnswers
                     TypedAnswers
   hs-source-dirs:   src answers
 -- ANCHOR_END: lib

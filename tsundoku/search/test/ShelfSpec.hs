@@ -5,8 +5,10 @@
 -- 契約のテストを3つの本棚で。それと、木を行にするテスト
 module ShelfSpec (shelfSpec) where
 
-import Control.Exception (SomeException, try)
-import Control.Monad (forM_, void)
+import Control.Concurrent (forkFinally, newEmptyMVar, putMVar, takeMVar,
+                           threadDelay)
+import Control.Exception (SomeException, bracket, throwIO, try)
+import Control.Monad (forM_, unless, void)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
@@ -14,13 +16,16 @@ import Data.Tree (Forest)
 import Database.SQLite.Simple qualified as SQLite
 import System.Exit (ExitCode (..))
 import System.Process (readProcessWithExitCode)
-import TestContainers.Hspec
+import System.Timeout (timeout)
+import TestContainers.Hspec hiding (Paused)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 
 import Hasql.Connection qualified as Connection
 import Hasql.Connection.Settings qualified as Settings
+import Hasql.Decoders qualified as D
 import Hasql.Session qualified as Session
+import Hasql.Statement (preparable)
 import Pqi.Ffi qualified as Pqi
 
 import ShelfAnswers.Move
@@ -85,9 +90,12 @@ shelfSpec = do
   describe "shelf in PostgreSQL" $ do
     docker <- runIO dockerIsRunning
     if docker
-      then aroundAll (withContainers postgres) $
+      then aroundAll (withContainers postgres) $ do
              aroundWith withFreshPostgres (shelfContract >> tornContract)
-      else around skip (shelfContract >> tornContract)
+             overlapSpec
+      else do
+        around skip (shelfContract >> tornContract)
+        around skip overlapSpec
 
   -- 「トレーニングの解答」
   describe "answers (shelf)" shelfAnswers
@@ -188,7 +196,7 @@ dockerIsRunning = do
     Right (ExitSuccess, _, _) -> True
     _                         -> False
 
-skip :: (Shelf -> IO ()) -> IO ()
+skip :: (a -> IO ()) -> IO ()
 skip _ = pendingWith "Docker is not running / Docker が動いていない"
 -- ANCHOR_END: docker
 
@@ -229,4 +237,78 @@ postgres = do
     setupDone = waitForLogLine Stdout ("init process complete" `LT.isInfixOf`)
     portOpen  = waitUntilMappedPortReachable "5432/tcp"
 -- ANCHOR_END: postgres
+
+-- ANCHOR: overlap
+-- 🤼 Another program pauses the book while our shelf finishes it. The
+--    test holds the row with a second connection, waits until the shelf
+--    is stuck on it, and only then commits: no sleep sets the order.
+-- ほかのプログラムが本を中断にするあいだに、こちらの本棚が読み終える。
+-- テストは2本目の接続で行を押さえ、本棚がそこで待つのを見てから確定する。
+-- 順番を決めるのは、sleep ではない
+overlapSpec :: SpecWith Text
+overlapSpec =
+  -- 「ほかのプログラムが中断にした本を、古いカードから読了にしない」
+  it "does not finish a book another program has just paused" $ \url ->
+    withFreshPostgres (finishWhilePaused url) url
+
+finishWhilePaused :: Text -> Shelf -> IO ()
+finishWhilePaused url shelf = do
+  wid <- shelf.addWork dragonBook
+  _   <- shelf.applyEvent wid Start
+  withConnection url $ \other -> do
+    -- The other program pauses the book, but does not commit yet.
+    -- ほかのプログラムが本を中断にする。でも、まだ確定しない
+    script other ("BEGIN; UPDATE works SET reading = 'Paused' WHERE id = "
+                    <> T.pack (show (workNumber wid)))
+    -- Our shelf reads Reading, decides Finished, and waits for the row.
+    -- こちらの本棚は「読書中」を読み、読了と決めて、行を待つ
+    answer <- newEmptyMVar
+    _      <- forkFinally (shelf.applyEvent wid Finish) (putMVar answer)
+    waitForLock other
+    script other "COMMIT"
+    -- PostgreSQL says the row changed after we read it, and the job runs
+    -- again on the new card: a paused book cannot be finished.
+    -- 読んだあとに行が変わったと PostgreSQL が言い、仕事は新しいカードで
+    -- やり直す。中断の本は、読了にできない
+    finished <- takeMVar answer >>= either throwIO pure
+    finished `shouldBe` Left (NotAllowed Finish Paused)
+    fmap reading <$> shelf.getCard wid `shouldReturn` Just Paused
+  where
+    workNumber (WorkId w) = w
+
+-- 🔌 A second connection of our own, for the other program.
+-- ほかのプログラムの役をする、2本目の接続
+withConnection :: Text -> (Connection.Connection -> IO a) -> IO a
+withConnection url = bracket open Connection.release
+  where
+    open = Connection.acquire Pqi.adapter (Settings.connectionString url)
+             >>= either (fail . show) pure
+
+-- 📜 Send some SQL on the connection, and fail if PostgreSQL says no.
+-- 接続で SQL を送る。PostgreSQL が断ったら、失敗にする
+script :: Connection.Connection -> Text -> IO ()
+script conn sql =
+  Connection.use conn (Session.script sql) >>= either (fail . show) pure
+
+-- ⏳ Wait until some connection waits for a lock (pg_locks shows it as
+--    not granted), up to 10 seconds. Asking again only waits; the lock
+--    sets the order.
+-- だれかの接続が鍵を待つまで、10秒まで待つ（pg_locks で、まだ渡されて
+-- いない鍵）。聞き直すのは待つためだけで、順番を決めるのは鍵
+waitForLock :: Connection.Connection -> IO ()
+waitForLock conn = do
+  seen <- timeout 10_000_000 askAgain
+  unless (seen == Just ()) (expectationFailure "nobody waited for a lock")
+  where
+    askAgain = do
+      found <- Connection.use conn (Session.statement () waiting)
+      case found of
+        Right n | n > 0 -> pure ()
+        Right _         -> threadDelay 10_000 >> askAgain
+        Left problem    -> fail (show problem)
+    waiting = preparable
+      "SELECT count(*) FROM pg_locks WHERE NOT granted"
+      mempty
+      (D.singleRow (D.column (D.nonNullable D.int8)))
+-- ANCHOR_END: overlap
 -- ANCHOR_END: all

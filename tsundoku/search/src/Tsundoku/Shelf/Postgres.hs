@@ -17,6 +17,7 @@ import Data.Functor.Contravariant ((>$<))
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time (Day, UTCTime)
 import Data.Traversable (for)
 import Data.Tree (Tree (..))
@@ -29,9 +30,9 @@ import Hasql.Connection.Settings qualified as Settings
 import Hasql.Decoders qualified as D
 import Hasql.Encoders qualified as E
 import Hasql.Errors (ConnectionError, SessionError)
-import Hasql.Session qualified as Session
 import Hasql.Statement (Statement, preparable)
 import Hasql.Transaction (Transaction, statement)
+import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions
   (IsolationLevel (..), Mode (..), transaction)
 import Pqi.Ffi qualified as Pqi
@@ -720,24 +721,37 @@ migrations =
   ]
 
 -- 🪜 Run the steps not run yet. PostgreSQL has no user_version, so we
---    keep the number in a small table of our own. A script of several
---    statements sent at once runs as one transaction.
+--    keep the number in a small table of our own. All of it is one
+--    transaction that first takes a lock of our own (an advisory lock):
+--    when two programs start on a new database at once, the second
+--    waits here, then reads the number the first wrote. ReadCommitted,
+--    not Serializable: after the wait, each statement must see what the
+--    first program committed.
 -- まだ動かしていない手順を動かす。PostgreSQL には user_version がないので、
--- 番号は、自分で作った小さな表にしまう。いくつもの文を1回で送った
--- スクリプトは、1つのトランザクションで動く
+-- 番号は、自分で作った小さな表にしまう。全部を1つのトランザクションに
+-- して、はじめに自分たちの鍵（advisory lock）を取る。2つのプログラムが
+-- 同時に新しいデータベースで起きても、後のほうはここで待ち、先のほうが
+-- 書いた番号を読む。Serializable ではなく ReadCommitted：待ったあとの
+-- 文が、先のほうが確定したものを見られるように
 migrate :: Connection -> IO ()
 migrate conn = do
-  run (Session.script
-    "CREATE TABLE IF NOT EXISTS schema_version (version bigint NOT NULL)")
-  done <- run (Session.statement () currentVersion)
-  forM_ (zip [1 ..] migrations) $ \(n, step) ->
-    when (n > done) $ run (Session.script (step <> record n))
+  result <- Connection.use conn (transaction ReadCommitted Write steps)
+  either (throwIO . Failed) pure result
   where
-    run :: Session.Session a -> IO a
-    run session =
-      Connection.use conn session >>= either (throwIO . Failed) pure
-    record n    = "INSERT INTO schema_version (version) VALUES ("
-                    <> T.pack (show (n :: Int)) <> ");"
+    steps = do
+      -- The lock is let go when the transaction ends.
+      -- 鍵は、トランザクションが終わるときに放される
+      Transaction.sql
+        "SELECT pg_advisory_xact_lock(hashtext('tsundoku migrate'))"
+      Transaction.sql """
+        CREATE TABLE IF NOT EXISTS schema_version (version bigint NOT NULL)
+        """
+      done <- statement () currentVersion
+      forM_ (zip [1 ..] migrations) $ \(n, step) ->
+        when (n > done) $
+          Transaction.sql (encodeUtf8 (step <> record n))
+    record n = "INSERT INTO schema_version (version) VALUES ("
+                 <> T.pack (show (n :: Int)) <> ");"
 
 currentVersion :: Statement () Int
 currentVersion = preparable

@@ -27,16 +27,28 @@ export function NewWork({ onAdded }: { onAdded: (id: number) => void }) {
   const [rows, setRows] = useState<Row[]>(() => addAfter([], -1, freshKey()));
   const [problems, setProblems] = useState<string[]>([]);
 
+  // Sending: a second press now would add the same work twice, so the
+  // button waits until the answer comes.
+  // 送っているところ。いまもう一度押すと同じ作品が2つできるので、
+  // 答えが来るまでボタンは押せない
+  const [sending, setSending] = useState(false);
+
   const unit = unitOf(kind);
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
-    const a = await shelf.addWork({
-      title, creator, kind,
-      minutes: kind === "film" ? minutes : null,
-      toc: unit === null ? [] : outlineOf(withoutBlank(rows)),
-    });
-    if (a.ok) onAdded(a.value.work.id);
-    else setProblems(a.problem.messages);
+    if (sending) return;
+    setSending(true);
+    try {
+      const a = await shelf.addWork({
+        title, creator, kind,
+        minutes: kind === "film" ? minutes : null,
+        toc: unit === null ? [] : outlineOf(withoutBlank(rows)),
+      });
+      if (a.ok) onAdded(a.value.work.id);
+      else setProblems(a.problem.messages);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -57,7 +69,9 @@ export function NewWork({ onAdded }: { onAdded: (id: number) => void }) {
       {unit !== null &&
         <TocRows rows={rows} setRows={setRows} unit={unit} />}
       <p className="actions">
-        <button className="primary">本棚に足す</button>
+        <button className="primary" disabled={sending}>
+          {sending ? "送っています…" : "本棚に足す"}
+        </button>
       </p>
     </form>
   );

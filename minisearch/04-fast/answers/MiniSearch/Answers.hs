@@ -14,6 +14,7 @@ import qualified Data.Binary as Binary
 import Data.List (insertBy)
 import Data.Ord (Down (..), comparing)
 
+import MiniSearch.Store (replaceFile)
 import MiniSearch.Types
 -- ANCHOR_END: head
 
@@ -35,10 +36,13 @@ topK k = foldl' keep []
 formatVersion :: Int
 formatVersion = 4
 
--- 💾 Write the version first, then the index.
--- 先に版を、それからインデックスを書く
+-- 💾 Write the version first, then the index. Like saveIndex, write
+--    a temporary file and swap it in (replaceFile).
+-- 先に版を、それからインデックスを書く。saveIndex と同じく、
+-- 一時ファイルに書いてから付け替える（replaceFile）
 saveVersioned :: FilePath -> Index -> IO ()
-saveVersioned path index = Binary.encodeFile path (formatVersion, index)
+saveVersioned path index =
+  replaceFile path (Binary.encode (formatVersion, index))
 
 -- 📥 Read the version first; refuse a file of another version.
 -- 先に版を読む。違う版のファイルは断る

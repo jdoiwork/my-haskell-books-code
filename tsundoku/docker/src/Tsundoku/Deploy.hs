@@ -14,11 +14,12 @@ module Tsundoku.Deploy
   ) where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (SomeException, catch, throwIO)
+import Control.Exception (SomeAsyncException, SomeException, catch,
+                          fromException, throwIO)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (dropWhileEnd, stripPrefix)
 import Data.Char (isSpace)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import System.Environment (lookupEnv)
 import System.IO (hPutStrLn, stderr)
 -- ANCHOR_END: header
@@ -71,11 +72,14 @@ storeSetting setting password = case (stripPrefix "postgres:" chosen, password) 
 -- ANCHOR: retry
 -- 🔁 Open the shelf, trying again if opening fails (the database may
 --    still be starting). Once the shelf is open and the work has begun,
---    a failure is not retried: that is the work's own failure.
+--    a failure is not retried: that is the work's own failure. Ctrl-C
+--    is not retried either: it asks us to stop, not to try again.
 -- 本棚を開く。開けなかったら、やり直す（データベースが、まだ起きている
 -- ところかもしれない）。本棚が開いて仕事が始まったあとの失敗は、
--- やり直さない（それは仕事そのものの失敗だから）
-retryOpen :: Int -> Int -> ((shelf -> IO a) -> IO a) -> (shelf -> IO a) -> IO a
+-- やり直さない（それは仕事そのものの失敗だから）。Ctrl-C も、やり直さ
+-- ない（「やめて」の合図で、「もう一度」ではないから）
+retryOpen
+  :: Int -> Int -> ((shelf -> IO a) -> IO a) -> (shelf -> IO a) -> IO a
 retryOpen tries pause open work = go tries
   where
     go n = do
@@ -83,11 +87,19 @@ retryOpen tries pause open work = go tries
       let started s = writeIORef begun True >> work s
       open started `catch` \e -> do
         didBegin <- readIORef begun
-        if didBegin || n <= 1
-          then throwIO (e :: SomeException)
+        if didBegin || n <= 1 || isStop e
+          then throwIO e
           else do
-            hPutStrLn stderr ("cannot open the shelf yet; trying again: " <> show e)
+            hPutStrLn stderr
+              ("cannot open the shelf yet; trying again: " <> show e)
             threadDelay pause
             go (n - 1)
+
+-- 🛑 An asynchronous exception: Ctrl-C (UserInterrupt), a thread killed,
+--    a timeout. Someone outside asks us to stop.
+-- 非同期例外：Ctrl-C（UserInterrupt）、止められたスレッド、時間切れ。
+-- 外のだれかが「やめて」と言っている
+isStop :: SomeException -> Bool
+isStop e = isJust (fromException e :: Maybe SomeAsyncException)
 -- ANCHOR_END: retry
 -- ANCHOR_END: all

@@ -7,6 +7,9 @@ import qualified Data.Text as T
 import Options.Applicative
 import Test.Hspec
 import Test.QuickCheck
+import System.Directory (listDirectory)
+import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
 
 import MiniSearch.Answers
 import MiniSearch.Cli
@@ -16,6 +19,7 @@ import MiniSearch.Report
 import MiniSearch.Samples
 import MiniSearch.Search
 import MiniSearch.Snippet
+import MiniSearch.Store
 import MiniSearch.Tokenize
 import MiniSearch.Types
 
@@ -76,6 +80,24 @@ main = hspec $ do
     it "says so when nothing matches" $
       formatResults index "unicorn" []
         `shouldBe` "No documents match \"unicorn\".\n"
+
+  -- ANCHOR: store
+  -- 「保存する」
+  describe "saveIndex" $
+    -- 「書いている途中で失敗しても、前のインデックスが残る」
+    it "keeps the old index if writing fails midway" $
+      withSystemTempDirectory "minisearch" $ \dir -> do
+        let path  = dir </> "index.json"
+            index = buildIndex sampleDocs
+        saveIndex path index
+        -- An index that blows up while it is being written.
+        -- 書いている途中で、爆発するインデックス
+        saveIndex path (error "boom") `shouldThrow` errorCall "boom"
+        loadIndex path `shouldReturn` Right index
+        -- No half-written file is left behind.
+        -- 書きかけのファイルも残らない
+        listDirectory dir `shouldReturn` ["index.json"]
+  -- ANCHOR_END: store
 
   -- 「コマンドライン」
   describe "commandInfo" $ do

@@ -21,7 +21,9 @@ import type {
 } from "./tsundoku-api";
 
 // ANCHOR: answer
-export type Answer<T> = { ok: true; value: T } | { ok: false; problem: Problem };
+export type Answer<T> =
+  | { ok: true; value: T }
+  | { ok: false; problem: Problem };
 
 async function ask<T>(res: Response): Promise<Answer<T>> {
   if (res.ok) {

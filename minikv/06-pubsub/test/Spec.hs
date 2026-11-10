@@ -3,7 +3,9 @@ module Main (main) where
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
-import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay,
+                           withMVar)
+import Control.Concurrent.STM (readTVarIO)
 import Control.Concurrent.Async (cancel, concurrently, forConcurrently_,
                                  poll, wait, withAsync)
 import Control.Exception (IOException, try)
@@ -12,12 +14,15 @@ import Data.IORef
 import Data.Maybe (isNothing)
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
+import System.IO (hClose, openTempFile)
 import System.Timeout (timeout)
-import Control.Monad (forever, replicateM_)
+import Control.Monad (forM_, forever, replicateM_)
 import Test.Hspec
 import Test.QuickCheck hiding (replay)
 
 import KvAnswers
+import PersistAnswers
+import PubSubAnswers
 import MiniKv.Client
 import MiniKv.Persist
 import MiniKv.Protocol
@@ -367,8 +372,9 @@ main = hspec $ do
             , Just (WArray [ WBulk (Just "message"), WBulk (Just "news")
                            , WBulk (Just "dragon spotted") ]) )
   -- ANCHOR_END: pubsubSpec
-    -- 購読してすぐ切った人は、人数から外れる。（返事を送る途中で切られる
-    -- すき間は、このテストではまず起きない。bracket で閉じたのは、読んで確かめた）
+    -- 購読してすぐ切った人は、人数から外れる。（返事を送る途中で
+    -- 切られるすき間は、このテストではまず起きない。bracket で
+    -- 閉じたのは、読んで確かめた）
     it "takes subscribers who hang up at once off the count" $
       withServer $ \port -> do
         let channels = [ BC.pack ("ch" <> show i) | i <- [1 .. 50 :: Int] ]
@@ -394,6 +400,90 @@ main = hspec $ do
       kindCounts (snd (applyAll 0 [Set "a" "1", Set "b" "2", SAdd "s" ["x"]]
                                 emptyStore))
         `shouldBe` [(KString, 2), (KSet, 1)]
+    -- ANCHOR: compactSpec
+    -- ログを書き直すあいだに書いたものも、なくならない
+    it "compactLog loses nothing written meanwhile" $ do
+      dir <- getTemporaryDirectory
+      (path, h) <- openTempFile dir "minikv-compact.log"
+      hClose h
+      (env, _) <- openEnv systemClock (Just path)
+      let name i = "n" <> show (i :: Int)
+          -- 10 writers add 1 to their own key, 200 times each.
+          -- 10 人が、自分のキーに 1 を足す。200 回ずつ
+          writers = forConcurrently_ [1 .. 10] $ \i ->
+            replicateM_ 200 (runCommand env (Incr (T.pack (name i))))
+          -- Meanwhile, the log is made short again and again, until
+          --   the writers are done.
+          -- そのあいだ、書く人が終わるまで、ログを何度も短くする
+          compactor done n = do
+            finished <- readIORef done
+            if finished
+              then pure n
+              else compactLog env path >> compactor done (n + 1 :: Int)
+      done <- newIORef False
+      (_, times) <- concurrently (writers >> writeIORef done True)
+                                 (compactor done 0)
+      forM_ (journal env) $ \lock -> withMVar lock hClose
+      r <- replay <$> BS.readFile path
+      live <- readTVarIO (storeVar env)
+      removeFile path
+      -- The log gives the store back, all 200s.
+      -- ログから、ストアがそのまま戻る。どれも 200
+      times `shouldSatisfy` (> 0)
+      (problem r, replayedStore r) `shouldBe` (Nothing, live)
+      [ fst (apply 0 (Get (T.pack (name i))) live) | i <- [1 .. 10] ]
+        `shouldBe` replicate 10 (Bulk "200")
+    -- ANCHOR_END: compactSpec
+    -- ANCHOR: pubsubAnswerSpec
+    -- UNSUBSCRIBE で聞くのをやめ、全部やめたら、ふつうのやり取りに戻る
+    it "UNSUBSCRIBE stops listening, then plain requests work" $
+      withServer2 $ \port -> withConnection port $ \listener -> do
+        let shout c m = withConnection port $ \other ->
+              request other ["PUBLISH", c, m]
+            bulk b = WBulk (Just b)
+        _ <- request listener ["SUBSCRIBE", "news", "gossip"]
+        _ <- receive listener              -- for gossip / gossip の分
+        left <- request listener ["UNSUBSCRIBE", "news"]
+        news <- shout "news" "dragon spotted"
+        gossip <- shout "gossip" "a rumor"
+        -- Not "dragon spotted": news is no longer heard.
+        -- 「dragon spotted」ではない：news は、もう聞いていない
+        heard <- timeout 5000000 (receive listener)
+        bye <- request listener ["UNSUBSCRIBE"]
+        set <- request listener ["SET", "hero", "Lambda"]
+        nobody <- shout "gossip" "anyone?"
+        (left, news, gossip, heard) `shouldBe`
+          ( WArray [bulk "unsubscribe", bulk "news", WInt 1]
+          , WInt 0
+          , WInt 1
+          , Just (WArray [bulk "message", bulk "gossip", bulk "a rumor"]) )
+        (bye, set, nobody) `shouldBe`
+          ( WArray [bulk "unsubscribe", bulk "gossip", WInt 0]
+          , WSimple "OK"
+          , WInt 0 )
+    -- いくつものキーを見張り、どのキーから取り出したかも答える
+    it "BLPOP on many keys answers the key and the value" $
+      withServer2 $ \port -> withConnection port $ \c -> do
+        let bulk b = WBulk (Just b)
+            popper = withConnection port $ \w ->
+              request w ["BLPOP", "jobs", "urgent", "5"]
+        _ <- request c ["RPUSH", "jobs", "slay goblins"]
+        _ <- request c ["RPUSH", "urgent", "dragon"]
+        -- Both have items: the first key in the list wins.
+        -- どちらにもある：並べた順で、最初のキー
+        first <- request c ["BLPOP", "urgent", "jobs", "1"]
+        _ <- request c ["LPOP", "jobs"]
+        waited <- withAsync popper $ \popping -> do
+          threadDelay 200000                -- 0.2 s later / 0.2 秒後
+          isNothing <$> poll popping `shouldReturn` True
+          _ <- request c ["RPUSH", "urgent", "wyvern"]
+          wait popping
+        none <- request c ["BLPOP", "jobs", "urgent", "1"]
+        (first, waited, none) `shouldBe`
+          ( WArray [bulk "urgent", bulk "dragon"]
+          , WArray [bulk "urgent", bulk "wyvern"]
+          , WBulk Nothing )
+    -- ANCHOR_END: pubsubAnswerSpec
   where
     emptyCollection v = case v of
       List l    -> null l

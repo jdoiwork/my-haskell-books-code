@@ -7,7 +7,8 @@
 -- データベースが起きるまでの開き直し、バックアップ
 module DeploySpec (deploySpec) where
 
-import Control.Exception (ErrorCall (..), throwIO, try)
+import Control.Exception (AsyncException (..), ErrorCall (..), throwIO,
+                          try)
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.Time (diffTimeToPicoseconds, getCurrentTime, utctDayTime)
 import System.Directory (createDirectoryIfMissing, getTemporaryDirectory,
@@ -59,6 +60,16 @@ deploySpec = do
       let open work = modifyIORef' opens (+ 1) >> work ()
       result <- try (retryOpen 5 0 open (\() -> throwIO (ErrorCall "work")))
       (result :: Either ErrorCall ()) `shouldBe` Left (ErrorCall "work")
+      readIORef opens `shouldReturn` 1
+    -- 「Ctrl-C で止められたら、やり直さない」
+    it "does not retry when stopped with Ctrl-C" $ do
+      opens <- newIORef (0 :: Int)
+      let open work = do
+            modifyIORef' opens (+ 1)
+            n <- readIORef opens
+            if n < 2 then throwIO UserInterrupt else work ()
+      retryOpen 5 0 open (\() -> pure ())
+        `shouldThrow` (== UserInterrupt)
       readIORef opens `shouldReturn` 1
     -- 「何度でも開けなければ、最後の失敗を投げる」
     it "gives up after the last try" $ do

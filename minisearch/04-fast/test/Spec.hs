@@ -13,8 +13,9 @@ import Test.Hspec.Wai
 import Test.Hspec.Wai.JSON (json)
 import Test.Hspec.Wai.Matcher (bodyEquals)
 import Test.QuickCheck
-import System.Directory (getTemporaryDirectory)
+import System.Directory (listDirectory)
 import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
 
 import MiniSearch.Answers
 import MiniSearch.Api
@@ -180,15 +181,33 @@ main = hspec $ do
                                      (map hitScore slow))
   -- ANCHOR_END: naive
 
+  -- ANCHOR: store
+  -- 「保存する」
+  describe "saveIndex" $
+    -- 「書いている途中で失敗しても、前のインデックスが残る」
+    it "keeps the old index if writing fails midway" $
+      withSystemTempDirectory "minisearch" $ \dir -> do
+        let path  = dir </> "index.json"
+            index = buildIndex sampleDocs
+        saveIndex path index
+        -- An index that blows up while it is being written.
+        -- 書いている途中で、爆発するインデックス
+        saveIndex path (error "boom") `shouldThrow` errorCall "boom"
+        loadIndex path `shouldReturn` Right index
+        -- No half-written file is left behind.
+        -- 書きかけのファイルも残らない
+        listDirectory dir `shouldReturn` ["index.json"]
+  -- ANCHOR_END: store
+
   -- 「バイナリーで保存して読み戻す」
   describe "saveIndex and loadIndex" $
-    it "keeps the index the same in binary" $ do
-      tmp <- getTemporaryDirectory
-      let index = buildIndex sampleDocs
-          path  = tmp </> "minisearch-test.bin"
-      saveIndex path index
-      loaded <- loadIndex path
-      loaded `shouldBe` Right index
+    it "keeps the index the same in binary" $
+      withSystemTempDirectory "minisearch" $ \tmp -> do
+        let index = buildIndex sampleDocs
+            path  = tmp </> "index.bin"
+        saveIndex path index
+        loaded <- loadIndex path
+        loaded `shouldBe` Right index
 
   -- 「トレーニング」
   describe "answers" $ do
@@ -204,13 +223,14 @@ main = hspec $ do
     -- ANCHOR_END: answer2
 
     -- 「版の違うファイルは断る」
-    it "loadVersioned refuses another version" $ do
-      tmp <- getTemporaryDirectory
-      let path = tmp </> "minisearch-old.bin"
-      Binary.encodeFile path (3 :: Int, buildIndex sampleDocs)
-      loaded <- loadVersioned path
-      loaded `shouldBe` Left ("this index is version 3, but this program"
-                              <> " reads version 4: run index again")
+    it "loadVersioned refuses another version" $
+      withSystemTempDirectory "minisearch" $ \tmp -> do
+        let path = tmp </> "old.bin"
+        Binary.encodeFile path (3 :: Int, buildIndex sampleDocs)
+        loaded <- loadVersioned path
+        loaded `shouldBe`
+          Left ("this index is version 3, but this program"
+                <> " reads version 4: run index again")
 
     -- ANCHOR: answer1
     -- 「件数 0 も 400」（トレーニングのステップ1）
