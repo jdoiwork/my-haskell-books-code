@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: module
 -- 🧠 The algorithms of this chapter. Each one is a pure function.
 -- この章のアルゴリズム。どれも純粋な関数
 module Algo
@@ -12,6 +13,7 @@ module Algo
   , shortestPath
   , twoSum
   ) where
+-- ANCHOR_END: module
 
 -- ANCHOR: imports
 import Control.Monad.ST            (ST, runST)
@@ -37,8 +39,9 @@ prefixSums damages = VU.fromList (scanl (+) 0 damages)
 rangeSum :: VU.Vector Int -> Int -> Int -> Int
 rangeSum sums l r = sums VU.! r - sums VU.! (l - 1)
 
--- 🐢 The same, by adding them up each time: O(r - l).
--- 同じものを、毎回足して：O(r - l)
+-- 🐢 The same, by adding them up each time: O(r)
+--    (drop walks the first l - 1 items too).
+-- 同じものを、毎回足して：O(r)（drop が、最初の l - 1 個もたどる）
 rangeSumNaive :: [Int] -> Int -> Int -> Int
 rangeSumNaive damages l r = sum (take (r - l + 1) (drop (l - 1) damages))
 -- ANCHOR_END: prefix
@@ -49,10 +52,11 @@ rangeSumNaive damages l r = sum (take (r - l + 1) (drop (l - 1) damages))
 turnsNeeded :: [Int] -> Int -> Int
 turnsNeeded hps attack = sum [ (hp + attack - 1) `div` attack | hp <- hps ]
 
--- 🎯 The weakest attack that beats them all in k turns or fewer.
---    A stronger attack never needs more turns, so we can halve the
---    range each time: O(n log m).
--- k ターン以内に全部倒せる、いちばん弱い攻撃力。
+-- 🎯 The weakest attack that beats them all in k turns or fewer
+--    (k must be at least the number of monsters). A stronger attack
+--    never needs more turns, so we can halve the range each time:
+--    O(n log m).
+-- k ターン以内に全部倒せる、いちばん弱い攻撃力（k は、モンスターの数以上）。
 -- 攻撃力が上がれば、ターン数は増えないので、
 -- 範囲を毎回半分にできる：O(n log m)
 weakestAttack :: [Int] -> Int -> Int

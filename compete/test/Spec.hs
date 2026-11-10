@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- 🧪 Stress tests: random small cases, fast answer against slow answer.
 -- ストレステスト：でたらめな小さい問題で、速い解と遅い解を比べる
 module Main (main) where
@@ -15,6 +16,7 @@ main = hspec $ do
   stressSpec
   -- answers for the training / トレーニングの解答
   answersSpec
+-- ANCHOR_END: head
 
 -- ANCHOR: spec
 stressSpec :: Spec
@@ -35,6 +37,7 @@ stressSpec = do
       in  weakestAttack hps k === weakestAttackNaive hps k
 -- ANCHOR_END: spec
 
+-- ANCHOR: answers
 answersSpec :: Spec
 answersSpec =
   -- ANCHOR: ways
@@ -46,4 +49,5 @@ answersSpec =
       forAll (choose (0, 15)) $ \amount ->
         waysToPay coins amount === waysToPayNaive coins amount
   -- ANCHOR_END: ways
+-- ANCHOR_END: answers
 -- ANCHOR_END: all

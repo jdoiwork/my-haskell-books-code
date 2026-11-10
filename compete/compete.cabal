@@ -17,6 +17,7 @@ common shared
     , vector     >=0.13 && <0.14
 -- ANCHOR_END: deps
 
+-- ANCHOR: lib
 -- The algorithms, as pure functions (easy to test).
 -- アルゴリズム（テストしやすい、純粋な関数として）
 library
@@ -24,6 +25,7 @@ library
   exposed-modules:  Algo
                     CompeteAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: lib
 
 -- Problem 1: sums of damage in ranges (prefix sums).
 -- 問題1：区間のダメージの合計（累積和）

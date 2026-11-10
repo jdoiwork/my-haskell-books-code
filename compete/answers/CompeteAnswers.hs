@@ -1,10 +1,12 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- 🏋️ Answers for the training.
 -- トレーニングの解答
 module CompeteAnswers (countAtLeast, waysToPay, waysToPayNaive) where
 
 import Data.List           qualified as L
 import Data.Vector.Unboxed qualified as VU
+-- ANCHOR_END: head
 
 -- ANCHOR: count
 -- 🔢 How many prices in a sorted vector are at least x: binary search.
