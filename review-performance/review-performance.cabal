@@ -13,7 +13,6 @@ common shared
     , bytestring ^>=0.12
     , containers ^>=0.8
     , parallel   ^>=3.3
-    , deepseq    ^>=1.5
 
 -- The pure core: read records, add them up, find the top.
 -- 純粋な核：記録を読み、足し合わせ、上位を探す
@@ -30,6 +29,15 @@ executable ledger
   hs-source-dirs:   app
   build-depends:    review-performance
   ghc-options:      -threaded -rtsopts
+
+-- ANCHOR: make
+-- A big ledger to measure with (1,000,000 lines).
+-- 測るための大きな決算（100万行）を作る
+executable make-ledger
+  import:           shared
+  main-is:          MakeLedger.hs
+  hs-source-dirs:   app
+-- ANCHOR_END: make
 
 -- The slow, simple answer against the fast one.
 -- 素朴で遅い解と、速い解を比べる

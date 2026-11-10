@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- 📒 The guild's ledger: who brought in how much gold.
 -- ギルドの決算：誰が、どれだけの金貨を稼いだか
 module Ledger
@@ -8,9 +9,9 @@ module Ledger
   , totalsNaive
   , totalsParallel
   , topThree
+  , countAndTotals
   ) where
 
--- ANCHOR: imports
 import Control.Parallel.Strategies (parMap, rdeepseq)
 import Data.ByteString.Char8       qualified as BS
 import Data.List                   (sortOn)
@@ -49,8 +50,9 @@ totals records = foldl' add Map.empty records
   where
     add m r = Map.insertWith (+) (hero r) (gold r) m
 
--- 🐢 The same, by looking through the whole list for each hero.
--- 同じものを、勇者ごとにリスト全体を見直して
+-- 🐢 The same, by looking through the whole list again for each
+--    record: O(n^2).
+-- 同じものを、記録1件ごとに、リスト全体を見直して：O(n^2)
 totalsNaive :: [Record] -> Map BS.ByteString Int
 totalsNaive records =
   Map.fromList
@@ -77,4 +79,19 @@ totalsParallel parts records =
 topThree :: Map BS.ByteString Int -> [(BS.ByteString, Int)]
 topThree m = take 3 (sortOn (\(h, g) -> (Down g, h)) (Map.toList m))
 -- ANCHOR_END: top
+
+-- ANCHOR: once
+-- 🚶 Count the records and add them up in one walk, so the list is
+--    never kept: each record can be thrown away as soon as it is added.
+-- 記録を数えて足すのを、1回たどるだけで。リストを持ち続けないので、
+-- 足し終えた記録から捨てられる
+data Tally = Tally !Int !(Map BS.ByteString Int)
+
+countAndTotals :: [Record] -> (Int, Map BS.ByteString Int)
+countAndTotals records =
+  let Tally n m = foldl' add (Tally 0 Map.empty) records
+  in  (n, m)
+  where
+    add (Tally n m) r = Tally (n + 1) (Map.insertWith (+) (hero r) (gold r) m)
+-- ANCHOR_END: once
 -- ANCHOR_END: all

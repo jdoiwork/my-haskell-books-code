@@ -4,6 +4,7 @@
 module Main (main) where
 
 import Data.ByteString.Char8 qualified as BS
+import Data.Map.Strict       qualified as Map
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
@@ -28,8 +29,20 @@ main = hspec $ do
     forAll records $ \rs ->
       forAll (choose (1, 8)) $ \parts ->
         totalsParallel parts rs === totalsNaive rs
+  -- 「1回たどる版も、件数と合計が同じ」
+  prop "countAndTotals agrees with the simple answer" $
+    forAll records $ \rs ->
+      countAndTotals rs === (length rs, totalsNaive rs)
   -- 「壊れた行は飛ばす」
   it "skips broken lines" $
-    parseRecords (BS.pack "Lambda 10\nPython ten\nRust\nRuby 5\n")
+    parseRecords
+      (BS.pack "Lambda 10\nPython ten\nRust\nRuby 120abc\nRuby 5\n")
       `shouldBe` [Record (BS.pack "Lambda") 10, Record (BS.pack "Ruby") 5]
+  -- 「稼ぎが同じなら、名前の順」
+  it "breaks ties by name" $
+    topThree (Map.fromList [ (BS.pack n, g)
+                           | (n, g) <- [("Rust", 50), ("Lambda", 90),
+                                        ("Ruby", 50), ("Python", 50)] ])
+      `shouldBe` [ (BS.pack "Lambda", 90), (BS.pack "Python", 50)
+                 , (BS.pack "Ruby", 50) ]
 -- ANCHOR_END: all
