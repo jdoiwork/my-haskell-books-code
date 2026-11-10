@@ -160,6 +160,31 @@ export function withoutBlank(rows: Row[]): Row[] {
 }
 // ANCHOR_END: moves
 
+// ANCHOR: marks
+// ✅ The entries a tick changes: the entry and every entry under it,
+//    leaving out those already as asked (so an entry read before gets
+//    no second line in the log).
+// チェック1つで変わる項目：その項目と、その下の全部。もう望みどおりの
+// 項目は外す（読んだ項目に、ログの2行目を書かないように）
+export function marksFor(toc: TocItem[], entry: number,
+                         read: boolean): number[] {
+  const under = (item: TocItem): TocItem[] =>
+    [item, ...item.children.flatMap(under)];
+  const find = (items: TocItem[]): TocItem | undefined => {
+    for (const item of items) {
+      if (item.id === entry) return item;
+      const found = find(item.children);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  const top = find(toc);
+  return top === undefined
+    ? []
+    : under(top).filter((item) => item.done !== read).map((item) => item.id);
+}
+// ANCHOR_END: marks
+
 // ANCHOR: losses
 // 🧳 What a save would carry over or drop, from the lines that are gone:
 //    notes move to the whole work; ratings and read marks are dropped.

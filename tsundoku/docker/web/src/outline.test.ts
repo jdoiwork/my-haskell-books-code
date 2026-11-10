@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addAfter, editedOf, indent, losses, moveDown, moveUp, outdent,
-  outlineOf, remove, type Row, rowsOf, withoutBlank,
+  marksFor, outlineOf, remove, type Row, rowsOf, withoutBlank,
 } from "./outline";
 import type { CardDetail, TocItem } from "./tsundoku-api";
 
@@ -97,5 +97,21 @@ describe("blank rows", () => {
     const sized = rs.map((r) => ({ ...r, size: 0 }));
     expect(shape(withoutBlank(sized)))
       .toEqual(["0:第1部", "0:", "1:第1章", "0:"]);
+  });
+});
+
+describe("ticks", () => {
+  const leaf = (id: number, done: boolean): TocItem =>
+    ({ id, heading: `#${id}`, size: 1, done, rating: null, children: [] });
+  const toc: TocItem[] = [
+    { ...leaf(1, false), children: [leaf(2, true), leaf(3, false)] },
+    leaf(4, false),
+  ];
+  // 「親のチェックは、下の全部に。もう望みどおりの項目は外す」
+  it("ticks the entry and all under it, but not twice", () => {
+    expect(marksFor(toc, 1, true)).toEqual([1, 3]);
+    expect(marksFor(toc, 1, false)).toEqual([2]);
+    expect(marksFor(toc, 4, true)).toEqual([4]);
+    expect(marksFor(toc, 9, true)).toEqual([]);
   });
 });

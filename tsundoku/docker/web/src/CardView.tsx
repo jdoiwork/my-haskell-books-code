@@ -10,6 +10,7 @@ import { type Answer, shelf } from "./api";
 import { AttrForm } from "./AttrForm";
 import { Bar } from "./Bar";
 import { dayOf } from "./day";
+import { marksFor } from "./outline";
 import { eventLabel, marks, stars, stateLabel, whereOf } from "./shadows";
 import { Toc } from "./Toc";
 import type { CardDetail, FormField } from "./tsundoku-api";
@@ -41,11 +42,18 @@ export function CardView({ id, onEdit }: {
   };
 
   // ANCHOR: mark
-  // ✅ A tick writes today in the log; taking it off drops the lines.
-  // チェックを入れたら今日の日付でログに書き、外したら行を消す
-  const mark = (entry: number, read: boolean) =>
-    change(read ? shelf.logReading(id, dayOf(new Date()), entry)
-                : shelf.unread(id, entry));
+  // ✅ A tick writes today in the log, for the entry and every entry
+  //    under it; taking it off drops their lines. One at a time, and
+  //    the first refusal stops the rest.
+  // チェックを入れたら、その項目と下の全部について、今日の日付でログに
+  // 書く。外したら、その行を消す。1つずつ順に、断られたらそこで止める
+  const mark = (entry: number, read: boolean) => {
+    if (card === null) return;
+    const today = dayOf(new Date());
+    const asks = marksFor(card.toc, entry, read).map((e) => () =>
+      read ? shelf.logReading(id, today, e) : shelf.unread(id, e));
+    change(inOrder(asks));
+  };
   // ANCHOR_END: mark
 
   if (card === null) return <p>読みこみ中…</p>;
@@ -102,6 +110,21 @@ export function CardView({ id, onEdit }: {
 }
 // ANCHOR_END: card
 
+// ANCHOR: inOrder
+// 🔁 Ask one after another; the first refusal stops the rest.
+// 1つずつ順に聞く。断られたら、そこで止める
+async function inOrder(
+  asks: (() => Promise<Answer<unknown>>)[],
+): Promise<Answer<unknown>> {
+  let last: Answer<unknown> = { ok: true, value: null };
+  for (const ask of asks) {
+    last = await ask();
+    if (!last.ok) break;
+  }
+  return last;
+}
+// ANCHOR_END: inOrder
+
 // ✍️ The form for a new note.
 // 新しい感想のフォーム
 function NoteForm({ onWrite }: {
@@ -117,7 +140,8 @@ function NoteForm({ onWrite }: {
   };
   return (
     <form className="note-form" onSubmit={write}>
-      <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} />
+      <textarea rows={3} value={body}
+                onChange={(e) => setBody(e.target.value)} />
       <label>
         <input type="checkbox" checked={spoiler}
                onChange={(e) => setSpoiler(e.target.checked)} />
