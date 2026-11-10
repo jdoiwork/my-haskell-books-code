@@ -25,7 +25,8 @@ leaderHp = leader . stats . hp
 -- ANCHOR: miniLaws
 -- 🧪 The three laws for a lens of our own, on random points. The lens is
 --    an argument: a path is just a value.
--- 自作のレンズの3つの約束を、でたらめな点で。レンズは引数で渡す（道順は、ただの値）
+-- 自作のレンズの3つの約束を、でたらめな点で。
+-- レンズは引数で渡す（道順は、ただの値）
 miniLaws :: String -> Mini.Lens Mini.Point Int -> Spec
 miniLaws name l = describe ("the laws of " ++ name) $ do
   -- 入れたものを読むと、入れたものが出てくる
