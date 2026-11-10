@@ -38,6 +38,7 @@ import TuiSpec
 import EditSpec
 import McpSpec
 import ReviewSpec
+import SiteSpec
 import DeploySpec
 import CustomSpec
 import ImportSpec
@@ -563,6 +564,8 @@ main = hspec $ do
   editSpec
   mcpSpec
   reviewSpec
+  -- 「画面をおしゃれに」の章のテスト
+  siteSpec
   deploySpec
   -- ANCHOR_END: shelfSpec
 -- ANCHOR_END: spec

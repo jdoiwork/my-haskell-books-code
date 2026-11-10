@@ -9,11 +9,17 @@
 // はじめに空の行を1つ置き、空のままの行は送らない。
 // 目次の確かめ（空の見出し、2回出てくる見出し……）は本棚がして、どこかを
 // 言う
+import {
+  Alert, Button, Group, List, NumberInput, SegmentedControl, Stack, Text,
+  TextInput, Title,
+} from "@mantine/core";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { shelf } from "./api";
 import { kinds, unitOf } from "./kinds";
 import { addAfter, outlineOf, type Row, withoutBlank } from "./outline";
+import { tone } from "./theme";
 import { freshKey, TocRows } from "./TocRows";
 
 // ANCHOR: form
@@ -40,25 +46,28 @@ export function NewWork({ onAdded }: { onAdded: (id: number) => void }) {
   };
 
   return (
-    <form className="edit" onSubmit={add}>
-      <h1>本を足す</h1>
-      <Problems messages={problems} />
-      <label>題 <input value={title}
-                      onChange={(e) => setTitle(e.target.value)} /></label>
-      <label>作者 <input value={creator}
-        onChange={(e) => setCreator(e.target.value)} /></label>
-      <label>種類 <select value={kind}
-                         onChange={(e) => setKind(e.target.value)}>
-        {kinds.map((k) =>
-          <option key={k.word} value={k.word}>{k.label}</option>)}
-      </select></label>
-      {kind === "film" && <label>分 <input type="number" value={minutes}
-          onChange={(e) => setMinutes(Number(e.target.value))} /></label>}
-      {unit !== null &&
-        <TocRows rows={rows} setRows={setRows} unit={unit} />}
-      <p className="actions">
-        <button className="primary">本棚に足す</button>
-      </p>
+    <form onSubmit={add}>
+      <Stack>
+        <Title order={2}>本を足す</Title>
+        <Problems messages={problems} />
+        <TextInput label="題" value={title}
+                   onChange={(e) => setTitle(e.currentTarget.value)} />
+        <TextInput label="作者" value={creator}
+                   onChange={(e) => setCreator(e.currentTarget.value)} />
+        <div>
+          <Text size="sm" fw={500} mb={4}>種類</Text>
+          <SegmentedControl value={kind} onChange={setKind}
+            data={kinds.map((k) => ({ value: k.word, label: k.label }))} />
+        </div>
+        {kind === "film" &&
+          <NumberInput label="分" w={120} value={minutes} min={0}
+                       onChange={(v) => setMinutes(Number(v))} />}
+        {unit !== null &&
+          <TocRows rows={rows} setRows={setRows} unit={unit} />}
+        <Group>
+          <Button type="submit">本棚に足す</Button>
+        </Group>
+      </Stack>
     </form>
   );
 }
@@ -72,9 +81,12 @@ export function NewWork({ onAdded }: { onAdded: (id: number) => void }) {
 export function Problems({ messages }: { messages: string[] }) {
   if (messages.length === 0) return null;
   return (
-    <div className="problem" role="alert">
-      <ul>{messages.map((m) => <li key={m}>{m}</li>)}</ul>
-    </div>
+    <Alert color={tone.danger} title="本棚に断られました" role="alert"
+           icon={<IconAlertCircle />}>
+      <List size="sm">
+        {messages.map((m) => <List.Item key={m}>{m}</List.Item>)}
+      </List>
+    </Alert>
   );
 }
 // ANCHOR_END: problems

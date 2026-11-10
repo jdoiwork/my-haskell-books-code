@@ -8,12 +8,15 @@
 import type {
   CardDetail,
   EditedWork,
+  ExtrasItem,
   FormField,
   HitItem,
   NewWork,
   NoteItem,
   Problem,
   ReadingNow,
+  StatsItem,
+  TagCount,
   WorkSummary,
 } from "./tsundoku-api";
 
@@ -71,6 +74,22 @@ export const shelf = {
                                  send("PUT", fields))),
   search: async (q: string) =>
     ask<HitItem[]>(await fetch(`${base}/search?q=${encodeURIComponent(q)}`)),
+  // ANCHOR: site
+  // 🔖 The review site's routes (this chapter).
+  // レビューサイトの道（この章）
+  extras: async (id: number) =>
+    ask<ExtrasItem>(await fetch(`${base}/works/${id}/extras`)),
+  setTags: async (id: number, tags: string[]) =>
+    ask<string[]>(await fetch(`${base}/works/${id}/tags`,
+                              send("PUT", tags))),
+  tags: async () =>
+    ask<TagCount[]>(await fetch(`${base}/tags`)),
+  tagged: async (tag: string) =>
+    ask<WorkSummary[]>(
+      await fetch(`${base}/tags/${encodeURIComponent(tag)}`)),
+  stats: async (year: number) =>
+    ask<StatsItem>(await fetch(`${base}/stats?year=${year}`)),
+  // ANCHOR_END: site
 };
 // ANCHOR_END: routes
 // ANCHOR_END: all

@@ -10,6 +10,7 @@ import Data.Aeson.TypeScript.TH
 import Data.Proxy (Proxy (..))
 
 import Tsundoku.Api.Json
+import Tsundoku.Api.Site
 
 main :: IO ()
 main = do
@@ -38,5 +39,14 @@ main = do
       , getTypeScriptDeclarations (Proxy @FormField)
       , getTypeScriptDeclarations (Proxy @EditedWork)
       , getTypeScriptDeclarations (Proxy @EditedItem)
+      -- ANCHOR: siteTypes
+      , getTypeScriptDeclarations (Proxy @ExtrasItem)
+      , getTypeScriptDeclarations (Proxy @SeenNote)
+      , getTypeScriptDeclarations (Proxy @AlikeItem)
+      , getTypeScriptDeclarations (Proxy @TagCount)
+      , getTypeScriptDeclarations (Proxy @KindCount)
+      , getTypeScriptDeclarations (Proxy @MonthItem)
+      , getTypeScriptDeclarations (Proxy @StatsItem)
+      -- ANCHOR_END: siteTypes
       ]
 -- ANCHOR_END: all

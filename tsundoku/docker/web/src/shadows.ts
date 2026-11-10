@@ -13,9 +13,20 @@ import type { TocItem } from "./tsundoku-api";
 // Rating.render FiveStars と同じ
 export function stars(points: number | null): string {
   if (points === null) return "—";
-  const halves = Math.floor((points + 5) / 10);
-  return `★${halves / 2}`;
+  return `★${halfStars(points)}`;
 }
+
+// ANCHOR: halfStars
+// ⭐ The same stars as a number, for Mantine's Rating (fractions={2}):
+//    73 → 3.5. And back: a star is 20 points, so 3.5 → 70.
+// 同じ★を数で。Mantine の Rating（fractions={2}）のために：73 → 3.5。
+// そして、もとへ：★1つは 20 点なので、3.5 → 70
+export const halfStars = (points: number): number =>
+  Math.floor((points + 5) / 10) / 2;
+
+export const pointsOf = (starsGiven: number): number =>
+  Math.round(starsGiven * 20);
+// ANCHOR_END: halfStars
 
 // 🔘 The points of each button of stars: 0, 10, ..., 100.
 // ★のボタンごとの点：0、10、…、100
@@ -33,6 +44,17 @@ const eventWords: Record<string, string> = {
 };
 export const stateLabel = (name: string) => stateWords[name] ?? name;
 export const eventLabel = (name: string) => eventWords[name] ?? name;
+
+// ANCHOR: stateColor
+// 🎨 The colour of each state's badge (Mantine's colour names). Only
+//    this screen colours them; the API only said the name.
+// 状態の札の色（Mantine の色の名前）。色を付けるのは、この画面だけ。
+// API は名前を言っただけ
+const stateColors: Record<string, string> = {
+  Piled: "gray", Reading: "indigo", Finished: "teal", Paused: "orange",
+};
+export const stateColor = (name: string) => stateColors[name] ?? "gray";
+// ANCHOR_END: stateColor
 
 // 📍 Which entry a note is about, as Html.Parts' notePart says it: the
 //    heading, the whole work, or an entry the table no longer has.

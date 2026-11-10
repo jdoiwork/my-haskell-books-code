@@ -8,7 +8,7 @@ build-type:    Simple
 extra-source-files: static/*
 
 -- 総合演習：読書メモのレビューサイトを作る
--- （13. 配って使ってもらう：docker compose で、コマンド1つで本棚を）
+-- （配って使ってもらう：docker compose で、コマンド1つで本棚を）
 
 common shared
   default-language: GHC2024
@@ -56,6 +56,7 @@ library
                     Tsundoku.Import
                     Tsundoku.Search
                     Tsundoku.Api.Json
+                    Tsundoku.Api.Site
                     Tsundoku.Api.Routes
                     Tsundoku.Api.Server
                     Tsundoku.Api.Client
@@ -207,6 +208,7 @@ test-suite tsundoku-test
                     EditSpec
                     McpSpec
                     ReviewSpec
+                    SiteSpec
                     DeploySpec
   ghc-options:      -threaded
   build-depends:

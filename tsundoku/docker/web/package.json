@@ -8,8 +8,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mantine/charts": "^9.8.0",
+    "@mantine/core": "^9.8.0",
+    "@mantine/hooks": "^9.8.0",
+    "@tabler/icons-react": "^3.51.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

@@ -1,0 +1,21 @@
+[
+  {"allcount": 2},
+  {
+    "title": "図書室の司書に転生した件",
+    "ncode": "N0000XX",
+    "writer": "しおり堂",
+    "general_all_no": 5,
+    "noveltype": 1,
+    "end": 1,
+    "general_lastup": "2026-11-08 21:00:00"
+  },
+  {
+    "title": "迷宮図書館の写本係",
+    "ncode": "N0000YY",
+    "writer": "インク壺",
+    "general_all_no": 30,
+    "noveltype": 1,
+    "end": 0,
+    "general_lastup": "2026-10-31 12:00:00"
+  }
+]

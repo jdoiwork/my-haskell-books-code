@@ -6,6 +6,14 @@
 // 画面の上の目次を、1行ずつ：どの行にも見出しと量の欄と、動かすボタン。
 // 作品を足す画面も、直す画面も、これを使う。行そのものは画面が持ち
 // （rows・setRows）、ここは描いて、変えるだけ
+import {
+  ActionIcon, Button, Group, NumberInput, Paper, Stack, Text, TextInput,
+  Tooltip,
+} from "@mantine/core";
+import {
+  type Icon, IconArrowDown, IconArrowLeft, IconArrowRight, IconArrowUp,
+  IconPlus, IconX,
+} from "@tabler/icons-react";
 import { type KeyboardEvent, useState } from "react";
 
 import {
@@ -48,41 +56,51 @@ export function TocRows({ rows, setRows, unit }: {
     e.preventDefault();
     add(i);
   };
+  // 🔘 One small button with its tip.
+  // 小さなボタン1つと、その説明
+  const tool = (tip: string, Shape: Icon, act: () => void) => (
+    <Tooltip label={tip}>
+      <ActionIcon variant="default" aria-label={tip} onClick={act}>
+        <Shape size={16} />
+      </ActionIcon>
+    </Tooltip>
+  );
+  // A new row (not on the shelf yet) is tinted.
+  // 新しい行（まだ本棚にない）は色付き
+  const newRow = "var(--mantine-primary-color-light)";
 
-  return (<>
-    <h2>目次<small>（量は{unit}）</small></h2>
-    <ol className="rows">
+  return (
+    <Stack gap={6}>
+      <Text fw={700}>
+        目次 <Text span size="sm" c="dimmed">（量は{unit}）</Text>
+      </Text>
       {rows.map((r, i) => (
-        <li key={r.key} style={{ marginLeft: `${r.depth * 1.6}rem` }}
-            className={r.id === null ? "new" : ""}>
-          <input className="heading" value={r.heading}
-                 aria-label="見出し" autoFocus={r.key === focused}
-                 onKeyDown={enter(i)}
-                 onChange={(e) => write(i, { heading: e.target.value })} />
-          <input className="size" type="number" value={r.size}
-                 aria-label={unit} onKeyDown={enter(i)}
-                 onChange={(e) =>
-                   write(i, { size: Number(e.target.value) })} />
-          <span className="tools">
-            <button type="button" title="1段上へ"
-                    onClick={() => move(outdent, i)}>←</button>
-            <button type="button" title="1段下へ"
-                    onClick={() => move(indent, i)}>→</button>
-            <button type="button" title="前へ"
-                    onClick={() => move(moveUp, i)}>↑</button>
-            <button type="button" title="後ろへ"
-                    onClick={() => move(moveDown, i)}>↓</button>
-            <button type="button" title="この後ろに足す"
-                    onClick={() => add(i)}>＋</button>
-            <button type="button" title="下の行ごと消す"
-                    onClick={() => move(remove, i)}>✕</button>
-          </span>
-        </li>))}
-    </ol>
-    <button type="button" onClick={() => add(rows.length - 1)}>
-      ＋ 行を足す
-    </button>
-  </>);
+        <Paper key={r.key} withBorder p={6} ml={`${r.depth * 1.6}rem`}
+               bg={r.id === null ? newRow : undefined}>
+          <Group gap="xs" wrap="nowrap">
+            <TextInput flex={1} value={r.heading} aria-label="見出し"
+                       autoFocus={r.key === focused} onKeyDown={enter(i)}
+                       onChange={(e) =>
+                         write(i, { heading: e.currentTarget.value })} />
+            <NumberInput w={90} value={r.size} aria-label={unit} min={0}
+                         onKeyDown={enter(i)}
+                         onChange={(v) => write(i, { size: Number(v) })} />
+            <ActionIcon.Group>
+              {tool("1段上へ", IconArrowLeft, () => move(outdent, i))}
+              {tool("1段下へ", IconArrowRight, () => move(indent, i))}
+              {tool("前へ", IconArrowUp, () => move(moveUp, i))}
+              {tool("後ろへ", IconArrowDown, () => move(moveDown, i))}
+              {tool("この後ろに足す", IconPlus, () => add(i))}
+              {tool("下の行ごと消す", IconX, () => move(remove, i))}
+            </ActionIcon.Group>
+          </Group>
+        </Paper>))}
+      <Button variant="light" leftSection={<IconPlus size={16} />}
+              w="fit-content" onClick={() => add(rows.length - 1)}>
+        行を足す
+      </Button>
+    </Stack>
+  );
 }
 // ANCHOR_END: rows
 // ANCHOR_END: all

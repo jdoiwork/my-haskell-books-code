@@ -219,7 +219,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 本棚を手で整える：React で本を足し、目次を直す | [`tsundoku/editing/`](tsundoku/editing/)、[`tsundoku/screens/`](tsundoku/screens/)、[`langs/shelf-editing/`](langs/shelf-editing/) |
 | AI と一緒に：MCP で目次を一括登録する | [`tsundoku/mcp/`](tsundoku/mcp/)、[`tsundoku/editing/`](tsundoku/editing/)、[`langs/shelf-mcp/`](langs/shelf-mcp/) |
 | レビューサイトに仕上げる：本棚・タグ・ネタバレ・読書の統計 | [`tsundoku/review-site/`](tsundoku/review-site/)、[`tsundoku/mcp/`](tsundoku/mcp/)、[`langs/shelf-review-site/`](langs/shelf-review-site/) |
-| 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/docker/`](tsundoku/docker/)、[`tsundoku/review-site/`](tsundoku/review-site/) |
+| 画面をおしゃれに：Mantine で本棚の画面を着替える | [`tsundoku/mantine/`](tsundoku/mantine/)、[`tsundoku/review-site/`](tsundoku/review-site/)、[`langs/shelf-mantine/`](langs/shelf-mantine/)、[`langs/cargo/`](langs/cargo/) |
+| 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/docker/`](tsundoku/docker/)、[`tsundoku/mantine/`](tsundoku/mantine/) |
 | 第12部のふりかえり | [`tsundoku/docker/`](tsundoku/docker/)、[`review-tsundoku/`](review-tsundoku/) |
 
 ### 第13部 プログラマーのための数学

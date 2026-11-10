@@ -156,3 +156,63 @@ export interface IEditedItem {
   size: number;
   children: EditedItem[];
 }
+
+export type ExtrasItem = IExtrasItem;
+
+export interface IExtrasItem {
+  tags: string[];
+  seen: SeenNote[];
+  alike: AlikeItem[];
+}
+
+export type SeenNote = IShownNote | IHiddenNote;
+
+export interface IShownNote {
+  tag: "ShownNote";
+  note: NoteItem;
+}
+
+export interface IHiddenNote {
+  tag: "HiddenNote";
+  entry: number | null;
+  hint: string;
+}
+
+export type AlikeItem = IAlikeItem;
+
+export interface IAlikeItem {
+  work: number;
+  title: string;
+  percent: number;
+}
+
+export type TagCount = ITagCount;
+
+export interface ITagCount {
+  tag: string;
+  works: number;
+}
+
+export type KindCount = IKindCount;
+
+export interface IKindCount {
+  kind: string;
+  works: number;
+}
+
+export type MonthItem = IMonthItem;
+
+export interface IMonthItem {
+  month: string;
+  finished: number;
+  pages: number;
+}
+
+export type StatsItem = IStatsItem;
+
+export interface IStatsItem {
+  year: number;
+  months: MonthItem[];
+  kinds: KindCount[];
+  best: WorkSummary[];
+}

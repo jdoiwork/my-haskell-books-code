@@ -17,9 +17,10 @@ module Tsundoku.Api.Server
 -- ハンドラーの中の IO、JSON、答えのヘッダー
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (encode)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Time (UTCTime)
+import Data.Time (UTCTime (..), toGregorian)
 import Network.HTTP.Types (hContentType)
 
 -- servant: the server side, from records of routes
@@ -29,6 +30,8 @@ import Servant.Server.Generic (AsServer)
 
 import Tsundoku.Api.Json
 import Tsundoku.Api.Routes
+import Tsundoku.Api.Site
+import Tsundoku.Card (Card (..))
 import Tsundoku.Form (explain, formFor)
 import Tsundoku.Rating (score)
 import Tsundoku.Shelf
@@ -59,12 +62,26 @@ shelfServer clock shelf = ShelfRoutes
   , addWork   = addOne
   , work      = workServer clock shelf . WorkId
   , search    = \typed -> map hitItem <$> answer (shelf.inside.searchText typed)
+  -- ANCHOR: siteHandlers
+  , tags      =          tagCounts      <$> everything
+  , tagged    = \t   -> taggedWith t    <$> everything
+  , stats     = \asked -> do
+      y <- maybe thisYear pure asked
+      statsItem y <$> everything
+  -- ANCHOR_END: siteHandlers
   }
   where
     addOne new = do
       what <- known "kind" new.kind (workFrom new)
       wid  <- answer (addChecked shelf.works what)
       cardOf shelf wid
+    -- ANCHOR: siteHelpers
+    everything = liftIO shelf.works.listCards
+    thisYear   = do
+      now <- liftIO clock
+      let (y, _, _) = toGregorian (utctDay now)
+      pure y
+    -- ANCHOR_END: siteHelpers
 -- ANCHOR_END: shelfServer
 
 -- ANCHOR: workServer
@@ -87,6 +104,10 @@ workServer clock shelf wid = WorkRoutes
   , setText    = \e body   -> done (shelf.inside.setText wid (EntryId e) body)
   , form       =              formOf
   , editAttrs  = \fields   -> answer (shelf.custom.editAttrs wid fields) >> formOf
+  -- ANCHOR: workSiteHandlers
+  , extras     =              extrasOf
+  , setTags    = \ts       -> tagWith ts
+  -- ANCHOR_END: workSiteHandlers
   }
   where
     -- ANCHOR: reviseIt
@@ -118,6 +139,17 @@ workServer clock shelf wid = WorkRoutes
     rateWith keep p = do
       points <- gate (score p.points)
       done (keep points)
+    -- ANCHOR: extrasOf
+    extrasOf = do
+      cards <- liftIO shelf.works.listCards
+      case lookup wid cards of
+        Just card -> pure (extrasItem cards wid card)
+        Nothing   -> refuse (NoSuchWork wid)
+    tagWith ts = do
+      answer (shelf.tagging.setTags wid (Set.fromList ts))
+      card <- liftIO (shelf.works.getCard wid)
+      pure (maybe [] (\c -> Set.toList c.tags) card)
+    -- ANCHOR_END: extrasOf
 -- ANCHOR_END: workServer
 
 -- ANCHOR: helpers

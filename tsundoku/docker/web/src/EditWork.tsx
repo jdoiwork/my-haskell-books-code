@@ -6,14 +6,21 @@
 // 作品を直す画面：題・作者と、目次を1行ずつ。どの行も、もとの番号を覚えて
 // いて、保存するときに送り返す。名前が変わっても、動いても、本棚がどの行が
 // どれかをわかるのは、そのため
+// ANCHOR: imports
+import {
+  Alert, Button, Group, List, Radio, Stack, Text, TextInput, Title,
+} from "@mantine/core";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
 import { shelf } from "./api";
 import { unitOf } from "./kinds";
 import { Problems } from "./NewWork";
 import { editedOf, type Losses, losses, type Row, rowsOf } from "./outline";
+import { tone } from "./theme";
 import { TocRows } from "./TocRows";
 import type { CardDetail } from "./tsundoku-api";
+// ANCHOR_END: imports
 
 // ANCHOR: screen
 export function EditWork({ id, onDone }: {
@@ -39,7 +46,7 @@ export function EditWork({ id, onDone }: {
     });
   }, [id]);
 
-  if (card === null) return <p>読みこみ中…</p>;
+  if (card === null) return <Text>読みこみ中…</Text>;
   const unit = unitOf(card.work.kind);
   const lost = losses(card, rows);
 
@@ -57,21 +64,23 @@ export function EditWork({ id, onDone }: {
   };
 
   return (
-    <form className="edit" onSubmit={save}>
-      <h1>作品を直す</h1>
-      <Problems messages={problems} />
-      <label>題 <input value={title}
-                      onChange={(e) => setTitle(e.target.value)} /></label>
-      <label>作者 <input value={creator}
-        onChange={(e) => setCreator(e.target.value)} /></label>
-      {unit !== null &&
-        <TocRows rows={rows} setRows={setRows} unit={unit} />}
-      <Warning lost={lost} choice={removedNotes}
-               choose={setRemovedNotes} />
-      <p className="actions">
-        <button className="primary">保存する</button>
-        <button type="button" onClick={onDone}>やめる</button>
-      </p>
+    <form onSubmit={save}>
+      <Stack>
+        <Title order={2}>作品を直す</Title>
+        <Problems messages={problems} />
+        <TextInput label="題" value={title}
+                   onChange={(e) => setTitle(e.currentTarget.value)} />
+        <TextInput label="作者" value={creator}
+                   onChange={(e) => setCreator(e.currentTarget.value)} />
+        {unit !== null &&
+          <TocRows rows={rows} setRows={setRows} unit={unit} />}
+        <Warning lost={lost} choice={removedNotes}
+                 choose={setRemovedNotes} />
+        <Group>
+          <Button type="submit">保存する</Button>
+          <Button variant="default" onClick={onDone}>やめる</Button>
+        </Group>
+      </Stack>
     </form>
   );
 }
@@ -97,26 +106,24 @@ function Warning({ lost, choice, choose }: {
     lost.read  > 0 && `読んだ印 ${lost.read} つは消えます`,
   ].filter((s) => s !== false);
   if (lost.notes === 0 && said.length === 0) return null;
-  const option = (value: NotesChoice, words: string) => (
-    <label>
-      <input type="radio" name="removedNotes" value={value}
-             checked={choice === value}
-             onChange={() => choose(value)} />
-      {words}
-    </label>
-  );
   return (
-    <div className="warning">
-      <p>消える行があります。保存すると：</p>
-      {said.length > 0 && <ul>{said.map((s) => <li key={s}>{s}</li>)}</ul>}
+    <Alert color={tone.warn} icon={<IconAlertTriangle />}
+           title="消える行があります。保存すると：">
+      {said.length > 0 &&
+        <List size="sm">
+          {said.map((s) => <List.Item key={s}>{s}</List.Item>)}
+        </List>}
       {lost.notes > 0 && (
-        <fieldset className="notes-choice">
-          <legend>消える行に感想が {lost.notes} 件あります</legend>
-          {option("move", "作品全体への感想に移す")}
-          {option("drop", "行と一緒に消す（もとに戻せません）")}
-        </fieldset>
+        <Radio.Group mt="sm" value={choice}
+                     onChange={(v) => choose(v as NotesChoice)}
+                     label={`消える行に感想が ${lost.notes} 件あります`}>
+          <Stack gap={6} mt={6}>
+            <Radio value="move" label="作品全体への感想に移す" />
+            <Radio value="drop" label="行と一緒に消す（もとに戻せません）" />
+          </Stack>
+        </Radio.Group>
       )}
-    </div>
+    </Alert>
   );
 }
 // ANCHOR_END: warning

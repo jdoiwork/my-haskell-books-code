@@ -20,11 +20,13 @@ import GHC.Generics (Generic)
 import Servant.API
 
 import Tsundoku.Api.Json
+import Tsundoku.Api.Site
 -- ANCHOR_END: header
 
 -- ANCHOR: routes
--- 🧭 The whole shelf: the list, adding, one work, and searching.
--- 本棚の全体：一覧、足す、作品1つ、探す
+-- 🧭 The whole shelf: the list, adding, one work, searching, and the
+--    review site's tags and statistics.
+-- 本棚の全体：一覧、足す、作品1つ、探す、レビューサイトのタグと統計
 data ShelfRoutes mode = ShelfRoutes
   { listWorks :: mode :- "works" :> Get '[JSON] [WorkSummary]
   , addWork   :: mode :- "works" :> ReqBody '[JSON] NewWork
@@ -33,6 +35,13 @@ data ShelfRoutes mode = ShelfRoutes
                                  :> NamedRoutes WorkRoutes
   , search    :: mode :- "search" :> QueryParam' '[Required, Strict] "q" Text
                                   :> Get '[JSON] [HitItem]
+  -- ANCHOR: siteRoutes
+  , tags      :: mode :- "tags"   :> Get '[JSON] [TagCount]
+  , tagged    :: mode :- "tags"   :> Capture "tag" Text
+                                  :> Get '[JSON] [WorkSummary]
+  , stats     :: mode :- "stats"  :> QueryParam "year" Integer
+                                  :> Get '[JSON] StatsItem
+  -- ANCHOR_END: siteRoutes
   }
   deriving stock Generic
 
@@ -64,6 +73,11 @@ data WorkRoutes mode = WorkRoutes
   , form       :: mode :- "form"    :> Get '[JSON] [FormField]
   , editAttrs  :: mode :- "attrs"   :> ReqBody '[JSON] (Map Text Text)
                                     :> Put '[JSON] [FormField]
+  -- ANCHOR: workSiteRoutes
+  , extras     :: mode :- "extras"  :> Get '[JSON] ExtrasItem
+  , setTags    :: mode :- "tags"    :> ReqBody '[JSON] [Text]
+                                    :> Put '[JSON] [Text]
+  -- ANCHOR_END: workSiteRoutes
   }
   deriving stock Generic
 

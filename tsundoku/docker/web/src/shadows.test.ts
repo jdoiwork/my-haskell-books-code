@@ -1,7 +1,10 @@
 // The shadows say what the Haskell side says.
 // 影は、Haskell の側と同じことを言う
 import { describe, expect, it } from "vitest";
-import { eventLabel, marks, stars, stateLabel, whereOf } from "./shadows";
+import {
+  eventLabel, halfStars, marks, pointsOf, stars, stateColor, stateLabel,
+  whereOf,
+} from "./shadows";
 
 describe("stars", () => {
   // 「Rating.render FiveStars と同じ丸め」
@@ -41,3 +44,23 @@ describe("whereOf", () => {
     expect(whereOf(toc, 9)).toBe("（目次にない項目）");
   });
 });
+
+// ANCHOR: site
+describe("halfStars", () => {
+  // 「Rating の★と点を行き来する。丸め方は stars と同じ」
+  it("goes between points and Rating's stars", () => {
+    expect(halfStars(73)).toBe(3.5);
+    expect(halfStars(75)).toBe(4);
+    expect(pointsOf(3.5)).toBe(70);
+    expect(marks.every((m) => pointsOf(halfStars(m)) === m)).toBe(true);
+  });
+});
+
+describe("stateColor", () => {
+  // 「状態ごとの色。知らない状態は灰色」
+  it("colours each state, and gray for others", () => {
+    expect(stateColor("Finished")).toBe("teal");
+    expect(stateColor("Lost")).toBe("gray");
+  });
+});
+// ANCHOR_END: site
