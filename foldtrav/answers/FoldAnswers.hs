@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Answers to the training of "Foldable and Traversable".
 -- 「Foldable・Traversable」のトレーニングの解答
 module FoldAnswers
@@ -8,6 +9,7 @@ module FoldAnswers
   ) where
 
 import qualified Data.Map.Strict as Map
+-- ANCHOR_END: imports
 
 -- ANCHOR: rose
 -- 🌹 Step 2: a tree whose nodes have any number of children.

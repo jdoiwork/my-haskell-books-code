@@ -1,9 +1,11 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | The same tree, with the instances made by deriving.
 -- 同じ木を、deriving でインスタンスを作って
 module Derived
   ( Tree (..)
   ) where
+-- ANCHOR_END: imports
 
 -- ANCHOR: derived
 -- 🪄 GHC writes fmap, foldMap and traverse for us.

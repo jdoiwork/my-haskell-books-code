@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | traverse in four flavors: Maybe, Either, State and IO.
 -- traverse を4つの味で：Maybe、Either、State、IO
 module Shop
@@ -10,7 +11,6 @@ module Shop
   , printAll
   ) where
 
--- ANCHOR: imports
 import Control.Monad.State
 import Data.Foldable (for_)
 import qualified Data.Map.Strict as Map

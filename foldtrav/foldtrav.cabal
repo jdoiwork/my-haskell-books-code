@@ -22,6 +22,17 @@ library
                     FoldAnswers
   hs-source-dirs:   src answers
 
+-- ANCHOR: measure
+-- Measure the reports (with -rtsopts, for +RTS -s).
+-- 集計を測る（+RTS -s のために -rtsopts を付ける）
+executable foldtrav-measure
+  import:           shared
+  main-is:          Measure.hs
+  hs-source-dirs:   app
+  build-depends:    foldtrav
+  ghc-options:      -O1 -rtsopts
+-- ANCHOR_END: measure
+
 test-suite foldtrav-test
   import:           shared
   type:             exitcode-stdio-1.0

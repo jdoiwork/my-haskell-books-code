@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | The binary search tree from "Choosing data structures", again,
 --   now with Functor and Foldable instances written by hand.
 -- 「データ構造の選び方」の二分探索木を、もう一度。
@@ -9,6 +10,7 @@ module Tree
   , fromList
   , bag
   ) where
+-- ANCHOR_END: imports
 
 -- ANCHOR: type
 -- 🌳 Empty, or a node with a left tree, a value and a right tree.

@@ -1,12 +1,15 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Several answers from one walk over the tree, thanks to Monoids.
 -- Monoid のおかげで、木を1回たどるだけで、いくつもの答え
 module Stats
   ( Report (..)
   , report
+  , Tally (..)
+  , reportStrict
   ) where
 
--- ANCHOR: imports
+import Data.Foldable  (foldMap')
 import Data.Semigroup (Max (..), Min (..), Sum (..))
 -- ANCHOR_END: imports
 
@@ -30,4 +33,26 @@ report prices =
         foldMap (\p -> (Sum 1, Sum p, Min p, Max p)) prices
   in  Report { count = n, total = s, cheapest = lo, dearest = hi }
 -- ANCHOR_END: report
+
+-- ANCHOR: strict
+-- 🧮 The same four, as one Monoid with strict fields: every <> works
+--    out the numbers at once, so nothing piles up.
+-- 同じ4つを、正格なフィールドの Monoid 1つに。<> のたびに、その場で
+-- 計算するので、何もたまらない
+data Tally = Tally !Int !Int !Int !Int
+
+instance Semigroup Tally where
+  Tally n s lo hi <> Tally n' s' lo' hi' =
+    Tally (n + n') (s + s') (min lo lo') (max hi hi')
+
+instance Monoid Tally where
+  mempty = Tally 0 0 maxBound minBound
+
+-- 🧮 foldMap' adds up from the left, at once (like foldl').
+-- foldMap' は、左から、その場で足していく（foldl' のように）
+reportStrict :: Foldable t => t Int -> Report
+reportStrict prices =
+  let Tally n s lo hi = foldMap' (\p -> Tally 1 p p p) prices
+  in  Report { count = n, total = s, cheapest = lo, dearest = hi }
+-- ANCHOR_END: strict
 -- ANCHOR_END: all
