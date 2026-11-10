@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | "What the roster can do" as a type class, so the guild's work can
 --   run on SQLite or on a pure Map in the tests.
 -- 「名簿ができること」を型クラスに。ギルドの仕事が、SQLite でも、
@@ -17,6 +18,7 @@ import Data.Text (Text)
 import App.Env
 import qualified App.Roster as Roster
 import App.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: class
 -- 📜 Anything that can find and add adventurers.

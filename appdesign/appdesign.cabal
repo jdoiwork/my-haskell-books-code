@@ -17,9 +17,10 @@ common shared
     , mtl              ^>=2.3
     , transformers     ^>=0.6
     , sqlite-simple    ^>=0.4
-    , effectful-core
+    , effectful-core   ^>=2.7
 -- ANCHOR_END: deps
 
+-- ANCHOR: lib
 library
   import:           shared
   exposed-modules:  App.Types
@@ -34,6 +35,7 @@ library
                     App.Effect
                     AppAnswers
   hs-source-dirs:   src answers
+-- ANCHOR_END: lib
 
 test-suite appdesign-test
   import:           shared

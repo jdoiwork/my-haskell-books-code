@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | The roster in the App monad: no conn, no logger in the arguments.
 -- App のモナドで書いた名簿：引数に、conn もロガーもない
 module App.Roster
@@ -13,6 +14,7 @@ import Database.SQLite.Simple
 
 import App.Env
 import App.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: roster
 -- 🗃️ Make the table.
@@ -22,6 +24,7 @@ setup = db $ \conn -> execute_ conn
   "CREATE TABLE adventurers (id INTEGER PRIMARY KEY, \
   \name TEXT UNIQUE, job TEXT, level INTEGER)"
 
+-- ANCHOR: findByName
 -- 🔍 Find by name.
 -- 名前で探す
 findByName :: Text -> App (Maybe Adventurer)
@@ -31,6 +34,7 @@ findByName who = do
   pure $ case rows of
     (i, n, j, l) : _ -> Just (Adventurer i n j l)
     []               -> Nothing
+-- ANCHOR_END: findByName
 
 -- ➕ Add one, and say so in the log.
 -- 1人足して、ログに書く

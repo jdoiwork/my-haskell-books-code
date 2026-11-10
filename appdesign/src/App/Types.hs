@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | The roster's own types. They know nothing about databases.
 -- 名簿の型。データベースのことは、何も知らない
 module App.Types
@@ -8,6 +9,7 @@ module App.Types
   ) where
 
 import Data.Text (Text)
+-- ANCHOR_END: imports
 
 -- ANCHOR: types
 -- 🧙 An adventurer in the roster, and a new one before it has an id.

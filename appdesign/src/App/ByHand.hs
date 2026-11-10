@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Passing the connection and the logger by hand, to every function.
 -- 接続とロガーを、手で、全部の関数に渡す
 module App.ByHand
@@ -12,6 +13,7 @@ import Data.Text (Text)
 import Database.SQLite.Simple
 
 import App.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: byHand
 -- 🗃️ Make the table.

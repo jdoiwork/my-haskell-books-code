@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Enlisting with ExceptT: stop at the first problem, without a
 --   staircase of case expressions.
 -- ExceptT で登録：case の階段なしに、最初の問題で止まる
@@ -7,7 +8,6 @@ module App.Enlist
   , enlistCase
   ) where
 
--- ANCHOR: imports
 import Control.Monad (when)
 import Control.Monad.Except
 import Control.Monad.Trans (lift)

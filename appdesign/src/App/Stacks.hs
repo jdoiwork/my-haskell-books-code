@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | The order of the layers matters: does the state survive an error?
 -- 重ねる順番で、意味が変わる：エラーのあと、状態は残る？
 module App.Stacks
@@ -9,6 +10,7 @@ module App.Stacks
 
 import Control.Monad.Except
 import Control.Monad.State
+-- ANCHOR_END: imports
 
 -- ANCHOR: stacks
 -- 💥 Count one, then fail. Written once, for any monad that can do both.

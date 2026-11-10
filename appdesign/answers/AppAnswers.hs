@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | Answers to the training of "Monad transformers and application design".
 -- 「モナド変換子とアプリケーション設計」のトレーニングの解答
 module AppAnswers
@@ -13,6 +14,7 @@ import Database.SQLite.Simple
 import App.Env
 import App.Roster
 import App.Types
+-- ANCHOR_END: imports
 
 -- ANCHOR: levelUp
 -- ⬆️ Step 2: raise one adventurer's level, and log it.

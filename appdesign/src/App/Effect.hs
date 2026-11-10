@@ -1,7 +1,6 @@
--- ANCHOR: pragmas
-{-# LANGUAGE TypeFamilies #-}
--- ANCHOR_END: pragmas
 -- ANCHOR: all
+-- ANCHOR: imports
+{-# LANGUAGE TypeFamilies #-}
 -- | The same roster as an effect, with effectful.
 -- 同じ名簿を、effectful のエフェクトとして
 module App.Effect
@@ -13,7 +12,6 @@ module App.Effect
   , runRosterSqlite
   ) where
 
--- ANCHOR: imports
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Database.SQLite.Simple (Connection)

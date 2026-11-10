@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: imports
 -- | The application's monad: ReaderT over IO, with the environment
 --   (the connection and the logger) inside.
 -- アプリのモナド：IO の上の ReaderT。環境（接続とロガー）を中に持つ
@@ -11,7 +12,6 @@ module App.Env
   , db
   ) where
 
--- ANCHOR: imports
 import Control.Monad.Reader
 import Data.Text (Text)
 import Database.SQLite.Simple (Connection)
