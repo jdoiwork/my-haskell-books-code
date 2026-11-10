@@ -55,6 +55,16 @@ executable train-mnist
     , filepath         ^>=1.5
 -- ANCHOR_END: mnistexe
 
+-- The answer to step 3: the confusion table.
+-- ステップ3の解答：混同行列を見せる
+executable confusion-digits
+  import:           shared
+  main-is:          ConfusionMain.hs
+  hs-source-dirs:   answers/app
+  ghc-options:      -O2
+  build-depends:
+    , minitorch
+
 -- ANCHOR: test
 test-suite minitorch-test
   import:           shared
