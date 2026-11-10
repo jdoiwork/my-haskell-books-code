@@ -9,24 +9,33 @@ import Test.QuickCheck
 import Modern.Crdt
 import ModernAnswers (PNCounter, decrement, pnValue, pnIncrement)
 
+-- ANCHOR: arbitrary
 -- 🎲 A few devices, so that they meet often.
 -- 端末は少しだけ（よく出会うように）
 deviceName :: Gen String
 deviceName = elements ["lambda", "python", "rust"]
 
+-- 🎲 A counter counted up by a random list of devices.
+-- でたらめな端末の並びで数えたカウンター
 instance Arbitrary GCounter where
   arbitrary = do
     devices <- listOf deviceName
     pure (foldr increment (GCounter Map.empty) devices)
 
+-- 🎲 The draft that adds: the same counts, in the other type.
+-- 足す下書き：同じ数を、もう1つの型に入れる
 instance Arbitrary AddCounter where
   arbitrary = do
     GCounter counts <- arbitrary
     pure (AddCounter counts)
 
+-- 🎲 A small time (so that ties happen), a device, and a value.
+-- 小さな時刻（同じ時刻がよく出るように）、端末、値
 instance Arbitrary a => Arbitrary (Lww a) where
   arbitrary = Lww <$> chooseInt (0, 3) <*> deviceName <*> arbitrary
 
+-- 🎲 The draft register wraps a random register.
+-- 下書きのレジスターは、でたらめなレジスターを包むだけ
 instance Arbitrary a => Arbitrary (LwwDraft a) where
   arbitrary = LwwDraft <$> arbitrary
 
@@ -40,6 +49,7 @@ instance Arbitrary (OrSet Char) where
           | isAdd     = add (dev, n) item set
           | otherwise = remove item set
     pure (foldl step emptySet (zip [0 ..] ops))
+-- ANCHOR_END: arbitrary
 
 -- ANCHOR: laws
 -- 📏 The three laws of a CRDT merge.

@@ -155,12 +155,14 @@ kindB :: ExchangeKind -> Builder
 kindB Fanout = "fanout"
 kindB Direct = "direct"
 kindB Topic  = "topic"
+-- ANCHOR: ack-pieces
 -- 🔢 A number after a space.
 -- 空白のあとの数
 number :: Parser Int
 number = char ' ' *> decimal
 
 -- ✅ "ACK 7", "REQUEUE 7", "REJECT 7".
+-- 「ACK 7」「REQUEUE 7」「REJECT 7」
 settleWord :: Settlement -> ByteString
 settleWord Ack     = "ACK"
 settleWord Requeue = "REQUEUE"
@@ -190,5 +192,6 @@ deliveryP = do
 deliveryB :: Delivery -> [Builder]
 deliveryB (Delivery (Tag n) m again) =
   intDec n : (if again then "again" else "new") : letterB m
+-- ANCHOR_END: ack-pieces
 -- ANCHOR_END: pieces
 -- ANCHOR_END: all

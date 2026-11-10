@@ -153,7 +153,8 @@ instance FromJSON BoardOp where
       _              -> fail ("unknown op: " <> T.unpack name)
 -- ANCHOR_END: json
 
--- The board in a file: a list of quests.
+-- ANCHOR: boardJson
+-- 💾 The board in a file: a list of quests.
 -- ファイルの中の依頼板：依頼のリスト
 instance ToJSON Board where
   toJSON board = toJSON (map questJson (quests board))
@@ -173,6 +174,8 @@ instance ToJSON Board where
       stageWho (TakenBy who) = Just who
       stageWho (DoneBy who)  = Just who
 
+-- 📂 Read the list back, and file the quests by their ids.
+-- リストを読み戻して、依頼を番号ごとにしまう
 instance FromJSON Board where
   parseJSON v = do
     list <- parseJSON v
@@ -189,4 +192,5 @@ instance FromJSON Board where
           ("done", Just w)   -> pure (DoneBy w)
           _                  -> fail "a broken stage"
         Quest <$> o .: "id" <*> o .: "title" <*> o .: "reward" <*> pure stage
+-- ANCHOR_END: boardJson
 -- ANCHOR_END: all

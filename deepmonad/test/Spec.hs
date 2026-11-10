@@ -25,18 +25,30 @@ instance Arbitrary a => Arbitrary (Quest a) where
     ]
 -- ANCHOR_END: arbitrary
 
+-- ANCHOR: arbitraryBroken
+-- 🎲 Random counted boxes: a small count (never below 0) and a value.
+--    shrink makes a failing example smaller, keeping the count >= 0.
+-- でたらめな数える箱：小さな回数（0 より下にしない）と値。
+-- shrink は、失敗した例を、回数を 0 以上に保ったまま小さくする
 instance Arbitrary a => Arbitrary (Counted a) where
   arbitrary = Counted <$> chooseInt (0, 5) <*> arbitrary
   shrink (Counted n x) =
     [ Counted n' x' | (n', x') <- shrink (n, x), n' >= 0 ]
 
-instance Arbitrary a => Arbitrary (Pair a) where
-  arbitrary = Pair <$> arbitrary <*> arbitrary
-
+-- 🎲 Random step boxes, made the same way.
+-- でたらめな歩数の箱。作り方は同じ
 instance Arbitrary a => Arbitrary (Steps a) where
   arbitrary = Steps <$> chooseInt (0, 5) <*> arbitrary
   shrink (Steps n x) =
     [ Steps n' x' | (n', x') <- shrink (n, x), n' >= 0 ]
+-- ANCHOR_END: arbitraryBroken
+
+-- ANCHOR: arbitraryPair
+-- 🎲 Random pairs: two random values.
+-- でたらめな2つ組：でたらめな値を2つ
+instance Arbitrary a => Arbitrary (Pair a) where
+  arbitrary = Pair <$> arbitrary <*> arbitrary
+-- ANCHOR_END: arbitraryPair
 
 -- ANCHOR: functorLaws
 -- 🧺 The two Functor laws, for any Functor we can generate and compare.
@@ -134,10 +146,12 @@ main = hspec $ do
       checkout payHaggle 100 [30, 80] `shouldBe` [30, 5, 45]
       traverse readHp ["30", "x"] `shouldBe` Nothing
   describe "answers" $ do
+    -- ANCHOR: pairSpec
     -- ステップ2：Pair は恒等の法則を守る
     it "Pair keeps functor identity" $ property (functorIdentity @Pair)
     -- ステップ2：Pair は合成の法則も守る
     it "Pair keeps functor composition" $ property (functorCompose @Pair)
+    -- ANCHOR_END: pairSpec
     -- ステップ3：お金の確かめも、まとめて集まる
     it "applyWithGold collects the gold problem too" $
       applyWithGold "" 30 "mage" 20 `shouldBe`

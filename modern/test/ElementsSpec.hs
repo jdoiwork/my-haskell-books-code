@@ -7,8 +7,12 @@ import Test.QuickCheck
 import Modern.Elements
 import ModernAnswers
 
+-- ANCHOR: arbitrary
+-- 🎲 A random element: pick one of all of them.
+-- でたらめな属性：全部の中から1つ選ぶ
 instance Arbitrary Element where
   arbitrary = elements [minBound .. maxBound]
+-- ANCHOR_END: arbitrary
 
 spec :: Spec
 spec = describe "Modern.Elements" $ do
