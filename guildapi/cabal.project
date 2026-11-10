@@ -5,4 +5,3 @@ packages: .
 
 allow-newer:
   , openapi3:aeson
-  , servant-openapi3:aeson
