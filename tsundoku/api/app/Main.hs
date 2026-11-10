@@ -305,6 +305,5 @@ stateLabel state = case state of
   Reading   -> "読書中"
   Finished  -> "読了"
   Paused    -> "中断"
-  Rereading -> "再読"
 -- ANCHOR_END: label
 -- ANCHOR_END: all

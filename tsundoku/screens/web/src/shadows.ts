@@ -25,7 +25,7 @@ export const marks: number[] = Array.from({ length: 11 }, (_, i) => i * 10);
 // 読書の状態と、できごとの言葉
 const stateWords: Record<string, string> = {
   Piled: "積読", Reading: "読書中", Finished: "読了",
-  Paused: "中断", Rereading: "再読",
+  Paused: "中断",
 };
 const eventWords: Record<string, string> = {
   Start: "読み始める", Finish: "読み終えた", Stop: "中断する",

@@ -62,7 +62,6 @@ pathTo state = case state of
   Reading   -> [Start]
   Finished  -> [Start, Finish]
   Paused    -> [Start, Stop]
-  Rereading -> [Start, Finish, Reread]
 -- ANCHOR_END: move
 
 -- ANCHOR: moveFile

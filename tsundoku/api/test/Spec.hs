@@ -50,9 +50,7 @@ expectedMoves =
   , (Reading  , Finish, Finished )
   , (Reading  , Stop  , Paused   )
   , (Paused   , Resume, Reading  )
-  , (Finished , Reread, Rereading)
-  , (Rereading, Finish, Finished )
-  , (Rereading, Stop  , Finished )
+  , (Finished , Reread, Reading  )
   ]
 
 -- 📋 Every value of a small type, like all states or all events.
@@ -202,14 +200,15 @@ main = hspec $ do
       forAll (listOf (elements everything)) $ \events ->
         let afterPile = dropWhile (== Piled) (walk Piled events)
         in  Piled `notElem` afterPile
-    -- 「一度、読了したら、読了か再読のまま」
-    prop "once finished, stays finished or rereading" $
+    -- 「読了から出るのは、読み返して読書中に戻るときだけ」
+    prop "leaves finished only by rereading, back to reading" $
       forAll (listOf (elements everything)) $ \events ->
-        let states      = walk Piled events
-            afterFinish = dropWhile (/= Finished) states
+        let states = walk Piled events
+            leaves = [ next | (Finished, next) <- zip states (drop 1 states)
+                            , next /= Finished ]
         in  checkCoverage
-              $ cover 40 (not (null afterFinish)) "reaches Finished"
-              $ all (`elem` [Finished, Rereading]) afterFinish
+              $ cover 40 (Finished `elem` states) "reaches Finished"
+              $ all (== Reading) leaves
 
   -- 「目次と感想」
   describe "tables and notes" $ do

@@ -21,8 +21,7 @@ moves state = case state of
   Piled     -> [(Start , Reading )]
   Reading   -> [(Finish, Finished), (Stop, Paused  )]
   Paused    -> [(Resume, Reading )]
-  Finished  -> [(Reread, Rereading)]
-  Rereading -> [(Finish, Finished), (Stop, Finished)]
+  Finished  -> [(Reread, Reading )]
 -- ANCHOR_END: moves
 
 -- ANCHOR: advance

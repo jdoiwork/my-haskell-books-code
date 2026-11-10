@@ -110,8 +110,8 @@ rate r card = card { rating = Just r }
 -- その人に見せてよい感想：ネタバレは、読み終えてから
 visibleTo :: ReadingState -> [Note] -> [Note]
 visibleTo state allNotes
-  | state `elem` [Finished, Rereading] = allNotes
-  | otherwise = [ note | note <- allNotes, not (spoiler note) ]
+  | state == Finished = allNotes
+  | otherwise         = [ note | note <- allNotes, not (spoiler note) ]
 -- ANCHOR_END: visibleTo
 
 -- ANCHOR: logReading

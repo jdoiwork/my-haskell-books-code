@@ -20,7 +20,6 @@ stateLabel state = case state of
   Reading   -> "読書中"
   Finished  -> "読了"
   Paused    -> "中断"
-  Rereading -> "再読"
 
 -- 🔘 The word on the button of each event.
 -- できごとのボタンに書く言葉

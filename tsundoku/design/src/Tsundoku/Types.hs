@@ -150,7 +150,6 @@ data ReadingState
   | Reading     -- reading now / 読書中
   | Finished    -- read to the end / 読了
   | Paused      -- stopped for now / 中断
-  | Rereading   -- reading again after finishing / 再読
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- 🔔 What I do with a work.

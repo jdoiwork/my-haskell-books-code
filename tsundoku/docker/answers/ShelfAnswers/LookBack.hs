@@ -19,7 +19,6 @@ data ReadingState
   | LookingBack   -- looking back in the middle / 途中で読み返し中
   | Finished
   | Paused
-  | Rereading
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Event
@@ -37,8 +36,7 @@ moves state = case state of
   Reading     -> [(Finish, Finished), (Stop, Paused), (LookBack, LookingBack)]
   LookingBack -> [(Resume, Reading )]
   Paused      -> [(Resume, Reading )]
-  Finished    -> [(Reread, Rereading)]
-  Rereading   -> [(Finish, Finished), (Stop, Finished)]
+  Finished    -> [(Reread, Reading )]
 
 advance :: Event -> ReadingState -> Maybe ReadingState
 advance event state = lookup event (moves state)

@@ -70,7 +70,7 @@ data Seen = Shown Note | Hidden Target
 seenNotes :: Card -> [Seen]
 seenNotes card = map see card.notes
   where
-    over     = card.reading `elem` [Finished, Rereading]
+    over     = card.reading == Finished
     done     = finishedIn card.readLog
     see note = case note.target of
       _ | not note.spoiler || over     -> Shown note
@@ -108,12 +108,12 @@ instance Monoid MonthStat where
 
 -- 🏁 The day a work was finished: the last day in its log, if it is
 --    finished (or being read again).
--- 作品を読み終えた日：読み終えている（か、読み返している）なら、ログの
+-- 作品を読み終えた日：読み終えているなら、ログの
 -- 最後の日
 finishedOn :: Card -> Maybe Day
 finishedOn card
-  | card.reading `elem` [Finished, Rereading], not (null days) = Just (maximum days)
-  | otherwise                                                    = Nothing
+  | card.reading == Finished, not (null days) = Just (maximum days)
+  | otherwise                                 = Nothing
   where
     days = map readOn card.readLog
 
