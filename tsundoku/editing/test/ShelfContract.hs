@@ -133,6 +133,7 @@ shelfContract = do
   searchContract
   -- 作品を手で直す（11章目）
   reviseContract
+  staleContract
   -- 読んだ印を外す（11章目）
   unreadContract
   where
@@ -525,6 +526,7 @@ reviseContract = do
   it "fixes the title of a film, but gives it no table" $ \shelf -> do
     wid <- shelf.addWork lastDragonFilm
     let renamed = Revision "最後のドラゴン（完全版）" "竜の会" [] MoveToWork
+                           (Card.asOpened lastDragonFilm)
     shelf.reviseWork wid renamed { newToc = newToc dragonFix }
       `shouldReturn` Left NoTable
     shelf.reviseWork wid renamed `shouldReturn` Right ()
@@ -533,6 +535,50 @@ reviseContract = do
   where
     places shelf typed = fmap (map place) <$> shelf.searchText typed
 -- ANCHOR_END: reviseContract
+
+-- ANCHOR: staleContract
+-- 📸 Fixing a work that changed after the screen opened, on any shelf.
+-- 画面を開いたあとに変わった作品を直す（どの本棚でも）
+staleContract :: SpecWith Shelf
+staleContract = do
+
+  -- 「開いたあとに話が足されたら、保存は断られ、足された話は★ごと残る」
+  it "refuses a fix if lines came after it opened, and keeps them" $
+    \shelf -> do
+      wid <- shelf.addWork librarianSerial
+      -- The screen opens, and fixes the creator.
+      -- 画面が開いて、作者を直す
+      let typed = (Card.asRevision librarianSerial)
+                    { newCreator = "しおり堂（改）" }
+      -- Meanwhile, `shelf updates` finds a new episode, rated at once.
+      -- そのあいだに shelf updates が新しい話を見つけ、すぐ★を付ける
+      shelf.addEpisodes wid 1 `shouldReturn` Right ()
+      grown <- fromJust <$> shelf.getCard wid
+      let new = last (entryIds (contents (work grown)))
+      _     <- shelf.rateEntry wid new (surely (score 90))
+      kept  <- shelf.getCard wid
+      shelf.reviseWork wid typed `shouldReturn` Left ChangedElsewhere
+      shelf.getCard wid `shouldReturn` kept
+
+  -- 「同じ作品を2つの画面で開くと、あとから保存したほうは断られる」
+  it "refuses the later of two screens opened on one work" $ \shelf -> do
+    wid <- addDragon shelf
+    shelf.reviseWork wid dragonFix `shouldReturn` Right ()
+    first <- shelf.getCard wid
+    shelf.reviseWork wid dragonFix { newCreator = "竜の会" }
+      `shouldReturn` Left ChangedElsewhere
+    shelf.getCard wid `shouldReturn` first
+
+  -- 「開いたあとに★・感想・読書ログが変わっても、断らない」
+  it "fixes the work, though ratings and notes changed after it opened" $
+    \shelf -> do
+      wid <- addDragon shelf
+      _   <- shelf.rateEntry wid (EntryId 8) (surely (score 70))
+      _   <- shelf.addNote wid (Note OnWork "もう一度読みたい"
+                                     (onDay 2026 11 12) False)
+      _   <- shelf.logReading wid (LogLine (nov 12) (EntryId 6))
+      shelf.reviseWork wid dragonFix `shouldReturn` Right ()
+-- ANCHOR_END: staleContract
 
 -- ANCHOR: unreadContract
 -- 🧽 Taking back a mark, on any shelf.

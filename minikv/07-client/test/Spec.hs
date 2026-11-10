@@ -4,8 +4,8 @@ module Main (main) where
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
-import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay,
-                           withMVar)
+import Control.Concurrent (modifyMVar_, newEmptyMVar, putMVar, takeMVar,
+                           threadDelay, withMVar)
 import Control.Concurrent.STM (readTVarIO)
 import Control.Concurrent.Async (cancel, concurrently, forConcurrently_,
                                  poll, wait, withAsync)
@@ -15,7 +15,7 @@ import Data.IORef
 import Data.Maybe (isNothing)
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.FilePath ((</>))
-import System.IO (hClose, openTempFile)
+import System.IO (IOMode (..), hClose, openFile, openTempFile)
 import System.Timeout (timeout)
 import Control.Monad (forM_, forever, replicateM_)
 import Test.Hspec
@@ -318,6 +318,37 @@ main = hspec $ do
           late <- timeout 5000000 $
             try @IOException (request conn ["GET", "hero"])
           fmap isLeft late `shouldBe` Just True
+    -- ログに書けなくなったら、変更を断り、それからあとも断り続ける。
+    -- 読むのは続けられ、断った変更は、ストアにもログにもない
+    it "refuses changes once the log cannot be written" $ do
+      dir <- getTemporaryDirectory
+      (path, h) <- openTempFile dir "minikv-full.log"
+      hClose h
+      (env, _) <- openEnv systemClock (Just path)
+      let misconf reply = case reply of
+            WError e -> "MISCONF" `BS.isPrefixOf` e
+            _        -> False
+      runCommand env (Set "hero" "Lambda") `shouldReturn` WSimple "OK"
+      -- The disk breaks: closing the handle makes every write fail.
+      -- ディスクが壊れた：Handle を閉じると、書くたびに失敗する
+      forM_ (journal env) $ \lock -> withMVar lock hClose
+      runCommand env (Set "hero" "Python") >>= (`shouldSatisfy` misconf)
+      -- The disk is back (a fresh handle), but changes stay refused.
+      -- ディスクは戻った（新しい Handle）が、変更は断られたまま
+      forM_ (journal env) $ \lock ->
+        modifyMVar_ lock (\_ -> openFile path AppendMode)
+      runCommand env (Set "gold" "10") >>= (`shouldSatisfy` misconf)
+      -- Reads go on, and see none of the refused changes.
+      -- 読むのは続けられ、断った変更は見えない
+      runCommand env (Get "hero") `shouldReturn` WBulk (Just "Lambda")
+      runCommand env (Get "gold") `shouldReturn` WBulk Nothing
+      forM_ (journal env) $ \lock -> withMVar lock hClose
+      -- The log has just the change that was answered OK.
+      -- ログには、OK と答えた変更だけ
+      r <- replay <$> BS.readFile path
+      removeFile path
+      (problem r, replayedStore r) `shouldBe`
+        (Nothing, snd (applyAll 0 [Set "hero" "Lambda"] emptyStore))
   -- ANCHOR_END: persistSpec
 
   -- ANCHOR: pubsubSpec

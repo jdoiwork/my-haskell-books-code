@@ -2,16 +2,20 @@
 // The screen to fix a work: its title, its creator, and its table, one
 // row at a time. Each row remembers the number it had, and sends it back
 // when saved; that is how the shelf knows which line is which, even
-// after it was renamed or moved.
+// after it was renamed or moved. The work as the screen opened it goes
+// along too, so the shelf refuses if it changed meanwhile.
 // 作品を直す画面：題・作者と、目次を1行ずつ。どの行も、もとの番号を覚えて
 // いて、保存するときに送り返す。名前が変わっても、動いても、本棚がどの行が
-// どれかをわかるのは、そのため
-import { useEffect, useState } from "react";
+// どれかをわかるのは、そのため。画面を開いたときの作品も一緒に送るので、
+// そのあいだに変わっていれば、本棚が断る
+import { useCallback, useEffect, useState } from "react";
 
 import { shelf } from "./api";
 import { unitOf } from "./kinds";
 import { Problems } from "./NewWork";
-import { editedOf, type Losses, losses, type Row, rowsOf } from "./outline";
+import {
+  editedOf, type Losses, losses, openedOf, type Row, rowsOf,
+} from "./outline";
 import { TocRows } from "./TocRows";
 import type { CardDetail } from "./tsundoku-api";
 
@@ -28,38 +32,60 @@ export function EditWork({ id, onDone }: {
   // what to do with the notes on lines that are gone: the safe way first
   // 消える行の感想をどうするか：はじめは安全な方
   const [removedNotes, setRemovedNotes] = useState<NotesChoice>("move");
+  // the work changed elsewhere since this screen opened
+  // この画面を開いたあとに、ほかの所で作品が変わった
+  const [stale, setStale] = useState(false);
 
-  useEffect(() => {
+  // 📥 Read the card, and start from it. Also what "read again" does.
+  // カードを読んで、そこから始める。「読み直す」も、これ
+  const load = useCallback(() => {
     shelf.card(id).then((a) => {
       if (!a.ok) return;
       setCard(a.value);
       setTitle(a.value.work.title);
       setCreator(a.value.work.creator);
       setRows(rowsOf(a.value.toc));
+      setProblems([]);
+      setStale(false);
     });
   }, [id]);
+
+  useEffect(load, [load]);
 
   if (card === null) return <p>読みこみ中…</p>;
   const unit = unitOf(card.work.kind);
   const lost = losses(card, rows);
 
-  // 💾 Send the whole work back. The shelf says yes (the new card), or
-  //    what is wrong and where.
-  // 作品の全部を送り返す。本棚は「よし」（新しいカード）か、どこがなぜ
-  // まずいかを言う
+  // ANCHOR: save
+  // 💾 Send the whole work back, with the work as it was when the screen
+  //    opened. The shelf says yes (the new card), or what is wrong and
+  //    where. If it changed elsewhere (409), what was typed stays.
+  // 作品の全部を、画面を開いたときの作品と一緒に送り返す。本棚は「よし」
+  // （新しいカード）か、どこがなぜまずいかを言う。ほかの所で変わっていた
+  // ら（409）、打ったものは消さずに残す
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     const a = await shelf.revise(id, {
       title, creator, toc: editedOf(rows), removedNotes,
+      opened: openedOf(card),
     });
-    if (a.ok) onDone();
-    else setProblems(a.problem.messages);
+    if (a.ok) return onDone();
+    setProblems(a.problem.messages);
+    setStale(a.problem.mistake === "changed-elsewhere");
   };
+  // ANCHOR_END: save
 
   return (
     <form className="edit" onSubmit={save}>
       <h1>作品を直す</h1>
       <Problems messages={problems} />
+      {stale && (
+        <p className="actions">
+          <button type="button" onClick={load}>
+            読み直す（いま打ったものは消えます）
+          </button>
+        </p>
+      )}
       <label>題 <input value={title}
                       onChange={(e) => setTitle(e.target.value)} /></label>
       <label>作者 <input value={creator}

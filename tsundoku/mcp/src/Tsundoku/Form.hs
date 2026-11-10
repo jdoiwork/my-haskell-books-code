@@ -118,6 +118,8 @@ explain mistake = case mistake of
   BadToc ps          -> map explainToc ps
   EntryTwice _       -> ["同じ項目が、目次に2回出てきます"]
   NoTable            -> ["映画とゲームには、目次がありません"]
+  ChangedElsewhere   -> [ "開いたあとに、ほかの所で題・作者・目次が"
+                          <> "変わりました。読み直してから直してください" ]
   -- ANCHOR_END: explainEdit
   where
     from Nothing  = "まだ入っていないので、"

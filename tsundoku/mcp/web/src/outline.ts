@@ -7,7 +7,7 @@
 // 変えるのも簡単で、木（EditedItem・Outline）にするのは送るときだけ。
 // ここに React はないので、関数を1つずつテストできる（outline.test.ts）
 import type {
-  CardDetail, EditedItem, Outline, TocItem,
+  CardDetail, EditedItem, OpenedWork, Outline, TocItem,
 } from "./tsundoku-api";
 
 // ANCHOR: row
@@ -207,4 +207,20 @@ export function losses(card: CardDetail, rows: Row[]): Losses {
   };
 }
 // ANCHOR_END: losses
+
+// ANCHOR: opened
+// 📸 The work as the edit screen opened it, in the shape the shelf
+//    compares: the title, the creator, and the table with its numbers.
+//    Sent back with the fix, so the shelf can tell if it changed since.
+// 直す画面が開いたときの作品を、本棚がくらべる形で：題、作者、番号つきの
+// 目次。直したものと一緒に送り返すので、本棚は、そのあいだに変わったかが
+// わかる
+export function openedOf(card: CardDetail): OpenedWork {
+  return {
+    title: card.work.title,
+    creator: card.work.creator,
+    toc: editedOf(rowsOf(card.toc)),
+  };
+}
+// ANCHOR_END: opened
 // ANCHOR_END: all

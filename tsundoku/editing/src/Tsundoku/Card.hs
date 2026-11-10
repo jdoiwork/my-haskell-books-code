@@ -24,6 +24,7 @@ module Tsundoku.Card
   , checkWork
   , titleLimit
   , revise
+  , asOpened
   , asRevision
   , newItems
   , followTable
@@ -286,43 +287,65 @@ amountsIn w = case contents w of
       [ (heading e, count (size e)) | e <- concatMap flatten toc ]
 -- ANCHOR_END: checkWork
 -- ANCHOR: revise
--- ✏️ Fix a work by hand: a new title, creator, and table. A line with a
---    number keeps it, wherever it moved; a new line gets the next number
---    from `from` on (the shelf keeps that many free: newItems). Then the
---    new work goes through the same gate as a new one (checkWork), and
---    what hung on a line that is gone is carried over (followTable).
--- 作品を手で直す：新しい題・作者・目次。番号のある行は、どこへ動いても
--- 番号を保つ。新しい行は from から順に番号をもらう（本棚はその分を空けて
--- おく：newItems）。そのあと、新しい作品と同じ門（checkWork）を通し、
--- 消えた行にぶら下がっていたものを引き継ぐ（followTable）
+-- ✏️ Fix a work by hand: a new title, creator, and table. First, the
+--    work must still be as the screen saw it (basedOn); if it changed
+--    meanwhile, say so and change nothing. A line with a number keeps
+--    it, wherever it moved; a new line gets the next number from `from`
+--    on (the shelf keeps that many free: newItems). Then the new work
+--    goes through the same gate as a new one (checkWork), and what hung
+--    on a line that is gone is carried over (followTable).
+-- 作品を手で直す：新しい題・作者・目次。まず、作品が画面の見たとおりの
+-- ままか（basedOn）を確かめる。そのあいだに変わっていたら、そう言って、
+-- 何も変えない。番号のある行は、どこへ動いても番号を保つ。新しい行は
+-- from から順に番号をもらう（本棚はその分を空けておく：newItems）。
+-- そのあと、新しい作品と同じ門（checkWork）を通し、消えた行にぶら
+-- 下がっていたものを引き継ぐ（followTable）
 revise :: EntryId -> Revision -> Card -> Checked Card
 revise from r card = do
+  -- ANCHOR: staleCheck
+  when (asOpened (work card) /= basedOn r) (Left ChangedElsewhere)
+  -- ANCHOR_END: staleCheck
   table <- retable from r (contents (work card))
   fixed <- checkWork (Work (newTitle r) (newCreator r) table)
   pure (followTable (notesOnRemoved r) (entryIds table)
                     card { work = fixed })
 
--- 🪞 A work as a revision that changes nothing: every line keeps its
---    number, heading, and size. An edit screen starts from this, with
---    the safe choice for notes.
--- 何も変えない Revision としての作品：どの行も、番号・見出し・量を
--- そのまま持つ。直す画面は、ここから始める。感想は、安全な方を選んでおく
-asRevision :: Work -> Revision
-asRevision w = Revision
-  { newTitle       = title w
-  , newCreator     = creator w
-  , newToc         = case contents w of
+-- ANCHOR: asOpened
+-- 📸 A work as the edit screen sees it when it opens: the title, the
+--    creator, and every line with its number, heading, and size.
+-- 直す画面が開いたときに見る作品：題、作者、番号・見出し・量つきの全部の行
+asOpened :: Work -> Opened
+asOpened w = Opened
+  { openedTitle   = title w
+  , openedCreator = creator w
+  , openedToc     = case contents w of
       Book   toc -> items toc
       Serial toc -> items toc
       Series toc -> items toc
       Film   _   -> []
       Game       -> []
-  , notesOnRemoved = MoveToWork
   }
   where
     items :: Amount u => Toc u -> Forest Item
     items = map (fmap (\e -> Item (Just (entryId e)) (heading e)
                                   (count (size e))))
+-- ANCHOR_END: asOpened
+
+-- 🪞 A work as a revision that changes nothing, based on the work as it
+--    is now. An edit screen starts from this, with the safe choice for
+--    notes.
+-- 何も変えない Revision としての作品。いまの作品をもとにする。直す画面は、
+-- ここから始める。感想は、安全な方を選んでおく
+asRevision :: Work -> Revision
+asRevision w = Revision
+  { newTitle       = openedTitle seen
+  , newCreator     = openedCreator seen
+  , newToc         = openedToc seen
+  , notesOnRemoved = MoveToWork
+  , basedOn        = seen
+  }
+  where
+    seen = asOpened w
 
 -- 🔢 How many lines of the revision are new (need a number).
 -- 直した目次の、新しい行（番号の要る行）の数

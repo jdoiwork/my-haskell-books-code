@@ -15,6 +15,7 @@ import Test.QuickCheck
 import Control.Concurrent.STM
 import Data.IORef
 import Data.List (isPrefixOf)
+import qualified Data.Map as Map
 import qualified Data.Text.IO as TIO
 import System.Directory (listDirectory)
 import System.FilePath ((</>))
@@ -57,7 +58,8 @@ genDocs = do
   where
     genDoc i = do
       ws <- listOf (elements vocabulary)
-      pure (Document (DocId i) (T.pack (show i)) (T.unwords ws))
+      pure (Document (DocId (T.pack (show i))) (T.pack (show i))
+                     (T.unwords ws))
 -- ANCHOR_END: head
 
 -- ANCHOR: parse
@@ -127,8 +129,8 @@ main = hspec $ do
   describe "toDocument" $
     -- 「1行目が題、残りが本文」
     it "takes the first line as the title" $
-      toDocument 3 "Slime\nSoft and blue.\n"
-        `shouldBe` Document (DocId 3) "Slime" "Soft and blue.\n"
+      toDocument (DocId "abc") "Slime\nSoft and blue.\n"
+        `shouldBe` Document (DocId "abc") "Slime" "Soft and blue.\n"
 
   -- 「抜粋」
   describe "snippet" $ do
@@ -196,7 +198,7 @@ main = hspec $ do
           `shouldRespondWith` 200
             { matchBody = bodyEquals (encode (SearchResponse
                 "dragon fire" 3
-                [HitView 6 "Dragon Tamer" 0.49302709040113113
+                [HitView "6" "Dragon Tamer" 0.49302709040113113
                    ( "A [dragon] tamer speaks to a [dragon]"
                        <> " with a flute. A ..." )]))
             }
@@ -283,6 +285,52 @@ main = hspec $ do
       property $ forAll genDocs $ \docs -> forAll (chooseInt (1, 3)) $ \n ->
         buildIndexParallel n docs === buildIndex docs
   -- ANCHOR_END: monoid
+
+  -- ANCHOR: ids
+  -- 「文書の番号」
+  describe "document ids" $ do
+    -- 「名前と中身の SHA-256 の頭12文字（shasum -a 256 で求めた値）」
+    it "is the first 12 hex digits of SHA-256 of the name and bytes" $
+      fileDocId "slime.txt" "Slime\nSoft and blue.\n"
+        `shouldBe` DocId "a0d3e1943e72"
+
+    -- 「中身が同じでも、名前がちがえば別の番号」
+    it "gives different ids to different names with the same bytes" $ do
+      fileDocId "a.txt" "Slime" `shouldNotBe` fileDocId "b.txt" "Slime"
+      -- The \0 keeps the name and the bytes apart.
+      -- \0 が、名前と中身の境目を守る
+      fileDocId "ab" "c" `shouldNotBe` fileDocId "a" "bc"
+
+    -- 「ほかのファイルが増えても、同じファイルは同じ番号のまま」
+    it "keeps the id of a file when another file is added" $
+      withSystemTempDirectory "minisearch" $ \dir -> do
+        writeFile (dir </> "slime.txt") "Slime\nSoft and blue.\n"
+        older <- readDocuments dir
+        -- A new file that comes first in name order.
+        -- 名前の順で先頭に来る、新しいファイル
+        writeFile (dir </> "elf-village.txt") "Elf Village\nTall trees.\n"
+        newer <- readDocuments dir
+        let idOf title docs = [ docId d | d <- docs, docTitle d == title ]
+        length older `shouldBe` 1
+        idOf "Slime" newer `shouldBe` idOf "Slime" older
+
+    -- 「中身を変えて作り直すと、古い番号では見つからない」
+    it "forgets the old id when the contents change" $
+      withSystemTempDirectory "minisearch" $ \dir -> do
+        let path = dir </> "slime.txt"
+        writeFile path "Slime\nSoft and blue.\n"
+        live  <- newLive english (readDocuments dir)
+        [old] <- Map.keys . indexDocs <$> currentIndex live
+        writeFile path "Slime\nSoft and red.\n"
+        started <- startReindex live
+        waitIdle live
+        docs <- indexDocs <$> currentIndex live
+        started `shouldBe` True
+        -- The new contents are there, but not under the old id.
+        -- 新しい中身はある。でも、古い番号では引けない
+        map docBody (Map.elems docs) `shouldBe` ["Soft and red.\n"]
+        Map.lookup old docs `shouldBe` Nothing
+  -- ANCHOR_END: ids
 
   -- ANCHOR: live
   -- 「生きているインデックス」

@@ -2,8 +2,8 @@
 // 目次の行：木にする、動かす
 import { describe, expect, it } from "vitest";
 import {
-  addAfter, editedOf, indent, losses, moveDown, moveUp, outdent,
-  marksFor, outlineOf, remove, type Row, rowsOf, withoutBlank,
+  addAfter, editedOf, indent, losses, moveDown, moveUp, openedOf,
+  outdent, marksFor, outlineOf, remove, type Row, rowsOf, withoutBlank,
 } from "./outline";
 import type { CardDetail, TocItem } from "./tsundoku-api";
 
@@ -52,6 +52,22 @@ describe("trees", () => {
     expect(losses(card, kept)).toEqual({ notes: 1, rated: 1, read: 1 });
     expect(losses(card, rowsOf(toc)))
       .toEqual({ notes: 0, rated: 0, read: 0 });
+  });
+  // 「開いたときの作品は、題・作者と、番号つきの目次の全部（★や印はなし）」
+  it("keeps the work as it opened: title, creator, every line", () => {
+    const card = {
+      work: { title: "竜", creator: "ギルド" },
+      toc,
+    } as unknown as CardDetail;
+    expect(openedOf(card)).toEqual({
+      title: "竜",
+      creator: "ギルド",
+      toc: [
+        { id: 1, heading: "第1部", size: 2,
+          children: [{ id: 2, heading: "第1章", size: 4, children: [] }] },
+        { id: 3, heading: "第2部", size: 2, children: [] },
+      ],
+    });
   });
 });
 

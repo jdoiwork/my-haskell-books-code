@@ -38,6 +38,7 @@ module Tsundoku.Types
     -- * Fixing a work by hand / 作品を手で直す
   , Item (..)
   , Revision (..)
+  , Opened (..)
   , NotesOnRemoved (..)
     -- * Mistakes / まちがい
   , Mistake (..)
@@ -356,17 +357,35 @@ data Item = Item
   deriving (Show, Eq)
 
 -- ✏️ A work as fixed by hand: its title, its creator, and its whole
---    table, as it should be from now on. What it is (a book, a serial,
---    ...) does not change.
--- 手で直した作品：題、作者、これからの目次の全部。種類（本・連載……）は
--- 変えない
+--    table, as it should be from now on, and the work as it was when the
+--    screen opened (basedOn). What it is (a book, a serial, ...) does
+--    not change.
+-- 手で直した作品：題、作者、これからの目次の全部と、画面を開いたときの
+-- 作品（basedOn）。種類（本・連載……）は変えない
 data Revision = Revision
   { newTitle       :: Text
   , newCreator     :: Text
   , newToc         :: Forest Item
   , notesOnRemoved :: NotesOnRemoved
+  , basedOn        :: Opened
   }
   deriving (Show, Eq)
+
+-- ANCHOR: opened
+-- 📸 What the edit screen saw when it opened: just the parts it can
+--    change (the title, the creator, and the table: numbers, headings,
+--    sizes, depths, and order). Ratings, notes, and the log are not in
+--    it, so changing those elsewhere meanwhile does not get in the way.
+-- 直す画面が開いたときに見たもの。画面が書き換えられる所だけ（題、作者、
+-- 目次：番号・見出し・量・深さ・並び）。★・感想・読書ログは入れない。
+-- だから、そのあいだに、ほかの所でそれを変えても、じゃまにならない
+data Opened = Opened
+  { openedTitle   :: Text
+  , openedCreator :: Text
+  , openedToc     :: Forest Item
+  }
+  deriving (Show, Eq)
+-- ANCHOR_END: opened
 
 -- 🧳 What to do with the notes on a line that is gone. A note is my own
 --    words, and once dropped it does not come back, so the safe choice
@@ -402,6 +421,7 @@ data Mistake
   | BadToc        [TocProblem]       -- every problem / 目次のまずい所の全部
   | EntryTwice    EntryId            -- one number, two lines / 番号が2回
   | NoTable                          -- a film or a game / 目次のない作品
+  | ChangedElsewhere                 -- since the screen opened / 開いた後に
   deriving (Show, Eq)
 
 -- ✅ An answer the core has checked: the value, or the mistake.

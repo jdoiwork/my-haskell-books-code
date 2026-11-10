@@ -50,7 +50,9 @@ pickWord vocab seed =
 
 -- ANCHOR: corpus
 -- 🏭 n documents of len words each, from a vocabulary of 20000 words.
--- 語彙 20000 語から、len 語の文書を n 個作る
+--    Their ids are "1", "2", ... (they are not files).
+-- 語彙 20000 語から、len 語の文書を n 個作る。
+-- 番号は "1", "2", ...（ファイルではないので）
 corpus :: Int -> Int -> [Document]
 corpus n len = go 1 42
   where
@@ -59,7 +61,10 @@ corpus n len = go 1 42
       | otherwise =
           let seeds = take len (drop 1 (iterate nextSeed seed))
               body  = T.unwords (map (wordAt . pickWord 20000) seeds)
-              doc   = Document (DocId i) (T.pack ("Doc " <> show i)) body
+              -- ANCHOR: doc
+              doc   = Document (DocId (T.pack (show i)))
+                               (T.pack ("Doc " <> show i)) body
+              -- ANCHOR_END: doc
           in doc : go (i + 1) (last seeds)
 
 -- 🔍 Some two-word queries made the same way.

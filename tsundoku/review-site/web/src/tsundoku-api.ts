@@ -146,6 +146,15 @@ export interface IEditedWork {
   creator: string;
   toc: EditedItem[];
   removedNotes: string;
+  opened: OpenedWork;
+}
+
+export type OpenedWork = IOpenedWork;
+
+export interface IOpenedWork {
+  title: string;
+  creator: string;
+  toc: EditedItem[];
 }
 
 export type EditedItem = IEditedItem;

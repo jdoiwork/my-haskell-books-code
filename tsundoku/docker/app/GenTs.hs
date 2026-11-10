@@ -38,6 +38,7 @@ main = do
       , getTypeScriptDeclarations (Proxy @Points)
       , getTypeScriptDeclarations (Proxy @FormField)
       , getTypeScriptDeclarations (Proxy @EditedWork)
+      , getTypeScriptDeclarations (Proxy @OpenedWork)
       , getTypeScriptDeclarations (Proxy @EditedItem)
       -- ANCHOR: siteTypes
       , getTypeScriptDeclarations (Proxy @ExtrasItem)

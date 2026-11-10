@@ -436,10 +436,12 @@ boughtOn = Field "買った日" DateK
 -- ANCHOR: dragonFix
 -- ✏️ The dragon book, fixed by hand. 1.1 and 1.2 were one section in the
 --    real book (so 1.2, number 4, is gone), a fifth chapter was missed
---    (new: no number yet), and the creator was not quite right.
+--    (new: no number yet), and the creator was not quite right. It was
+--    fixed on the screen opened on the dragon book as it was.
 -- 手で直したドラゴン学。本物の本では 1.1 と 1.2 は1つの節だった（だから
 -- 番号 4 の 1.2 は消える）。第5章を入れ忘れていた（新しい行：番号はまだ
--- ない）。作者も、少しちがっていた
+-- ない）。作者も、少しちがっていた。直したのは、もとのドラゴン学を開いた
+-- 画面
 dragonFix :: Revision
 dragonFix = Revision
   { newTitle       = "はじめてのドラゴン学"
@@ -457,6 +459,7 @@ dragonFix = Revision
           ]
       ]
   , notesOnRemoved = MoveToWork
+  , basedOn        = asOpened dragonBook
   }
   where
     kept i = Item (Just (EntryId i))

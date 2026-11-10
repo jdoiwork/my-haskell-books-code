@@ -22,12 +22,15 @@ import Control.Concurrent (MVar, newMVar, threadDelay, withMVar)
 import Control.Concurrent.Async (async, cancel, link, withAsync)
 import Control.Concurrent.STM (STM, TVar, atomically, check, modifyTVar',
                                newTVarIO, readTVar, readTVarIO, writeTVar)
-import Control.Exception (bracket, finally, mask)
-import Control.Monad (forM_, forever, unless)
+import Control.Exception (IOException, SomeException, bracket,
+                          displayException, finally, fromException,
+                          mask, throwIO, try)
+import Control.Monad (forM_, forever, unless, void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
-import Data.IORef (atomicModifyIORef', newIORef)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef,
+                   writeIORef)
 import qualified Data.Map.Strict as Map
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -55,9 +58,11 @@ systemClock = do
 -- 🎒 Everything the server carries around, in one record.
 -- サーバーが持ち回るものを、1つのレコードに
 data Env = Env
-  { clock    :: Clock
-  , storeVar :: TVar Store
-  , journal  :: Maybe (MVar Handle)  -- ^ the log, locked / 錠つきのログ
+  { clock      :: Clock
+  , storeVar   :: TVar Store
+  , journal    :: Maybe (MVar Handle)  -- ^ the log, locked / 錠つきのログ
+  , logFailure :: IORef (Maybe ByteString)
+    -- ^ why writing the log failed, if it did / ログに書けなかった理由
   }
 
 -- 📂 Read the log (if any) into a store, and open it to append more.
@@ -75,7 +80,8 @@ openEnv clk logPath = do
   forM_ logPath $ \path -> repairLog path replayed
   var <- newTVarIO (replayedStore replayed)
   lock <- traverse (\path -> openFile path AppendMode >>= newMVar) logPath
-  pure (Env clk var lock, replayed)
+  failure <- newIORef Nothing
+  pure (Env clk var lock failure, replayed)
 -- ANCHOR_END: env
 
 -- ANCHOR: repair
@@ -100,33 +106,63 @@ repairLog path replayed = case problem replayed of
 -- ANCHOR: run
 -- ⚛️ Run one command. Reads look at the store and change nothing, so
 --    they never wait for the disk. A command that changes the store
---    takes the log's lock.
+--    takes the log's lock. If the log cannot be written, it is refused.
 -- コマンドを1つ動かす。読むだけなら、ストアを見るだけで何も変えないので、
--- ディスクを待たない。ストアを変えるコマンドは、ログの錠をとる
+-- ディスクを待たない。ストアを変えるコマンドは、ログの錠をとる。
+-- ログに書けなければ、断る
 runCommand :: Env -> [ByteString] -> IO Wire
 runCommand env words' =
   case toCommand words' of
     Left message -> pure (WError ("ERR " <> encodeUtf8 message))
     Right command -> do
       now <- clock env
-      reply <- case toLogged now command of
-        Nothing -> fst . apply now command <$> readTVarIO (storeVar env)
+      outcome <- case toLogged now command of
+        Nothing -> Right . fst . apply now command
+                     <$> readTVarIO (storeVar env)
         Just _  -> changeAndLog env (logStep now command)
-      pure (replyWire reply)
+      pure (either refusal replyWire outcome)
 
--- ✍️ Change the store, and write what the step says, holding the
---    log's lock: the store and the log change in the same order.
--- ストアを変え、step が言うものをログに書く。ログの錠をとったまま。
--- ストアとログが、同じ順番で変わるように
-changeAndLog :: Env -> (Store -> ((a, [Command]), Store)) -> IO a
+-- 🚫 The answer to a change we refuse (like Redis's MISCONF).
+-- 断るときの答え（Redis の MISCONF のように）
+refusal :: ByteString -> Wire
+refusal why = WError ("MISCONF Errors writing to the log: " <> why)
+
+-- ✍️ Holding the log's lock, work out the new store, write what the
+--    step says to the log, and only when that worked, put the new
+--    store in. No other writer comes in between, so the store and the
+--    log change in the same order. If writing fails, say why, and
+--    refuse every change from then on (reads go on).
+-- ログの錠をとったまま、新しいストアを計算し、step が言うものをログに
+-- 書き、書けたときだけ、新しいストアを入れる。ほかの書き手は割りこまない
+-- ので、ストアとログは同じ順番で変わる。書けなければ理由を答え、
+-- それからあとの変更を、全部断る（読むのは続けられる）
+changeAndLog :: Env -> (Store -> ((a, [Command]), Store))
+             -> IO (Either ByteString a)
 changeAndLog env step = case journal env of
-  Nothing   -> fst <$> atomically (stateTVar' (storeVar env) step)
+  Nothing   -> Right . fst <$> atomically (stateTVar' (storeVar env) step)
   Just lock -> withMVar lock $ \handle -> do
-    (a, entries) <- atomically (stateTVar' (storeVar env) step)
-    unless (null entries) $ do
-      BS.hPut handle (foldMap encodeEntry entries)
-      hFlush handle
-    pure a
+    failed <- readIORef (logFailure env)
+    case failed of
+      Just why -> pure (Left why)
+      Nothing  -> do
+        store <- readTVarIO (storeVar env)
+        let ((a, entries), store') = step store
+        outcome <- try @SomeException $ do
+          unless (null entries) $ do
+            BS.hPut handle (foldMap encodeEntry entries)
+            hFlush handle
+          atomically (writeTVar (storeVar env) $! store')
+        case outcome of
+          Right () -> pure (Right a)
+          Left err -> do
+            -- The log and the store may differ now: no more changes.
+            -- ログとストアが食い違ったかもしれない：もう変えない
+            let why = BC.pack (filter (`notElem` ("\r\n" :: String))
+                                      (displayException err))
+            writeIORef (logFailure env) (Just why)
+            case fromException @IOException err of
+              Just _  -> pure (Left why)
+              Nothing -> throwIO err    -- e.g. cancel / cancel など
 -- ANCHOR_END: run
 
 -- 🧮 Like stateTVar, but the new state is worked out before it goes
@@ -213,7 +249,9 @@ sweeper :: Env -> IO ()
 sweeper env = forever $ do
   threadDelay 100000
   now <- clock env
-  changeAndLog env (sweepStep now)
+  -- Refused (the log broke)? The keys stay, but GET still hides them.
+  -- 断られた（ログが壊れた）？ キーは残るが、GET からは見えない
+  void (changeAndLog env (sweepStep now))
 -- ANCHOR_END: sweeper
 
 -- ANCHOR: withServer

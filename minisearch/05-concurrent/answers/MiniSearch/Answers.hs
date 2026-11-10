@@ -13,25 +13,25 @@ import Control.Exception (IOException, displayException, throwIO, try)
 import Data.List (sort)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.IO.Utf8 as Utf8
 import System.Directory (listDirectory)
-import System.FilePath (takeExtension, (</>))
+import System.FilePath (takeExtension)
 
-import MiniSearch.Load (toDocument)
+import MiniSearch.Load (readDocument)
 import MiniSearch.Types
 -- ANCHOR_END: head
 
 -- ANCHOR: concurrently
 -- 📂 Read the files at the same time (good when they are on a slow
---    disk or over the network). The numbers stay in name order.
+--    disk or over the network). Each id comes from its own file,
+--    so it does not matter which file is read first.
 -- ファイルを同時に読む（遅いディスクやネットワークの先にあるとき
--- 効く）。番号は、名前の順のまま
+-- 効く）。番号はそれぞれのファイルから決まるので、
+-- どのファイルが先に読み終わっても同じ
 readDocumentsConcurrently :: FilePath -> IO [Document]
 readDocumentsConcurrently dir = do
   names <- listDirectory dir
   let txtFiles = sort (filter (\n -> takeExtension n == ".txt") names)
-  contents <- mapConcurrently (\n -> Utf8.readFile (dir </> n)) txtFiles
-  pure (zipWith toDocument [1 ..] contents)
+  mapConcurrently (readDocument dir) txtFiles
 -- ANCHOR_END: concurrently
 
 -- ANCHOR: reporting

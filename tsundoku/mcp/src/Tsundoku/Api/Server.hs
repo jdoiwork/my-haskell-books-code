@@ -189,6 +189,7 @@ verdict mistake = case mistake of
   BadToc        _     -> (err422, "bad-toc")
   EntryTwice    _     -> (err422, "entry-twice")
   NoTable             -> (err422, "no-table")
+  ChangedElsewhere    -> (err409, "changed-elsewhere")
   -- ANCHOR_END: verdictEdit
 
 -- 🚫 Refuse with the status of the mistake, and why, as JSON.

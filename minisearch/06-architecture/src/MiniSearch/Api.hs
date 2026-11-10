@@ -30,16 +30,18 @@ import MiniSearch.Types
 -- ANCHOR_END: head
 
 -- ANCHOR: views
+-- ANCHOR: hitView
 -- 🎯 One hit, as the client sees it.
 -- クライアントから見た、ヒットひとつ
 data HitView = HitView
-  { hitId   :: Int
+  { hitId   :: Text
   , title   :: Text
   , score   :: Double
   , excerpt :: Text
   }
   deriving stock    (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
+-- ANCHOR_END: hitView
 
 -- 📦 The answer to a search.
 -- 検索への答え
@@ -51,15 +53,17 @@ data SearchResponse = SearchResponse
   deriving stock    (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
+-- ANCHOR: documentView
 -- 📄 One document.
 -- 文書ひとつ
 data DocumentView = DocumentView
-  { documentId :: Int
+  { documentId :: Text
   , title      :: Text
   , body       :: Text
   }
   deriving stock    (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
+-- ANCHOR_END: documentView
 
 -- 📣 A short message.
 -- 短いメッセージ
@@ -75,7 +79,7 @@ newtype Message = Message { message :: Text }
 type SearchApi =
        "search" :> QueryParam "q" Text :> QueryParam "limit" Int
          :> Get '[JSON] SearchResponse
-  :<|> "docs" :> Capture "id" Int :> Get '[JSON] DocumentView
+  :<|> "docs" :> Capture "id" Text :> Get '[JSON] DocumentView
   :<|> "reindex" :> PostAccepted '[JSON] Message
 -- ANCHOR_END: api
 

@@ -20,7 +20,8 @@ import Data.Tree (Tree (..), flatten)
 
 -- the tests: hspec, QuickCheck, and hspec-wai
 -- テスト：hspec、QuickCheck、hspec-wai
-import Network.HTTP.Types (methodDelete, methodPost, methodPut)
+import Network.HTTP.Types (methodDelete, methodPost, methodPut,
+                           renderSimpleQuery)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.Hspec.Wai hiding (pending)
@@ -114,6 +115,15 @@ coreSpec = describe "fixing a work by hand" $ do
       `shouldBe` Left (NoSuchEntry (EntryId 42))
     revise (EntryId 9) (table [line 1, line 1]) dragonCard
       `shouldBe` Left (EntryTwice (EntryId 1))
+
+  -- 「開いたときと、題・作者・目次がちがっていれば断る」
+  it "refuses a revision of a work that changed since it opened" $ do
+    let same    = asRevision (work dragonCard)
+        renamed = surely (revise (EntryId 9) same { newCreator = "竜" }
+                                 dragonCard)
+        fixed'  = surely (revise (EntryId 9) dragonFix dragonCard)
+    revise (EntryId 9)  dragonFix renamed `shouldBe` Left ChangedElsewhere
+    revise (EntryId 10) dragonFix fixed'  `shouldBe` Left ChangedElsewhere
   where
     pointsInto c (OnEntry i) = i `elem` entryIds (contents (work c))
     pointsInto _ OnWork      = True
@@ -174,7 +184,7 @@ routeSpec = describe "the route to fix a work" $ with freshApp $ do
       title: "ドラゴン学", creator: "竜の会",
       toc: [ { id: 2, heading: "第2部（前へ）", size: 4, children: [] },
              { id: null, heading: "付録", size: 3, children: [] } ],
-      removedNotes: "move"
+      removedNotes: "move", opened: #{openedParts}
     }|] `shouldRespondWith` 200
       { matchBody = MatchBody $ \_ body ->
           case decode body :: Maybe CardDetail of
@@ -205,7 +215,7 @@ routeSpec = describe "the route to fix a work" $ with freshApp $ do
       title: "ドラゴン学", creator: "",
       toc: [ { id: 1, heading: "第1部", size: 2, children: [
                { id: null, heading: "", size: 1, children: [] } ] } ],
-      removedNotes: "move"
+      removedNotes: "move", opened: #{openedParts}
     }|] `shouldRespondWith` 422
       { matchBody = MatchBody $ \_ body ->
           case decode body :: Maybe Problem of
@@ -223,7 +233,7 @@ routeSpec = describe "the route to fix a work" $ with freshApp $ do
       title: "ドラゴン学", creator: "",
       toc: [ { id: 1, heading: "あ", size: 2, children: [] },
              { id: 1, heading: "い", size: 2, children: [] } ],
-      removedNotes: "move"
+      removedNotes: "move", opened: #{openedParts}
     }|] `shouldRespondWith` refusedWith 422 "entry-twice"
 
   -- 「新しく足す作品も、形がまずければ 422」
@@ -233,7 +243,39 @@ routeSpec = describe "the route to fix a work" $ with freshApp $ do
       toc: [ { heading: "同じ", size: 1, children: [] },
              { heading: "同じ", size: 1, children: [] } ]
     }|] `shouldRespondWith` refusedWith 422 "bad-toc"
+
+  -- 「開いたあとに目次が変わっていたら 409。足された行は消えない」
+  it "says 409 if the table changed after the screen opened" $ do
+    _ <- send methodPost "/works" twoParts
+    -- Another screen adds a line first.
+    -- 別の画面が、先に1行足す
+    send methodPut "/works/1" [json|{
+      title: "はじめてのドラゴン学", creator: "ギルド図書室",
+      toc: [ { id: 1, heading: "第1部", size: 2, children: [] },
+             { id: 2, heading: "第2部", size: 4, children: [] },
+             { id: null, heading: "付録", size: 3, children: [] } ],
+      removedNotes: "move", opened: #{openedParts}
+    }|] `shouldRespondWith` 200
+    -- This screen opened before that, and does not know the line.
+    -- この画面は、その前に開いたので、その行を知らない
+    send methodPut "/works/1" (cutFirst "move")
+      `shouldRespondWith` refusedWith 409 "changed-elsewhere"
+    get "/works/1" `shouldRespondWith` headings ["第1部", "第2部", "付録"]
   where
+    -- The two parts, as an edit screen opened on them sees them.
+    -- 2つの部を、開いた直す画面が見るとおりに
+    openedParts = OpenedWork
+      { title   = "はじめてのドラゴン学"
+      , creator = "ギルド図書室"
+      , toc     = [ EditedItem (Just 1) "第1部" 2 []
+                  , EditedItem (Just 2) "第2部" 4 [] ]
+      }
+    headings hs = 200
+      { matchBody = MatchBody $ \_ body ->
+          case decode body :: Maybe CardDetail of
+            Just c | [i.heading | i <- c.toc] == hs -> Nothing
+            _ -> Just ("not the headings expected: " <> show body)
+      }
     twoParts = [json|{
       title: "はじめてのドラゴン学", creator: "ギルド図書室", kind: "book",
       toc: [ { heading: "第1部", size: 2, children: [] },
@@ -246,7 +288,7 @@ routeSpec = describe "the route to fix a work" $ with freshApp $ do
     cutFirst choice = [json|{
       title: "ドラゴン学", creator: "",
       toc: [ { id: 2, heading: "第2部", size: 4, children: [] } ],
-      removedNotes: #{choice}
+      removedNotes: #{choice}, opened: #{openedParts}
     }|]
     notesOn entries = 200
       { matchBody = MatchBody $ \_ body ->
@@ -330,22 +372,43 @@ answersSpec = describe "the answers" $ do
     map itemId (concatMap flatten items)
       `shouldBe` [Just (EntryId 1), Just (EntryId 2), Just (EntryId 3), Nothing]
     fmap (map target . notes)
-         (revise (EntryId 9) (Revision "竜" "" items MoveToWork) dragonCard)
+         (revise (EntryId 9)
+                 (Revision "竜" "" items MoveToWork (asOpened dragonBook))
+                 dragonCard)
       `shouldBe` Right [OnWork, OnWork]
 
   -- 「htmx の PUT で、窓口を通して直す。だめなら 422 で理由」
   describe "with htmx" $ with app $ do
+    -- 「窓口を通して直せる」
     it "fixes the work through the window" $
       request methodPut "/works/1/edit" form
-        "title=%E7%AB%9C&creator=&toc=%231+%E7%AC%AC1%E9%83%A8+2"
+        (filled opened [("title", "竜"), ("toc", "#1 第1部 2")])
         `shouldRespondWith` 200
+    -- 「同じ見出しが2つなら 422 で、どこかを言う」
     it "refuses a heading twice with 422, and says where" $
       request methodPut "/works/1/edit" form
-        "title=%E7%AB%9C&creator=&toc=%231+A+2%0AA+3"
+        (filled opened [("title", "竜"), ("toc", "#1 A 2\nA 3")])
         `shouldRespondWith` "" { matchStatus = 422, matchBody =
           bodyContains "目次のいちばん上に「A」が2つあります" }
+    -- 「開いたときとちがえば 409 で、読み直してと言う」
+    it "refuses with 409 if the work changed after the form opened" $
+      request methodPut "/works/1/edit" form
+        (filled (("openedTitle", "古い題") : drop 1 opened)
+                [("title", "竜"), ("toc", "#1 第1部 2")])
+        `shouldRespondWith` "" { matchStatus = 409, matchBody =
+          bodyContains "読み直してから直してください" }
   where
     form = [("Content-Type", "application/x-www-form-urlencoded")]
+    -- The hidden fields of a form opened on the dragon book.
+    -- ドラゴン学で開いたフォームの、隠した欄
+    opened =
+      [ ("openedTitle",   title dragonBook)
+      , ("openedCreator", creator dragonBook)
+      , ("openedToc",     tocText (detailOf (WorkId 1, dragonCard)).toc) ]
+    -- A form as the browser sends it: the hidden fields and the typed.
+    -- ブラウザーが送るフォーム：隠した欄と、打ったもの
+    filled hidden typed = LBS.fromStrict (renderSimpleQuery False
+      [ (TE.encodeUtf8 k, TE.encodeUtf8 v) | (k, v) <- hidden ++ typed ])
     app  = do
       shelf <- newMemoryShelf
       _     <- shelf.addWork dragonBook

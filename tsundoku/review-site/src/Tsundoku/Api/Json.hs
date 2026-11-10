@@ -34,6 +34,7 @@ module Tsundoku.Api.Json
   , NewWork (..)
   , Outline (..)
   , EditedWork (..)
+  , OpenedWork (..)
   , EditedItem (..)
   , NewNote (..)
   , Happened (..)
@@ -255,14 +256,29 @@ data Outline = Outline
 --    the whole table as it should be from now on. What it is (a book,
 --    a serial, ...) cannot be changed here. The notes on lines that are
 --    gone move to the whole work ("move") or go with them ("drop").
+--    With it comes the work as the screen opened it (opened): the shelf
+--    fixes the work only if it is still just like that.
 -- 直す画面で直した作品：題、作者、これからの目次の全部。種類（本・連載
 -- ……）は、ここでは変えられない。消える行の感想は、作品全体へ移すか
--- （"move"）、一緒に消すか（"drop"）
+-- （"move"）、一緒に消すか（"drop"）。画面を開いたときの作品（opened）も
+-- 一緒に送る。本棚は、作品がいまもそのままのときだけ直す
 data EditedWork = EditedWork
   { title        :: Text
   , creator      :: Text
   , toc          :: [EditedItem]
   , removedNotes :: Text  -- "move" or "drop" / 移すか、消すか
+  , opened       :: OpenedWork
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+-- 📸 The work as the edit screen saw it when it opened: the title, the
+--    creator, and the table, every line with its number.
+-- 直す画面が開いたときに見た作品：題、作者、目次（どの行も番号つき）
+data OpenedWork = OpenedWork
+  { title   :: Text
+  , creator :: Text
+  , toc     :: [EditedItem]
   }
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
@@ -487,6 +503,11 @@ revisionFrom edited = Revision
   , newCreator     = edited.creator
   , newToc         = map line edited.toc
   , notesOnRemoved = choice edited.removedNotes
+  , basedOn        = Opened
+      { openedTitle   = edited.opened.title
+      , openedCreator = edited.opened.creator
+      , openedToc     = map line edited.opened.toc
+      }
   }
   where
     -- Only a plain "drop" drops; anything else takes the safe way.
@@ -526,7 +547,7 @@ $(concat <$> traverse (deriveTypeScript defaultOptions)
     [ ''WorkSummary, ''ProgressNumbers, ''CardDetail, ''TocItem
     , ''NoteItem, ''ReadingNow, ''HitItem, ''Snip, ''Problem
     , ''NewWork, ''Outline, ''NewNote, ''Happened, ''ReadOn, ''Points
-    , ''FormField, ''EditedWork, ''EditedItem
+    , ''FormField, ''EditedWork, ''OpenedWork, ''EditedItem
     ])
 -- ANCHOR_END: typescript
 -- ANCHOR_END: all

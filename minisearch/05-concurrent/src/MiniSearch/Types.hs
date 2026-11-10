@@ -22,13 +22,17 @@ import GHC.Generics (Generic)
 -- ANCHOR_END: head
 
 -- ANCHOR: document
--- 🔢 The number of a document. Not just an Int:
---    a DocId can never be mixed up with a count or a score.
--- 文書の番号。ただの Int ではない：
--- 個数や点数と、取りちがえることがない
-newtype DocId = DocId Int
+-- ANCHOR: docid
+-- 🔢 The id of a document: 12 hex digits from a hash of its file
+--    (MiniSearch.Load). Not just a Text: a DocId can never be mixed
+--    up with a title or a word.
+-- 文書の番号：ファイルのハッシュ値から作った、16進の12文字
+-- （MiniSearch.Load）。ただの Text ではない：
+-- 題や単語と、取りちがえることがない
+newtype DocId = DocId Text
   deriving stock    (Eq, Ord, Show)
   deriving newtype  (ToJSON, FromJSON, ToJSONKey, FromJSONKey, NFData, Binary)
+-- ANCHOR_END: docid
 
 -- 📄 One document to search.
 -- 検索の対象になる、文書ひとつ
