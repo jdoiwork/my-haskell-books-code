@@ -50,8 +50,10 @@ tocText = T.unlines . concatMap (line 0)
     shown = T.pack . show
 
 -- ✍️ Read the lines back. Every line that cannot be read is said, with
---    its line number (as the React screen does).
--- 行を読み戻す。読めない行は全部、何行目かを添えて言う（React の画面と同じ）
+--    its line number. (The React screen has a field for each row, so
+--    it has no lines to read.)
+-- 行を読み戻す。読めない行は全部、何行目かを添えて言う（React の画面は
+-- 1行ずつの欄なので、読む行がない）
 readEdited :: Text -> Either [Text] (Forest Item)
 readEdited text = case concat problems of
   [] -> Right (fromOutline rows)

@@ -24,44 +24,6 @@ export type Row = {
 };
 // ANCHOR_END: row
 
-// ANCHOR: read
-// ✍️ Read a table typed as indented lines, two spaces a level:
-//      第1部 ドラゴンを知る 2
-//        第1章 見分け方 4
-//    The number at the end of a line is its size (0 if there is none).
-//    Every line that cannot be read is said, with its line number.
-// 字下げで書いた目次を読む。1段が空白2つ。行の最後の数が、その量
-// （なければ 0）。読めない行は全部、何行目かを添えて言う
-export type Read =
-  | { ok: true; rows: Row[] }
-  | { ok: false; problems: string[] };
-
-export function readOutline(text: string): Read {
-  const rows: Row[] = [];
-  const problems: string[] = [];
-  text.split("\n").forEach((line, i) => {
-    const at = `${i + 1}行目`;
-    const plain = line.replace(/\t/g, "  ").replace(/　/g, "  ");
-    if (plain.trim() === "") return;
-    const spaces = plain.length - plain.trimStart().length;
-    const depth = spaces / 2;
-    const above = rows.length === 0 ? -1 : rows[rows.length - 1].depth;
-    const m = plain.trim().match(/^(.*?)\s+(\d+)$/);
-    const heading = m ? m[1] : plain.trim();
-    if (spaces % 2 !== 0) {
-      problems.push(
-        `${at}「${heading}」：字下げは、空白2つずつにしてください`);
-    } else if (depth > above + 1) {
-      problems.push(
-        `${at}「${heading}」：上の行より、2段以上深くなっています`);
-    }
-    rows.push({ key: `new-${i}`, id: null, depth, heading,
-                size: m ? Number(m[2]) : 0 });
-  });
-  return problems.length > 0 ? { ok: false, problems } : { ok: true, rows };
-}
-// ANCHOR_END: read
-
 // ANCHOR: tree
 // 🌳 Rows to a tree, and a tree to rows. A row's children are the rows
 //    right below it that are deeper.
@@ -171,12 +133,15 @@ export function moveDown(rows: Row[], i: number): Row[] {
 }
 
 // ✕ Remove a row with its subtree. ＋ A new row after the subtree, on
-//   the same level.
-// ✕ 行を部分木ごと消す。＋ 部分木の後ろ、同じ段に新しい行
+//   the same level; with no rows yet (i is -1), the first row.
+// ✕ 行を部分木ごと消す。＋ 部分木の後ろ、同じ段に新しい行。行がまだ
+//   なければ（i が -1）、1行目
 export const remove = (rows: Row[], i: number): Row[] =>
   [...rows.slice(0, i), ...rows.slice(end(rows, i))];
 
 export function addAfter(rows: Row[], i: number, key: string): Row[] {
+  if (i < 0) return [{ key, id: null, depth: 0, heading: "", size: 0 },
+                     ...rows];
   const e = end(rows, i);
   const row = { key, id: null, depth: rows[i].depth, heading: "", size: 0 };
   return [...rows.slice(0, e), row, ...rows.slice(e)];

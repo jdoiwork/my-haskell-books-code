@@ -1,9 +1,9 @@
-// The rows of a table: reading them, making trees, moving them.
-// 目次の行：読む、木にする、動かす
+// The rows of a table: making trees, moving them.
+// 目次の行：木にする、動かす
 import { describe, expect, it } from "vitest";
 import {
   addAfter, editedOf, indent, losses, moveDown, moveUp, outdent,
-  outlineOf, readOutline, remove, type Row, rowsOf,
+  outlineOf, remove, type Row, rowsOf,
 } from "./outline";
 import type { CardDetail, TocItem } from "./tsundoku-api";
 
@@ -13,30 +13,6 @@ const rows = (...rs: [number | null, number, string][]): Row[] =>
   rs.map(([id, depth, heading], i) =>
     ({ key: `k${i}`, id, depth, heading, size: 1 }));
 const shape = (rs: Row[]) => rs.map((r) => `${r.depth}:${r.heading}`);
-
-describe("readOutline", () => {
-  // 「字下げで深さ、行の最後の数で量」
-  it("reads depths from indents, and sizes from the end", () => {
-    const read = readOutline("第1部 2\n  第1章 見分け方 4\n  第2章\n");
-    expect(read.ok && read.rows.map((r) => [r.depth, r.heading, r.size]))
-      .toEqual([[0, "第1部", 2], [1, "第1章 見分け方", 4], [1, "第2章", 0]]);
-  });
-  // 「全角の空白は2つ分。空の行は読み飛ばす」
-  it("counts a full-width space as two, and skips blank lines", () => {
-    const read = readOutline("第1部\n\n　第1章 3");
-    expect(read.ok && shape(read.rows)).toEqual(["0:第1部", "1:第1章"]);
-  });
-  // 「読めない行は全部、何行目かつきで」
-  it("says every line it cannot read, with its number", () => {
-    expect(readOutline("    深すぎ\n第1部\n   半端 3")).toEqual({
-      ok: false,
-      problems: [
-        "1行目「深すぎ」：上の行より、2段以上深くなっています",
-        "3行目「半端」：字下げは、空白2つずつにしてください",
-      ],
-    });
-  });
-});
 
 describe("trees", () => {
   const toc: TocItem[] = [
@@ -56,8 +32,11 @@ describe("trees", () => {
   });
   // 「新しい作品の下書きには、番号がない」
   it("makes an outline with no numbers for a new work", () => {
-    const read = readOutline("あ 1\n  い 2");
-    expect(read.ok && outlineOf(read.rows)).toEqual([
+    const fresh: Row[] = [
+      { key: "new-1", id: null, depth: 0, heading: "あ", size: 1 },
+      { key: "new-2", id: null, depth: 1, heading: "い", size: 2 },
+    ];
+    expect(outlineOf(fresh)).toEqual([
       { heading: "あ", size: 1,
         children: [{ heading: "い", size: 2, children: [] }] },
     ]);
@@ -101,6 +80,10 @@ describe("moving rows", () => {
     const added = addAfter(book, 0, "new");
     expect(shape(added)).toEqual(["0:A", "1:A1", "1:A2", "0:", "0:B"]);
     expect(added[3].id).toBe(null);
+  });
+  // 「行がまだなければ、＋ はいちばん上に1行目を足す」
+  it("adds a first row when there are none", () => {
+    expect(shape(addAfter([], -1, "new"))).toEqual(["0:"]);
   });
 });
 // ANCHOR_END: moving
