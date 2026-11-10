@@ -1,5 +1,6 @@
 # The Python code in the measuring and tuning chapter.
 # 計測とチューニングの章の Python のコード
+import contextlib
 import cProfile
 import io
 import pstats
@@ -30,13 +31,15 @@ assert heroes_slow(hits) == heroes_fast(hits)
 assert len(heroes_fast(hits)) == 2000
 assert fast < slow
 
-# ANCHOR: cprofile
-# Python (cProfile: which functions took the time?)
-# Python（cProfile：どの関数に時間がかかった？）
-profiler = cProfile.Profile()
-profiler.enable()
-heroes_slow(hits)
-profiler.disable()
-pstats.Stats(profiler, stream=io.StringIO()).sort_stats("cumtime")
-# ANCHOR_END: cprofile
+# The report goes to a string here, so that the check stays quiet.
+# 確かめのときは、報告を文字列に流して、画面に出さない
+with contextlib.redirect_stdout(io.StringIO()) as report:
+    # ANCHOR: cprofile
+    # Python (cProfile: which functions took the time?)
+    # Python（cProfile：どの関数に時間がかかった？）
+    with cProfile.Profile() as profiler:
+        heroes_slow(hits)
+    pstats.Stats(profiler).sort_stats("cumtime").print_stats(5)
+    # ANCHOR_END: cprofile
+assert "heroes_slow" in report.getvalue()
 print("ok")

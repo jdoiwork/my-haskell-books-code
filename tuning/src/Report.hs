@@ -6,6 +6,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 -- ANCHOR_END: pragmas
 
+-- ANCHOR: module
 -- 📊 The guild's battle report: who fought, and who did the most damage.
 -- ギルドのバトルの報告：誰が戦い、誰がいちばんダメージを与えたか
 module Report
@@ -21,6 +22,7 @@ module Report
   , monsters
   , monstersFast
   ) where
+-- ANCHOR_END: module
 
 -- ANCHOR: imports
 import Data.Aeson   (ToJSON (..), defaultOptions, genericToEncoding)
@@ -78,10 +80,12 @@ totalsFast hits =
   Map.toList (Map.fromListWith (+) [ (h.hero, h.damage) | h <- hits ])
 -- ANCHOR_END: fast
 
--- 🏆 The three heroes with the most damage.
--- ダメージの合計が大きい3人
+-- ANCHOR: top
+-- 🏆 The three heroes with the most damage (a tie goes by name).
+-- ダメージの合計が大きい3人（同じなら名前の順）
 topThree :: [(Text, Int)] -> [(Text, Int)]
 topThree totals = take 3 (sortOn (\(n, t) -> (Down t, n)) totals)
+-- ANCHOR_END: top
 
 -- ANCHOR: json
 -- 🐉 A monster, turned into JSON with Generic (toJSON only).
@@ -106,6 +110,7 @@ instance ToJSON MonsterFast where
   toEncoding = genericToEncoding defaultOptions
 -- ANCHOR_END: json
 
+-- ANCHOR: monsters
 -- 🐉 10,000 monsters, in both forms.
 -- 10,000体のモンスター（2つの形で）
 monsters :: [Monster]
@@ -117,4 +122,5 @@ monstersFast :: [MonsterFast]
 monstersFast =
   [ MonsterFast ("slime-" <> T.pack (show i)) (i `mod` 50) (i * 3)
   | i <- [1 .. 10000 :: Int] ]
+-- ANCHOR_END: monsters
 -- ANCHOR_END: all
