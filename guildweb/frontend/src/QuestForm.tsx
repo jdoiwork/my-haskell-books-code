@@ -9,7 +9,7 @@ import type { NewQuest } from "./types";
 
 // 🧩 Props: what the parent gives this component.
 // props：親がこの部品に渡すもの
-type Props = { onPost: (quest: NewQuest) => Promise<void> };
+type Props = { onPost: (quest: NewQuest) => Promise<boolean> };
 
 export function QuestForm({ onPost }: Props) {
   // 🗃️ State: what this component remembers between draws.
@@ -17,9 +17,12 @@ export function QuestForm({ onPost }: Props) {
   const [title, setTitle] = useState("");
   const [reward, setReward] = useState<number>(50);
 
+  // Clear the title only when the quest was posted.
+  // 貼れたときだけ、題を消す
   const submit = async () => {
-    await onPost({ title, reward });
-    setTitle("");
+    if (await onPost({ title, reward })) {
+      setTitle("");
+    }
   };
 
   return (
@@ -37,6 +40,7 @@ export function QuestForm({ onPost }: Props) {
         onChange={(value) => setReward(Number(value))}
         min={0}
         max={10000}
+        allowDecimal={false}
         w={130}
       />
       <Button leftSection={<IconPlus size={16} />} onClick={submit}>

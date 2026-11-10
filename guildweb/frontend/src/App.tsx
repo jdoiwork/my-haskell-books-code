@@ -18,29 +18,47 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
-  // 📥 Load the quests once, when the page first appears.
-  // ページが最初に出たときに、1回だけ依頼を読みこむ
+  // 📥 Load the quests once, when the page first appears. Keep the
+  //    quests posted while it was loading (they are not in `loaded`).
+  // ページが最初に出たときに、1回だけ依頼を読みこむ。読みこみの途中で
+  // 貼った依頼（loaded にないもの）は残す
   useEffect(() => {
-    fetchQuests().then(setQuests).catch((e) => setError(e.message));
+    fetchQuests()
+      .then((loaded) =>
+        setQuests((now) => [
+          ...loaded,
+          ...now.filter((q) => !loaded.some((l) => l.questId === q.questId)),
+        ]),
+      )
+      .catch((e) => setError(e.message));
   }, []);
 
   // 📝 Post a quest, then add the answer from the server to the list.
-  // 依頼を貼り、サーバーから返ってきた依頼を一覧に足す
+  //    Says whether it worked, so the form keeps the text on a failure.
+  // 依頼を貼り、サーバーから返ってきた依頼を一覧に足す。
+  // うまくいったかを返す（失敗なら、フォームは入力を残す）
   const post = async (quest: NewQuest) => {
     try {
       const added = await postQuest(quest);
-      setQuests([...quests, added]);
+      setQuests((now) => [...now, added]);
       setError(null);
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     }
   };
 
   // ✅ Finish a quest: replace it in the list with the server's answer.
   // 依頼を終える：一覧の中のその依頼を、サーバーの答えで置きかえる
   const finish = async (id: number) => {
-    const finished = await finishQuest(id);
-    setQuests(quests.map((q) => (q.questId === id ? finished : q)));
+    try {
+      const finished = await finishQuest(id);
+      setQuests((now) => now.map((q) => (q.questId === id ? finished : q)));
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   const open = quests.filter((q) => !q.done);
