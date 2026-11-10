@@ -6,6 +6,8 @@
 // 画面の上の目次を、1行ずつ：どの行にも見出しと量の欄と、動かすボタン。
 // 作品を足す画面も、直す画面も、これを使う。行そのものは画面が持ち
 // （rows・setRows）、ここは描いて、変えるだけ
+import { type KeyboardEvent, useState } from "react";
+
 import {
   addAfter, indent, moveDown, moveUp, outdent, remove, type Row,
 } from "./outline";
@@ -29,7 +31,23 @@ export function TocRows({ rows, setRows, unit }: {
     setRows(rows.map((r, j) => (j === i ? { ...r, ...change } : r)));
   const move = (how: (rs: Row[], i: number) => Row[], i: number) =>
     setRows(how(rows, i));
-  const add = (i: number) => setRows(addAfter(rows, i, freshKey()));
+  // 🆕 A new row comes after row i, and gets the cursor.
+  // 新しい行は i 行目の後ろに。カーソルもそこへ
+  const [focused, setFocused] = useState<string | null>(null);
+  const add = (i: number) => {
+    const key = freshKey();
+    setRows(addAfter(rows, i, key));
+    setFocused(key);
+  };
+  // ⏎ Enter in a row adds the next row, instead of sending the form.
+  //    Not while the input method is still choosing the words.
+  // 行の中の Enter は、フォームを送らずに、次の行を足す。日本語入力で
+  // 変換を選んでいる間の Enter は、そのまま
+  const enter = (i: number) => (e: KeyboardEvent) => {
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    add(i);
+  };
 
   return (<>
     <h2>目次<small>（量は{unit}）</small></h2>
@@ -38,10 +56,11 @@ export function TocRows({ rows, setRows, unit }: {
         <li key={r.key} style={{ marginLeft: `${r.depth * 1.6}rem` }}
             className={r.id === null ? "new" : ""}>
           <input className="heading" value={r.heading}
-                 aria-label="見出し"
+                 aria-label="見出し" autoFocus={r.key === focused}
+                 onKeyDown={enter(i)}
                  onChange={(e) => write(i, { heading: e.target.value })} />
           <input className="size" type="number" value={r.size}
-                 aria-label={unit}
+                 aria-label={unit} onKeyDown={enter(i)}
                  onChange={(e) =>
                    write(i, { size: Number(e.target.value) })} />
           <span className="tools">
