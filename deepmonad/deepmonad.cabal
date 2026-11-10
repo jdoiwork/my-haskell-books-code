@@ -22,6 +22,7 @@ library
                     DeepAnswers
   hs-source-dirs:   src answers
 
+-- ANCHOR: test
 test-suite deepmonad-test
   import:           shared
   type:             exitcode-stdio-1.0
@@ -31,3 +32,4 @@ test-suite deepmonad-test
     , deepmonad
     , hspec            ^>=2.11
     , QuickCheck       ^>=2.19
+-- ANCHOR_END: test

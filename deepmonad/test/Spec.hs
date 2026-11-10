@@ -1,8 +1,19 @@
+-- ANCHOR: head
 -- The Arbitrary instances live here, only for the tests.
 -- Arbitrary のインスタンスは、テストのためだけに、ここに置く
 {-# OPTIONS_GHC -Wno-orphans #-}
+-- AllowAmbiguousTypes: applicativeHomomorphism names its box only in the
+--   type, so we choose the box with @ when we use it.
+-- AllowAmbiguousTypes：applicativeHomomorphism は、箱を型の中でしか
+--   使わないので、使うときに @ で箱を選ぶ
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Main (main) where
 
+-- hspec: describe and it. QuickCheck: property, Arbitrary,
+--   and Fun / Fn (random functions that can be shown).
+-- hspec：describe と it。QuickCheck：property、Arbitrary、
+--   Fun・Fn（見せられる、でたらめな関数）
+import Control.Monad (ap)
 import Test.Hspec
 import Test.QuickCheck
 
@@ -14,6 +25,7 @@ import Steps
 import Useful
 import qualified Recap as R
 import Validation
+-- ANCHOR_END: head
 
 -- ANCHOR: arbitrary
 -- 🎲 Random quests: failed at some place, or cleared with a number.
@@ -42,6 +54,13 @@ instance Arbitrary a => Arbitrary (Steps a) where
   shrink (Steps n x) =
     [ Steps n' x' | (n', x') <- shrink (n, x), n' >= 0 ]
 -- ANCHOR_END: arbitraryBroken
+
+-- ANCHOR: arbitraryValidation
+-- 🎲 Random validations: some reasons, or a value.
+-- でたらめな Validation：理由がいくつか、または値
+instance (Arbitrary e, Arbitrary a) => Arbitrary (Validation e a) where
+  arbitrary = oneof [Invalid <$> arbitrary, Valid <$> arbitrary]
+-- ANCHOR_END: arbitraryValidation
 
 -- ANCHOR: arbitraryPair
 -- 🎲 Random pairs: two random values.
@@ -78,8 +97,46 @@ associativity m (Fn f) (Fn g) =
   ((m >>= f) >>= g) == (m >>= (\x -> f x >>= g))
 -- ANCHOR_END: monadLaws
 
+-- ANCHOR: applicativeLaws
+-- 🧩 The four Applicative laws. Random functions come in boxes as Fun,
+--    and fmap applyFun turns them into real functions.
+-- Applicative の4つの法則。でたらめな関数は Fun として箱に入って届くので、
+-- fmap applyFun で、本物の関数にする
+applicativeIdentity :: (Applicative f, Eq (f Int)) => f Int -> Bool
+applicativeIdentity v = (pure id <*> v) == v
+
+applicativeHomomorphism
+  :: forall f. (Applicative f, Eq (f Int)) => Fun Int Int -> Int -> Bool
+applicativeHomomorphism (Fn g) x =
+  (pure g <*> pure x) == (pure (g x) :: f Int)
+
+applicativeInterchange
+  :: (Applicative f, Eq (f Int)) => f (Fun Int Int) -> Int -> Bool
+applicativeInterchange u y = (fs <*> pure y) == (pure ($ y) <*> fs)
+  where
+    fs = fmap applyFun u
+
+applicativeComposition
+  :: (Applicative f, Eq (f Int))
+  => f (Fun Int Int) -> f (Fun Int Int) -> f Int -> Bool
+applicativeComposition u v w =
+  (pure (.) <*> us <*> vs <*> w) == (us <*> (vs <*> w))
+  where
+    us = fmap applyFun u
+    vs = fmap applyFun v
+
+-- 🔗 <*> must agree with >>= (ap is <*> written with >>=).
+-- <*> は >>= とそろっていること（ap は、>>= で書いた <*>）
+apAgrees :: (Monad m, Eq (m Int)) => m (Fun Int Int) -> m Int -> Bool
+apAgrees u x = (fs <*> x) == (fs `ap` x)
+  where
+    fs = fmap applyFun u
+-- ANCHOR_END: applicativeLaws
+
+-- ANCHOR: main
 main :: IO ()
 main = hspec $ do
+-- ANCHOR_END: main
   -- ANCHOR: questSpec
   describe "Quest keeps the laws" $ do
     -- fmap id は、何もしない
@@ -93,6 +150,27 @@ main = hspec $ do
     -- つなぐ順の括弧は、どこに付けても同じ
     it "associativity" $ property (associativity @Quest)
   -- ANCHOR_END: questSpec
+  -- ANCHOR: applicativeSpec
+  describe "Quest and Validation keep the Applicative laws" $ do
+    -- pure id を使っても、何も変わらない
+    it "identity (Quest)" $ property (applicativeIdentity @Quest)
+    -- pure どうしを <*> でつなぐのは、先に計算して pure するのと同じ
+    it "homomorphism (Quest)" $ property (applicativeHomomorphism @Quest)
+    -- 関数の箱と値の箱は、入れ替えても同じ
+    it "interchange (Quest)" $ property (applicativeInterchange @Quest)
+    -- 関数をつないでから使っても、順に使っても同じ
+    it "composition (Quest)" $ property (applicativeComposition @Quest)
+    -- Quest の <*> は、>>= とそろっている
+    it "<*> agrees with >>= (Quest)" $ property (apAgrees @Quest)
+    it "identity (Validation)" $
+      property (applicativeIdentity @(Validation [String]))
+    it "homomorphism (Validation)" $
+      property (applicativeHomomorphism @(Validation [String]))
+    it "interchange (Validation)" $
+      property (applicativeInterchange @(Validation [String]))
+    it "composition (Validation)" $
+      property (applicativeComposition @(Validation [String]))
+  -- ANCHOR_END: applicativeSpec
   -- ANCHOR: brokenSpec
   describe "broken instances" $ do
     -- Counted は fmap id で数が増えてしまう
