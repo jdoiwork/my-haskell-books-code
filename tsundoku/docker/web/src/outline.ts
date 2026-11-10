@@ -146,6 +146,18 @@ export function addAfter(rows: Row[], i: number, key: string): Row[] {
   const row = { key, id: null, depth: rows[i].depth, heading: "", size: 0 };
   return [...rows.slice(0, e), row, ...rows.slice(e)];
 }
+
+// 🧹 New rows left blank (no heading, no size, no rows under them) are
+//    dropped before sending, so the blank row a screen starts with costs
+//    nothing when the work has no table.
+// 空のままの新しい行（見出しも量もなく、下にも行がない）は、送る前に落とす。
+// 画面がはじめに置く空の行は、目次のない作品なら、そのままでかまわない
+export function withoutBlank(rows: Row[]): Row[] {
+  const blank = (r: Row, i: number) =>
+    r.id === null && r.heading.trim() === "" && r.size === 0
+      && !(i + 1 < rows.length && rows[i + 1].depth > r.depth);
+  return rows.filter((r, i) => !blank(r, i));
+}
 // ANCHOR_END: moves
 
 // ANCHOR: losses

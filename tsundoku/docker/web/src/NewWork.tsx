@@ -1,18 +1,20 @@
 // ANCHOR: all
 // The form for a new work: title, creator, kind, and the table, one row
 // at a time, with the same rows as the screen to fix a work (TocRows).
-// Every row is new, so none has a number yet. The shelf checks the table
+// Every row is new, so none has a number yet; it starts with one blank
+// row, and rows left blank are not sent. The shelf checks the table
 // (an empty heading, a heading twice, ...) and says where.
 // 新しい作品のフォーム：題・作者・種類と、目次を1行ずつ。行は、作品を直す
 // 画面と同じ部品（TocRows）。どの行も新しいので、まだ番号を持たない。
+// はじめに空の行を1つ置き、空のままの行は送らない。
 // 目次の確かめ（空の見出し、2回出てくる見出し……）は本棚がして、どこかを
 // 言う
 import { useState } from "react";
 
 import { shelf } from "./api";
 import { kinds, unitOf } from "./kinds";
-import { outlineOf, type Row } from "./outline";
-import { TocRows } from "./TocRows";
+import { addAfter, outlineOf, type Row, withoutBlank } from "./outline";
+import { freshKey, TocRows } from "./TocRows";
 
 // ANCHOR: form
 export function NewWork({ onAdded }: { onAdded: (id: number) => void }) {
@@ -20,7 +22,9 @@ export function NewWork({ onAdded }: { onAdded: (id: number) => void }) {
   const [creator, setCreator] = useState("");
   const [kind, setKind] = useState("book");
   const [minutes, setMinutes] = useState(0);
-  const [rows, setRows] = useState<Row[]>([]);
+  // One blank row to start writing in (dropped if left blank).
+  // 書きはじめるための空の行を1つ（空のままなら、送らない）
+  const [rows, setRows] = useState<Row[]>(() => addAfter([], -1, freshKey()));
   const [problems, setProblems] = useState<string[]>([]);
 
   const unit = unitOf(kind);
@@ -29,7 +33,7 @@ export function NewWork({ onAdded }: { onAdded: (id: number) => void }) {
     const a = await shelf.addWork({
       title, creator, kind,
       minutes: kind === "film" ? minutes : null,
-      toc: unit === null ? [] : outlineOf(rows),
+      toc: unit === null ? [] : outlineOf(withoutBlank(rows)),
     });
     if (a.ok) onAdded(a.value.work.id);
     else setProblems(a.problem.messages);

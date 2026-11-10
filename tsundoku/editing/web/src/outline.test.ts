@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addAfter, editedOf, indent, losses, moveDown, moveUp, outdent,
-  outlineOf, remove, type Row, rowsOf,
+  outlineOf, remove, type Row, rowsOf, withoutBlank,
 } from "./outline";
 import type { CardDetail, TocItem } from "./tsundoku-api";
 
@@ -50,7 +50,8 @@ describe("trees", () => {
     } as unknown as CardDetail;
     const kept = rowsOf(toc).filter((r) => r.id !== 1 && r.id !== 2);
     expect(losses(card, kept)).toEqual({ notes: 1, rated: 1, read: 1 });
-    expect(losses(card, rowsOf(toc))).toEqual({ notes: 0, rated: 0, read: 0 });
+    expect(losses(card, rowsOf(toc)))
+      .toEqual({ notes: 0, rated: 0, read: 0 });
   });
 });
 
@@ -87,3 +88,14 @@ describe("moving rows", () => {
   });
 });
 // ANCHOR_END: moving
+
+describe("blank rows", () => {
+  // 「空のままの新しい行は落とす。下に行がある行と、番号のある行は残す」
+  it("drops new rows left blank, keeps parents and old rows", () => {
+    const rs = rows([null, 0, ""], [null, 0, "第1部"], [null, 0, ""],
+                    [null, 1, "第1章"], [7, 0, ""]);
+    const sized = rs.map((r) => ({ ...r, size: 0 }));
+    expect(shape(withoutBlank(sized)))
+      .toEqual(["0:第1部", "0:", "1:第1章", "0:"]);
+  });
+});

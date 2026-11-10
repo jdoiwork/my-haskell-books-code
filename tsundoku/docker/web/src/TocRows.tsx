@@ -15,7 +15,7 @@ import {
 // 新しい行の key。番号は増えるだけなので、どの画面でも、新しい行どうしの
 // key は重ならない（React には、ちがっていれば十分）
 let made = 0;
-const freshKey = () => `new-${++made}`;
+export const freshKey = () => `new-${++made}`;
 
 // ANCHOR: rows
 export function TocRows({ rows, setRows, unit }: {
