@@ -38,6 +38,7 @@ import qualified Data.ByteString.Char8 as BC
 import Data.Char (isDigit)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef,
                    writeIORef)
+import Data.List (nub)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
@@ -232,6 +233,10 @@ blockingPop env sock key seconds = do
     waitForClient = withFdSocket sock (threadWaitRead . fromIntegral)
     waitForItem = do
       store <- readTVar (storeVar env)
+      -- At time 0 nothing looks expired. A list whose time has come
+      -- still wakes us; LPOP then forgets it, and we sleep again.
+      -- 時刻 0 では、何も期限切れに見えない。時刻が来たリストでも
+      -- 起きるが、LPOP がそれを忘れるので、次はまた眠る
       case fst (apply 0 (LLen key) store) of
         Number 0 -> retry                     -- nothing yet / まだ空
         _        -> pure True       -- an item, or an error / 何かある
@@ -262,23 +267,29 @@ publish env channel message = atomically $ do
 subscribe :: Env -> Socket -> [Text] -> IO ()
 subscribe env sock channels =
   bracket enter (const leave) $ \mine -> do
-    forM_ (zip [1 :: Int ..] channels) $ \(i, c) ->
+    forM_ (zip [1 :: Int ..] wanted) $ \(i, c) ->
       sendAll sock (render (WArray [bulk "subscribe", bulk' c, WInt i]))
     race_ (deliver mine) waitForHangUp
   where
     enter = atomically $ do
-      forM_ channels $ \c ->
+      forM_ wanted $ \c ->
         modifyTVar' (listeners env) (Map.insertWith (+) c 1)
       dupTChan (hub env)
     deliver mine = forever $ do
       (c, m) <- atomically (readTChan mine)
-      when (c `elem` channels) $
+      when (c `elem` wanted) $
         sendAll sock (render (WArray [bulk "message", bulk' c, bulk' m]))
     waitForHangUp = do
       chunk <- recv sock 4096
       unless (BS.null chunk) waitForHangUp
-    leave = atomically $ forM_ channels $ \c ->
-      modifyTVar' (listeners env) (Map.adjust (subtract 1) c)
+    leave = atomically $ forM_ wanted $ \c ->
+      modifyTVar' (listeners env) (Map.update oneLess c)
+    -- Each channel once, even when the client names it twice: we count
+    -- people, not names. A channel nobody listens to leaves the table.
+    -- 同じ名前を2回並べられても、チャンネルは1回ずつ：数えるのは、名前
+    -- ではなく人。だれも聞かなくなったチャンネルは、表から消す
+    wanted = nub channels
+    oneLess n = if n <= 1 then Nothing else Just (n - 1)
     bulk s  = WBulk (Just s)
     bulk' t = WBulk (Just (encodeUtf8 t))
 -- ANCHOR_END: pubsub

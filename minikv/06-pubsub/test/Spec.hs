@@ -1,5 +1,6 @@
 module Main (main) where
 
+-- ANCHOR: imports
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
@@ -27,10 +28,12 @@ import PubSubAnswers
 import MiniKv.Client
 import MiniKv.Persist
 import MiniKv.Protocol
+import MiniKv.Request (waitSeconds)
 import MiniKv.Server
 import MiniKv.Store
 import MiniKv.Types
 import MiniKv.Wire
+-- ANCHOR_END: imports
 
 -- 🎲 Random wire values, any depth. / どんな深さでも、でたらめな回線の値
 genWire :: Int -> Gen Wire
@@ -376,6 +379,7 @@ main = hspec $ do
           late <- timeout 5000000 $
             try @IOException (request conn ["GET", "hero"])
           fmap isLeft late `shouldBe` Just True
+    -- ANCHOR: refuseSpec
     -- ログに書けなくなったら、変更を断り、それからあとも断り続ける。
     -- 読むのは続けられ、断った変更は、ストアにもログにもない
     it "refuses changes once the log cannot be written" $ do
@@ -407,6 +411,7 @@ main = hspec $ do
       removeFile path
       (problem r, replayedStore r) `shouldBe`
         (Nothing, snd (applyAll 0 [Set "hero" "Lambda"] emptyStore))
+    -- ANCHOR_END: refuseSpec
     -- お客さん用の上限（配列は 1024 個まで）より大きい1件も、読み戻せる：
     -- 1100 個のリストのスナップショットと、1100 個のキーの掃除
     it "reads back entries bigger than a guest may send" $ do
@@ -477,6 +482,24 @@ main = hspec $ do
             , WInt 1
             , Just (WArray [ WBulk (Just "message"), WBulk (Just "news")
                            , WBulk (Just "dragon spotted") ]) )
+    -- BLPOP の秒数は、マイクロ秒にしてもあふれない数だけ。頭の + も断る
+    it "refuses a BLPOP timeout that would go round" $ do
+      let most = maxBound `div` 1000000 :: Int
+          ask t = waitSeconds (BC.pack t)
+      ask (show most) `shouldBe` Right most
+      ask (show (most + 1)) `shouldSatisfy` isLeft
+      ask (show (maxBound :: Int)) `shouldSatisfy` isLeft
+      ask "+1" `shouldSatisfy` isLeft
+      ask "-1" `shouldSatisfy` isLeft
+    -- 同じチャンネルを2回並べても、聞いているのは1人
+    it "counts a subscriber once, even when a channel is named twice" $
+      withServer $ \port ->
+        withConnection port $ \listener ->
+          withConnection port $ \speaker -> do
+            request listener ["SUBSCRIBE", "news", "news"] `shouldReturn`
+              WArray [WBulk (Just "subscribe"), WBulk (Just "news"), WInt 1]
+            request speaker ["PUBLISH", "news", "dragon"]
+              `shouldReturn` WInt 1
   -- ANCHOR_END: pubsubSpec
     -- 購読してすぐ切った人は、人数から外れる。（返事を送る途中で
     -- 切られるすき間は、このテストではまず起きない。bracket で

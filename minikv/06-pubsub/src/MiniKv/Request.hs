@@ -8,6 +8,7 @@
 module MiniKv.Request
   ( Request (..)
   , toRequest
+  , waitSeconds
   ) where
 
 import Data.ByteString (ByteString)
@@ -17,6 +18,7 @@ import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8')
 
 import MiniKv.Protocol (toCommand)
+import MiniKv.Store (readInt)
 import MiniKv.Types
 -- ANCHOR_END: head
 
@@ -37,15 +39,26 @@ data Request
 toRequest :: [ByteString] -> Either Text Request
 toRequest words' = case words' of
   name : args -> case (T.toUpper (T.pack (BC.unpack name)), args) of
-    ("BLPOP",     [k, t])       -> BLPop <$> utf8 k <*> number t
+    ("BLPOP",     [k, t])       -> BLPop <$> utf8 k <*> waitSeconds t
     ("PUBLISH",   [c, m])       -> Publish <$> utf8 c <*> utf8 m
     ("SUBSCRIBE", cs@(_ : _))   -> Subscribe <$> traverse utf8 cs
     _                           -> Plain <$> toCommand words'
   []          -> Plain <$> toCommand words'
   where
     utf8 bytes = either (const (Left "not UTF-8")) Right (decodeUtf8' bytes)
-    number bytes = case BC.readInt bytes of
-      Just (n, "") | n >= 0 -> Right n
-      _                     -> Left "the timeout must be a whole number"
+
+-- ⏲️ The seconds BLPOP may wait: digits only, read by the same `readInt`
+--    as every other number. The server turns them into microseconds
+--    (× 1000000), so a number that would go round the Int ring there
+--    is refused here, at the gate.
+-- BLPOP が待つ秒数：数字だけ。ほかの数と同じ readInt で読む。
+-- サーバーは、これをマイクロ秒にする（× 1000000）。そこで Int の輪を
+-- 回ってしまう数は、ここ（門）で断る
+waitSeconds :: ByteString -> Either Text Int
+waitSeconds bytes = case decodeUtf8' bytes of
+  Right t | Just n <- readInt t, n >= 0 ->
+    if n > maxBound `div` 1000000 then Left "the timeout is too long"
+                                  else Right n
+  _ -> Left "the timeout must be a whole number"
 -- ANCHOR_END: request
 -- ANCHOR_END: all

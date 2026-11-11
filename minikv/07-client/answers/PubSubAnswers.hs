@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of "Pub/Sub and blocking": UNSUBSCRIBE, and
 --   BLPOP on many keys. A copy of the server's `serveClient` that uses
 --   them, and a test server to try it.
@@ -35,6 +36,7 @@ import MiniKv.Server
 import MiniKv.Store (apply)
 import MiniKv.Types
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: listen
 -- 👂 Step 2: listen to channels, and take requests while listening:
@@ -212,14 +214,11 @@ data Request2 = Old Request | PopAny [Key] Int
 toRequest2 :: [ByteString] -> Either Text Request2
 toRequest2 words' = case words' of
   name : args | BC.map toUpper name == "BLPOP" -> case unsnoc args of
-    Just (keys@(_ : _), t) -> PopAny <$> traverse utf8 keys <*> number t
+    Just (keys@(_ : _), t) -> PopAny <$> traverse utf8 keys <*> waitSeconds t
     _                      -> Left "BLPOP needs keys and a timeout"
   _ -> Old <$> toRequest words'
   where
     utf8 bytes = either (const (Left "not UTF-8")) Right (decodeUtf8' bytes)
-    number bytes = case BC.readInt bytes of
-      Just (n, "") | n >= 0 -> Right n
-      _                     -> Left "the timeout must be a whole number"
 
 -- 🧪 A test server that talks with `serveClient2`.
 -- serveClient2 で話す、テスト用のサーバー

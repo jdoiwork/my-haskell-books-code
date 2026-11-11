@@ -29,6 +29,7 @@ import TypedAnswers
 import MiniKv.Client
 import MiniKv.Persist
 import MiniKv.Protocol
+import MiniKv.Request (waitSeconds)
 import MiniKv.Server
 import MiniKv.Store
 import qualified MiniKv.Typed as Typed
@@ -482,6 +483,24 @@ main = hspec $ do
             , WInt 1
             , Just (WArray [ WBulk (Just "message"), WBulk (Just "news")
                            , WBulk (Just "dragon spotted") ]) )
+    -- BLPOP の秒数は、マイクロ秒にしてもあふれない数だけ。頭の + も断る
+    it "refuses a BLPOP timeout that would go round" $ do
+      let most = maxBound `div` 1000000 :: Int
+          ask t = waitSeconds (BC.pack t)
+      ask (show most) `shouldBe` Right most
+      ask (show (most + 1)) `shouldSatisfy` isLeft
+      ask (show (maxBound :: Int)) `shouldSatisfy` isLeft
+      ask "+1" `shouldSatisfy` isLeft
+      ask "-1" `shouldSatisfy` isLeft
+    -- 同じチャンネルを2回並べても、聞いているのは1人
+    it "counts a subscriber once, even when a channel is named twice" $
+      withServer $ \port ->
+        withConnection port $ \listener ->
+          withConnection port $ \speaker -> do
+            request listener ["SUBSCRIBE", "news", "news"] `shouldReturn`
+              WArray [WBulk (Just "subscribe"), WBulk (Just "news"), WInt 1]
+            request speaker ["PUBLISH", "news", "dragon"]
+              `shouldReturn` WInt 1
   -- ANCHOR_END: pubsubSpec
     -- 購読してすぐ切った人は、人数から外れる。（返事を送る途中で
     -- 切られるすき間は、このテストではまず起きない。bracket で
