@@ -1,0 +1,36 @@
+cabal-version: 3.0
+name:          minikv-pexpire
+version:       0.4.0.0
+build-type:    Simple
+
+-- 第10部 総合演習4「期限切れと時計」のトレーニング、ステップ2の解答。
+-- 04-expiry の src/MiniKv の Types・Store・Wire・Protocol を写し、PEXPIRE の
+-- 6か所を足したもの（ANCHOR: pexpire…）。04 を直したら、ここにも写す
+-- （scripts/check-code-sections.sh が、04 とのちがいが PEXPIRE の分だけかを確かめる）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , containers       ^>=0.8
+    , text             ^>=2.1
+    , bytestring       ^>=0.12
+
+library
+  import:           shared
+  exposed-modules:  MiniKv.Types
+                    MiniKv.Store
+                    MiniKv.Wire
+                    MiniKv.Protocol
+  hs-source-dirs:   src
+
+test-suite pexpire-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minikv-pexpire
+    , hspec            ^>=2.11

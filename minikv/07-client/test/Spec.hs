@@ -123,11 +123,11 @@ main = hspec $ do
         `shouldBe` [Ok, Failed (WrongType "k" KList KString)]
     -- Int の端を越える INCR は、Overflow のエラーで、ストアは変わらない
     it "INCR at maxBound is an Overflow error" $ do
-      let big             = T.pack (show (maxBound :: Int))
-          (_, before)     = applyAll 0 [Set "n" big] emptyStore
-          (reply, after)  = apply 0 (Incr "n") before
+      let big              = T.pack (show (maxBound :: Int))
+          (_, stored)      = applyAll 0 [Set "n" big] emptyStore
+          (reply, stored') = apply 0 (Incr "n") stored
       reply `shouldBe` Failed (Overflow "n")
-      after `shouldBe` before
+      stored' `shouldBe` stored
     -- Int に入らない数や、16進の形は、数ではない
     it "INCR refuses numbers too big for Int, and 0x10" $
       fst (applyAll 0 [ Set "a" "9223372036854775808", Incr "a"
@@ -194,10 +194,10 @@ main = hspec $ do
     -- 1 MB を超える要求は、一度に届いても、途中まででも断る
     it "refuses a request over 1 MB, however it arrives" $ do
       let value   = BC.replicate 400000 'v'
-          request = render (WArray (map (WBulk . Just)
+          big     = render (WArray (map (WBulk . Just)
                       ["HSET", "k", value, value, value]))
-      readRequest request `shouldBe` Broken "request too large"
-      readRequest (BC.take 1100000 request)
+      readRequest big `shouldBe` Broken "request too large"
+      readRequest (BC.take 1100000 big)
         `shouldBe` Broken "request too large"
     -- 数の引数は INCR と同じ読み方：0x10 や、Int に入らない数は断る
     it "refuses 0x10 and numbers too big for Int" $ do

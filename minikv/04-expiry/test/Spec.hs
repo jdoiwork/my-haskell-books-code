@@ -6,11 +6,14 @@ import qualified Data.Text as T
 import Control.Concurrent.Async (forConcurrently_, withAsync)
 import Control.Concurrent.STM (atomically, check, newTVarIO, readTVar)
 import Data.IORef
+import Data.List (sortOn)
+import qualified Data.Map.Strict as Map
 import Control.Monad (replicateM_)
 import System.Timeout (timeout)
 import Test.Hspec
 import Test.QuickCheck
 
+import ExpiryAnswers
 import KvAnswers
 import MiniKv.Client
 import MiniKv.Protocol
@@ -80,11 +83,11 @@ main = hspec $ do
         `shouldBe` [Ok, Failed (WrongType "k" KList KString)]
     -- Int の端を越える INCR は、Overflow のエラーで、ストアは変わらない
     it "INCR at maxBound is an Overflow error" $ do
-      let big             = T.pack (show (maxBound :: Int))
-          (_, before)     = applyAll 0 [Set "n" big] emptyStore
-          (reply, after)  = apply 0 (Incr "n") before
+      let big              = T.pack (show (maxBound :: Int))
+          (_, stored)      = applyAll 0 [Set "n" big] emptyStore
+          (reply, stored') = apply 0 (Incr "n") stored
       reply `shouldBe` Failed (Overflow "n")
-      after `shouldBe` before
+      stored' `shouldBe` stored
     -- Int に入らない数や、16進の形は、数ではない
     it "INCR refuses numbers too big for Int, and 0x10" $
       fst (applyAll 0 [ Set "a" "9223372036854775808", Incr "a"
@@ -153,10 +156,10 @@ main = hspec $ do
     -- 1 MB を超える要求は、一度に届いても、途中まででも断る
     it "refuses a request over 1 MB, however it arrives" $ do
       let value   = BC.replicate 400000 'v'
-          request = render (WArray (map (WBulk . Just)
+          big     = render (WArray (map (WBulk . Just)
                       ["HSET", "k", value, value, value]))
-      readRequest request `shouldBe` Broken "request too large"
-      readRequest (BC.take 1100000 request)
+      readRequest big `shouldBe` Broken "request too large"
+      readRequest (BC.take 1100000 big)
         `shouldBe` Broken "request too large"
     -- 数の引数は INCR と同じ読み方：0x10 や、Int に入らない数は断る
     it "refuses 0x10 and numbers too big for Int" $ do
@@ -284,7 +287,33 @@ main = hspec $ do
       kindCounts (snd (applyAll 0 [Set "a" "1", Set "b" "2", SAdd "s" ["x"]]
                                 emptyStore))
         `shouldBe` [(KString, 2), (KSet, 1)]
+    -- ANCHOR: dueSpec
+    -- 時刻が来たキーだけを、早い順に、多くても n 個
+    it "takeDue takes only due keys, the earliest first, at most n" $ do
+      let index = foldr (uncurry schedule) emptyDue
+                    [("a", 300), ("b", 100), ("c", 200), ("d", 900)]
+          (first, rest) = takeDue 2 250 index
+      first `shouldBe` ["b", "c"]
+      fst (takeDue 5 250 rest) `shouldBe` []
+      fst (takeDue 5 1000 rest) `shouldBe` ["a", "d"]
+    -- 新しい期限は、古い期限と入れかわる
+    it "a new deadline replaces the old one" $
+      fst (takeDue 10 500 (schedule "a" 900 (schedule "a" 100 emptyDue)))
+        `shouldBe` []
+    -- 素朴なやり方（全部を並べて、時刻の来たものを n 個）と同じ答え
+    it "takeDue agrees with sorting everything" $
+      forAll (listOf deadline) $ \pairs ->
+        forAll (choose (0, 6)) $ \n ->
+          forAll (choose (0, 20)) $ \now ->
+            let index  = foldl (\i (k, t) -> schedule k t i) emptyDue pairs
+                -- the last deadline of each key / キーごとに最後の期限
+                latest = Map.toList (Map.fromList pairs)
+                due    = filter (\(_, t) -> t <= now) latest
+                naive  = map fst (take n (sortOn (\(k, t) -> (t, k)) due))
+            in  fst (takeDue n now index) === naive
+    -- ANCHOR_END: dueSpec
   where
+    deadline = (,) <$> elements ["a", "b", "c", "d", "e"] <*> choose (0, 20)
     emptyCollection v = case v of
       List l    -> null l
       Members s -> null s

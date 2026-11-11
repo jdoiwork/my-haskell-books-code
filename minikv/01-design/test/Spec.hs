@@ -63,11 +63,11 @@ main = hspec $ do
         `shouldBe` [Ok, Failed (WrongType "k" KList KString)]
     -- Int の端を越える INCR は、Overflow のエラーで、ストアは変わらない
     it "INCR at maxBound is an Overflow error" $ do
-      let big             = T.pack (show (maxBound :: Int))
-          (_, before)     = applyAll [Set "n" big] emptyStore
-          (reply, after)  = apply (Incr "n") before
+      let big              = T.pack (show (maxBound :: Int))
+          (_, stored)      = applyAll [Set "n" big] emptyStore
+          (reply, stored') = apply (Incr "n") stored
       reply `shouldBe` Failed (Overflow "n")
-      after `shouldBe` before
+      stored' `shouldBe` stored
     -- Int に入らない数や、16進の形は、数ではない
     it "INCR refuses numbers too big for Int, and 0x10" $
       fst (applyAll [ Set "a" "9223372036854775808", Incr "a"

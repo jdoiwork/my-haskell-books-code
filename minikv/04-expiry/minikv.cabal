@@ -32,6 +32,7 @@ library
                     MiniKv.Server
                     MiniKv.Client
                     KvAnswers
+                    ExpiryAnswers
   hs-source-dirs:   src answers
 
 -- ANCHOR: exe
