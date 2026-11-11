@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of "Protocol and parser".
 -- 「プロトコルとパーサー」のトレーニングの解答
 module ProtocolAnswers
@@ -13,6 +14,7 @@ import Data.Text.Encoding (encodeUtf8)
 import MiniKv.Protocol
 import MiniKv.Store
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: ping
 -- 🏓 Step 2, the light way: answer PING where the request is read,

@@ -51,7 +51,10 @@ genCommand = oneof
   ]
   where
     key   = elements ["a", "b", "c"]
-    text  = elements ["x", "y", "z", "1", "2"]
+    -- the edge of Int, so that INCR overflows now and then
+    -- Int の端の数も。INCR が、ときどきあふれるように
+    text  = elements
+      ["x", "y", "z", "1", "2", T.pack (show (maxBound :: Int))]
     small = choose (-3, 3)
 -- ANCHOR_END: gens
 
@@ -75,11 +78,13 @@ main = hspec $ do
     it "a list command on a string is a WrongType error" $
       fst (applyAll 0 [Set "k" "v", LPush "k" ["x"]] emptyStore)
         `shouldBe` [Ok, Failed (WrongType "k" KList KString)]
-    -- Int の端を越える INCR は、Overflow のエラー
-    it "INCR at maxBound is an Overflow error" $
-      fst (applyAll 0 [Set "n" (T.pack (show (maxBound :: Int))), Incr "n"]
-                    emptyStore)
-        `shouldBe` [Ok, Failed (Overflow "n")]
+    -- Int の端を越える INCR は、Overflow のエラーで、ストアは変わらない
+    it "INCR at maxBound is an Overflow error" $ do
+      let big             = T.pack (show (maxBound :: Int))
+          (_, before)     = applyAll 0 [Set "n" big] emptyStore
+          (reply, after)  = apply 0 (Incr "n") before
+      reply `shouldBe` Failed (Overflow "n")
+      after `shouldBe` before
     -- Int に入らない数や、16進の形は、数ではない
     it "INCR refuses numbers too big for Int, and 0x10" $
       fst (applyAll 0 [ Set "a" "9223372036854775808", Incr "a"
@@ -145,6 +150,14 @@ main = hspec $ do
     it "refuses a request that keeps growing" $
       readRequest (BC.replicate 2000000 'a')
         `shouldBe` Broken "request too large"
+    -- 1 MB を超える要求は、一度に届いても、途中まででも断る
+    it "refuses a request over 1 MB, however it arrives" $ do
+      let value   = BC.replicate 400000 'v'
+          request = render (WArray (map (WBulk . Just)
+                      ["HSET", "k", value, value, value]))
+      readRequest request `shouldBe` Broken "request too large"
+      readRequest (BC.take 1100000 request)
+        `shouldBe` Broken "request too large"
     -- 数の引数は INCR と同じ読み方：0x10 や、Int に入らない数は断る
     it "refuses 0x10 and numbers too big for Int" $ do
       toCommand ["INCRBY", "gold", "0x10"]
@@ -156,10 +169,13 @@ main = hspec $ do
       render (replyWire (Failed (WrongType "hero" KList KString)))
         `shouldBe` "-WRONGTYPE hero holds a string, not a list\r\n"
     -- キーに \r\n があっても、エラーは1行で、答えは1つ
-    it "keeps an error on one line, whatever the key" $
+    it "keeps an error on one line, whatever the key" $ do
       let reply = Failed (WrongType "a\r\n+OK" KList KString)
-      in  parseWire (render (replyWire reply)) `shouldBe`
-            Parsed (WError "WRONGTYPE a  +OK holds a string, not a list") ""
+      parseWire (render (replyWire reply)) `shouldBe`
+        Parsed (WError "WRONGTYPE a  +OK holds a string, not a list") ""
+      -- toCommand のエラーも1行（知らないコマンドと、数でない引数）
+      toCommand ["FOO\r\n+OK"] `shouldSatisfy` oneLineError
+      toCommand ["INCRBY", "gold", "x\r\n+OK"] `shouldSatisfy` oneLineError
   -- ANCHOR_END: protocolSpec
 
   -- ANCHOR: serverSpec
@@ -274,3 +290,9 @@ main = hspec $ do
       Members s -> null s
       Hash h    -> null h
       Str _     -> False
+
+-- ✂️ An error that stays on one line (no \r, no \n).
+-- 1行のままのエラー（\r も \n もない）
+oneLineError :: Either T.Text Command -> Bool
+oneLineError (Left message) = T.all (`notElem` ("\r\n" :: String)) message
+oneLineError (Right _)      = False

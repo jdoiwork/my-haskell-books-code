@@ -52,11 +52,11 @@ mixUpCommands =
   , Incr "hero"
   , TypeOf "hero"
   ]
--- ANCHOR_END: examples
 
 -- 🏋️ The commands of the training, step 1. / トレーニングのステップ1
 trainingCommands :: [Command]
 trainingCommands =
   [ Set "a" "1", Incr "a", RPush "l" ["x", "y"], RPop "l", RPop "l"
   , RPop "l", Exists "l", Del ["a", "l"] ]
+-- ANCHOR_END: examples
 -- ANCHOR_END: all

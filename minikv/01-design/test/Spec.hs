@@ -26,7 +26,10 @@ genCommand = oneof
   ]
   where
     key   = elements ["a", "b", "c"]
-    text  = elements ["x", "y", "z", "1", "2"]
+    -- the edge of Int, so that INCR overflows now and then
+    -- Int の端の数も。INCR が、ときどきあふれるように
+    text  = elements
+      ["x", "y", "z", "1", "2", T.pack (show (maxBound :: Int))]
     small = choose (-3, 3)
 
 -- 🧺 Is it an empty list, set or hash?
@@ -58,11 +61,13 @@ main = hspec $ do
     it "a list command on a string is a WrongType error" $
       fst (applyAll [Set "k" "v", LPush "k" ["x"]] emptyStore)
         `shouldBe` [Ok, Failed (WrongType "k" KList KString)]
-    -- Int の端を越える INCR は、Overflow のエラー
-    it "INCR at maxBound is an Overflow error" $
-      fst (applyAll [Set "n" (T.pack (show (maxBound :: Int))), Incr "n"]
-                    emptyStore)
-        `shouldBe` [Ok, Failed (Overflow "n")]
+    -- Int の端を越える INCR は、Overflow のエラーで、ストアは変わらない
+    it "INCR at maxBound is an Overflow error" $ do
+      let big             = T.pack (show (maxBound :: Int))
+          (_, before)     = applyAll [Set "n" big] emptyStore
+          (reply, after)  = apply (Incr "n") before
+      reply `shouldBe` Failed (Overflow "n")
+      after `shouldBe` before
     -- Int に入らない数や、16進の形は、数ではない
     it "INCR refuses numbers too big for Int, and 0x10" $
       fst (applyAll [ Set "a" "9223372036854775808", Incr "a"

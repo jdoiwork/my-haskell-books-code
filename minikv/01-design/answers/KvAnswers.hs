@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of "Design: values and commands as types".
 -- 「設計：値とコマンドを型で描く」のトレーニングの解答
 module KvAnswers
@@ -11,6 +12,7 @@ import Data.Text (Text)
 
 import MiniKv.Store
 import MiniKv.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: getSet
 -- 🔁 Step 2: store a new text, and answer with the old one.

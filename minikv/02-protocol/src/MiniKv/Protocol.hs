@@ -24,14 +24,18 @@ import MiniKv.Wire
 -- ANCHOR: request
 -- 📮 One request from the buffer: an array of bulk strings, or (to be
 --    friendly to people typing in nc) one plain line of words, ending in
---    \n (a \r before it is dropped with the spaces). A request still
---    incomplete after 1 MB is refused: we do not wait for a giant one.
+--    \n (a \r before it is dropped with the spaces). A request over
+--    1 MB is refused, whether it is still incomplete or came all at once.
 -- バッファーから要求を1つ：文字列の配列か、（nc で打つ人のために）
 -- 単語を並べた1行（\n で終わる。前の \r は、空白と一緒に落ちる）。
--- 1 MB たまっても終わらない要求は断る：巨大な要求を待たない
+-- 1 MB を超える要求は断る：終わっていなくても、一度に届いても
+-- （巨大な要求を待たない。届き方で答えを変えない）
 readRequest :: ByteString -> Parsed [ByteString]
 readRequest input = case request of
   NeedMore | BC.length input > maxRequest -> Broken "request too large"
+  Parsed _ rest
+    | BC.length input - BC.length rest > maxRequest
+                                          -> Broken "request too large"
   other                                   -> other
   where
     request
