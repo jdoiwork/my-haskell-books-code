@@ -4,6 +4,7 @@
 // again from the API: the screen shows what is on the shelf.
 // カード1枚：バー、状態とボタン、★、目次、感想、自分で決めた属性。
 // 変えるたびに、API からカードを読み直す。画面は、本棚にあるとおりを見せる
+// ANCHOR: imports
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type Answer, shelf } from "./api";
@@ -12,6 +13,7 @@ import { Bar } from "./Bar";
 import { eventLabel, marks, stars, stateLabel, whereOf } from "./shadows";
 import { Toc } from "./Toc";
 import type { CardDetail, FormField } from "./tsundoku-api";
+// ANCHOR_END: imports
 
 // ANCHOR: card
 export function CardView({ id }: { id: number }) {
@@ -33,6 +35,7 @@ export function CardView({ id }: { id: number }) {
     if (c.ok) setCard(c.value);
     else setProblem(c.problem.messages);
     if (f.ok) setFields(f.value);
+    else setProblem(f.problem.messages);
   }, [id]);
   useEffect(() => { reload(); }, [reload]);
 
@@ -95,6 +98,7 @@ export function CardView({ id }: { id: number }) {
 }
 // ANCHOR_END: card
 
+// ANCHOR: noteForm
 // ✍️ The form for a new note.
 // 新しい感想のフォーム
 function NoteForm({ onWrite }: {
@@ -124,4 +128,5 @@ function NoteForm({ onWrite }: {
     </form>
   );
 }
+// ANCHOR_END: noteForm
 // ANCHOR_END: all

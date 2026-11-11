@@ -7,11 +7,12 @@
 # 直す。本物の画面なら JSON の API に聞くが、ここでは作品を決め打ちにして、
 # ネットなしで動かす
 import asyncio
-from dataclasses import dataclass, replace
 
 # ANCHOR: app
 # Python (Textual: draw from the state, again whenever it changes)
 # Python（Textual：状態から描き、変わるたびに描き直す）
+from dataclasses import dataclass, replace
+
 from textual.app import App, ComposeResult
 from textual.reactive import reactive
 from textual.widgets import Footer, Static
@@ -69,6 +70,8 @@ class ShelfApp(App):
         # the new value and draws again.
         # 古いタプルの中を変えず、新しいタプルを入れる。Textual が新しい
         # 値に気づいて、描き直す
+        if not self.works:  # an empty shelf: nothing to rate / 空の本棚
+            return
         w = self.works[self.cursor]
         new = replace(w, rating=max(0, min(100, w.rating + d)))
         self.works = tuple(
@@ -92,6 +95,8 @@ def stars(rating: int) -> str:
 async def test_shelf() -> None:
     app = ShelfApp()
     async with app.run_test() as pilot:
+        await pilot.press("plus")  # an empty shelf / 空の本棚
+        assert app.works == ()
         app.works = (Work("竜の飼い方入門", 60), Work("星の地図", 80))
         await pilot.press("j", "plus")
         assert app.cursor == 1

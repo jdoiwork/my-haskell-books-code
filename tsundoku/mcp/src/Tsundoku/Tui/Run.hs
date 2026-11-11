@@ -13,18 +13,17 @@ module Tsundoku.Tui.Run
   , perform
   ) where
 
--- IO inside brick, and text
--- brick の中の IO、文字列
+-- IO inside brick, and digits
+-- brick の中の IO、数字
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (get, modify, put)
 import Data.Char (isDigit)
-import Data.Text qualified as T
 
 -- brick and vty, and servant's client
 -- brick と vty、servant のクライアント
 import Brick (App (..), BrickEvent (..), halt, neverShowCursor)
 import Graphics.Vty qualified as Vty
-import Servant.Client (ClientEnv, ClientError, ClientM)
+import Servant.Client (ClientEnv, ClientError (..), ClientM)
 
 import Tsundoku.Api.Client
 import Tsundoku.Api.Json
@@ -96,9 +95,15 @@ perform env ask = case ask of
     run :: (a -> Answer) -> ClientM a -> IO Answer
     run done asking = either failed done <$> call env asking
 
--- 🚫 A refusal with a Problem, or no answer at all.
--- Problem のついた断りか、そもそも答えがない
+-- 🚫 A refusal with a Problem, or no answer we can read. The words
+--    are ours: show e begins with the same long preamble every time.
+-- Problem のついた断りか、読める答えがない。言葉はこちらで作る
+-- （show e は、どのエラーでも同じ長い前置きで始まる）
 failed :: ClientError -> Answer
-failed e = maybe (Offline (T.pack (take 60 (show e)))) Refused (problemOf e)
+failed e = maybe (Offline (reason e)) Refused (problemOf e)
+  where
+    reason (ConnectionError _) =
+      "つながりません。shelf serve は動いていますか（TSUNDOKU_API の住所）"
+    reason _ = "答えが読めません"
 -- ANCHOR_END: perform
 -- ANCHOR_END: all

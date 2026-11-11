@@ -95,11 +95,12 @@ workLine w = T.intercalate "  "
   , padTo 4 (starsText w.rating)
   , w.title ]
 
--- 📏 Pad to a width on the screen. A full-width character (漢字, ★)
+-- 📏 Pad to a width on the screen. A full-width character (漢字, かな)
 --    takes 2 columns, so T.justifyLeft, which counts characters, would
---    not line up.
--- 画面の幅で詰める。全角の文字（漢字、★）は2桁ぶんなので、文字を数える
--- T.justifyLeft では、そろわない
+--    not line up. (★ is "ambiguous": vty counts it as 1 column.)
+-- 画面の幅で詰める。全角の文字（漢字、かな）は2桁ぶんなので、文字を
+-- 数える T.justifyLeft では、そろわない（★は幅が「あいまい」な文字で、
+-- vty は1桁と数える）
 padTo :: Int -> Text -> Text
 padTo n t = t <> T.replicate (n - safeWcswidth (T.unpack t)) " "
 

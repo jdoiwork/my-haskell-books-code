@@ -88,7 +88,7 @@ initial = Model { works = [], cursor = 0, screen = OnShelf, message = "" }
 -- キーがすること：新しいモデルと、聞くこと。画面とキーの組ごとに1行。
 -- ほかの組は、何もしない
 step :: Key -> Model -> (Model, [Ask])
-step key model = case (model.screen, key) of
+step key before = case (model.screen, key) of
   (_,          QuitKey) -> (model, [Quit])
   (OnShelf,    Down   ) -> (move 1,    [])
   (OnShelf,    Up     ) -> (move (-1), [])
@@ -100,6 +100,9 @@ step key model = case (model.screen, key) of
   (OnCard c _, Less   ) -> (model, rateBy c (-10))
   _                     -> (model, [])
   where
+    -- a key starts a new turn: the last word on the bottom line goes
+    -- キーが来たら、新しい1手。下の行の前の言葉は消す
+    model  = before { message = "" }
     move d = model { cursor = clamp 0 (length model.works - 1)
                                     (model.cursor + d) }
     pick c n = case drop (n - 1) c.next of
@@ -123,16 +126,18 @@ selected model = case drop model.cursor model.works of
 -- ANCHOR_END: step
 
 -- ANCHOR: arrive
--- 📬 What an answer does to the model.
--- 答えが、モデルをどう変えるか
+-- 📬 What an answer does to the model. A refusal stays on the bottom
+--    line even when the card is read again right after it (the next
+--    key clears it, in step).
+-- 答えが、モデルをどう変えるか。断りの言葉は、すぐあとにカードを
+-- 読み直しても残す（消すのは、次のキー。step で）
 arrive :: Answer -> Model -> Model
 arrive answer model = case answer of
-  Works ws    -> model { works   = ws
-                       , cursor  = clamp 0 (length ws - 1) model.cursor
-                       , message = "" }
-  Card c fs   -> model { screen  = OnCard c fs, message = "" }
+  Works ws    -> model { works  = ws
+                       , cursor = clamp 0 (length ws - 1) model.cursor }
+  Card c fs   -> model { screen = OnCard c fs }
   Done        -> model
   Refused p   -> model { message = mconcat p.messages }
-  Offline why -> model { message = "つながりません：" <> why }
+  Offline why -> model { message = why }
 -- ANCHOR_END: arrive
 -- ANCHOR_END: all

@@ -9,7 +9,7 @@ import {
   TextInput, Title,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { shelf } from "./api";
 import { Bar } from "./Bar";
@@ -27,9 +27,16 @@ export function WorkList({ tag, onTag, onOpen }: {
 }) {
   const [works, setWorks] = useState<WorkSummary[]>([]);
   const [cloud, setCloud] = useState<TagCount[]>([]);
+  // why the shelf could not be read: an empty grid alone would look
+  // like an empty shelf
+  // 本棚が読めなかった理由。空の並びだけだと、空の本棚に見えてしまう
+  const [why, setWhy] = useState<string[]>([]);
   useEffect(() => {
     const asked = tag === null ? shelf.listWorks() : shelf.tagged(tag);
-    asked.then((a) => { if (a.ok) setWorks(a.value); });
+    asked.then((a) => {
+      if (a.ok) { setWorks(a.value); setWhy([]); }
+      else setWhy(a.problem.messages);
+    });
     shelf.tags().then((a) => { if (a.ok) setCloud(a.value); });
   }, [tag]);
   return (
@@ -39,6 +46,7 @@ export function WorkList({ tag, onTag, onOpen }: {
       </Title>
       <TagPicker cloud={cloud} chosen={tag} onTag={onTag} />
       <Search onOpen={onOpen} />
+      {why.length > 0 && <Problems messages={why} />}
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         {works.map((w) => <WorkCard key={w.id} w={w} onOpen={onOpen} />)}
       </SimpleGrid>
@@ -112,9 +120,16 @@ function Search({ onOpen }: { onOpen: (id: number) => void }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<HitItem[]>([]);
   const [why, setWhy] = useState<string[]>([]);
+  // only the newest search counts: an older answer that comes late
+  //   is dropped (the same as the card's reading again)
+  // いちばん新しく探したものだけを見せる。遅れて届いた古い答えは
+  // 捨てる（カードの読み直しと同じ）
+  const asked = useRef(0);
   const find = async (e: React.FormEvent) => {
     e.preventDefault();
+    const mine = ++asked.current;
     const a = await shelf.search(q);
+    if (mine !== asked.current) return;
     if (a.ok) { setHits(a.value); setWhy([]); }
     else { setHits([]); setWhy(a.problem.messages); }
   };

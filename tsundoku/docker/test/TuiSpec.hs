@@ -86,6 +86,10 @@ modelSpec = describe "the model" $ do
     (fst (step Down onShelf)).cursor `shouldBe` 1
     (fst (step Down (fst (step Down onShelf)))).cursor `shouldBe` 1
     (fst (step Up onShelf)).cursor `shouldBe` 0
+    -- the shelf got shorter elsewhere: the cursor stays on a row
+    -- ほかの画面で作品が減った。カーソルは行の上に収める
+    let lower = fst (step Down onShelf)
+    (arrive (Works (take 1 twoWorks)) lower).cursor `shouldBe` 0
   -- 「Enter で、選んだ作品のカードを聞く」
   it "asks for the card of the chosen work on Enter" $
     snd (step Open (fst (step Down onShelf))) `shouldBe` [LoadCard 5]
@@ -102,6 +106,8 @@ modelSpec = describe "the model" $ do
     snd (step Less opened) `shouldBe` [Rate 1 63, LoadCard 1]
     let top = arrive (Card (cardRated 100) []) onShelf
     snd (step More top) `shouldBe` [Rate 1 100, LoadCard 1]
+    let bottom = arrive (Card (cardRated 0) []) onShelf
+    snd (step Less bottom) `shouldBe` [Rate 1 0, LoadCard 1]
   -- 「Esc で本棚へ戻り、本棚を読み直す。q はどこでも終わる」
   it "goes back with Esc, and quits with q anywhere" $ do
     let opened = arrive (Card reading73 []) onShelf
@@ -112,6 +118,11 @@ modelSpec = describe "the model" $ do
   it "shows why, when the API says no" $ do
     let refused = Refused (Problem "bad-score" ["点は 0〜100 です：101"])
     (arrive refused onShelf).message `shouldBe` "点は 0〜100 です：101"
+    -- the card read again right after keeps the words; a key clears them
+    -- すぐあとにカードを読み直しても言葉は残る。次のキーで消える
+    let again = foldl (flip arrive) onShelf [refused, Card reading73 []]
+    again.message `shouldBe` "点は 0〜100 です：101"
+    (fst (step Back again)).message `shouldBe` ""
 -- ANCHOR_END: modelSpec
 
 -- ANCHOR: viewSpec

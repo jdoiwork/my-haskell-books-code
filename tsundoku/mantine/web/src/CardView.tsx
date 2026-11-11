@@ -65,6 +65,7 @@ export function CardView({ id, onEdit, onTag, onOpen }: {
     if (c.ok) setCard(c.value);
     else setProblem(c.problem.messages);
     if (f.ok) setFields(f.value);
+    else setProblem(f.problem.messages);
     if (x.ok) setExtras(x.value);
     if (t.ok) setKnown(t.value.map((k) => k.tag));
   }, [id]);
