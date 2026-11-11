@@ -14,7 +14,9 @@ module Vec
   , Plus
   , vappend
   , party
+  , scouts
   , Three
+  , Two
   ) where
 
 -- ANCHOR: vec
@@ -39,6 +41,13 @@ type Three = S (S (S Z))
 -- ちょうど3人のパーティー
 party :: Vec Three String
 party = "Lambda" :> "Python" :> "Rust" :> VNil
+
+type Two = S (S Z)
+
+-- 🧭 A party of two, coming by another road.
+-- 別の道から来た、2人の隊
+scouts :: Vec Two String
+scouts = "Erlang" :> "Go" :> VNil
 -- ANCHOR_END: vec
 
 -- ANCHOR: safe

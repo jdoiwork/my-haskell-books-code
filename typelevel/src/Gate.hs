@@ -8,6 +8,7 @@ module Gate
   ( toThree
   , withVec
   , vlength
+  , vfirst
   ) where
 
 -- ANCHOR: imports
@@ -30,4 +31,12 @@ withVec (x : xs) k = withVec xs (\v -> k (x :> v))
 vlength :: Vec n a -> Int
 vlength = length
 -- ANCHOR_END: gate
+
+-- ANCHOR: first
+-- 🔎 Works for every n: it looks at the Vec to see whether it is empty.
+-- どの n でも動く：空かどうかは、Vec を見て確かめる
+vfirst :: Vec n a -> Maybe a
+vfirst VNil     = Nothing
+vfirst (x :> _) = Just x
+-- ANCHOR_END: first
 -- ANCHOR_END: all
