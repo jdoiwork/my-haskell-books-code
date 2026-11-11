@@ -11,6 +11,7 @@ module MiniKv.Typed
   , Cmd (..)
   , ClientError (..)
   , run
+  , runMany
   , cmdWords
   , decodeReply
   ) where
@@ -19,9 +20,9 @@ import Data.ByteString (ByteString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
-import Text.Read (readMaybe)
 
-import MiniKv.Client (Connection, request)
+import MiniKv.Client (Connection, request, requestMany)
+import MiniKv.Store (readInt)
 import MiniKv.Wire
 -- ANCHOR_END: head
 
@@ -46,9 +47,11 @@ instance Codec Text where
   encode = id
   decode = Just
 
+-- The same gate as the server's INCR: digits only, and within Int.
+-- サーバーの INCR と同じ門番：数字だけで、Int に入るもの
 instance Codec Int where
   encode = T.pack . show
-  decode = readMaybe . T.unpack
+  decode = readInt
 -- ANCHOR_END: keys
 
 -- ANCHOR: cmd
@@ -122,5 +125,15 @@ decodeReply command reply = case (command, reply) of
 run :: Connection -> Cmd a -> IO (Either ClientError a)
 run conn command = decodeReply command <$> request conn (cmdWords command)
 -- ANCHOR_END: decode
+
+-- ANCHOR: runMany
+-- 🚚 Many commands of one answer type in one pipeline: each reply is
+--    read as its own command promised.
+-- 答えの型が同じコマンドを、まとめてパイプラインで。答えは1つずつ、
+-- そのコマンドが約束した型で読む
+runMany :: Connection -> [Cmd a] -> IO [Either ClientError a]
+runMany conn commands =
+  zipWith decodeReply commands <$> requestMany conn (map cmdWords commands)
+-- ANCHOR_END: runMany
 -- ANCHOR_END: all
 

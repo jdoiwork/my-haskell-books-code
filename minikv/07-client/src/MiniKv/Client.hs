@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | A small client: send words, wait for one whole reply.
 -- 小さなクライアント：単語を送り、答えが1つそろうまで待つ
 module MiniKv.Client
@@ -11,6 +12,7 @@ module MiniKv.Client
   , requestMany
   ) where
 
+import Control.Concurrent.Async (concurrently)
 import Control.Concurrent.MVar
 import Control.Exception (bracket, mask, onException)
 import Data.ByteString (ByteString)
@@ -20,6 +22,7 @@ import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: connection
 -- 🔌 A connection: the socket, and the bytes read but not used yet.
@@ -29,13 +32,13 @@ import MiniKv.Wire
 -- バイトは MVar にしまい、それが順番の札にもなる：持っている人だけが
 -- 話せる。Nothing は「途中で閉じた。もう使わない」
 data Connection = Connection Socket (MVar (Maybe ByteString))
--- ANCHOR_END: connection
 
 connectTo :: PortNumber -> IO Connection
 connectTo port = do
   sock <- socket AF_INET Stream defaultProtocol
   connect sock (SockAddrInet port (tupleToHostAddress (127, 0, 0, 1)))
   Connection sock <$> newMVar (Just BS.empty)
+-- ANCHOR_END: connection
 
 disconnect :: Connection -> IO ()
 disconnect (Connection sock _) = close sock
@@ -84,10 +87,16 @@ request conn words' = exclusive conn $ \sock buffer -> do
 receive :: Connection -> IO Wire
 receive conn = exclusive conn readReply
 
--- 📖 Read one whole reply; give back the bytes after it, too.
--- 答えを1つまるごと読む。そのうしろのバイトも返す
+-- 📖 Read one whole reply; give back the bytes after it, too. The
+--    limits of `parseWire` are for guests the server does not know.
+--    A client trusts the server it chose to connect to, so it reads
+--    without them: LRANGE may well answer more than 1024 items.
+-- 答えを1つまるごと読む。そのうしろのバイトも返す。parseWire の上限は、
+-- サーバーが知らないお客さんのためのもの。クライアントは、自分でつないだ
+-- サーバーを信じるので、上限なしで読む（LRANGE の答えは、1024 個を
+-- 超えることもある）
 readReply :: Socket -> ByteString -> IO (ByteString, Wire)
-readReply sock buffer = case parseWire buffer of
+readReply sock buffer = case parseWireWithin ownLimits buffer of
   Parsed reply rest -> pure (rest, reply)
   Broken why        -> fail ("broken reply: " <> why)
   NeedMore -> do
@@ -102,15 +111,23 @@ renderRequest words' = render (WArray [ WBulk (Just w) | w <- words' ])
 -- ANCHOR_END: request
 
 -- ANCHOR: requestMany
--- 🚚 Pipelining: send many requests at once, then read all the
+-- 🚚 Pipelining: send many requests at once, and read all the
 --    replies. One trip over the network instead of many.
+--    Sending and reading run side by side. If we sent everything
+--    first, a big batch would stop for ever: the server cannot write
+--    its replies (nobody reads them), so it stops reading, so we
+--    cannot finish sending.
 --    (`exclusive` keeps the turn; we meet it in a later section.)
 -- パイプライン：要求をまとめて送り、答えをまとめて読む。
--- ネットワークの往復が、何回もから1回に
+-- ネットワークの往復が、何回もから1回に。
+-- 送るのと読むのは、同時に動かす。全部送ってから読むと、大きなまとまり
+-- では永遠に止まる：サーバーは答えを書けず（だれも読まないので）、
+-- 読むのをやめ、こちらは送り終えられない
 -- （exclusive は順番を守るもの。あとの節で見る）
 requestMany :: Connection -> [[ByteString]] -> IO [Wire]
-requestMany conn requests = exclusive conn $ \sock buffer -> do
-  sendAll sock (foldMap renderRequest requests)
-  mapAccumM (\rest _ -> readReply sock rest) buffer requests
+requestMany conn requests = exclusive conn $ \sock buffer ->
+  snd <$> concurrently
+    (sendAll sock (foldMap renderRequest requests))
+    (mapAccumM (\rest _ -> readReply sock rest) buffer requests)
 -- ANCHOR_END: requestMany
 -- ANCHOR_END: all

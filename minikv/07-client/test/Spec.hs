@@ -33,7 +33,7 @@ import MiniKv.Request (waitSeconds)
 import MiniKv.Server
 import MiniKv.Store
 import qualified MiniKv.Typed as Typed
-import MiniKv.Typed (ClientError (..), ListKey (..), run)
+import MiniKv.Typed (ClientError (..), ListKey (..), run, runMany)
 import MiniKv.Types
 import MiniKv.Wire
 -- ANCHOR_END: imports
@@ -545,6 +545,13 @@ main = hspec $ do
         let level = Typed.Key "level" :: Typed.Key Int
         answer <- run conn (Typed.Get level)
         answer `shouldBe` Left (NotDecodable "high")
+        -- What the server's INCR calls "not a number" does not decode
+        --   either: too big for Int, or written like a Haskell literal.
+        -- サーバーの INCR が「数ではない」と言うものは、こちらも読まない：
+        -- Int に入らない数、Haskell のリテラルの書き方
+        forM_ ["9223372036854775808", "0x10", " 7 "] $ \strange -> do
+          _ <- request conn ["SET", "level", strange]
+          run conn (Typed.Get level) >>= (`shouldSatisfy` isLeft)
     -- サーバーのエラーも、型付きで返ってくる
     it "passes on the server's errors" $ withServer $ \port ->
       withConnection port $ \conn -> do
@@ -557,6 +564,24 @@ main = hspec $ do
       withConnection port $ \conn -> do
         answers <- requestMany conn (replicate 50 ["INCR", "n"])
         answers `shouldBe` map WInt [1 .. 50]
+    -- とても大きなまとまりでも、送る側と答える側が待ち合って止まらない
+    it "a huge pipeline does not stop half way" $ withServer $ \port ->
+      withConnection port $ \conn -> do
+        answers <- timeout 30000000 $
+          requestMany conn (replicate 400000 ["INCR", "n"])
+        fmap length answers `shouldBe` Just 400000
+    -- 型付きのコマンドも、まとめて送れる。答えは、約束の型のまま
+    it "runMany keeps the types in a pipeline" $ withServer $ \port ->
+      withConnection port $ \conn -> do
+        let gold = Typed.Key "gold" :: Typed.Key Int
+        answers <- runMany conn (replicate 3 (Typed.Incr gold))
+        answers `shouldBe` [Right 1, Right 2, Right 3]
+    -- お客さん用の上限（1024 個）より長いリストも、読める
+    it "reads a list longer than a guest may send" $ withServer $ \port ->
+      withConnection port $ \conn -> do
+        let party = ListKey "party" :: ListKey Int
+        _ <- runMany conn [ Typed.RPush party [i] | i <- [1 .. 1025] ]
+        run conn (Typed.LRange party 0 (-1)) `shouldReturn` Right [1 .. 1025]
     -- トレーニングの解答：GET と SET で、ゴールドを足す
     it "addGold adds to a number that may be missing" $ withServer $ \port ->
       withConnection port $ \conn -> do

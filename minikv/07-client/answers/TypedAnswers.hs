@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of "A client strict about types".
 -- 「型に厳しいクライアント」のトレーニングの解答
 module TypedAnswers
@@ -9,6 +10,7 @@ import Data.Maybe (fromMaybe)
 
 import MiniKv.Client (Connection)
 import MiniKv.Typed
+-- ANCHOR_END: head
 
 -- ANCHOR: addGold
 -- 💰 Step 2: add to a number that may not be there yet.
