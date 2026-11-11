@@ -24,7 +24,8 @@ poem = """
 -- OverloadedStrings があれば、同じリテラルが Text にもなれる
 banner :: Text
 banner = """
-  Welcome to the guild!
+  Welcome
+  to the guild!
   """
 -- ANCHOR_END: multiline
 -- ANCHOR_END: all

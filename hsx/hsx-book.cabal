@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 「GHC 拡張」の章の試作：JSX のように HTML を書ける、小さな hsx
--- （QuasiQuotes と Template Haskell）。まだ本文には載せていない
+-- （QuasiQuotes と Template Haskell）
 
 common shared
   default-language: GHC2024

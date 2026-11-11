@@ -1,6 +1,5 @@
 -- ANCHOR: pragmas
 {-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE UndecidableInstances #-}
 -- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | What #level really is: fromLabel @"level".

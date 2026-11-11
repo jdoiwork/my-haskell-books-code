@@ -13,6 +13,7 @@ module Records
   , slime
   , battleLine
   , heal
+  , knockOut
   ) where
 
 -- ANCHOR: dup
@@ -43,4 +44,13 @@ battleLine h m = h.name ++ " (" ++ show h.hp ++ ") vs "
 heal :: Hero -> String
 heal Hero{..} = name ++ " heals to " ++ show (hp + level * 2)
 -- ANCHOR_END: puns
+
+-- ANCHOR: update
+-- 💤 lambda { hp = 0 } is ambiguous now (Hero's hp or Monster's?).
+--    Take the hero apart with Hero{..}, and build a new Hero.
+-- lambda { hp = 0 } は、どちらの hp か決まらない。
+-- Hero{..} で分解して、新しい Hero を作りなおす
+knockOut :: Hero -> Hero
+knockOut Hero{..} = Hero { hp = 0, .. }
+-- ANCHOR_END: update
 -- ANCHOR_END: all

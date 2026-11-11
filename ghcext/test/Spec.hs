@@ -38,6 +38,8 @@ main = hspec $ do
       battleLine lambda slime `shouldBe` "Lambda (30) vs Slime (8)"
     -- Hero{..} で、全部のフィールドが使える
     it "heal" $ heal lambda `shouldBe` "Lambda heals to 40"
+    -- Hero{..} で分解して、hp だけ変えた Hero を作る
+    it "knockOut" $ knockOut lambda `shouldBe` Hero "Lambda" 0 5
   describe "labels" $ do
     -- #name は Column "name"
     it "columns" $ L.columns `shouldBe` [L.Column "name", L.Column "level"]
@@ -46,9 +48,11 @@ main = hspec $ do
   describe "ApplicativeDo" $
     -- ZipList でも do が使える
     it "sums" $ sums `shouldBe` [11, 22, 33]
-  describe "MultilineStrings" $
+  describe "MultilineStrings" $ do
     -- 共通の字下げと、最初の改行が取りのぞかれる
     it "poem" $ poem `shouldBe` "Roses are red,\n  violets are blue."
+    -- 看板も、書いたとおりの2行になる
+    it "banner" $ banner `shouldBe` "Welcome\nto the guild!"
   describe "answers" $
     -- ステップ2：Min から借りた <> は小さいほう
     it "Lowest" $ Lowest 300 <> Lowest 50 <> Lowest 120 `shouldBe` Lowest 50
