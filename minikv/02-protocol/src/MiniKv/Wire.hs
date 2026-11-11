@@ -100,10 +100,9 @@ parseWire input = case BC.uncons input of
 withLine :: ByteString -> (ByteString -> ByteString -> Parsed a) -> Parsed a
 withLine input k =
   let (line, rest) = BS.breakSubstring "\r\n" input
-  in  if BS.null rest
-        then if BS.length line > 64 * 1024 then Broken "line too long"
-                                           else NeedMore
-        else k line (BS.drop 2 rest)
+  in  if BS.length line > 64 * 1024 then Broken "line too long"
+      else if BS.null rest then NeedMore
+      else k line (BS.drop 2 rest)
 
 -- 🔢 A whole number up to \r\n.
 -- \r\n までの整数

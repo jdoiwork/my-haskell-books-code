@@ -25,6 +25,7 @@ library
                     MiniKv.Wire
                     MiniKv.Protocol
                     KvAnswers
+                    ProtocolAnswers
   hs-source-dirs:   src answers
 -- ANCHOR_END: lib
 

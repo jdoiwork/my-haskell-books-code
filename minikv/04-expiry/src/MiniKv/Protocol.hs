@@ -15,30 +15,42 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 
+import MiniKv.Store (readInt)
 import MiniKv.Types
 import MiniKv.Wire
 
 -- ANCHOR: request
 -- 📮 One request from the buffer: an array of bulk strings, or (to be
---    friendly to people typing in nc) one plain line of words.
+--    friendly to people typing in nc) one plain line of words, ending in
+--    \n (a \r before it is dropped with the spaces). A request still
+--    incomplete after 1 MB is refused: we do not wait for a giant one.
 -- バッファーから要求を1つ：文字列の配列か、（nc で打つ人のために）
--- 単語を並べた1行
+-- 単語を並べた1行（\n で終わる。前の \r は、空白と一緒に落ちる）。
+-- 1 MB たまっても終わらない要求は断る：巨大な要求を待たない
 readRequest :: ByteString -> Parsed [ByteString]
-readRequest input
-  | BC.take 1 input == "*" = case parseWire input of
-      Parsed (WArray items) rest -> case traverse bulkText items of
-        Just ws -> Parsed ws rest
-        Nothing -> Broken "a request must be an array of bulk strings"
-      Parsed _ _ -> Broken "a request must be an array"
-      NeedMore   -> NeedMore
-      Broken why -> Broken why
-  | otherwise =
-      let (line, rest) = BC.breakSubstring "\r\n" input
-      in  if BC.null rest then NeedMore
-                          else Parsed (BC.words line) (BC.drop 2 rest)
+readRequest input = case request of
+  NeedMore | BC.length input > maxRequest -> Broken "request too large"
+  other                                   -> other
   where
+    request
+      | BC.take 1 input == "*" = case parseWire input of
+          Parsed (WArray items) rest -> case traverse bulkText items of
+            Just ws -> Parsed ws rest
+            Nothing -> Broken "a request must be an array of bulk strings"
+          Parsed _ _ -> Broken "a request must be an array"
+          NeedMore   -> NeedMore
+          Broken why -> Broken why
+      | otherwise =
+          let (line, rest) = BC.break (== '\n') input
+          in  if BC.null rest then NeedMore
+                              else Parsed (BC.words line) (BC.drop 1 rest)
     bulkText (WBulk (Just s)) = Just s
     bulkText _                = Nothing
+
+-- 📦 The most a request may take: a little more than one value of maxBulk.
+-- 要求1つの上限：maxBulk の値1つと、少しの余り
+maxRequest :: Int
+maxRequest = 1024 * 1024
 -- ANCHOR_END: request
 
 -- ANCHOR: toCommand
@@ -76,12 +88,15 @@ toCommand (name : rawArgs) = do
     ("TTL",       [k])            -> Right (Ttl k)
     ("PERSIST",   [k])            -> Right (Persist k)
     (other,       _)              ->
-      Left ("unknown command or wrong number of arguments: " <> other)
+      Left (oneLine
+              ("unknown command or wrong number of arguments: " <> other))
   where
     utf8 bytes = either (const (Left "not UTF-8")) Right (decodeUtf8' bytes)
-    number t = case reads (T.unpack t) of
-      [(n, "")] -> Right n
-      _         -> Left ("not an integer: " <> t)
+    -- The same reading as INCR's (decimal digits, within Int).
+    -- INCR と同じ読み方（10進の数字だけで、Int に入るもの）
+    number t = case readInt t of
+      Just n  -> Right n
+      Nothing -> Left (oneLine ("not an integer: " <> t))
 -- ANCHOR_END: toCommand
 
 -- ANCHOR: commandWords
@@ -127,7 +142,14 @@ replyWire reply = case reply of
   Bulk t     -> WBulk (Just (encodeUtf8 t))
   Number n   -> WInt n
   Many ts    -> WArray [ WBulk (Just (encodeUtf8 t)) | t <- ts ]
-  Failed err -> WError (encodeUtf8 (errorText err))
+  Failed err -> WError (encodeUtf8 (oneLine (errorText err)))
+
+-- ✂️ An error goes on one line, so a key with \r\n in it must not break
+--    the line: the reply would split in two.
+-- エラーは1行で送るので、キーの中の \r\n で行を切らせない
+-- （切れると、答えが2つに割れる）
+oneLine :: Text -> Text
+oneLine = T.map (\c -> if c == '\r' || c == '\n' then ' ' else c)
 
 -- 💬 Errors, in words. The first word is a code, as in Redis.
 -- エラーを言葉に。Redis と同じく、最初の単語はエラーの種類

@@ -13,6 +13,7 @@ module MiniKv.Store
   , storedValues
   , storedKeys
   , snapshot
+  , readInt
   ) where
 
 import Data.Char (isDigit)

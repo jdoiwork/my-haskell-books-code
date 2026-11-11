@@ -8,6 +8,7 @@ import Test.Hspec
 import Test.QuickCheck
 
 import KvAnswers
+import ProtocolAnswers
 import MiniKv.Protocol
 import MiniKv.Store
 import MiniKv.Types
@@ -94,6 +95,10 @@ main = hspec $ do
     -- 長すぎる文字列は、読む前に断る
     it "refuses a huge bulk string before reading it" $
       parseWire "$999999999\r\n" `shouldBe` Broken "bulk string too long"
+    -- 長すぎる行は、一度に届いても断る
+    it "refuses a too long line even when it arrives at once" $
+      parseWire (render (WSimple (BC.replicate 70000 'a')))
+        `shouldBe` Broken "line too long"
   describe "protocol" $ do
     -- コマンドを単語にして、またコマンドに戻すと、元どおり
     it "toCommand undoes commandWords" $
@@ -104,14 +109,36 @@ main = hspec $ do
         `shouldBe` Parsed ["GET", "k"] ""
       readRequest "set hero Lambda\r\nGET hero\r\n"
         `shouldBe` Parsed ["set", "hero", "Lambda"] "GET hero\r\n"
+    -- nc で手で打った行（\n だけで終わる）も読める
+    it "reads a plain line that ends in \\n alone" $
+      readRequest "SET hero Lambda\nGET hero\n"
+        `shouldBe` Parsed ["SET", "hero", "Lambda"] "GET hero\n"
+    -- 1 MB たまっても終わらない要求は、待たずに断る
+    it "refuses a request that keeps growing" $
+      readRequest (BC.replicate 2000000 'a')
+        `shouldBe` Broken "request too large"
+    -- 数の引数は INCR と同じ読み方：0x10 や、Int に入らない数は断る
+    it "refuses 0x10 and numbers too big for Int" $ do
+      toCommand ["INCRBY", "gold", "0x10"]
+        `shouldBe` Left "not an integer: 0x10"
+      toCommand ["INCRBY", "gold", "9223372036854775808"]
+        `shouldBe` Left "not an integer: 9223372036854775808"
     -- 種類ちがいのエラーは、WRONGTYPE で始まる
     it "renders WrongType as a WRONGTYPE error" $
       render (replyWire (Failed (WrongType "hero" KList KString)))
         `shouldBe` "-WRONGTYPE hero holds a string, not a list\r\n"
+    -- キーに \r\n があっても、エラーは1行で、答えは1つ
+    it "keeps an error on one line, whatever the key" $
+      let reply = Failed (WrongType "a\r\n+OK" KList KString)
+      in  parseWire (render (replyWire reply)) `shouldBe`
+            Parsed (WError "WRONGTYPE a  +OK holds a string, not a list") ""
   -- ANCHOR_END: protocolSpec
 
   -- 「トレーニング」
   describe "answers" $ do
+    it "PING is answered with +PONG, before the core" $ do
+      render (fst (answerWords ["ping"] emptyStore)) `shouldBe` "+PONG\r\n"
+      render (fst (answerWords ["GET", "k"] emptyStore)) `shouldBe` "$-1\r\n"
     it "getSet returns the old value" $
       fst (getSet "k" "new" (snd (apply (Set "k" "old") emptyStore)))
         `shouldBe` Bulk "old"

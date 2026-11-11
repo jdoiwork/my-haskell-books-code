@@ -10,6 +10,7 @@ module MiniKv.Store
   , sweep
   , storedValues
   , storedKeys
+  , readInt
   ) where
 
 import Data.Char (isDigit)

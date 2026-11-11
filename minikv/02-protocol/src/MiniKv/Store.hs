@@ -9,6 +9,7 @@ module MiniKv.Store
   , apply
   , applyAll
   , storedValues
+  , readInt
   ) where
 
 import Data.Char (isDigit)
