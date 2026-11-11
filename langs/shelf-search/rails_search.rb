@@ -27,6 +27,9 @@ end
 class Document < ActiveRecord::Base
   scope :matching, ->(typed) {
     words = typed.split.select { |w| w.length >= 3 }
+    # no long word: MATCH '' would be a syntax error
+    # 長い語がない：MATCH '' は構文エラーになる
+    next none if words.empty?
     query = words.map { |w| %("#{w.gsub('"', '""')}") }.join(" ")
     where("documents MATCH ?", query).order(:rank)
   }
@@ -47,6 +50,7 @@ Note.create!(body: "記号 \"引用\" と NEAR( も")
 
 raise "怠けもの" unless Document.matching("怠けもの").pluck(:note_id) == [2]
 raise "NEAR(" unless Document.matching("NEAR(").pluck(:note_id) == [3]
+raise "宝" unless Document.matching("宝").pluck(:note_id) == []
 raise "quote" unless Document.matching('"引用"').pluck(:note_id) == [3]
 # a word of 2 characters: MATCH finds nothing (no error)
 # 2文字の語：MATCH は何も見つけない（エラーにはならない）

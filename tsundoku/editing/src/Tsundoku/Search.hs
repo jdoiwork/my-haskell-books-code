@@ -31,7 +31,7 @@ module Tsundoku.Search
 
 -- characters, lists, dictionaries, text, and trees
 -- 文字、リスト、辞書、文字列、木
-import Data.Char (toLower)
+import Data.Char (isControl, toLower)
 import Data.Functor (void)
 import Data.List (nub, sortOn)
 import Data.Map.Strict (Map)
@@ -54,12 +54,17 @@ import Tsundoku.Types
 newtype Search = Search [Text]
   deriving (Show, Eq)
 
--- 🧹 Cut what was typed at the spaces. Nothing left: no search.
--- 打ったものを空白で切る。何も残らなければ、探せない
+-- 🧹 Cut what was typed at the spaces (control characters such as NUL
+--    count as spaces: SQLite cuts a query at NUL). Nothing left: no
+--    search.
+-- 打ったものを空白で切る（NUL などの制御文字も、空白と同じ区切りにする。
+-- SQLite は問い合わせを NUL で切ってしまう）。何も残らなければ、探せない
 parseSearch :: Text -> Checked Search
-parseSearch typed = case nub (T.words typed) of
+parseSearch typed = case nub (T.words (T.map blank typed)) of
   []     -> Left EmptySearch
   wanted -> Right (Search wanted)
+  where
+    blank c = if isControl c then ' ' else c
 
 searchWords :: Search -> [Text]
 searchWords (Search wanted) = wanted
@@ -149,22 +154,24 @@ entryOf found = case found of
 -- 語のある所に、全部しるしを付ける。大文字と小文字は同じとみなす
 -- （データベースと同じ）。同じ所から始まる語なら、長いほうが勝つ
 marked :: Search -> Text -> [Piece]
-marked search = joinPlain . go
+marked search = go []
   where
     lower = T.map toLower       -- one character for one: lengths stay
     wanted = sortOn (Down . T.length) (map lower (searchWords search))
-    go text = case T.uncons text of
-      Nothing        -> []
+    -- `run` keeps the plain characters since the last match, newest
+    -- first, and makes them one Plain only once (adding Plains one
+    -- character at a time copies the text again and again)
+    -- run は、最後の当たりからのふつうの文字を新しい順にためておき、1回だけ
+    -- 1つの Plain にする（Plain を1文字ずつ足すと、文字を何度も写し直す）
+    go run text = case T.uncons text of
+      Nothing        -> plain run
       Just (c, rest) ->
         case [ n | w <- wanted, let n = T.length w
                  , lower (T.take n text) == w ] of
-          n : _ -> Match (T.take n text) : go (T.drop n text)
-          []    -> Plain (T.singleton c) : go rest
-    -- one Plain for each run of plain characters
-    -- ふつうの文字が続く所は、1つの Plain に
-    joinPlain (Plain a : Plain b : more) = joinPlain (Plain (a <> b) : more)
-    joinPlain (piece : more)             = piece : joinPlain more
-    joinPlain []                         = []
+          n : _ -> plain run ++ Match (T.take n text) : go [] (T.drop n text)
+          []    -> go (c : run) rest
+    plain []  = []
+    plain run = [Plain (T.pack (reverse run))]
 
 -- ✂️ Keep the part around the first match: `width` characters before
 --    it and after it, with … where we cut. No match: the start.

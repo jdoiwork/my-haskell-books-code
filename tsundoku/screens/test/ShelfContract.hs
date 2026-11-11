@@ -353,6 +353,14 @@ searchContract = do
       fmap (map place) <$> shelf.searchText typed
         `shouldReturn` Right [InNote OnWork False]
 
+  -- 「短い言葉も、大文字と小文字を区別しない（ASCII の文字で）」
+  it "finds a short word in any case" $ \shelf -> do
+    wid <- shelf.addWork dragonBook
+    _   <- shelf.addNote wid (Note OnWork "Ab の話" (onDay 2026 11 9) False)
+    forM_ ["ab", "AB", "Ab"] $ \typed ->
+      fmap (map place) <$> shelf.searchText typed
+        `shouldReturn` Right [InNote OnWork False]
+
   -- 「探す言葉がなければ、断る」
   it "refuses a search with no words" $ \shelf ->
     shelf.searchText "  " `shouldReturn` Left EmptySearch

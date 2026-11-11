@@ -208,15 +208,17 @@ bodyChars page = Chars (sum [ T.length (T.filter (not . isSpace) t)
     isBody _                = False
 
 -- ANCHOR: bodyText
--- 📝 The text of a page: what is in <body>, one paragraph to a line,
---    without the ruby (<rt> and <rp>), so 竜鱗は is found as it is
---    written. Every page ends with a new line.
--- ページの本文：<body> の中を、1段落を1行に。ルビ（<rt> と <rp>）は外す
--- ので、「竜鱗は」は書いてあるとおりに見つかる。どのページも改行で終わる
+-- 📝 The text of a page: what is in <body>, one paragraph (or heading,
+--    cell...) to a line, without the ruby (<rt> and <rp>), so 竜鱗は is
+--    found as it is written, and without scripts and styles. Every page
+--    ends with a new line.
+-- ページの本文：<body> の中を、1段落（見出し、表のます……）を1行に。ルビ
+-- （<rt> と <rp>）は外すので、「竜鱗は」は書いてあるとおりに見つかる。
+-- <script> と <style> の中身も外す。どのページも改行で終わる
 bodyText :: Text -> Text
 bodyText page = T.unlines (filter (not . T.null) (map T.strip lines'))
   where
-    lines' = T.lines (T.concat (map piece (noRuby (inBody (parseTags page)))))
+    lines' = T.lines (T.concat (map piece (unseen (inBody (parseTags page)))))
     inBody = drop 1 . dropWhile (not . isOpen "body")
 
     -- text as it is; a new line where a block (a paragraph...) ends
@@ -225,13 +227,19 @@ bodyText page = T.unlines (filter (not . T.null) (map T.strip lines'))
     piece (TagClose n) | isBlock n = "\n"
     piece (TagOpen "br" _)         = "\n"
     piece _                        = ""
-    isBlock n = T.toLower n `elem` ["p", "div", "li", "h1", "h2", "h3"]
+    isBlock n = T.toLower n `elem`
+      [ "p", "div", "section", "blockquote", "li", "dt", "dd", "tr", "td", "th"
+      , "h1", "h2", "h3", "h4", "h5", "h6" ]
 
-    noRuby (tag : rest)
-      | isOpen "rt" tag = noRuby (after "rt" rest)
-      | isOpen "rp" tag = noRuby (after "rp" rest)
-      | otherwise       = tag : noRuby rest
-    noRuby []           = []
+    -- leave out what is not read as the text: the ruby, and the insides
+    -- of <script> and <style>
+    -- 本文として読まないものを外す：ルビと、<script>・<style> の中身
+    unseen (tag : rest)
+      | Just name <- hidden tag = unseen (after name rest)
+      | otherwise               = tag : unseen rest
+    unseen []                   = []
+    hidden tag = listToMaybe
+      [ name | name <- ["rt", "rp", "script", "style"], isOpen name tag ]
     after name = drop 1 . dropWhile (not . isClose name)
 
     isOpen  name (TagOpen n _) = T.toLower n == name

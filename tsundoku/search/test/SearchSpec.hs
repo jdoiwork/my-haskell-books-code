@@ -6,17 +6,21 @@
 -- ここでは本棚を開かない
 module SearchSpec (searchSpec) where
 
+import Control.Exception (evaluate)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Tree (flatten)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
+import System.Timeout (timeout)
 
 import Tsundoku.Card (newCard)
 import Tsundoku.Examples
 import Tsundoku.Import (readEpubBook)
+import Tsundoku.Import.Epub (bodyText)
 import Tsundoku.Import.Sample (sampleEpub)
 import Tsundoku.Import.Types
 import Tsundoku.Search
@@ -35,6 +39,10 @@ searchSpec = do
       searchWords <$> parseSearch "  宝  ドラゴン 宝 "
         `shouldBe` Right ["宝", "ドラゴン"]
       parseSearch " \n " `shouldBe` Left EmptySearch
+      -- a control character (NUL) cuts like a space
+      -- 制御文字（NUL）も、空白と同じに切る
+      searchWords <$> parseSearch "ab\0cd" `shouldBe` Right ["ab", "cd"]
+      parseSearch "\0" `shouldBe` Left EmptySearch
     -- 「3文字からが FTS5 へ。中の " は2つ重ねる」
     it "gives FTS5 the long words, each one quoted" $ do
       ftsQuery <$> parseSearch "宝 怠けもの a\"b"
@@ -101,6 +109,20 @@ searchSpec = do
     it "leaves out the ruby" $ do
       textOf "1.1 うろこの色" `shouldSatisfy` T.isInfixOf "竜鱗は光で"
       textOf "1.1 うろこの色" `shouldNotSatisfy` T.isInfixOf "りゅうりん"
+    -- 「見出し・表のます・引用も1行ずつ。script と style の中は読まない」
+    it "breaks lines at headings, cells and quotes, and skips scripts" $
+      bodyText (T.concat
+        [ "<html><body><h4>小見出し</h4><p>本文です</p>"
+        , "<table><tr><td>竜</td><td>宝</td></tr></table>"
+        , "<blockquote>引用</blockquote><script>var x = 1;</script>"
+        , "<style>p{}</style><p>次</p></body></html>" ])
+        `shouldBe` "小見出し\n本文です\n竜\n宝\n引用\n次\n"
+    -- 「本文が長くても、抜き出しはすぐ（長さに比例して）」
+    it "makes a snippet of a long text quickly" $ do
+      let text = T.replicate 200000 "あ" <> "竜" <> T.replicate 200000 "い"
+          Right wanted = parseSearch "竜"
+      done <- timeout 5000000 (evaluate (length (show (snippetOf wanted text))))
+      done `shouldSatisfy` isJust
     -- 「2つのファイルに分かれた章は、読む順につなぐ」
     it "joins a chapter in two files, in reading order" $ do
       let text = textOf "第4章 怒らせたときは"

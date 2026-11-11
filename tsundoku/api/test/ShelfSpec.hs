@@ -79,15 +79,28 @@ shelfSpec = do
     it "finds what a file from the earlier chapters had" $
       SQLite.withConnection ":memory:" $ \conn -> do
         -- a file made by the earlier chapters: steps 1 and 2, one work
-        -- 前の章までが作ったファイル：手順1と2、作品が1つ
+        --    with an entry and a note
+        -- 前の章までが作ったファイル：手順1と2、作品が1つ（項目と感想が1つずつ）
         forM_ (take 2 migrations) (mapM_ (SQLite.execute_ conn))
         SQLite.execute_ conn "PRAGMA user_version = 2"
         SQLite.execute_ conn
           "INSERT INTO works (title, creator, kind, reading) \
-          \VALUES ('古い本棚の本', 'だれか', 'game', 'Piled')"
+          \VALUES ('古い本棚の本', 'わすれた作者', 'book', 'Piled')"
+        SQLite.execute_ conn
+          "INSERT INTO entries (work_id, position, heading, size) \
+          \VALUES (1, 0, 'わすれた章', 3)"
+        SQLite.execute_ conn
+          "INSERT INTO notes (work_id, body, written_at, spoiler) \
+          \VALUES (1, 'わすれた感想', '2026-11-09T00:00:00Z', 0)"
         shelf <- sqliteShelf conn
         fmap (map place) <$> shelf.searchText "古い本棚"
           `shouldReturn` Right [InTitle]
+        -- the creator, the heading and the note were copied too
+        -- 作者・見出し・感想も、写してある
+        found <- fmap (map place) <$> shelf.searchText "わすれた"
+        let copied = [InCreator, InHeading (EntryId 1), InNote OnWork False]
+        fmap (\ps -> length ps == 3 && all (`elem` ps) copied) found
+          `shouldBe` Right True
     -- ANCHOR_END: earlierFile
 
   describe "shelf in PostgreSQL" $ do

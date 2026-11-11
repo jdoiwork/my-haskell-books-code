@@ -32,10 +32,15 @@ def fts_query(typed):
 
 def search(conn, typed):
     found = []
+    query = fts_query(typed)
+    if query == "":
+        # no long word: MATCH '' would be a syntax error
+        # 長い語がない：MATCH '' は構文エラーになる
+        return found
     rows = conn.execute(
         "SELECT place, highlight(documents, 0, '[', ']')"
         " FROM documents WHERE documents MATCH ? ORDER BY rank",
-        (fts_query(typed),))
+        (query,))
     for place, marked in rows:
         found.append((place, marked))
     return found
@@ -49,6 +54,9 @@ assert search(conn, "怠けもの") == [
 # the words typed are never read as FTS5's operators
 # 打った語が、FTS5 の演算子として読まれることはない
 assert search(conn, "NEAR( ドラゴン") == []
+# only a short word: nothing, not an error (this one finds no short words)
+# 短い語だけ：エラーにならず、何もない（こちらは短い語を探さない）
+assert search(conn, "宝") == []
 
 
 # ANCHOR: functional
@@ -69,6 +77,8 @@ def like_pattern(word):
 
 def search_all(conn, typed):
     words = typed.split()
+    if not words:
+        return []  # nothing typed: no search / 何も打っていない
     long_words = [w for w in words if len(w) >= 3]
     short_words = [w for w in words if len(w) < 3]
     conditions = ["body LIKE ? ESCAPE '\\'" for _ in short_words]
@@ -89,4 +99,5 @@ assert search_all(conn, "宝") == ["text", "text"]
 assert search_all(conn, "ドラゴン 宝 冬") == ["text"]
 assert search_all(conn, "ドラゴン") == ["title", "title", "text", "text"]
 assert search_all(conn, "%") == []
+assert search_all(conn, "  ") == []
 print("ok")
