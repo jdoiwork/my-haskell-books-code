@@ -120,11 +120,31 @@ main = hspec $ do
       fst (applyAll 0 [Set "n" (T.pack (show (maxBound :: Int))), Incr "n"]
                     emptyStore)
         `shouldBe` [Ok, Failed (Overflow "n")]
+    -- Int に入らない数や、16進の形は、数ではない
+    it "INCR refuses numbers too big for Int, and 0x10" $
+      fst (applyAll 0 [ Set "a" "9223372036854775808", Incr "a"
+                      , Set "b" "0x10", Incr "b" ] emptyStore)
+        `shouldBe` [ Ok, Failed (NotAnInteger "a")
+                   , Ok, Failed (NotAnInteger "b") ]
+    -- 同じキーを2回渡しても、消えたのは1つ
+    it "DEL counts a key given twice once" $
+      fst (applyAll 0 [Set "a" "1", Del ["a", "a"]] emptyStore)
+        `shouldBe` [Ok, Number 1]
     -- どんなコマンドの列のあとも、空の入れ物は残らない
     it "never keeps an empty list, set or hash" $
       forAll (listOf genCommand) $ \commands ->
         let (_, s) = applyAll 0 commands emptyStore
         in  all (not . emptyCollection) (storedValues s)
+    -- エラーを答えたコマンドは、見えるものを変えない（時刻が来たキーを
+    -- 忘れることはある。だから、掃除したあとのストアでくらべる）
+    it "a failed command changes nothing we can see" $
+      forAll (listOf genCommand) $ \commands ->
+        forAll genCommand $ \command ->
+          let (_, s)       = applyAll 0 commands emptyStore
+              (reply, s')  = apply 0 command s
+          in  case reply of
+                Failed _ -> snd (sweep 0 s') == snd (sweep 0 s)
+                _        -> True
   -- ANCHOR_END: spec
 
   -- ANCHOR: protocolSpec
