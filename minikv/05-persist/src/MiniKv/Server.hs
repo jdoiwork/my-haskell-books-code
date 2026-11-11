@@ -2,6 +2,7 @@
 -- | The TCP server, now with a log: commands that change the store are
 --   written down, in the order they were applied.
 -- TCP サーバー。ログ付き：ストアを変えたコマンドを、変えた順に書き残す
+-- ANCHOR: head
 module MiniKv.Server
   ( Clock
   , systemClock
@@ -48,6 +49,7 @@ import MiniKv.Protocol
 import MiniKv.Store
 import MiniKv.Types (Command, Millis)
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- 🕰️ A clock: where "now" comes from.
 -- 時計：「今」の出どころ
@@ -164,6 +166,14 @@ changeAndLog env step = case journal env of
             let why = BC.pack (filter (`notElem` ("\r\n" :: String))
                                       (displayException err))
             writeIORef (logFailure env) (Just why)
+            -- The entry we could not write is still in the handle's
+            -- buffer. Close the handle now, while writing still fails:
+            -- closed later (the disk may have room again), it would
+            -- write the change we refused.
+            -- 書けなかった1件は、Handle のバッファーに残っている。
+            -- まだ書けない今のうちに閉じる。あとで閉じると（ディスクが
+            -- 空いているかもしれない）、断った変更が書かれてしまう
+            _ <- try @SomeException (hClose handle)
             case fromException @IOException err of
               Just _  -> pure (Left why)
               Nothing -> throwIO err    -- e.g. cancel / cancel など

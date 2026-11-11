@@ -8,6 +8,10 @@ module MiniKv.Wire
   , Parsed (..)
   , render
   , parseWire
+  , Limits (..)
+  , guestLimits
+  , ownLimits
+  , parseWireWithin
   , maxBulk
   ) where
 
@@ -63,11 +67,33 @@ maxBulk :: Int
 maxBulk = 512 * 1024
 -- ANCHOR_END: parsed
 
+-- ANCHOR: limits
+-- 🚧 How much one value may hold. The limits protect us from guests;
+--    what we wrote ourselves (the log) is read without them.
+-- 値1つに、どこまで入ってよいか。上限は、外のお客さんから身を守るため。
+-- 自分で書いたもの（ログ）は、上限なしで読む
+data Limits = Limits
+  { mostItems   :: Int   -- ^ items in one array / 配列1つの要素の数
+  , longestBulk :: Int   -- ^ bytes in one bulk string / 文字列1つの長さ
+  }
+
+guestLimits :: Limits
+guestLimits = Limits 1024 maxBulk
+
+ownLimits :: Limits
+ownLimits = Limits maxBound maxBound
+-- ANCHOR_END: limits
+
 -- ANCHOR: parse
 -- 🔎 Read one value from the front of a buffer.
 -- バッファーの先頭から、値を1つ読む
 parseWire :: ByteString -> Parsed Wire
-parseWire input = case BC.uncons input of
+parseWire = parseWireWithin guestLimits
+
+-- 🔎 The same, with the limits of the caller's choice.
+-- 同じ読み方を、呼ぶ側が選んだ上限で
+parseWireWithin :: Limits -> ByteString -> Parsed Wire
+parseWireWithin limits input = case BC.uncons input of
   Nothing -> NeedMore
   Just (mark, rest) -> case mark of
     '+' -> withLine rest (\line after -> Parsed (WSimple line) after)
@@ -80,15 +106,15 @@ parseWire input = case BC.uncons input of
     bulk n after
       | n == -1        = Parsed (WBulk Nothing) after
       | n < 0          = Broken "negative length"
-      | n > maxBulk    = Broken "bulk string too long"
-      | BS.length after < n + 2 = NeedMore
+      | n > longestBulk limits = Broken "bulk string too long"
+      | BS.length after - 2 < n = NeedMore
       | BS.take 2 (BS.drop n after) /= "\r\n" = Broken "missing \\r\\n"
       | otherwise      = Parsed (WBulk (Just (BS.take n after)))
                                 (BS.drop (n + 2) after)
     items n after acc
-      | n < 0 || n > 1024 = Broken "bad array length"
+      | n < 0 || n > mostItems limits = Broken "bad array length"
       | n == 0    = Parsed (WArray (reverse acc)) after
-      | otherwise = case parseWire after of
+      | otherwise = case parseWireWithin limits after of
           Parsed item rest -> items (n - 1) rest (item : acc)
           NeedMore         -> NeedMore
           Broken why       -> Broken why

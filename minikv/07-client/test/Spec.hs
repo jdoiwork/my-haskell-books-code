@@ -249,6 +249,7 @@ main = hspec $ do
       in  fst (applyAll now commands emptyStore)
             `shouldBe` [Ok] ++ replicate 3 (Failed (BadExpire "k"))
                          ++ [Number (-1)]
+    -- ANCHOR: sweeperSpec
     -- 掃除係は、だれも触らないキーも忘れる（GET で先に忘れさせない）
     it "the sweeper forgets keys that nobody touches" $ do
       let commands = [Set "a" "1", Expire "a" 1, Set "b" "2"]
@@ -260,6 +261,7 @@ main = hspec $ do
           store <- readTVar (storeVar env)
           check (storedKeys store == ["b"])
       swept `shouldBe` Just ()
+    -- ANCHOR_END: sweeperSpec
     -- 掃除は、時刻 t に KEYS が忘れるのと同じキーを忘れ、その数を答える
     it "sweep forgets just the keys whose time has come" $
       checkCoverage $
@@ -335,6 +337,9 @@ main = hspec $ do
           _ <- request conn ["SET", "k", "5"]
           _ <- request conn ["EXPIRE", "k", "2"]
           writeIORef clock 10000       -- k is gone / k はもう忘れた
+          -- A GET in between must not forget k without writing it down.
+          -- あいだの GET が、書き残さずに k を忘れてはいけない
+          request conn ["GET", "k"] `shouldReturn` WBulk Nothing
           request conn ["INCR", "k"] `shouldReturn` WInt 1
       reply <- withServerLog (readIORef clock) (Just path) $ \port ->
         withConnection port $ \conn -> request conn ["GET", "k"]
@@ -407,6 +412,18 @@ main = hspec $ do
       removeFile path
       (problem r, replayedStore r) `shouldBe`
         (Nothing, snd (applyAll 0 [Set "hero" "Lambda"] emptyStore))
+    -- お客さん用の上限（配列は 1024 個まで）より大きい1件も、読み戻せる：
+    -- 1100 個のリストのスナップショットと、1100 個のキーの掃除
+    it "reads back entries bigger than a guest may send" $ do
+      let names   = [ T.pack ("k" <> show i) | i <- [1 .. 1100 :: Int] ]
+          big     = snd (apply 0 (RPush "party" names) emptyStore)
+          timed   = concat [ [Set k "v", PExpireAt k 500] | k <- names ]
+          crowded = snd (applyAll 0 timed emptyStore)
+          bytes   = foldMap encodeEntry (timed ++ swept)
+          ((n, swept), cleared) = sweepStep 1000 crowded
+      replay (rewriteLog big) `shouldBe` Replayed big 1 Nothing
+      n `shouldBe` 1100
+      replay bytes `shouldBe` Replayed cleared 2201 Nothing
   -- ANCHOR_END: persistSpec
 
   -- ANCHOR: pubsubSpec

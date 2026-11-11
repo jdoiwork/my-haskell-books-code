@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- | The TCP server, with a log, blocking pops and publish/subscribe.
 -- TCP サーバー。ログ、待つ取り出し、Pub/Sub 付き
+-- ANCHOR: head
 module MiniKv.Server
   ( Clock
   , systemClock
@@ -54,6 +55,7 @@ import MiniKv.Request
 import MiniKv.Store
 import MiniKv.Types
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- 🕰️ A clock: where "now" comes from.
 -- 時計：「今」の出どころ
@@ -168,6 +170,14 @@ changeAndLog env step = case journal env of
             let why = BC.pack (filter (`notElem` ("\r\n" :: String))
                                       (displayException err))
             writeIORef (logFailure env) (Just why)
+            -- The entry we could not write is still in the handle's
+            -- buffer. Close the handle now, while writing still fails:
+            -- closed later (the disk may have room again), it would
+            -- write the change we refused.
+            -- 書けなかった1件は、Handle のバッファーに残っている。
+            -- まだ書けない今のうちに閉じる。あとで閉じると（ディスクが
+            -- 空いているかもしれない）、断った変更が書かれてしまう
+            _ <- try @SomeException (hClose handle)
             case fromException @IOException err of
               Just _  -> pure (Left why)
               Nothing -> throwIO err    -- e.g. cancel / cancel など

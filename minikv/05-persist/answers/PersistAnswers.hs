@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of "Persistence".
 -- 「永続化」のトレーニングの解答
 module PersistAnswers
@@ -15,6 +16,7 @@ import System.IO (IOMode (..), hClose, hFlush, openFile)
 
 import MiniKv.Persist (rewriteLog)
 import MiniKv.Server (Env (..))
+-- ANCHOR_END: head
 
 -- ANCHOR: compact
 -- 🗜️ Step 2: make the log short while the server keeps running.

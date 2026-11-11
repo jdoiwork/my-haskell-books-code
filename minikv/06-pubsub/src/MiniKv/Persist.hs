@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Persistence: an append-only log of the commands that changed the
 --   store, written in the wire format, and read back with the same
 --   parser.
@@ -22,6 +23,7 @@ import MiniKv.Protocol
 import MiniKv.Store
 import MiniKv.Types
 import MiniKv.Wire
+-- ANCHOR_END: head
 
 -- ANCHOR: logged
 -- 📝 What goes into the log for a command run at `now`. Only commands
@@ -104,14 +106,38 @@ data Replayed = Replayed
 replay :: ByteString -> Replayed
 replay = go emptyStore 0
   where
-    go store n bytes
+    -- The bangs work out the store and the count at every step; without
+    -- them, a long log piles up one unfinished sum per entry.
+    -- ! は、ストアと件数を1件ごとに計算させる。ないと、長いログでは、
+    -- 1件につき1つ、計算の途中がたまっていく
+    go :: Store -> Int -> ByteString -> Replayed
+    go !store !n bytes
       | BS.null bytes = Replayed store n Nothing
-      | otherwise = case readRequest bytes of
+      | otherwise = case readEntry bytes of
           Parsed ws rest -> case toCommand ws of
             Right command -> go (snd (apply 0 command store)) (n + 1) rest
             Left err      -> Replayed store n (Just (T.unpack err))
           NeedMore   -> Replayed store n (Just "the last entry was cut short")
           Broken why -> Replayed store n (Just why)
+
+-- 📜 One entry from the log: an array of bulk strings, read with the
+--    parser of the wire format, but without the guests' limits. The
+--    server may write an entry bigger than it would take from a guest
+--    (a snapshot puts a whole list in one RPUSH).
+-- ログから1件：文字列の配列。回線の形式のパーサーで読むが、お客さん用の
+-- 上限は掛けない。サーバーは、お客さんからは受け取らない大きさの1件も
+-- 書くから（スナップショットは、リストを丸ごと1つの RPUSH にする）
+readEntry :: ByteString -> Parsed [ByteString]
+readEntry bytes = case parseWireWithin ownLimits bytes of
+  Parsed (WArray items) rest -> case traverse bulkText items of
+    Just ws -> Parsed ws rest
+    Nothing -> Broken "a log entry must be an array of bulk strings"
+  Parsed _ _ -> Broken "a log entry must be an array"
+  NeedMore   -> NeedMore
+  Broken why -> Broken why
+  where
+    bulkText (WBulk (Just s)) = Just s
+    bulkText _                = Nothing
 -- ANCHOR_END: replay
 
 -- ANCHOR: rewrite
