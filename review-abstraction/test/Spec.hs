@@ -42,11 +42,12 @@ main = hspec $ do
           , "line 4: bad amount -3" ]
   describe "ledger" $ do
     -- 罰金で 0 まで下がると、non 0 が帳簿から名前を消す
-    it "applies the sample" $ do
-      let Valid events = parseAll sampleLines
-          ledger = runEvents events emptyLedger
-      ledger ^. gold `shouldBe` Map.fromList [("Python", 30)]
-      summarize ledger `shouldBe` Summary 30 30 1
+    it "applies the sample" $ case parseAll sampleLines of
+      Invalid problems -> expectationFailure (show problems)
+      Valid events -> do
+        let ledger = runEvents events emptyLedger
+        ledger ^. gold `shouldBe` Map.fromList [("Python", 30)]
+        summarize ledger `shouldBe` Summary 30 30 1
     -- ANCHOR: split
     -- 前半と後半に分けて当てはめても、一度に当てはめても、同じ帳簿
     it "splitting the events does not matter" $ property $
@@ -54,6 +55,13 @@ main = hspec $ do
         runEvents (xs ++ ys) emptyLedger
           == runEvents ys (runEvents xs emptyLedger)
     -- ANCHOR_END: split
+    -- ANCHOR: nonNegative
     -- ゴールドは、決して負にならない
     it "gold never goes negative" $ property $ \(Events xs) ->
       all (>= 0) (Map.elems (runEvents xs emptyLedger ^. gold))
+    -- ANCHOR_END: nonNegative
+    -- 入会していない人には、報酬も罰金もつかない
+    it "ignores those who have not joined" $
+      fmap (\events -> runEvents events emptyLedger ^. gold)
+           (parseAll ["reward Rust 10", "join Go", "fine Go 5"])
+        `shouldBe` Valid Map.empty

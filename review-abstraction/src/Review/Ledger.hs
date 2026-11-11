@@ -2,6 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 -- ANCHOR_END: pragmas
 -- ANCHOR: all
+-- ANCHOR: module
 -- | The guild's ledger: read event lines, apply them, and summarize.
 -- ギルドの帳簿：出来事の行を読み、当てはめて、まとめる
 module Review.Ledger
@@ -18,9 +19,11 @@ module Review.Ledger
   , Summary (..)
   , summarize
   ) where
+-- ANCHOR_END: module
 
 -- ANCHOR: imports
 import Control.Lens
+import Control.Monad (when)
 import Control.Monad.State
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -77,7 +80,7 @@ parseAll :: [String] -> Validation [String] [Event]
 parseAll lines' = traverse parseEvent (zip [1 ..] lines')
 -- ANCHOR_END: parse
 
--- ANCHOR: ledger
+-- ANCHOR: ledgerType
 -- 💰 The ledger: everyone's gold, and who the members are.
 -- 帳簿：みんなのゴールドと、仲間の名前
 data Ledger = Ledger
@@ -90,28 +93,38 @@ makeLenses ''Ledger
 
 emptyLedger :: Ledger
 emptyLedger = Ledger Map.empty Set.empty
+-- ANCHOR_END: ledgerType
 
+-- ANCHOR: ledger
 -- ✍️ Step 2: apply one event, with State and lenses.
---    Gold never goes below 0.
+--    Only members get rewards and fines; gold never goes below 0.
 -- ステップ2：出来事を1つ当てはめる（State とレンズで）。
--- ゴールドは 0 より下がらない
+-- 報酬と罰金は仲間だけ。ゴールドは 0 より下がらない
 applyEvent :: Event -> State Ledger ()
 applyEvent event = case event of
   Join who       -> members %= Set.insert who
-  Reward who n   -> gold . at who . non 0 += n
-  Fine who n     -> gold . at who . non 0 %= (\g -> max 0 (g - n))
+  Reward who n   -> onlyMember who (gold . at who . non 0 += n)
+  Fine who n     -> onlyMember who (gold . at who . non 0 %= (\g -> max 0 (g - n)))
+  where
+    -- Read the state first, then decide whether to write.
+    -- 先に状態を読んでから、書くかどうかを決める
+    onlyMember who change = do
+      joined <- use members
+      when (Set.member who joined) change
 
 runEvents :: [Event] -> Ledger -> Ledger
 runEvents events = execState (mapM_ applyEvent events)
 -- ANCHOR_END: ledger
 
--- ANCHOR: summary
+-- ANCHOR: summaryType
 -- 📊 Step 3: one foldMap for the total, the richest amount, and how many
 --    hold any gold.
 -- ステップ3：foldMap を1回で、合計・いちばんのお金持ち・お金を持っている人数
 data Summary = Summary { total :: Int, richest :: Int, holders :: Int }
   deriving (Show, Eq)
+-- ANCHOR_END: summaryType
 
+-- ANCHOR: summary
 summarize :: Ledger -> Summary
 summarize ledger =
   let (Sum t, Max r, Sum p) =
