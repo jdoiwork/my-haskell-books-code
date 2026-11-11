@@ -419,6 +419,7 @@ data Mistake
   | EmptyTitle                       -- a work with no title / 題がない
   | LongTitle     Int                -- longer than this / この字数より長い題
   | NegativeSize  Text               -- the heading / 量がマイナスの見出し
+  | HugeSize      Text Int           -- heading, limit / 量が大きすぎる見出し
   | BadToc        [TocProblem]       -- every problem / 目次のまずい所の全部
   | EntryTwice    EntryId            -- one number, two lines / 番号が2回
   | NoTable                          -- a film or a game / 目次のない作品

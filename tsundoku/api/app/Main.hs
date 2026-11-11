@@ -294,12 +294,19 @@ placeLabel found = case found of
 -- ANCHOR_END: search
 
 -- ANCHOR: serve
--- 🌐 Serve the shelf as a JSON API, until stopped (Ctrl-C).
--- 本棚を JSON の API として出す。止めるまで（Ctrl-C）
+-- 🌐 Serve the shelf as a JSON API, until stopped (Ctrl-C). Only this
+--    machine may ask: the API has no key, so anyone who could reach it
+--    could remove a work.
+-- 本棚を JSON の API として出す。止めるまで（Ctrl-C）。聞けるのは、
+-- このマシンからだけ。この API には鍵がないので、届く人なら、だれでも
+-- 作品を消せてしまう
 serveShelf :: Shelf -> Int -> IO ()
 serveShelf shelf port = do
   putStrLn ("serving the shelf on http://localhost:" <> show port)
-  Warp.run port (shelfApp getCurrentTime shelf)
+  Warp.runSettings settings (shelfApp getCurrentTime shelf)
+  where
+    settings = Warp.setHost "127.0.0.1"
+                 (Warp.setPort port Warp.defaultSettings)
 
 -- 🔌 A port: digits only, 1 to 65535. readMaybe alone takes "0x1F90" as
 --    8080, and wraps a number too big for Int around to another one.

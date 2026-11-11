@@ -72,9 +72,21 @@ export function bar(p: ProgressNumbers, width = 10): string {
   return "▓".repeat(filled) + "░".repeat(width - filled) + ` ${p.percent}%`;
 }
 
+// the text of a book may hold "<", so escape it before it becomes HTML
+// 本の本文には「<」もありうるので、HTML にする前にエスケープする
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 export function marked(snippet: Snip[]): string {
   return snippet
-    .map((s) => (s.match ? `<mark>${s.text}</mark>` : s.text))
+    .map((s) => {
+      const text = escapeHtml(s.text);
+      return s.match ? `<mark>${text}</mark>` : text;
+    })
     .join("");
 }
 // ANCHOR_END: screen
@@ -120,4 +132,9 @@ check(
   marked([{ text: "ドラゴンは", match: false }, { text: "怠けもの", match: true }])
     === "ドラゴンは<mark>怠けもの</mark>",
   "marked",
+);
+check(
+  marked([{ text: "<script>", match: false }, { text: "a&b", match: true }])
+    === "&lt;script&gt;<mark>a&amp;b</mark>",
+  "marked escapes",
 );

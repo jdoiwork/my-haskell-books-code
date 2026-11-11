@@ -114,6 +114,8 @@ explain mistake = case mistake of
   EmptyTitle         -> ["題が空っぽです"]
   LongTitle n        -> ["題は " <> T.pack (show n) <> " 字までです"]
   NegativeSize h     -> ["「" <> h <> "」の量がマイナスです"]
+  HugeSize h n       ->
+    ["「" <> h <> "」の量は " <> T.pack (show n) <> " までです"]
   -- ANCHOR: explainEdit
   BadToc ps          -> map explainToc ps
   EntryTwice _       -> ["同じ項目が、目次に2回出てきます"]

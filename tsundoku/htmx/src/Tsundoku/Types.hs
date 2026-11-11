@@ -340,6 +340,7 @@ data Mistake
   | EmptyTitle                       -- a work with no title / 題がない
   | LongTitle     Int                -- longer than this / この字数より長い題
   | NegativeSize  Text               -- the heading / 量がマイナスの見出し
+  | HugeSize      Text Int           -- heading, limit / 量が大きすぎる見出し
   deriving (Show, Eq)
 
 -- ✅ An answer the core has checked: the value, or the mistake.

@@ -13,17 +13,20 @@ module ShelfAnswers.Episodes
   , episodeServer
   , episodeClient
   , episodeApp
+  , episodeLimit
   ) where
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import Data.Aeson (FromJSON, ToJSON, encode)
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Text qualified as T
 import GHC.Generics (Generic)
 import Servant
 import Servant.Client (AsClientT, ClientM, client)
 import Servant.Server.Generic (AsServer)
 
 import Tsundoku.Api.Json (Problem (..))
-import Tsundoku.Api.Server (verdict)
+import Tsundoku.Api.Server (problemError, verdict)
 import Tsundoku.Form (explain)
 import Tsundoku.Shelf
 import Tsundoku.Types
@@ -42,18 +45,31 @@ data EpisodeRoutes mode = EpisodeRoutes
   }
   deriving stock Generic
 
--- 🪟 The handler asks the window, as every other one does.
--- ハンドラーは、ほかと同じく窓口に聞くだけ
+-- 📏 How many episodes may come out at once. As a route, the number
+--    comes from outside, and the window adds the episodes one by one,
+--    so a huge number would keep the shelf busy for minutes.
+-- 一度に出る話の数の上限。道にすると、この数は外から来る。窓口は
+-- 1話ずつ足すので、大きな数だと、本棚が何分もふさがる
+episodeLimit :: Int
+episodeLimit = 1000
+
+-- 🪟 The handler checks the number, then asks the window, as every
+--    other one does.
+-- ハンドラーは、数を確かめてから、ほかと同じく窓口に聞く
 episodeServer :: Shelf -> EpisodeRoutes AsServer
 episodeServer shelf = EpisodeRoutes
   { addEpisodes = \wid new -> do
+      when (new.howMany < 1 || new.howMany > episodeLimit) $
+        throwError (problemError err422 (Problem "bad-count"
+          ["新しい話の数は、1〜" <> T.pack (show episodeLimit)
+             <> " です"]))
       result <- liftIO (shelf.addEpisodes (WorkId wid) new.howMany)
       case result of
         Right ()     -> pure NoContent
         Left mistake -> do
           let (status, word) = verdict mistake
-          throwError status
-            { errBody = encode (Problem word (explain mistake)) }
+          throwError
+            (problemError status (Problem word (explain mistake)))
   }
 
 -- 📞 And the client, from the same record.

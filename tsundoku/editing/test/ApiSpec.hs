@@ -113,9 +113,11 @@ apiSpec = do
               Just card | map (.id) card.toc == [1, 2] -> Nothing
               _ -> Just ("not a card numbered 1, 2: " <> show body)
         }
-    -- 「ない作品は 404」
-    it "says 404 for a work not on the shelf" $
+    -- 「ない作品は 404（見ても、消しても）」
+    it "says 404 for a work not on the shelf" $ do
       get "/works/9" `shouldRespondWith` refusedWith 404 "no-such-work"
+      request methodDelete "/works/9" [] ""
+        `shouldRespondWith` refusedWith 404 "no-such-work"
     -- 「消したら 204。もう一度見ると 404」
     it "removes a work with 204, and then it is gone" $ do
       _ <- send methodPost "/works" dragonJson
@@ -126,13 +128,19 @@ apiSpec = do
   -- ANCHOR: gateSpec
   -- 「門番：受け取れないものは、窓口まで届かない」
   describe "the gate of the API" $ with freshApp $ do
-    -- 「題が空、長すぎる、量がマイナスの作品は 422」
+    -- 「題が空、長すぎる、量がマイナスか大きすぎる作品は 422」
     it "refuses a work the core would not take, with 422" $ do
       send methodPost "/works"
         [json|{title: " ", creator: "", kind: "game", toc: []}|]
         `shouldRespondWith` refusedWith 422 "empty-title"
-      send methodPost "/works" (encode (asNewWork longTitled))
+      send methodPost "/works" (encode (asNewWork (titledGame 200)))
+        `shouldRespondWith` 201
+      send methodPost "/works" (encode (asNewWork (titledGame 201)))
         `shouldRespondWith` refusedWith 422 "long-title"
+      send methodPost "/works"
+        [json|{title: "a", creator: "", kind: "book",
+               toc: [{heading: "序", size: 1000001, children: []}]}|]
+        `shouldRespondWith` refusedWith 422 "huge-size"
       send methodPost "/works"
         [json|{title: "a", creator: "", kind: "book",
                toc: [{heading: "序", size: -1, children: []}]}|]
@@ -142,6 +150,9 @@ apiSpec = do
       send methodPost "/works"
         [json|{title: "a", creator: "", kind: "novel", toc: []}|]
         `shouldRespondWith` refusedWith 400 "unknown-word"
+      send methodPost "/works"
+        [json|{title: "a", creator: "", kind: "film", toc: []}|]
+        `shouldRespondWith` refusedWith 400 "missing-minutes"
       send methodPost "/works" "{\"title\": "
         `shouldRespondWith` refusedWith 400 "bad-body"
       get "/works/abc" `shouldRespondWith` refusedWith 400 "bad-url"
@@ -178,6 +189,9 @@ apiSpec = do
                                    spoiler: false}|] { matchStatus = 201 }
       send methodPost "/works/1/log" [json|{day: "11/9", entry: 1}|]
         `shouldRespondWith` refusedWith 400 "unknown-word"
+      send methodPost "/works/1/log"
+        [json|{day: "-0001-01-01", entry: 1}|]
+        `shouldRespondWith` refusedWith 400 "unknown-word"
       get "/search?q=%20" `shouldRespondWith` refusedWith 422 "empty-search"
       get "/search" `shouldRespondWith` refusedWith 400 "bad-url"
   -- ANCHOR_END: gateSpec
@@ -200,7 +214,7 @@ apiSpec = do
   -- ANCHOR: answersSpec
   -- 「トレーニングの解答」
   describe "the answers" $ do
-    -- 「新しい話の道：足すと目次が育つ。本には 409」
+    -- 「新しい話の道：足すと目次が育つ。本には 409。数は 1〜1000」
     it "adds new episodes to a serial, and not to a book" $
       withShelfOn episodeApp $ \shelf env -> do
         serial <- shelf.addWork librarianSerial
@@ -213,6 +227,11 @@ apiSpec = do
         failed <- call env (episodeClient.addEpisodes b (NewEpisodes 1))
         fmap (.mistake) (either problemOf (const Nothing) failed)
           `shouldBe` Just "not-a-serial"
+        tooMany <- call env (episodeClient.addEpisodes s (NewEpisodes 1001))
+        none    <- call env (episodeClient.addEpisodes s (NewEpisodes 0))
+        [ fmap (.mistake) (either problemOf (const Nothing) answered)
+          | answered <- [tooMany, none] ]
+          `shouldBe` [Just "bad-count", Just "bad-count"]
     -- 「ページ送り：limit は 1〜100。それ以外は servant が 400」
     it "gives a page of works, and refuses a limit of 0" $
       withShelfOn pagedApp $ \shelf env -> do
@@ -273,9 +292,9 @@ clientSpec = do
     hits <- ok env (shelfClient.search "怠けもの")
     [ (hit.place, hit.entry, filter (.match) hit.snippet) | hit <- hits ]
       `shouldBe` [("text", Just 8, [Snip "怠けもの" True])]
-  -- 「点は 0〜100 だけが通る（どんな数でも）」
+  -- 「点は 0〜100 だけが通る（両方の境目をまたいで）」
   it "lets through points from 0 to 100, and no others" $ \(_, env) ->
-    property $ \n -> ioProperty $ do
+    forAll (choose (-50, 150)) $ \n -> ioProperty $ do
       added    <- ok env (shelfClient.addWork (asNewWork dungeonGame))
       answered <- call env ((shelfClient.work added.work.id).rate (Points n))
       pure (either (const False) (const True) answered
@@ -325,11 +344,11 @@ withShelfOn app test = do
 ok :: ClientEnv -> ClientM a -> IO a
 ok env ask = call env ask >>= either (fail . show) pure
 
--- 📏 A game whose title is one character too long.
--- 題が1字だけ長すぎるゲーム
-longTitled :: Work
-longTitled = Work
-  { title    = T.replicate 201 "あ"
+-- 📏 A game whose title is this many characters long.
+-- 題がこの字数のゲーム
+titledGame :: Int -> Work
+titledGame n = Work
+  { title    = T.replicate n "あ"
   , creator  = ""
   , contents = Game
   }

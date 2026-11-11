@@ -51,7 +51,7 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Time (UTCTime)
+import Data.Time (UTCTime, toGregorian)
 import Data.Time.Format.ISO8601 (iso8601ParseM, iso8601Show)
 import Data.Tree (Tree (..))
 import GHC.Generics (Generic)
@@ -421,12 +421,19 @@ noteFrom now new = Note
   , spoiler   = new.spoiler
   }
 
--- 📓 A line of the reading log. Nothing if the day cannot be read.
--- 読書ログの1行。日付が読めなければ Nothing
+-- 📓 A line of the reading log. Nothing if the day cannot be read,
+--    or its year is not 1 to 9999 ("-0001-01-01" reads as a Day,
+--    but SQLite cannot read it back, and PostgreSQL will not keep it).
+-- 読書ログの1行。日付が読めないか、年が 1〜9999 でなければ Nothing
+-- （"-0001-01-01" も Day としては読めるが、SQLite は読み戻せず、
+-- PostgreSQL はしまえない）
 logFrom :: ReadOn -> Maybe LogLine
 logFrom r = do
   d <- iso8601ParseM (T.unpack r.day)
-  pure LogLine { readOn = d, readEntry = EntryId r.entry }
+  let (year, _, _) = toGregorian d
+  if year < 1 || year > 9999
+    then Nothing
+    else pure LogLine { readOn = d, readEntry = EntryId r.entry }
 -- ANCHOR_END: workFrom
 
 -- ANCHOR: typescript

@@ -27,6 +27,7 @@ module Tsundoku.Card
   , tagLimit
   , tagLength
   , titleLimit
+  , sizeLimit
   , revise
   , asOpened
   , asRevision
@@ -254,6 +255,13 @@ addEpisodes ids card = case contents (work card) of
 titleLimit :: Int
 titleLimit = 200
 
+-- 📏 The largest amount one heading may have (pages, minutes, or
+--    episodes). Small enough that adding them all never overflows.
+-- 見出し1つの量（ページ・分・話）の、いちばん大きな数。全部を
+-- 足しても、あふれない大きさ
+sizeLimit :: Int
+sizeLimit = 1000000
+
 -- 🚪 A work that came from outside: it needs a title (not too long),
 --    its table must have a good shape (TocCheck: every problem at
 --    once), and no amount may be below zero.
@@ -268,6 +276,9 @@ checkWork w = do
     problems -> Left (BadToc problems)
   case [ name | (name, n) <- amountsIn w, n < 0 ] of
     name : _ -> Left (NegativeSize name)
+    []       -> Right ()
+  case [ name | (name, n) <- amountsIn w, n > sizeLimit ] of
+    name : _ -> Left (HugeSize name sizeLimit)
     []       -> Right w
 
 -- 🌲 Only the headings of a table, as a tree.

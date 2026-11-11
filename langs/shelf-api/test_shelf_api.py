@@ -14,7 +14,9 @@ from pydantic import BaseModel, Field
 
 
 class Points(BaseModel):
-    points: int = Field(ge=0, le=100)  # 0..100, or 422 / 0〜100。違えば 422
+    # 0..100, or 422. strict: "70" and true are not numbers here
+    # 0〜100。違えば 422。strict："70" や true を数に直さない
+    points: int = Field(strict=True, ge=0, le=100)
 
 
 class Happened(BaseModel):
@@ -32,7 +34,10 @@ ratings: dict[int, int] = {1: 90}
 
 @app.exception_handler(RequestValidationError)
 async def as_problem(_: Request, error: RequestValidationError):
-    # Every refusal in the same shape. / どの断りも、同じ形で
+    # What came in and could not be read, in one shape (a route that
+    # does not exist still answers FastAPI's own 404).
+    # 読めなかった入力の断りを、同じ形で（ない道の 404 は、
+    # FastAPI の既定のまま）
     problem = Problem(mistake="bad-body",
                       messages=[e["msg"] for e in error.errors()])
     return JSONResponse(problem.model_dump(), status_code=422)
@@ -62,6 +67,10 @@ def test_points_are_checked_by_the_type():
     res = client.put("/works/1/rating", json={"points": 101})
     assert res.status_code == 422
     assert res.json()["mistake"] == "bad-body"
+    assert ratings[1] == 70
+    for not_a_number in ["70", True]:
+        res = client.put("/works/1/rating", json={"points": not_a_number})
+        assert res.status_code == 422
     assert ratings[1] == 70
 
 

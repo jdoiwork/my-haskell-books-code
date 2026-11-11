@@ -12,6 +12,7 @@ module Tsundoku.Api.Server
   , shelfServer
   , verdict
   , refuse
+  , problemError
   ) where
 
 -- IO in a handler, JSON, and the header of the answer
@@ -73,6 +74,7 @@ shelfServer clock shelf = ShelfRoutes
   }
   where
     addOne new = do
+      needMinutes new
       what <- known "kind" new.kind (workFrom new)
       wid  <- answer (addChecked shelf.works what)
       cardOf shelf wid
@@ -191,6 +193,18 @@ known what word found = case found of
     { mistake  = "unknown-word"
     , messages = ["「" <> word <> "」は " <> what <> " として読めません"]
     }
+
+-- 🎬 A film needs its length. Without one, say that, not that the
+--    kind is unknown: "film" is a word we know.
+-- 映画には長さが要る。なければ、そう言って断る（「film」は知って
+-- いる言葉なので、「種類が読めない」とは言わない）
+needMinutes :: NewWork -> Handler ()
+needMinutes new = case (new.kind, new.minutes) of
+  ("film", Nothing) -> throwProblem err400 Problem
+    { mistake  = "missing-minutes"
+    , messages = ["映画には、長さ（minutes）が要ります"]
+    }
+  _ -> pure ()
 -- ANCHOR_END: helpers
 
 -- ANCHOR: verdict
@@ -218,6 +232,7 @@ verdict mistake = case mistake of
   EmptyTitle          -> (err422, "empty-title")
   LongTitle     _     -> (err422, "long-title")
   NegativeSize  _     -> (err422, "negative-size")
+  HugeSize      _ _   -> (err422, "huge-size")
   -- ANCHOR: verdictEdit
   BadToc        _     -> (err422, "bad-toc")
   EntryTwice    _     -> (err422, "entry-twice")

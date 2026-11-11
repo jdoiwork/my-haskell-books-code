@@ -22,6 +22,7 @@ module Tsundoku.Card
   , hasEntry
   , checkWork
   , titleLimit
+  , sizeLimit
   ) where
 
 -- `when`, dictionaries, Maybe, and text
@@ -225,6 +226,13 @@ addEpisodes ids card = case contents (work card) of
 titleLimit :: Int
 titleLimit = 200
 
+-- 📏 The largest amount one heading may have (pages, minutes, or
+--    episodes). Small enough that adding them all never overflows.
+-- 見出し1つの量（ページ・分・話）の、いちばん大きな数。全部を
+-- 足しても、あふれない大きさ
+sizeLimit :: Int
+sizeLimit = 1000000
+
 -- 🚪 A work that came from outside: it needs a title (not too long),
 --    and no amount may be below zero. The first thing wrong is told.
 -- 外から来た作品を確かめる：題があって（長すぎず）、どの量もマイナスで
@@ -235,6 +243,9 @@ checkWork w = do
   when (T.length (title w) > titleLimit) (Left (LongTitle titleLimit))
   case [ name | (name, n) <- amountsIn w, n < 0 ] of
     name : _ -> Left (NegativeSize name)
+    []       -> Right ()
+  case [ name | (name, n) <- amountsIn w, n > sizeLimit ] of
+    name : _ -> Left (HugeSize name sizeLimit)
     []       -> Right w
 
 -- 🧮 Every amount of a work, with the name it goes by: the headings of

@@ -14,7 +14,7 @@ RATINGS = { 1 => 90 }
 class RatingsController < ActionController::API
   def update
     id = Integer(params[:id])
-    points = params.require(:points)
+    points = params[:points] # nil when missing / なければ nil
     unless points.is_a?(Integer) && points.between?(0, 100)
       return refuse(:unprocessable_content, "bad-score", "点は 0〜100 です")
     end
@@ -39,7 +39,9 @@ end
 # Ruby（道。config/routes.rb で描くのと同じ）
 ROUTES = ActionDispatch::Routing::RouteSet.new
 ROUTES.draw do
-  put "/works/:id/rating", to: "ratings#update"
+  # only digits for :id; "abc" never reaches the controller (404)
+  # :id は数字だけ。「abc」はコントローラーに届かない（404）
+  put "/works/:id/rating", to: "ratings#update", constraints: { id: /\d+/ }
 end
 # ANCHOR_END: routes
 
@@ -61,6 +63,13 @@ raise "still 70" unless RATINGS[1] == 70
 
 res = put_rating(99, { points: 50 })
 raise "404: #{res.status}" unless res.status == 404
+
+res = put_rating(1, {})
+raise "no points: #{res.status}" unless res.status == 422
+raise "no points" unless JSON.parse(res.body)["mistake"] == "bad-score"
+
+res = put_rating("abc", { points: 50 })
+raise "abc: #{res.status}" unless res.status == 404
 
 # Only what is needed for an API: no cookies, no views.
 # API に要るものだけ：クッキーもビューもない
