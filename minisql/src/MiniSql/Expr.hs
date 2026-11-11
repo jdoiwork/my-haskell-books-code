@@ -1,18 +1,20 @@
--- ANCHOR: pragmas
-{-# LANGUAGE UndecidableInstances #-}
--- ANCHOR_END: pragmas
 -- ANCHOR: all
+-- ANCHOR: module
 -- | Expressions with types, turned into SQL with ? placeholders.
--- 型を持った式。? の穴の付いた SQL に変える
+--   Only the type Expr is exported, not its constructors: values come in
+--   through lit, and comparisons through the operators below.
+-- 型を持った式。? の穴の付いた SQL に変える。
+-- 外に見せるのは型の Expr だけで、コンストラクターは見せない：
+-- 値は lit から、比べ方は下の演算子から入る
 module MiniSql.Expr
-  ( Expr (..)
+  ( Expr
   , lit
-  , col
   , (.==), (./=), (.<), (.>), (.<=), (.>=)
   , (.&&), (.||)
   , (.+)
   , render
   ) where
+-- ANCHOR_END: module
 
 -- ANCHOR: imports
 import Data.Text (Text)
@@ -37,9 +39,6 @@ data Expr t a where
 -- ANCHOR: ops
 lit :: ToField a => a -> Expr t a
 lit = Lit
-
-col :: Col t a -> Expr t a
-col = Column
 
 -- 🔖 A label can be an expression too: #level :: Expr Adventurer Int.
 -- 札は、式にもなれる：#level :: Expr Adventurer Int
@@ -72,8 +71,10 @@ infixl 6 .+
 -- ANCHOR: render
 -- 🖨️ To SQL text and the values for its ? holes, in order.
 --    Values never go into the text: no SQL injection.
+--    (Column and operator names do; they come from our own code.)
 -- SQL の文と、? の穴に入る値（順番どおり）に。
 -- 値は文に入れない：SQL インジェクションは起きない
+-- （列と演算子の名前は文に入る。どちらも自分のコードが決めたもの）
 render :: Expr t a -> (Text, [SQLData])
 render expr = case expr of
   Lit v              -> ("?", [toField v])

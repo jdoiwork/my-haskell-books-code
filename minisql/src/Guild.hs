@@ -35,8 +35,11 @@ data Adventurer = Adventurer
 instance FromRow Adventurer where
   fromRow = Adventurer <$> field <*> field <*> field <*> field
 
--- 📒 The columns, written once: their names and their types.
--- 列を1回だけ書く：名前と型
+-- 📒 The list of columns: their names and their types. The record,
+--    FromRow and the Table below name the columns too; nothing checks
+--    that they agree, so the tests run them on SQLite.
+-- 列の名簿：名前と型。レコード・FromRow・下の Table にも列が出てくる。
+-- それらが合っているかは型では確かめないので、テストで SQLite に流して確かめる
 instance HasColumn Adventurer "id"    Int
 instance HasColumn Adventurer "name"  Text
 instance HasColumn Adventurer "job"   Text
@@ -46,6 +49,9 @@ adventurers :: Table Adventurer
 adventurers = Table "adventurers" ["id", "name", "job", "level"]
 -- ANCHOR_END: table
 
+-- ANCHOR: setup
+-- 🏗️ The real table, and adding one adventurer (plain sqlite-simple).
+-- 本物の表と、冒険者を1人足す（ふつうの sqlite-simple で）
 setup :: Connection -> IO ()
 setup conn = execute_ conn
   "CREATE TABLE adventurers (id INTEGER PRIMARY KEY, \
@@ -54,6 +60,7 @@ setup conn = execute_ conn
 insert :: Connection -> Text -> Text -> Int -> IO ()
 insert conn n j l = execute conn
   "INSERT INTO adventurers (name, job, level) VALUES (?, ?, ?)" (n, j, l)
+-- ANCHOR_END: setup
 
 -- ANCHOR: queries
 -- 💪 Adventurers at level n or above, by name.

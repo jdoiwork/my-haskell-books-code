@@ -1,12 +1,11 @@
 -- ANCHOR: pragmas
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE UndecidableInstances #-}
 -- ANCHOR_END: pragmas
 -- ANCHOR: all
 -- | Columns that know their table and the type they hold.
 -- 自分の表と、しまう値の型を知っている列
 module MiniSql.Column
-  ( Col (..)
+  ( Col
   , HasColumn
   , colName
   ) where

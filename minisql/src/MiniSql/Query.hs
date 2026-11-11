@@ -53,17 +53,21 @@ where_ cond s = s { selWhere = selWhere s ++ [cond] }
 orderBy :: Col t a -> Order -> Select t -> Select t
 orderBy c dir s = s { selOrder = selOrder s ++ [(colName c, dir)] }
 
+-- At most n rows. A negative n would mean "no limit" to SQLite, so it
+-- becomes 0.
+-- n 行まで。負の数は SQLite では「上限なし」になってしまうので、0 にする
 limit :: Int -> Select t -> Select t
-limit n s = s { selLimit = Just n }
+limit n s = s { selLimit = Just (max 0 n) }
 -- ANCHOR_END: select
 
 -- ANCHOR: compileSelect
--- 🖨️ To SQL. Every condition is joined with AND.
--- SQL に。条件は全部 AND でつなぐ
+-- 🖨️ To SQL. Every condition is joined with AND. The limit is a value
+--    too, so it goes into a ? hole.
+-- SQL に。条件は全部 AND でつなぐ。人数も値なので、? の穴に入れる
 compileSelect :: Select t -> (Text, [SQLData])
 compileSelect s =
   ( T.unwords (concat [selectPart, wherePart, orderPart, limitPart])
-  , params )
+  , params ++ limitParams )
   where
     selectPart = [ "SELECT", T.intercalate ", " (tableColumns (selTable s))
                  , "FROM", tableName (selTable s) ]
@@ -76,7 +80,8 @@ compileSelect s =
       | otherwise = ["ORDER BY", T.intercalate ", " (map order (selOrder s))]
     order (name, Asc)  = name <> " ASC"
     order (name, Desc) = name <> " DESC"
-    limitPart = maybe [] (\n -> ["LIMIT", T.pack (show n)]) (selLimit s)
+    limitPart   = maybe [] (const ["LIMIT", "?"]) (selLimit s)
+    limitParams = maybe [] (\n -> [SQLInteger (fromIntegral n)]) (selLimit s)
     unzip' pairs = (map fst pairs, concatMap snd pairs)
 
 -- ▶️ Run it, and read the rows as t.

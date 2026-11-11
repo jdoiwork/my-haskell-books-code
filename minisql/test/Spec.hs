@@ -39,7 +39,17 @@ main = hspec $ do
         `shouldBe`
         ( "UPDATE adventurers SET level = (level + ?) WHERE (job = ?)"
         , [SQLInteger 1, SQLText "mage"] )
+    -- 人数も ? の穴に。値は文に入らない
+    it "the limit is a hole too" $
+      compileSelect (mages 2) `shouldBe`
+        ( "SELECT id, name, job, level FROM adventurers \
+          \WHERE (job = ?) ORDER BY level DESC LIMIT ?"
+        , [SQLText "mage", SQLInteger 2] )
   describe "running on SQLite" $ do
+    -- 負の人数は 0 人（SQLite の「上限なし」にしない）
+    it "a negative limit gives no rows" $ withRoster $ \conn -> do
+      found <- runSelect conn (mages (-1))
+      found `shouldBe` []
     -- レベル 3 以上を、名前の順に
     it "strong" $ withRoster $ \conn -> do
       found <- runSelect conn (strong 3)
