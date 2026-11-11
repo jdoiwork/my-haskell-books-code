@@ -29,6 +29,7 @@ library
                     MiniKv.Server
                     MiniKv.Client
                     KvAnswers
+                    ServerAnswers
   hs-source-dirs:   src answers
 -- ANCHOR_END: lib
 

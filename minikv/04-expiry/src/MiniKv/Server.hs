@@ -12,21 +12,25 @@ module MiniKv.Server
   , sweeper
   , withServer
   , withServerAt
+  , readPort
+  , socketPort
   ) where
 
 import Control.Concurrent (forkFinally, threadDelay)
 import Control.Concurrent.Async (link, withAsync)
 import Control.Concurrent.STM (STM, TVar, atomically, newTVarIO, readTVar,
                                writeTVar)
-import Control.Exception (bracket)
+import Control.Exception (IOException, bracket, try)
 import Control.Monad (forever, unless)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+import Data.Char (isDigit)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
+import System.IO (hPutStrLn, stderr)
 
 import MiniKv.Protocol
 import MiniKv.Store
@@ -103,13 +107,39 @@ listenOn port = do
   listen sock 64
   pure sock
 
+-- 🚪 Accept the next client. If the OS refuses (too many open files),
+--    say so, wait a little, and try again: the server keeps running.
+-- 次のクライアントを受け付ける。OS に断られたら（ファイルの数の上限など）、
+-- 知らせて少し待ち、もう一度。サーバーは止めない
+acceptNext :: Socket -> IO Socket
+acceptNext server = do
+  accepted <- try (accept server)
+  case accepted of
+    Right (client, _) -> pure client
+    Left err -> do
+      -- 「受け付けられませんでした。もう一度試します」
+      hPutStrLn stderr ("minikv: accept failed, trying again: "
+                        <> show (err :: IOException))
+      threadDelay 100000
+      acceptNext server
+
+-- 🔢 A port number from the command line: digits only, 1 to 65535.
+-- コマンドラインのポート番号：数字だけで、1 から 65535
+readPort :: String -> Maybe PortNumber
+readPort s
+  | null s || length s > 5 || not (all isDigit s) = Nothing
+  | n < 1 || n > 65535                            = Nothing
+  | otherwise                                     = Just (fromInteger n)
+  where
+    n = read s :: Integer
+
 -- 🔁 Accept clients forever; each gets its own thread.
 --    forkFinally closes the socket however the thread ends.
 -- クライアントを受け付け続ける。1人ずつ、自分のスレッドを持つ。
 -- forkFinally は、スレッドがどう終わっても、ソケットを閉じる
 acceptLoop :: Clock -> TVar Store -> Socket -> IO ()
 acceptLoop clock storeVar server = forever $ do
-  (client, _) <- accept server
+  client <- acceptNext server
   forkFinally (serveClient clock storeVar client) (\_ -> close client)
 -- ANCHOR_END: listen
 

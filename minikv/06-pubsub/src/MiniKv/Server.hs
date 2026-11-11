@@ -19,6 +19,8 @@ module MiniKv.Server
   , withServer
   , withServerAt
   , withServerLog
+  , readPort
+  , socketPort
   ) where
 
 import Control.Concurrent (MVar, newMVar, threadDelay, threadWaitRead,
@@ -33,6 +35,7 @@ import Control.Monad (forM_, forever, unless, void, when)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+import Data.Char (isDigit)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef,
                    writeIORef)
 import Data.Map.Strict (Map)
@@ -43,7 +46,8 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 import System.Directory (copyFile, doesFileExist, renameFile)
-import System.IO (Handle, IOMode (..), hClose, hFlush, openFile)
+import System.IO (Handle, IOMode (..), hClose, hFlush, hPutStrLn,
+                  openFile, stderr)
 
 import MiniKv.Persist
 import MiniKv.Protocol
@@ -317,13 +321,39 @@ listenOn port = do
   listen sock 64
   pure sock
 
+-- 🚪 Accept the next client. If the OS refuses (too many open files),
+--    say so, wait a little, and try again: the server keeps running.
+-- 次のクライアントを受け付ける。OS に断られたら（ファイルの数の上限など）、
+-- 知らせて少し待ち、もう一度。サーバーは止めない
+acceptNext :: Socket -> IO Socket
+acceptNext server = do
+  accepted <- try (accept server)
+  case accepted of
+    Right (client, _) -> pure client
+    Left err -> do
+      -- 「受け付けられませんでした。もう一度試します」
+      hPutStrLn stderr ("minikv: accept failed, trying again: "
+                        <> show (err :: IOException))
+      threadDelay 100000
+      acceptNext server
+
+-- 🔢 A port number from the command line: digits only, 1 to 65535.
+-- コマンドラインのポート番号：数字だけで、1 から 65535
+readPort :: String -> Maybe PortNumber
+readPort s
+  | null s || length s > 5 || not (all isDigit s) = Nothing
+  | n < 1 || n > 65535                            = Nothing
+  | otherwise                                     = Just (fromInteger n)
+  where
+    n = read s :: Integer
+
 -- 🔁 Accept clients forever. Each client's thread is started by
 --    `welcome`, so it lives in the server's scope.
 -- クライアントを受け付け続ける。客のスレッドは welcome で始めるので、
 -- サーバーの範囲の中で動く
 acceptLoop :: Env -> Socket -> (IO () -> IO ()) -> IO ()
 acceptLoop env server welcome = forever $ do
-  (client, _) <- accept server
+  client <- acceptNext server
   welcome (serveClient env client `finally` close client)
 
 -- 🚪 Start each guest in a scope. When the scope ends, every guest
