@@ -122,6 +122,7 @@ explain mistake = case mistake of
       Twice x       -> "「" <> x <> "」が2つあります"
       NoSuchState x -> "矢印の先か元の「" <> x <> "」が、状態にありません"
       Unreachable x -> "はじめの状態から「" <> x <> "」へ行けません"
+      BadName x     -> "「" <> x <> "」は、名前や選択肢に使えません"
     attrProblem p = case p of
       UnknownName n  -> "「" <> n <> "」という属性も状態もありません"
       Unreadable n x -> n <> " に「" <> x <> "」は入りません"

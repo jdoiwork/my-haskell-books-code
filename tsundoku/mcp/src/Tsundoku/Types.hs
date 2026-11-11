@@ -322,6 +322,7 @@ data DefProblem
   | Twice       Text       -- the same one twice / 同じものが2つ
   | NoSuchState Text       -- an arrow to nowhere / 矢印の先や元にない
   | Unreachable Text       -- no way from the start / はじめから行けない
+  | BadName     Text       -- a name or value we cannot use / 使えない名前・値
   deriving (Show, Eq)
 
 -- ANCHOR: tocProblem

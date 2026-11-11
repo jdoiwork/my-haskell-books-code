@@ -8,6 +8,7 @@ module Tsundoku.Custom
     readValue
   , showValue
   , kindName
+  , wordChar
     -- * Definitions / 定義
   , emptySchema
   , defineAttr
@@ -22,6 +23,7 @@ module Tsundoku.Custom
 
 -- dictionaries, sets, text, dates, and reading numbers
 -- 辞書、集合、文字列、日付、数を読む
+import Data.Foldable (traverse_)
 import Data.List (nub, (\\))
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
@@ -55,11 +57,16 @@ readValue kind typed = case kind of
     nonBlank
       | T.null (T.strip typed) = Nothing
       | otherwise              = Just typed
-    -- "12" and "-3" are numbers; "12冊" and "3.5" are not.
-    -- "12" と "-3" は数。"12冊" や "3.5" は数ではない
-    wholeNumber = case T.signed T.decimal typed of
-      Right (n, rest) | T.null rest -> Just n
-      _                             -> Nothing
+    -- "12" and "-3" are numbers; "12冊", "3.5", "+5", and numbers too
+    --    big for Int are not (read as Integer, then check the range).
+    -- "12" と "-3" は数。"12冊"、"3.5"、"+5"、Int に入らない数は、数ではない
+    -- （Integer で読んでから、範囲を確かめる）
+    wholeNumber = case T.signed T.decimal typed :: Either String (Integer, Text) of
+      Right (n, rest)
+        | T.null rest, not ("+" `T.isPrefixOf` typed), fits n
+          -> Just (fromInteger n)
+      _ -> Nothing
+    fits n = toInteger (minBound :: Int) <= n && n <= toInteger (maxBound :: Int)
 
 -- 📤 And back, to show in a form. readValue reads it again.
 -- そして、フォームに見せる文字に戻す。readValue で読み戻せる
@@ -98,7 +105,9 @@ emptySchema = Schema { attrDefs = [], flows = [] }
 defineAttr :: AttrDef -> Schema -> Checked Schema
 defineAttr def schema = do
   checked BadDefinition
-    (freeName schema (attrName def) *> goodKind (attrKind def))
+    (  goodName (attrName def)
+    *> freeName schema (attrName def)
+    *> goodKind (attrKind def) )
   pure schema { attrDefs = attrDefs schema ++ [def] }
 
 -- 🪪 A name is free if no attribute or flow has it. ★ is the rating's.
@@ -112,11 +121,34 @@ freeName schema name
           ++ map attrName (attrDefs schema)
           ++ map flowName (flows schema)
 
+-- 🔤 The name of an attribute or a flow is a word of the search
+--    language: not empty, with no spaces and none of = ! < > " ( ).
+-- 属性や流れの名前は、絞り込みの言葉の単語：空でなく、空白や
+-- = ! < > " ( ) を含まない
+goodName :: Text -> Validation [DefProblem] ()
+goodName name
+  | T.null name || not (T.all wordChar name) = problem (BadName name)
+  | otherwise                                = Valid ()
+
+-- 🔤 A choice or a state is a value: not blank, no spaces at either end
+--    (the form takes them off), and no " (the search quotes with it).
+-- 選択肢や状態は値：空でなく、前後に空白がなく（フォームは取ってから
+-- 読む）、" を含まない（絞り込みは " でくくる）
+goodValue :: Text -> Validation [DefProblem] ()
+goodValue v
+  | T.null v || T.strip v /= v || T.any (== '"') v = problem (BadName v)
+  | otherwise                                      = Valid ()
+
+-- ✏️ The letters a word of the search language can have.
+-- 絞り込みの言葉の単語に使える文字
+wordChar :: Char -> Bool
+wordChar c = c `notElem` (" \t\n=!<>\"()" :: String)
+
 -- 🎛️ Choices need at least one choice, each one only once.
 -- 選択肢は、少なくとも1つ。同じものは1回だけ
 goodKind :: AttrKind -> Validation [DefProblem] ()
 goodKind (ChoiceKind [])      = problem NothingToPick
-goodKind (ChoiceKind choices) = noTwice choices
+goodKind (ChoiceKind choices) = traverse_ goodValue choices *> noTwice choices
 goodKind _                    = Valid ()
 
 -- 👯 Each name only once.
@@ -158,7 +190,9 @@ readFields schema typed =
 defineFlow :: Flow -> Schema -> Checked Schema
 defineFlow flow schema = do
   checked BadDefinition
-    (  freeName schema (flowName flow)
+    (  goodName (flowName flow)
+    *> freeName schema (flowName flow)
+    *> traverse_ goodValue (flowStates flow)
     *> noTwice (flowStates flow)
     *> arrowsLand flow
     *> allReachable flow )

@@ -88,8 +88,6 @@ term = do
 -- 単語：空白か、比べ方の記号の手前まで
 word :: Parser Text
 word = lexeme (takeWhile1P (Just "a name or a value") wordChar)
-  where
-    wordChar c = c `notElem` (" \t\n=!<>\"()" :: String)
 
 -- 💬 A value with spaces in it goes in quotes: "神保町の古本市".
 -- 空白を含む値は、引用符でくくる："神保町の古本市"
@@ -239,9 +237,14 @@ showCond (Test col how x) = T.unwords [nameOf col, symbol how, shown col x]
     nameOf (StateCol flow)          = flowName flow
     nameOf StarsCol                 = "★"
     shown :: Column a -> a -> Text
-    shown (AttrCol (Field _ kind)) v = showValue (toValue kind v)
-    shown (StateCol _)             v = v
+    shown (AttrCol (Field _ kind)) v = inQuotes (showValue (toValue kind v))
+    shown (StateCol _)             v = inQuotes v
     shown StarsCol                 v = render FiveStars v
+    -- A value that is not one word goes in quotes, so it reads back.
+    -- 1つの単語でない値は、引用符でくくる（読み戻せるように）
+    inQuotes v
+      | not (T.null v) && T.all wordChar v = v
+      | otherwise                          = "\"" <> v <> "\""
 
 -- ⚖️ The symbol of a way to compare, as it is typed.
 -- 比べ方の記号。打ちこむときと同じ形

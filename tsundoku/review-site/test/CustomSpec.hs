@@ -48,6 +48,12 @@ customSpec = do
       map (readValue NumberKind) ["12", "-3", "3.5", "12冊", "", "すごく"]
         `shouldBe` [Just (NumberV 12), Just (NumberV (-3))
                    , Nothing, Nothing, Nothing, Nothing]
+    -- 「Int に入らない数と、頭の + も、数として読まない」
+    it "reads no number too big for Int, and no +" $
+      map (readValue NumberKind)
+          [ "9223372036854775807", "9223372036854775808"
+          , "18446744073709551621", "+5" ]
+        `shouldBe` [Just (NumberV maxBound), Nothing, Nothing, Nothing]
 
   -- 「定義の門」
   describe "definitions" $ do
@@ -65,6 +71,30 @@ customSpec = do
                  librarySchema
         `shouldBe` Left (BadDefinition
           [NameTaken "形", Twice "紙", Twice "Web"])
+    -- 「名前は、絞り込みの単語に使えるもの。選択肢と状態は、空白で
+    --   始まったり終わったりしない」
+    it "refuses names the search cannot use" $ do
+      defineAttr (AttrDef "" TextKind) emptySchema
+        `shouldBe` Left (BadDefinition [BadName ""])
+      defineAttr (AttrDef "買った 店" TextKind) emptySchema
+        `shouldBe` Left (BadDefinition [BadName "買った 店"])
+      defineAttr (AttrDef "色" (ChoiceKind ["赤", " 青"])) emptySchema
+        `shouldBe` Left (BadDefinition [BadName " 青"])
+      defineFlow (Flow "A=B" "上" [""] [("上", "")]) emptySchema
+        `shouldBe` Left (BadDefinition [BadName "A=B", BadName ""])
+    -- 「属性と流れで、同じ名前は使えない（どちら向きでも）」
+    it "keeps the names of attributes and flows apart" $ do
+      defineAttr (AttrDef "連載の状態" TextKind) librarySchema
+        `shouldBe` Left (BadDefinition [NameTaken "連載の状態"])
+      defineFlow serialFlow { flowName = "推し度" } librarySchema
+        `shouldBe` Left (BadDefinition [NameTaken "推し度"])
+    -- 「矢印の元がない流れと、同じ状態が2つある流れは、断る」
+    it "refuses an arrow from nowhere, and a state twice" $ do
+      defineFlow (Flow "棚" "上" ["下"] [("上", "下"), ("横", "下")])
+                 emptySchema
+        `shouldBe` Left (BadDefinition [NoSuchState "横"])
+      defineFlow (Flow "棚" "上" ["下", "下"] [("上", "下")]) emptySchema
+        `shouldBe` Left (BadDefinition [Twice "下"])
     -- 「どの状態にも行けるときだけ、流れを受け取る」
     prop "accepts a flow exactly when every state can be reached" $
       forAll flowGen $ \flow ->
@@ -76,6 +106,10 @@ customSpec = do
 
   -- 「フォームの門」
   describe "the gate for a form" $ do
+    -- 「欄の値は、前後の空白を取ってから読む」
+    it "reads a field after taking off the spaces" $
+      readFields librarySchema (Map.fromList [("推し度", " 4 ")])
+        `shouldBe` Right (Map.fromList [("推し度", Just (NumberV 4))])
     -- 「まずい欄を、1つも取りこぼさずに知らせる」
     prop "reports every bad field, not just the first" $
       forAll formGen $ \fields ->
@@ -114,6 +148,34 @@ customSpec = do
       fmap showCond (parseQuery "★>=4 and 買った日 < 2026-11-01"
                        >>= checkQuery librarySchema)
         `shouldBe` Right "★ >= ★4 and 買った日 < 2026-11-01"
+    -- 「状態と選択肢は、大小で比べられない。流れにない状態は読まない」
+    it "refuses bigger or smaller on states and choices" $ do
+      let refusal typed = either Just (const Nothing)
+                            (parseQuery typed >>= checkQuery librarySchema)
+      refusal "連載の状態 > 連載中"
+        `shouldBe` Just (BadAttrs [Unordered "連載の状態"])
+      refusal "形 > 紙" `shouldBe` Just (BadAttrs [Unordered "形"])
+      refusal "連載の状態 = 完桔"
+        `shouldBe` Just (BadAttrs [Unreadable "連載の状態" "完桔"])
+    -- 「日付・文字・はい/いいえでも、カードを選ぶ」
+    it "picks cards by dates, text, and yes or no" $ do
+      let picked typed = map (title . work . snd)
+                           <$> search librarySchema typed filledCards
+          dragon = Right ["はじめてのドラゴン学"]
+      picked "買った日 < 2026-11-01" `shouldBe` dragon
+      picked "買った日 > 2026-11-01" `shouldBe` Right []
+      picked "サイン本 = はい" `shouldBe` dragon
+      picked "サイン本 = いいえ" `shouldBe` Right []
+      picked "どこで買った = 古本市" `shouldBe` dragon
+      picked "どこで買った = 駅前" `shouldBe` Right []
+    -- 「空白のある値は、引用符でくくって書き戻す。書き戻した文字は読める」
+    it "quotes a value with spaces, so it reads back" $ do
+      let checked = parseQuery "どこで買った = \"神保町 の古本市\""
+                      >>= checkQuery librarySchema
+      fmap showCond checked
+        `shouldBe` Right "どこで買った = \"神保町 の古本市\""
+      fmap (fmap (const ()) . parseQuery . showCond) checked
+        `shouldBe` Right (Right ())
     -- 「推し度の絞り込みは、GADT で取り出した推し度と同じカードを選ぶ」
     prop "picks the same cards as get oshi" $
       \(oshis :: [Maybe (Small Int)]) (Small n) ->
