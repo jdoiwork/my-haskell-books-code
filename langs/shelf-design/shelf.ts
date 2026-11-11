@@ -66,9 +66,7 @@ export {};
     "reading finish": "finished",
     "reading stop": "paused",
     "paused resume": "reading",
-    "finished reread": "rereading",
-    "rereading finish": "finished",
-    "rereading stop": "finished",
+    "finished reread": "reading",
   };
 
   function advance(event: string, state: string): string {
@@ -96,7 +94,7 @@ export {};
   // Math.round は、真ん中を大きいほうへ。-2.5 でも（-2 になる）
   check(Math.round(2.5) === 3 && Math.round(-2.5) === -2, "Math.round");
   check(advance("start", "piled") === "reading", "start");
-  check(advance("stop", "rereading") === "finished", "stop rereading");
+  check(advance("reread", "finished") === "reading", "reread");
   check(refused(() => advance("start", "finished")), "start finished");
   // A typo in a state is not caught until it runs.
   // 状態の打ちまちがいは、動かすまでわからない
@@ -262,7 +260,7 @@ export {};
   // ANCHOR: states
   // TypeScript (functional style: union types in the map of reading)
   // TypeScript（関数型スタイル：読書の地図に union の型）
-  type State = "piled" | "reading" | "finished" | "paused" | "rereading";
+  type State = "piled" | "reading" | "finished" | "paused";
   type Event = "start" | "finish" | "stop" | "resume" | "reread";
 
   // 🗺️ Every state must have a line; a misspelt one is an error.
@@ -271,8 +269,7 @@ export {};
     piled: { start: "reading" },
     reading: { finish: "finished", stop: "paused" },
     paused: { resume: "reading" },
-    finished: { reread: "rereading" },
-    rereading: { finish: "finished", stop: "finished" },
+    finished: { reread: "reading" },
   };
 
   // ➡️ Take one step, or say why not.
@@ -286,8 +283,8 @@ export {};
   // ANCHOR_END: states
 
   check(!advance("start", "finished").ok, "start finished");
-  const r = advance("stop", "rereading");
-  check(r.ok && r.value === "finished", "stop rereading");
+  const r = advance("reread", "finished");
+  check(r.ok && r.value === "reading", "reread");
   const typeErrors = () => {
     // A typo in a state. / 状態の打ちまちがい
     // @ts-expect-error

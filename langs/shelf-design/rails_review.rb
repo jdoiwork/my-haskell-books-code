@@ -21,7 +21,7 @@ end
 # Ruby on Rails（モデル：0〜100 の点1つ）
 class Review < ActiveRecord::Base
   enum :reading, {
-    piled: 0, reading: 1, finished: 2, paused: 3, rereading: 4
+    piled: 0, reading: 1, finished: 2, paused: 3
   }
 
   validates :score, numericality: {

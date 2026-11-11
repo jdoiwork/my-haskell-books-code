@@ -45,9 +45,7 @@ MOVES = {
     ("reading", "finish"): "finished",
     ("reading", "stop"): "paused",
     ("paused", "resume"): "reading",
-    ("finished", "reread"): "rereading",
-    ("rereading", "finish"): "finished",
-    ("rereading", "stop"): "finished",
+    ("finished", "reread"): "reading",
 }
 
 
@@ -80,7 +78,7 @@ assert refused(lambda: render(73, "starz"))
 # 言語の round() は、真ん中を偶数に丸める。ここで欲しいものではない
 assert round(2.5) == 2 and round(7.5) == 8
 assert advance("start", "piled") == "reading"
-assert advance("stop", "rereading") == "finished"
+assert advance("reread", "finished") == "reading"
 try:
     advance("start", "finished")
     assert False
@@ -139,10 +137,12 @@ from typing import assert_never
 # その見せ方の1目盛りが、何点ぶんか
 def step(style: Style) -> int:
     match style:
-        case Hundred() | OutOfTen(True):
+        case Hundred():
             return 1
-        case FiveStars() | OutOfTen(False):
+        case FiveStars():
             return 10
+        case OutOfTen(one_decimal):
+            return 1 if one_decimal else 10
         case _:
             assert_never(style)
 
@@ -157,10 +157,10 @@ def render(style: Style, score: Score) -> str:
             return f"{n}点"
         case FiveStars():
             return "★" + tenths(steps * 5)
-        case OutOfTen(False):
+        case OutOfTen(one_decimal):
+            if one_decimal:
+                return f"{n // 10}.{n % 10}/10"
             return f"{steps}/10"
-        case OutOfTen(True):
-            return f"{n // 10}.{n % 10}/10"
         case _:
             assert_never(style)
 
@@ -259,7 +259,7 @@ for style in ALL_STYLES:
 # Python（関数型スタイル：読書の地図のキーに Enum）
 from enum import Enum
 
-State = Enum("State", "PILED READING FINISHED PAUSED REREADING")
+State = Enum("State", "PILED READING FINISHED PAUSED")
 Event = Enum("Event", "START FINISH STOP RESUME REREAD")
 S, E = State, Event
 MOVES = {
@@ -267,9 +267,7 @@ MOVES = {
     (S.READING, E.FINISH): S.FINISHED,
     (S.READING, E.STOP): S.PAUSED,
     (S.PAUSED, E.RESUME): S.READING,
-    (S.FINISHED, E.REREAD): S.REREADING,
-    (S.REREADING, E.FINISH): S.FINISHED,
-    (S.REREADING, E.STOP): S.FINISHED,
+    (S.FINISHED, E.REREAD): S.READING,
 }
 
 
@@ -282,7 +280,7 @@ def advance(event: Event, state: State) -> State:
 # ANCHOR_END: states
 
 
-assert advance(E.STOP, S.REREADING) == S.FINISHED
+assert advance(E.REREAD, S.FINISHED) == S.READING
 try:
     advance(E.START, S.FINISHED)
     assert False

@@ -166,28 +166,39 @@ main = hspec $ do
       parse (OutOfTen NoDecimals) "7.5" `shouldBe` Left (BadRating "7.5")
       parse (OutOfTen OneDecimal) "7.5" `shouldBe` score 75
       parse (OutOfTen OneDecimal) "8.0/10" `shouldBe` score 80
-    -- 「★は、0〜5 の 0.5 刻みだけを受け付ける」
-    prop "accepts stars from 0 to 5 by halves, and nothing else" $
-      forAll (choose (0, 60 :: Int)) $ \t ->
-        let typed = T.pack (show (t `div` 10) ++ "." ++ show (t `mod` 10))
-        in  isRight (parse FiveStars typed) === (t <= 50 && t `mod` 5 == 0)
-    -- 「その見せ方で表せる点なら、見せて読み戻すと元の点」
-    prop "gives back a score the style can show" $
-      forAll (elements allStyles) $ \style ->
-      forAll (fmap (* step style) (choose (0, 100 `div` step style))) $ \n ->
-        parse style (render style (surely (score n))) === score n
-    -- 「影は、元の点から目盛りの半分までしか離れず、影の影は同じ影」
-    prop "casts a shadow close to the score" $
-      forAll (elements allStyles) $ \style ->
-      forAll (choose (0, 100)) $ \n ->
-        let model  = surely (score n)
-            shadow = surely (parse style (render style model))
-        in  abs (scoreValue shadow - n) <= step style `div` 2
-              && render style shadow == render style model
+    -- 「★は、0〜5 の 0.5 刻みだけを受け付ける（0.0 から 6.0 まで全部）」
+    it "accepts stars from 0 to 5 by halves, and nothing else" $
+      sequence_
+        [ (typed, isRight (parse FiveStars typed))
+            `shouldBe` (typed, t <= 50 && t `mod` 5 == 0)
+        | t <- [0 .. 60 :: Int]
+        , let typed = T.pack (show (t `div` 10) ++ "." ++ show (t `mod` 10))
+        ]
+    -- 「その見せ方で表せる点なら、見せて読み戻すと元の点（全部の組で）」
+    it "gives back every score a style can show" $
+      sequence_
+        [ (style, parse style (render style (surely (score n))))
+            `shouldBe` (style, score n)
+        | style <- allStyles
+        , n     <- [0, step style .. 100]
+        ]
+    -- 「影は、元の点から目盛りの半分までしか離れず、影の影は同じ影
+    --   （見せ方4つと点 101 通りの組、404 通り全部で）」
+    it "casts a shadow close to the score, for every style and score" $
+      sequence_
+        [ do (style, n, abs (scoreValue shadow - n) <= step style `div` 2)
+               `shouldBe` (style, n, True)
+             (style, n, render style shadow)
+               `shouldBe` (style, n, render style model)
+        | style <- allStyles
+        , n     <- [0 .. 100]
+        , let model  = surely (score n)
+              shadow = surely (parse style (render style model))
+        ]
 
   -- 「読書の状態は、地図のとおりに進む」
   describe "the map of reading" $ do
-    -- 「状態とできごとの組、25 通りすべてが、手で写した地図のとおり」
+    -- 「状態とできごとの組、20 通りすべてが、手で写した地図のとおり」
     it "does what the map says, for every state and event" $
       sequence_
         [ advance event state `shouldBe` expected
@@ -237,10 +248,28 @@ main = hspec $ do
     it "keeps notes oldest first" $
       map body (notes dragonCard)
         `shouldBe` ["絵が多くて読みやすい", "火を吐かない種もいるとは！"]
-    -- 「ネタバレは、読み終えた人にだけ見せる」
-    it "shows spoilers only after the end" $ do
-      length (visibleTo Reading  (notes dragonCard)) `shouldBe` 1
-      length (visibleTo Finished (notes dragonCard)) `shouldBe` 2
+    -- 「ネタバレは、読み終えた人にだけ見せる（状態4つを全部）」
+    it "shows spoilers only after the end, for every state" $
+      [ (state, map body (visibleTo state (notes dragonCard)))
+      | state <- everything ]
+        `shouldBe`
+          [ (Piled   , ["絵が多くて読みやすい"])
+          , (Reading , ["絵が多くて読みやすい"])
+          , (Finished, ["絵が多くて読みやすい", "火を吐かない種もいるとは！"])
+          , (Paused  , ["絵が多くて読みやすい"])
+          ]
+    -- 「できごとは、カードの状態だけを進める。起こせなければ断る」
+    it "moves a card on the map, and changes nothing else" $ do
+      applyEvent Finish dragonCard
+        `shouldBe` Right dragonCard { reading = Finished }
+      applyEvent Start dragonCard
+        `shouldBe` Left (NotAllowed Start Reading)
+    -- 「評価を付けると、評価だけが変わる。付け直したら、新しいほう」
+    it "rates a card, and changes nothing else" $ do
+      let seventy = surely (score 70)
+      rating dragonCard `shouldBe` Just (surely (score 90))
+      rate seventy dragonCard
+        `shouldBe` dragonCard { rating = Just seventy }
 
   -- ANCHOR: progressSpec
   -- 「進み具合は、モノイド」

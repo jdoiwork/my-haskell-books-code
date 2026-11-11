@@ -115,18 +115,30 @@ oneDecimal t = T.pack (show (t `div` 10) ++ "." ++ show (t `mod` 10))
 -- 印（点、★、/10）は、省いてもよい
 parse :: RatingStyle -> Text -> Checked Score
 parse style typed =
-  case (style, readTenths number) of
-    (Hundred, Just t)
-      | t `mod` 10 == 0, t <= 1000 -> Right (Score (t `div` 10))
-    (FiveStars, Just t)
-      | t `mod` 5 == 0, t <= 50    -> Right (Score (t * 2))
-    (OutOfTen NoDecimals, Just t)
-      | t `mod` 10 == 0, t <= 100  -> Right (Score t)
-    (OutOfTen OneDecimal, Just t)
-      | t <= 100                   -> Right (Score t)
-    _                              -> Left (BadRating typed)
+  case readTenths number >>= onScale style of
+    Just n  -> Right (Score n)
+    Nothing -> Left (BadRating typed)
   where
     number = T.strip (dropMark style (T.strip typed))
+
+-- 🎚️ Tenths typed in a style, as points: only if they sit on a step
+--    of the style, and within its range. One line for each style,
+--    and no `_`: add a style, and GHC points here.
+-- その見せ方で打たれた「0.1 がいくつか」を、点にする。目盛りに合って
+-- いて、範囲の中のときだけ。見せ方ごとに1行で、`_` は使わない。
+-- 見せ方を足すと、GHC がここを指さす
+onScale :: RatingStyle -> Int -> Maybe Int
+onScale style t = case style of
+  Hundred             -> every 10 1000 (t `div` 10)   -- 0〜100
+  FiveStars           -> every 5  50   (t * 2)        -- 0〜5, by 0.5
+  OutOfTen NoDecimals -> every 10 100  t              -- 0〜10
+  OutOfTen OneDecimal -> every 1  100  t              -- 0.0〜10.0
+  where
+    -- `points`, if t is a multiple of `unit` and at most `top`
+    -- t が unit の倍数で、top 以下なら、points
+    every unit top points
+      | t `mod` unit == 0, t <= top = Just points
+      | otherwise                   = Nothing
 
 -- ✂️ Take off the style's own mark, if it is there.
 -- その見せ方の印があれば、取る

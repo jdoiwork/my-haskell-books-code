@@ -54,9 +54,7 @@ MOVES = {
   [:reading, :finish] => :finished,
   [:reading, :stop] => :paused,
   [:paused, :resume] => :reading,
-  [:finished, :reread] => :rereading,
-  [:rereading, :finish] => :finished,
-  [:rereading, :stop] => :finished
+  [:finished, :reread] => :reading
 }
 
 def advance(event, state)
@@ -80,7 +78,7 @@ raise unless refused? { render(73, :starz) }
 # Ruby の round は、真ん中を0から遠いほうへ（Python は偶数へ）
 raise unless 2.5.round == 3 && 2.5.round(half: :even) == 2
 raise unless advance(:start, :piled) == :reading
-raise unless advance(:stop, :rereading) == :finished
+raise unless advance(:reread, :finished) == :reading
 raise unless refused? { advance(:start, :finished) }
 
 # ANCHOR: functional
