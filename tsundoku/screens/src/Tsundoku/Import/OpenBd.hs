@@ -140,19 +140,41 @@ tocFromText text =
     isLeader c = c `elem` ("…・.．‥ 　" :: String)
 
 -- 📗 A draft from what openBD said. With a table and the page count,
---    each heading gets its pages; without them, one heading for the
---    whole book.
+--    each heading gets its pages. Many real tables have no pages at all
+--    (just the headings): keep the headings, share the pages out
+--    evenly, and say so. With no table, one heading for the whole book.
 -- openBD の答えから下書きを作る。目次とページ数があれば、見出しごとに
--- ページ数を。なければ、本全体で1つの見出し
+-- ページ数を。本物の目次は、ページのない（見出しだけの）ものが多い。
+-- そのときは見出しを残し、ページ数を等分して、そう知らせる。目次が
+-- なければ、本全体で1つの見出し
 bookDraft :: BookInfo -> Imported Pages
-bookDraft b = case (bookPages b, tocFromText <$> bookToc b) of
-  (Just (Pages n), Just lines'@(_ : _)) ->
-    let headings = [ Node line [] | line <- lines' ]
-    in  Imported (draftOf (fromStarts n headings)) (outOfOrder headings)
+bookDraft b = case (bookPages b, bookToc b) of
+  (Just (Pages n), Just text)
+    | lines'@(_ : _) <- tocFromText text ->
+        let headings = [ Node line [] | line <- lines' ]
+        in  Imported (draftOf (fromStarts n headings)) (outOfOrder headings)
+    | headings@(_ : _) <- headingsOf text ->
+        Imported (draftOf (shareOut n headings))
+                 [NoPagesInToc (length headings)]
   (Just n,  _) -> Imported (draftOf [Node ("本文", n) []])       []
   (Nothing, _) -> Imported (draftOf [Node ("本文", Pages 0) []]) []
   where
     draftOf = Draft (Just (bookTitle b)) (Just (bookAuthor b))
+    -- n pages over k headings: n `div` k each, one more for the first
+    -- n `mod` k. They add up to n.
+    -- n ページを k 個の見出しに：n `div` k ずつ、最初の n `mod` k 個には
+    -- 1つ多く。足すと n
+    shareOut n hs =
+      [ Node (h, Pages (n `div` k + (if i < n `mod` k then 1 else 0))) []
+      | (i, h) <- zip [0 ..] hs ]
+      where
+        k = length hs
+
+-- ✂️ The headings of a table written as text, one to a line, with no
+--    pages: every line that is not blank.
+-- 文字で書いた目次の見出し（ページなし）：空でない行の全部
+headingsOf :: Text -> [Text]
+headingsOf text = filter (not . T.null) (map T.strip (T.lines text))
 -- ANCHOR_END: toc
 
 -- ANCHOR: fetch

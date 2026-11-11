@@ -36,21 +36,32 @@ data IsbnProblem
   = WrongLength   Int        -- not 10 or 13 / 10けたでも13けたでもない
   | NotADigit     Char       -- a letter where a digit goes / 数字でない文字
   | WrongCheck    Char Char  -- right, written / 正しい1けた、書いた1けた
+  | NotABookCode  Text       -- 13 digits not 978/979 / 978・979 でない13けた
   deriving (Show, Eq)
 -- ANCHOR_END: types
 
 -- ANCHOR: parse
 -- 🔍 Read an ISBN as people write it: hyphens and spaces may be
---    anywhere ("978-4-10-101001-4", "4 10 101001 3").
--- 人が書くとおりの ISBN を読む。ハイフンと空白は、どこにあってもよい
+--    anywhere ("978-4-10-101001-4", "4 10 101001 3"), and "ISBN" may
+--    come first, as on the back of a book. 13 digits must start with
+--    978 or 979: the second bar code on a Japanese book (192...) has the
+--    same check digit, but is not an ISBN.
+-- 人が書くとおりの ISBN を読む。ハイフンと空白は、どこにあってもよく、
+-- 本の裏のとおり頭に「ISBN」があってもよい。13けたは 978 か 979 で始まる
+-- （日本の本の2段目のバーコード（192…）も、同じ計算のチェックディジット
+-- を持つが、ISBN ではない）
 parseIsbn :: Text -> Either IsbnProblem Isbn
 parseIsbn typed =
   case T.length plain of
     10 -> checked Isbn10 checkDigit10 (T.init plain) (T.last plain)
-    13 -> checked Isbn13 checkDigit13 (T.init plain) (T.last plain)
+    13 | T.take 3 plain `notElem` ["978", "979"], T.all isDigit plain
+          -> Left (NotABookCode (T.take 3 plain))
+       | otherwise
+          -> checked Isbn13 checkDigit13 (T.init plain) (T.last plain)
     n  -> Left (WrongLength n)
   where
-    plain = T.toUpper (T.filter (\c -> c /= '-' && not (isSpace c)) typed)
+    upper = T.toUpper (T.filter (\c -> c /= '-' && not (isSpace c)) typed)
+    plain = maybe upper id (T.stripPrefix "ISBN" upper)
 
     checked make digit body written =
       case T.find (not . isDigit) body of

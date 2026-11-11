@@ -7,6 +7,7 @@
 -- テストはない。API の答えは samples/ に記録してある
 module ImportSpec (importSpec) where
 
+import Data.ByteString qualified as BS
 import Data.ByteString.Lazy qualified as LBS
 import Data.Either (isLeft)
 import Data.Map.Strict qualified as Map
@@ -75,9 +76,15 @@ isbnSpec = describe "ISBN" $ do
     parseIsbn "978-4-10-101001-5" `shouldBe` Left (WrongCheck '4' '5')
     parseIsbn "978-4-10-10100"    `shouldBe` Left (WrongLength 11)
     parseIsbn "97841010100A4"     `shouldBe` Left (NotADigit 'A')
+    -- the second bar code on a Japanese book: same check digit, not an ISBN
+    -- 日本の本の2段目のバーコード：同じ計算のチェックディジットだが、ISBN でない
+    parseIsbn "1920193005905"     `shouldBe` Left (NotABookCode "192")
+  -- 「本の裏のとおり、頭に ISBN と書いてあってもよい」
+  it "reads ISBN written in front, as on the back of a book" $
+    text "ISBN978-4-10-101001-4" `shouldBe` Right "9784101010014"
   -- 「どの1けたを打ちまちがえても、見つける」
   prop "finds any one wrong digit" $
-    forAll (vectorOf 12 digit) $ \body ->
+    forAll (("978" <>) <$> vectorOf 9 digit) $ \body ->
     forAll (choose (0, 12)) $ \i ->
     forAll digit $ \d ->
       let good = isbn13Of (T.pack body)
@@ -102,6 +109,20 @@ isbnSpec = describe "ISBN" $ do
 -- 12けたと、そのチェックディジット
 isbn13Of :: Text -> Text
 isbn13Of body = body <> T.singleton (checkDigit13 body)
+
+-- 💥 Turn over 40 bytes of the packed data of one file in a zip (just
+--    after its name in the local header), leaving the zip's list as it
+--    was.
+-- zip の中の1つのファイルの、詰めたデータを 40 バイト裏返す（ローカルの
+-- 見出しの名前のすぐ後ろ）。zip の目録は、そのまま
+breakInside :: BS.ByteString -> LBS.ByteString -> LBS.ByteString
+breakInside name zipped = LBS.fromStrict (before <> BS.map complement' hit <> after)
+  where
+    (front, rest)  = BS.breakSubstring name (LBS.toStrict zipped)
+    start          = BS.length front + BS.length name + 40
+    (before, tail') = BS.splitAt start (front <> rest)
+    (hit, after)   = BS.splitAt 40 tail'
+    complement' w  = 255 - w
 
 -- 🔀 Swap the characters at i and i + 1.
 -- i 番目と i+1 番目を入れかえる
@@ -138,6 +159,33 @@ epubSpec = describe "EPUB" $ do
     missed <$> got `shouldBe` Right [MissingFile "OEBPS/ch2.xhtml"]
     lookup "第2章 すみかと季節" . rowsOf . draft <$> got
       `shouldBe` Right (Just (Chars 0))
+    -- the continued file after a missing one stays with its own chapter
+    -- 欠けたファイルの後ろの「つづき」は、自分の章のまま
+    let noCh4 = readEpub (zipFiles (without "OEBPS/ch4.xhtml"))
+    drop 6 . rowsOf . draft <$> noCh4
+      `shouldBe` Right [ ("第3章 あいさつの作法", Chars 9510)
+                       , ("第4章 怒らせたときは", Chars 3508) ]
+  -- 「表紙は、だれのものでもない（最初の見出しに足さない）」
+  it "counts the cover for nobody" $
+    take 1 . rowsOf . draft <$> readEpub sampleEpub
+      `shouldBe` Right [("第1部 ドラゴンを知る", Chars 1110)]
+  -- 「nav の &nbsp; も読める」
+  it "reads &nbsp; in the nav" $
+    map fst . rowsOf . draft
+        <$> readEpub (zipFiles (map nbsp (epubFiles Epub3)))
+      `shouldBe` map fst . rowsOf . draft <$> readEpub sampleEpub
+  -- 「zip の目録は無事で、中の詰めたデータだけ壊れていても、落ちずに理由を言う」
+  it "says why, when a file inside the zip is broken" $ do
+    dir    <- getTemporaryDirectory
+    (path, h) <- openBinaryTempFile dir "tsundoku-broken.epub"
+    LBS.hPut h (breakInside "OEBPS/ch2.xhtml" sampleEpub)
+    hClose h
+    got <- importFile path
+    removeFile path
+    -- the zip's list is fine: it is the unpacking that fails
+    -- 目録は無事。失敗するのは、戻すところ
+    either explainImport (const "") got
+      `shouldSatisfy` T.isInfixOf "compressed data stream format error"
   -- 「止まるしかないときは、その理由」
   it "says why it cannot go on" $ do
     readEpub "hello" `shouldSatisfy` isNotAZip
@@ -151,8 +199,19 @@ epubSpec = describe "EPUB" $ do
       `shouldBe` "OEBPS/images/a.png"
     resolve "OEBPS/nav.xhtml" "ch1.xhtml#s2" `shouldBe` "OEBPS/ch1.xhtml"
     resolve "content.opf"     "./ch1.xhtml"  `shouldBe` "ch1.xhtml"
+    -- a link is a URL: %-escapes are undone / リンクは URL。% の書き方を戻す
+    resolve "OEBPS/nav.xhtml" "ch%201.xhtml" `shouldBe` "OEBPS/ch 1.xhtml"
+    resolve "OEBPS/nav.xhtml" "%E7%AC%AC1%E7%AB%A0.xhtml"
+      `shouldBe` "OEBPS/第1章.xhtml"
   where
     without path = filter ((/= path) . fst) (epubFiles Epub3)
+    -- the nav with &nbsp; between a number and a heading
+    -- 番号と見出しのあいだを &nbsp; にした nav
+    nbsp (path, bytes)
+      | path == "OEBPS/nav.xhtml" =
+          (path, LBS.fromStrict (encodeUtf8 (T.replace "第1章 " "第1章&nbsp;"
+                   (decodeUtf8 (LBS.toStrict bytes)))))
+      | otherwise = (path, bytes)
     isNotAZip (Left (NotAZip _)) = True
     isNotAZip _                  = False
     -- the package file with no nav item / nav の item のないパッケージ
@@ -173,6 +232,12 @@ pdfSpec = describe "PDF" $ do
       `shouldBe`
         [Node ("題", Pages 1)
               [leaf "I" (Pages 2), leaf "II" (Pages 2), leaf "III" (Pages 1)]]
+  -- 「前後したしおりの、前の見出しは 0 ページ（合計は本より多くなる）」
+  it "gives 0 pages to the one before a bookmark out of order" $ do
+    let marks = [leaf "a" 1, leaf "b" 10, leaf "c" 5]
+    fromStarts 30 marks
+      `shouldBe` [leaf "a" (Pages 9), leaf "b" (Pages 0), leaf "c" (Pages 26)]
+    outOfOrder marks `shouldBe` [OutOfOrder "c"]
   -- 「順に並んだしおりなら、足すと最初のページから本の終わりまで」
   prop "adds up to the whole book, from the first bookmark" $
     forAll (listOf1 (choose (1, 20))) $ \steps ->
@@ -252,6 +317,15 @@ openBdSpec = describe "openBD" $ do
   it "knows when openBD does not know the book" $ do
     recorded <- LBS.readFile "samples/openbd-unknown.json"
     parseOpenBd dragonIsbn recorded `shouldBe` Left (UnknownIsbn dragonIsbn)
+  -- 「ページのない目次も、見出しを残し、ページ数を等分して、そう言う」
+  it "keeps a table with no pages, and shares the pages out" $ do
+    let book = BookInfo "" "題" "作者" "" "" (Just (Pages 10))
+                 (Just (T.unlines ["はじめに", "　第1章　朝", "　第2章　夜", ""]))
+        got  = bookDraft book
+    rowsOf (draft got)
+      `shouldBe` [ ("はじめに", Pages 4), ("第1章　朝", Pages 3)
+                 , ("第2章　夜", Pages 3) ]
+    missed got `shouldBe` [NoPagesInToc 3]
   -- 「文字の目次を、見出しとページに分ける」
   it "splits a table written as text" $
     tocFromText (T.unlines [ "はじめに……002", "ご飯の炊き方 ……008", ""
@@ -281,6 +355,10 @@ narouSpec = describe "なろう小説API" $ do
     map ncode    <$> novels `shouldBe` Right ["N0000XX", "N0000YY"]
     map episodes <$> novels `shouldBe` Right [5, 30]
     map run      <$> novels `shouldBe` Right [Ongoing, Completed]
+  -- 「壊れた gzip は、try の中で失敗する（あとで爆発しない）」
+  it "fails inside try on a broken gzip" $ do
+    got <- gunzip "not gzip at all"
+    got `shouldSatisfy` isLeft
   -- 「聞くのは、使う項目だけを、まとめて1回で」
   it "asks for every novel at once, with only the fields we use" $
     novelsUrl narou ["N0000XX", "n0000yy"] `shouldBe` concat

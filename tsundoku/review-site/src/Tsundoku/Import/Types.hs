@@ -131,6 +131,7 @@ data ImportProblem
   -- web APIs / Web の API
   | BadIsbn      IsbnProblem        -- not an ISBN / ISBN でない
   | UnknownIsbn  Isbn               -- no such book / その本はない
+  | NoPagesInToc Int                -- a table with no pages / ページのない目次
   | UnknownNovel Text               -- no such novel / その作品はない
   | Offline      Text               -- the network / つながらない
   | Unexpected   Text               -- cannot read it / 読めない答え
@@ -157,10 +158,15 @@ explainImport problem = case problem of
                             <> T.pack (show n) <> "）：" <> T.strip e
   BadIsbn why          -> "ISBN として読めません：" <> isbnProblem why
   UnknownIsbn i        -> "ISBN " <> isbnText i <> " の本は見つかりません"
+  NoPagesInToc n       -> "目次の " <> T.pack (show n) <> " 行に、始まるページが"
+                            <> "ないので、ページ数は見出しに等分しました"
   UnknownNovel ncode   -> "Nコード " <> ncode <> " の作品は見つかりません"
   Offline why          -> "つながりません：" <> why
   Unexpected why       -> "答えが読めません：" <> why
   where
+    isbnProblem (NotABookCode p) =
+      p <> " で始まる13けたは、本の番号（978・979）ではありません"
+        <> "（2段目のバーコードではありませんか）"
     isbnProblem (WrongLength n)  =
       T.pack (show n) <> "けたです（10けたか13けた）"
     isbnProblem (NotADigit c)    =

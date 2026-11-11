@@ -18,6 +18,7 @@ module Tsundoku.Import.Narou
   , novelsUrl
   , parseNovels
   , fetchNovels
+  , gunzip
   ) where
 
 -- exceptions, bytes, text, time, and gzip

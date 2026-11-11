@@ -17,7 +17,8 @@ module Tsundoku.Import
   , updatesFor
   ) where
 
-import Control.Exception (IOException, try)
+import Codec.Compression.Zlib.Internal (DecompressError)
+import Control.Exception (IOException, evaluate, try)
 import Control.Monad (forM_)
 import Data.Bifunctor (first)
 import Data.ByteString.Lazy qualified as LBS
@@ -58,13 +59,25 @@ importFile path = do
     else case map toLower (takeExtension path) of
       ".epub" -> do
         bytes <- try (LBS.readFile path)
-        pure $ case bytes of
-          Left (_ :: IOException) -> Left (NoSuchFile path)
-          Right b -> readEpubBook b
+        case bytes of
+          Left (_ :: IOException) -> pure (Left (NoSuchFile path))
+          Right b -> readAll (readEpubBook b)
       ".pdf"  -> fmap (fmap noText) <$> readPdf path
       _       -> pure (Left (NotSupported path))
   where
     noText pages = (pages, T.empty)
+    -- zip-archive unzips each file lazily, when its text is read. A file
+    -- whose packed data is broken fails then, outside of try (the same
+    -- trap as gunzip). Walk the whole answer here (show goes to the
+    -- end), so that it fails inside try.
+    -- zip-archive は、ファイルの中身を、文字を読むときに怠けて戻す。詰めた
+    -- データが壊れていると、そのときに try の外で失敗する（gunzip と同じ罠）。
+    -- ここで答えを最後までたどり（show が最後まで行く）、try の中で失敗させる
+    readAll result = do
+      walked <- try (evaluate (length (show result)))
+      pure $ case walked of
+        Left err -> Left (NotAZip (T.pack (show (err :: DecompressError))))
+        Right _  -> result
 
 -- 📖 An EPUB, measured two ways at once: the characters (made into
 --    pages) and the text. A pair of monoids is a monoid, so readEpubWith

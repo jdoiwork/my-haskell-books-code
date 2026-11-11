@@ -25,13 +25,14 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding (decodeUtf8With)
+import Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Traversable (mapAccumL)
 import Data.Tree (Forest, Tree (..), flatten)
 
 -- XML that must be right (xml-conduit), and HTML as it comes (tagsoup)
 -- きちんとした XML（xml-conduit）と、ありのままの HTML（tagsoup）
+import Network.HTTP.Types.URI (urlDecode)
 import Text.HTML.TagSoup (Tag (..), parseTags)
 import Text.XML (ParseSettings (..), def, parseLBS)
 import Text.XML.Cursor
@@ -63,7 +64,9 @@ readEpubWith countChars bytes = do
   package   <- readPackage opfPath <$> xmlIn archive opfPath
   links     <- tocOf archive package
   let pages   = [ (path, fileText archive path) | path <- spineFiles package ]
-      counted = [ (path, countChars text) | (path, Just text) <- pages ]
+      -- a missing file counts as nothing (it still ends the heading before)
+      -- 欠けたファイルは、何もないと数える（前の見出しの区切りには、なる）
+      counted = [ (path, maybe mempty countChars text) | (path, text) <- pages ]
       linked  = [ path | (_, Just path) <- concatMap flatten links ]
       missing = nub [ path | path <- linked ++ spineFiles package
                            , fileText archive path == Nothing ]
@@ -198,17 +201,19 @@ bodyChars page = Chars (sum [ T.length (T.filter (not . isSpace) t)
     isBody (TagOpen name _) = T.toLower name == "body"
     isBody _                = False
 
--- 🧭 A link inside the zip: relative to the file it is written in, and
---    without the part after # (a place inside the file).
+-- 🧭 A link inside the zip: relative to the file it is written in,
+--    without the part after # (a place inside the file), and with the
+--    %-escapes of a URL undone (ch%201.xhtml is "ch 1.xhtml").
 -- zip の中のリンク。書いてあるファイルからの相対パスで、# の後ろ（ファイル
--- の中の場所）は外す
+-- の中の場所）は外し、URL の % の書き方は戻す（ch%201.xhtml は「ch 1.xhtml」）
 resolve :: FilePath -> Text -> FilePath
 resolve from href = T.unpack (T.intercalate "/" (walk [] (folder ++ parts)))
   where
     -- the folder of `from`: every part but the file's name
     -- from のフォルダー：ファイル名のほかの部分
     folder = reverse (drop 1 (reverse (T.splitOn "/" (T.pack from))))
-    parts  = T.splitOn "/" (T.takeWhile (/= '#') href)
+    parts  = map unescape (T.splitOn "/" (T.takeWhile (/= '#') href))
+    unescape = decodeUtf8With lenientDecode . urlDecode False . encodeUtf8
     walk done (x : rest)
       | x == ".."           = walk (drop 1 done) rest
       | x == "." || T.null x = walk done rest

@@ -217,20 +217,25 @@ isbnInto shelf typed = do
 checkUpdates :: Shelf -> IO ()
 checkUpdates shelf = do
   serials <- narouSerials <$> shelf.works.listCards
-  base    <- fromMaybe narou <$> lookupEnv "TSUNDOKU_NAROU"
-  manager <- newTlsManager
-  found   <- either stop pure
-               =<< fetchNovels manager base [ code | (_, code, _) <- serials ]
-  forM_ (updatesFor found serials) $ \(wid, answer) -> case answer of
-    Left why          -> T.hPutStrLn stderr (explainImport why)
-    Right (novel, 0)  ->
-      T.putStrLn (novelTitle novel <> "：新しい話はありません")
-    Right (novel, n)  -> do
-      grown <- shelf.intake.addEpisodes wid n
-      case grown of
-        Left why -> mapM_ (T.hPutStrLn stderr) (explain why)
-        Right () -> T.putStrLn (novelTitle novel <> "：新しく "
-                                <> T.pack (show n) <> "話")
+  if null serials
+    -- nothing to ask about: do not go out at all
+    -- 聞くものがない：外へは行かない
+    then T.putStrLn "Nコードのある連載はありません"
+    else do
+      base    <- fromMaybe narou <$> lookupEnv "TSUNDOKU_NAROU"
+      manager <- newTlsManager
+      let codes = [ code | (_, code, _) <- serials ]
+      found   <- either stop pure =<< fetchNovels manager base codes
+      forM_ (updatesFor found serials) $ \(wid, answer) -> case answer of
+        Left why          -> T.hPutStrLn stderr (explainImport why)
+        Right (novel, 0)  ->
+          T.putStrLn (novelTitle novel <> "：新しい話はありません")
+        Right (novel, n)  -> do
+          grown <- shelf.intake.addEpisodes wid n
+          case grown of
+            Left why -> mapM_ (T.hPutStrLn stderr) (explain why)
+            Right () -> T.putStrLn (novelTitle novel <> "：新しく "
+                                    <> T.pack (show n) <> "話")
 
 -- 📗 Show a work just put on the shelf: its line and its table.
 -- 本棚に置いたばかりの作品を見せる：その1行と目次
