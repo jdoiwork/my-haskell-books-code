@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Example command lists to try in GHCi.
 -- GHCi で試すための、コマンドの列
 module MiniKv.Examples
@@ -11,6 +12,7 @@ module MiniKv.Examples
   ) where
 
 import MiniKv.Types
+-- ANCHOR_END: head
 
 -- ANCHOR: examples
 -- 💰 Counting gold. / ゴールドを数える

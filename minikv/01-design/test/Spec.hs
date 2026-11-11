@@ -16,19 +16,32 @@ import MiniKv.Types
 genCommand :: Gen Command
 genCommand = oneof
   [ Get <$> key, Set <$> key <*> text, Del <$> listOf key
-  , Incr <$> key, LPush <$> key <*> listOf text, RPop <$> key
-  , LPop <$> key, SAdd <$> key <*> listOf text, SRem <$> key <*> listOf text
-  , HSet <$> key <*> text <*> text, LRange <$> key <*> small <*> small
+  , Exists <$> key, Incr <$> key, IncrBy <$> key <*> small
+  , LPush <$> key <*> listOf text, RPush <$> key <*> listOf text
+  , LPop <$> key, RPop <$> key, LRange <$> key <*> small <*> small
+  , LLen <$> key, SAdd <$> key <*> listOf text
+  , SRem <$> key <*> listOf text, SMembers <$> key
+  , SIsMember <$> key <*> text, HSet <$> key <*> text <*> text
+  , HGet <$> key <*> text, HGetAll <$> key, TypeOf <$> key, pure Keys
   ]
   where
     key   = elements ["a", "b", "c"]
     text  = elements ["x", "y", "z", "1", "2"]
     small = choose (-3, 3)
+
+-- 🧺 Is it an empty list, set or hash?
+-- 空のリスト・集合・ハッシュか
+emptyCollection :: Value -> Bool
+emptyCollection v = case v of
+  List l    -> null l
+  Members s -> null s
+  Hash h    -> null h
+  Str _     -> False
 -- ANCHOR_END: gens
 
+-- ANCHOR: spec
 main :: IO ()
 main = hspec $ do
-  -- ANCHOR: spec
   describe "apply" $ do
     -- SET したものは、GET で返ってくる
     it "GET returns what SET stored" $
@@ -50,11 +63,30 @@ main = hspec $ do
       fst (applyAll [Set "n" (T.pack (show (maxBound :: Int))), Incr "n"]
                     emptyStore)
         `shouldBe` [Ok, Failed (Overflow "n")]
+    -- Int に入らない数や、16進の形は、数ではない
+    it "INCR refuses numbers too big for Int, and 0x10" $
+      fst (applyAll [ Set "a" "9223372036854775808", Incr "a"
+                    , Set "b" "0x10", Incr "b" ] emptyStore)
+        `shouldBe` [ Ok, Failed (NotAnInteger "a")
+                   , Ok, Failed (NotAnInteger "b") ]
+    -- 同じキーを2回渡しても、消えたのは1つ
+    it "DEL counts a key given twice once" $
+      fst (applyAll [Set "a" "1", Del ["a", "a"]] emptyStore)
+        `shouldBe` [Ok, Number 1]
     -- どんなコマンドの列のあとも、空の入れ物は残らない
     it "never keeps an empty list, set or hash" $
       forAll (listOf genCommand) $ \commands ->
         let (_, s) = applyAll commands emptyStore
         in  all (not . emptyCollection) (storedValues s)
+    -- エラーを答えたコマンドは、ストアを変えない
+    it "a failed command leaves the store as it was" $
+      forAll (listOf genCommand) $ \commands ->
+        forAll genCommand $ \command ->
+          let (_, s)       = applyAll commands emptyStore
+              (reply, s')  = apply command s
+          in  case reply of
+                Failed _ -> s' == s
+                _        -> True
   -- ANCHOR_END: spec
 
   -- 「トレーニング」
@@ -66,9 +98,3 @@ main = hspec $ do
       kindCounts (snd (applyAll [Set "a" "1", Set "b" "2", SAdd "s" ["x"]]
                                 emptyStore))
         `shouldBe` [(KString, 2), (KSet, 1)]
-  where
-    emptyCollection v = case v of
-      List l    -> null l
-      Members s -> null s
-      Hash h    -> null h
-      Str _     -> False

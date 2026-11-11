@@ -12,15 +12,16 @@ module MiniKv.Store
   , storedKeys
   ) where
 
+import Data.Char (isDigit)
 import Data.Foldable (toList)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq (..), (><))
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Text.Read (readMaybe)
 
 import MiniKv.Types
 
@@ -178,8 +179,10 @@ valueCommand command store = case command of
   Get key ->
     answer (maybe Nil Bulk <$> asString key store)
   Del keys ->
-    let present = filter (`Map.member` values store) keys
-    in  (Number (length present), foldr forget store keys)
+    -- Count what is really gone: a key given twice is removed once.
+    -- 本当に消えた数を数える：同じキーが2回あっても、消えるのは1つ
+    let store' = foldr forget store keys
+    in  (Number (Map.size (values store) - Map.size (values store')), store')
   Exists key ->
     (Number (if Map.member key (values store) then 1 else 0), store)
   Incr key ->
@@ -188,7 +191,7 @@ valueCommand command store = case command of
     case asString key store of
       Left err -> (Failed err, store)
       Right current ->
-        case readMaybe (maybe "0" T.unpack current) :: Maybe Int of
+        case maybe (Just 0) readInt current of
           Nothing -> (Failed (NotAnInteger key), store)
           Just old
             | overflows old n -> (Failed (Overflow key), store)
@@ -267,6 +270,20 @@ slice from to xs =
       stop  = min (n - 1) (fix to)
   in  if start > stop then Seq.empty
                       else Seq.take (stop - start + 1) (Seq.drop start xs)
+
+-- 🔢 Read a stored text as an Int: an optional "-" and decimal digits
+--    only, and within Int. Anything else (" 7 ", "0x10", a number too big
+--    for Int) is not an integer, as in Redis.
+-- しまった文字列を Int として読む：頭の "-" と10進の数字だけで、Int に入るもの。
+-- それ以外（" 7 "、"0x10"、Int に入らない大きな数）は、Redis と同じく数ではない
+readInt :: Text -> Maybe Int
+readInt t
+  | T.null digits || not (T.all isDigit digits) = Nothing
+  | n < toInteger (minBound :: Int) || n > toInteger (maxBound :: Int) = Nothing
+  | otherwise = Just (fromInteger n)
+  where
+    digits = fromMaybe t (T.stripPrefix "-" t)
+    n      = read (T.unpack t) :: Integer
 
 -- 💰 Would old + n go round the Int ring?
 -- old + n は、Int の輪を回ってしまう？
