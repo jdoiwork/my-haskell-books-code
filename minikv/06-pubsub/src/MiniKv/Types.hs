@@ -91,11 +91,14 @@ data Reply
 
 -- ❌ What can go wrong, as a type (not as a string).
 -- うまくいかない理由を、文字列ではなく型で
+-- ANCHOR: kverror
 data KvError
   = WrongType Key Kind Kind    -- ^ key, wanted, found / キー、欲しい、実際
   | NotAnInteger Key
   | Overflow Key
+  | BadExpire Key              -- ^ deadline goes round / 期限があふれる
   deriving (Show, Eq)
+-- ANCHOR_END: kverror
 -- ANCHOR_END: reply
 
 -- ANCHOR: millis

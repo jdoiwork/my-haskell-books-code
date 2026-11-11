@@ -146,12 +146,13 @@ touched command store = case command of
 -- 時刻の3つのコマンドと、残りは今までどおり
 run :: Millis -> Command -> Store -> (Reply, Store)
 run now command store = case command of
-  Expire key seconds
-    | Map.member key (values store) ->
-        let t = now + seconds * 1000
-            ds = Map.insert key t (deadlines store)
-        in  (Number 1, store { deadlines = ds })
-    | otherwise -> (Number 0, store)
+  Expire key seconds -> case deadlineAfter now seconds of
+    Nothing -> (Failed (BadExpire key), store)
+    Just t
+      | Map.member key (values store) ->
+          let ds = Map.insert key t (deadlines store)
+          in  (Number 1, store { deadlines = ds })
+      | otherwise -> (Number 0, store)
   Ttl key ->
     let present  = Map.member key (values store)
         deadline = Map.lookup key (deadlines store)
@@ -285,6 +286,21 @@ readInt t
   where
     digits = fromMaybe t (T.stripPrefix "-" t)
     n      = read (T.unpack t) :: Integer
+
+-- ANCHOR: deadlineAfter
+-- ⏰ The time `seconds` after `now`, or Nothing if it would go round
+--    the Int ring (the same watch as INCR's `overflows`).
+-- now の seconds 秒後の時刻。Int の輪を回ってしまうなら Nothing
+-- （INCR の overflows と同じ見張り）
+deadlineAfter :: Millis -> Int -> Maybe Millis
+deadlineAfter now seconds
+  | seconds > limit || seconds < negate limit = Nothing
+  | overflows now ms                          = Nothing
+  | otherwise                                 = Just (now + ms)
+  where
+    limit = maxBound `div` 1000
+    ms    = seconds * 1000
+-- ANCHOR_END: deadlineAfter
 
 -- 💰 Would old + n go round the Int ring?
 -- old + n は、Int の輪を回ってしまう？

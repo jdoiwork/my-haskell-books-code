@@ -162,6 +162,7 @@ errorText err = case err of
       <> ", not a " <> kindWord wanted
   NotAnInteger k -> "ERR the value of " <> k <> " is not an integer"
   Overflow k     -> "ERR increment would overflow " <> k
+  BadExpire k    -> "ERR invalid expire time for " <> k
   where
     kindWord KString = "string"
     kindWord KList   = "list"

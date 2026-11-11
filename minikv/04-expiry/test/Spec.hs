@@ -3,9 +3,11 @@ module Main (main) where
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.Text as T
-import Control.Concurrent.Async (forConcurrently_)
+import Control.Concurrent.Async (forConcurrently_, withAsync)
+import Control.Concurrent.STM (atomically, check, newTVarIO, readTVar)
 import Data.IORef
 import Control.Monad (replicateM_)
+import System.Timeout (timeout)
 import Test.Hspec
 import Test.QuickCheck
 
@@ -182,6 +184,38 @@ main = hspec $ do
       let commands = [Set "k" "a", Expire "k" 5, Set "k" "b"]
           (_, s)   = applyAll 0 commands emptyStore
       fst (apply 60000 (Get "k") s) `shouldBe` Bulk "b"
+    -- TTL の残りは、秒に切り上げる（残り 0.999 秒でも 1）
+    it "TTL rounds the time left up to whole seconds" $ do
+      let (_, s) = applyAll 0 [Set "x" "1", Expire "x" 30] emptyStore
+      fst (apply 3000 (Ttl "x") s) `shouldBe` Number 27
+      fst (apply 29001 (Ttl "x") s) `shouldBe` Number 1
+    -- PERSIST は期限を消す。2回目は、消す期限がないので 0
+    it "PERSIST takes the deadline away" $ do
+      let commands = [Set "k" "v", Expire "k" 5, Persist "k", Persist "k"]
+          (replies, s) = applyAll 0 commands emptyStore
+      replies `shouldBe` [Ok, Number 1, Number 1, Number 0]
+      fst (apply 60000 (Get "k") s) `shouldBe` Bulk "v"
+    -- 期限が Int の輪を回る EXPIRE は断り、キーはそのまま
+    it "refuses an EXPIRE whose deadline would go round" $
+      let now      = 1794000000000
+          commands =
+            [ Set "k" "v"
+            , Expire "k" (maxBound `div` 1000 + 1)   -- × 1000 goes round
+            , Expire "k" (maxBound `div` 1000)       -- now + goes round
+            , Expire "k" minBound
+            , Ttl "k" ]
+      in  fst (applyAll now commands emptyStore)
+            `shouldBe` [Ok] ++ replicate 3 (Failed (BadExpire "k"))
+                         ++ [Number (-1)]
+    -- 掃除係は、だれも触らないキーも忘れる（GET で先に忘れさせない）
+    it "the sweeper forgets keys that nobody touches" $ do
+      let commands = [Set "a" "1", Expire "a" 1, Set "b" "2"]
+      var <- newTVarIO (snd (applyAll 0 commands emptyStore))
+      swept <- withAsync (sweeper (pure 5000) var) $ \_ ->
+        timeout 2000000 $ atomically $ do
+          store <- readTVar var
+          check (storedKeys store == ["b"])
+      swept `shouldBe` Just ()
     -- 掃除は、時刻 t に KEYS が忘れるのと同じキーを忘れ、その数を答える
     it "sweep forgets just the keys whose time has come" $
       checkCoverage $
