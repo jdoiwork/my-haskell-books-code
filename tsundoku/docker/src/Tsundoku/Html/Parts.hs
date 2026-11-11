@@ -368,7 +368,9 @@ noteForm wid toc =
 notePart :: [TocItem] -> NoteItem -> Html ()
 notePart toc note = li_ $ do
   span_ [class_ "where"] (toHtml (whereOf note.entry))
-  time_ (toHtml (T.take 10 note.writtenAt))
+  -- the whole time, for machines; the day, for people
+  -- 機械には時刻のまるごと、人には日付
+  time_ [datetime_ note.writtenAt] (toHtml (T.take 10 note.writtenAt))
   if note.spoiler
     then details_ $ do
       summary_ "ネタバレ"
