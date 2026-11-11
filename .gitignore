@@ -33,4 +33,7 @@ ml/data/
 # The shelf's secrets and settings when tried with docker compose
 # docker compose で試したときの、本棚の秘密と設定
 tsundoku/*/db_password.txt
+# SQLite files made by trying the examples (tsundoku.db, try.db)
+# 例を試して作った SQLite のファイル（tsundoku.db、try.db）
+*.db
 tsundoku/*/.env
