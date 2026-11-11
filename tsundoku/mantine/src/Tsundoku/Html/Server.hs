@@ -17,6 +17,7 @@ module Tsundoku.Html.Server
 -- IO in a handler, text, and reading numbers
 -- ハンドラーの中の IO、文字列、数を読む
 import Control.Monad.IO.Class (liftIO)
+import Data.Char (isDigit)
 import Data.Text (Text)
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -204,9 +205,14 @@ ratingFrom style fs
   where
     points = field "points" fs
     typed  = field "typed"  fs
-    readPoints t = case readMaybe (T.unpack t) of
-      Just n  -> score n
-      Nothing -> Left (BadRating t)
+    -- Only digits, at most 3 of them: readMaybe alone takes "0x50" as 80,
+    -- and wraps a number too big for Int around to another one.
+    -- 数字だけ、3けたまで。readMaybe だけだと "0x50" を 80 と読み、Int に
+    -- 入らない数を、輪を回して別の数にする
+    readPoints t
+      | T.all isDigit t, T.length t <= 3, Just n <- readMaybe (T.unpack t)
+                  = score n
+      | otherwise = Left (BadRating t)
 
 -- 📝 A new note from the form. Nothing if the entry is not a number.
 -- フォームから新しい感想を。項目が数でなければ Nothing

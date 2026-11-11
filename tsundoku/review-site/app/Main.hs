@@ -19,6 +19,7 @@ import System.Exit (die, exitFailure)
 import System.FilePath (takeBaseName)
 import System.IO (hSetEncoding, stderr, stdout, utf8)
 import Text.Read (readMaybe)
+import Data.Char (isDigit)
 
 -- HTTPS for openBD and the なろう小説API
 -- openBD となろう小説API のための HTTPS
@@ -75,7 +76,7 @@ main = do
       "search" : typed   -> searchShelf shelf (T.pack (unwords typed))
       -- ANCHOR: serveArgs
       ["serve"]          -> serveShelf shelf 8080
-      ["serve", port]    -> maybe (die usage) (serveShelf shelf) (readMaybe port)
+      ["serve", port]    -> maybe (die usage) (serveShelf shelf) (readPort port)
       -- ANCHOR_END: serveArgs
       -- ANCHOR: mcpArgs
       "mcp" : opts       -> maybe (die usage) (`serveMcp` shelf) (mcpMode opts)
@@ -358,6 +359,16 @@ ratingStyles =
   , ("stars",   FiveStars)
   , ("ten",     OutOfTen NoDecimals)
   , ("ten.1",   OutOfTen OneDecimal) ]
+
+-- 🔌 A port: digits only, 1 to 65535. readMaybe alone takes "0x1F90" as
+--    8080, and wraps a number too big for Int around to another one.
+-- ポート：数字だけで、1〜65535。readMaybe だけだと "0x1F90" を 8080 と読み、
+-- Int に入らない数を、輪を回して別の数にする
+readPort :: String -> Maybe Int
+readPort s
+  | not (null s), all isDigit s, length s <= 5
+  , Just n <- readMaybe s, n >= 1, n <= 65535 = Just n
+  | otherwise                                 = Nothing
 -- ANCHOR_END: serve
 
 -- ANCHOR_END: all

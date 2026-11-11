@@ -127,9 +127,13 @@ partsSpec = describe "the parts" $ do
       ratingFrom Hundred (form [("typed", "88点"), ("shown", "73点")])
         `shouldBe` Just (score 88)
     -- 「読めないものは BadRating」
-    it "says BadRating for what it cannot read" $
+    it "says BadRating for what it cannot read" $ do
       ratingFrom Hundred (form [("typed", "とても"), ("shown", "")])
         `shouldBe` Just (Left (BadRating "とても"))
+      ratingFrom FiveStars (form [("points", "0x50")])
+        `shouldBe` Just (Left (BadRating "0x50"))
+      ratingFrom FiveStars (form [("points", "18446744073709551716")])
+        `shouldBe` Just (Left (BadRating "18446744073709551716"))
     -- 「さわらずに保存したら、どの見せ方でも、点は変わらない」
     prop "keeps the points when saved untouched, in any style" $
       \(Small n) -> forAll (elements allStyles) $ \style ->
