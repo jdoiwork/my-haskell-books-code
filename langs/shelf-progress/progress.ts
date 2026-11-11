@@ -61,7 +61,10 @@ const cases: [Raw[], Set<number>, number, number][] = [
 
   // 📖 Add up the pages read and all the pages of the contents.
   // 目次の、読んだ量と全体の量を足していく
-  function progress(entries: Entry[], read: Set<number>): number[] {
+  function progress(
+    entries: Entry[],
+    read: Set<number>,
+  ): [done: number, total: number] {
     let done = 0;
     let total = 0;
     const stack = [...entries];

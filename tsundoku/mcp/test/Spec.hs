@@ -93,6 +93,15 @@ pages d t = Progress (Pages d) (Pages t)
 someRead :: Toc u -> Gen (Set.Set EntryId)
 someRead toc =
   Set.fromList <$> sublistOf (map entryId (concatMap flatten toc))
+
+-- 🪜 Spread the numbers: k, 2k, 3k, ... instead of 1, 2, 3, ..., like a
+--    table after some entries were taken away.
+-- 番号を 1, 2, 3, … から k, 2k, 3k, … に広げる（項目を消したあとのように）
+spaced :: Int -> Toc u -> Toc u
+spaced k = map (fmap stretch)
+  where
+    stretch entry = entry { entryId = times (entryId entry) }
+    times (EntryId i) = EntryId (i * k)
 -- ANCHOR_END: helpers
 
 -- ANCHOR: ratingHelpers
@@ -312,14 +321,16 @@ main = hspec $ do
               let (front, back) = splitAt k toc
               in  progressOf finished toc
                     === progressOf finished front <> progressOf finished back
-    -- 「百分率は 0〜100。100 は読み終えたときだけ、0 は読み始める前だけ」
-    prop "is 0 to 100, 100 only at the end, 0 only before the start" $
-      forAll (choose (1, 1000)) $ \t ->
-      forAll (choose (0, t)) $ \d ->
-        let pct = percent (pages d t)
-        in  0 <= pct && pct <= 100
-              && (pct == 100) == (d == t)
-              && (pct == 0) == (d == 0)
+    -- 「百分率は 0〜100。100 は読み終えたときだけ、0 は読み始める前だけ
+    --   （1000 ページまでの組を、全部試す）」
+    it "is 0 to 100, 100 only at the end, 0 only before the start" $ do
+      let breaks d t =
+            let pct = percent (pages d t)
+            in  pct < 0 || pct > 100
+                  || (pct == 100) /= (d == t)
+                  || (pct == 0) /= (d == 0)
+      [ (d, t) | t <- [1 .. 1000], d <- [0 .. t], breaks d t ]
+        `shouldBe` []
 
   -- 「進捗バー」
   describe "bars" $ do
@@ -350,22 +361,39 @@ main = hspec $ do
 
   -- 「しおりと、育つ目次」
   describe "bookmarks and growing tables" $ do
-    -- 「昨日は 100%、新しい話が出た今日は 75%」
-    it "goes from 100% to 75% when a new episode comes out" $ do
+    -- 「新しい話は最後の章の終わりに付き、昨日の 100% が今日は 75%」
+    it "adds a new episode to the last arc, and 100% becomes 75%" $ do
       let finished = surely (readThrough (EntryId 5) librarianToc)
           today    = grow ("第4話 返却ポストの怪", Episodes 1) librarianToc
+      today `shouldBe` numbered
+        [ Node ("第1章 目覚めたら本の山", Episodes 0)
+            [ Node ("第1話 ここはどこ", Episodes 1) []
+            , Node ("第2話 返却期限", Episodes 1) []
+            ]
+        , Node ("第2章 禁書の棚", Episodes 0)
+            [ Node ("第3話 鍵のかかった扉", Episodes 1) []
+            , Node ("第4話 返却ポストの怪", Episodes 1) []
+            ]
+        ]
       percent (progressOf finished librarianToc) `shouldBe` 100
       percent (progressOf finished today) `shouldBe` 75
       unreadBadge (progressOf finished today) `shouldBe` Just "未読 1話"
       unreadBadge (progressOf finished librarianToc) `shouldBe` Nothing
+    -- 「章のない連載なら、新しい話は、ほかの話と同じ深さに並ぶ」
+    it "adds a new episode next to the others when there are no arcs" $ do
+      let episode n = Node ("第" <> T.pack (show n) <> "話", Episodes 1) []
+          flat      = numbered (map episode [1, 2, 3 :: Int])
+      grow ("第4話", Episodes 1) flat
+        `shouldBe` numbered (map episode [1 .. 4 :: Int])
     -- 「目次にない番号には、しおりをはさめない」
     it "refuses a bookmark on a missing entry" $
       readThrough (EntryId 99) librarianToc
         `shouldBe` Left (NoSuchEntry (EntryId 99))
-    -- 「育っても、前からある項目と番号はそのまま。新しい番号は初めて」
+    -- 「育っても、前からある項目と番号はそのまま。新しい番号は初めて
+    --   （番号がとびとびの目次でも）」
     prop "keeps every old entry and gives a new number" $
-      \shape (NonNegative n) ->
-        let old   = pagesToc shape
+      \shape (Positive k) (NonNegative n) ->
+        let old   = spaced k (pagesToc shape)
             new   = grow ("new", Pages n) old
             fresh = nextEntryId old
             olds  = concatMap flatten old
@@ -409,6 +437,7 @@ main = hspec $ do
         `shouldBe` Left (NoSuchEntry (EntryId 99))
       cardSummary 10 dragonCard
         `shouldBe` Just "▓▓▓▓▓▓░░░░  62%  48/78ページ"
+      cardSummary 10 (newCard librarianSerial) `shouldBe` Just "未読 3話"
       cardSummary 10 (newCard lastDragonFilm) `shouldBe` Nothing
   -- ANCHOR_END: progressSpec
 

@@ -127,8 +127,13 @@ grow new toc = growWith (nextEntryId toc) new toc
 growWith :: EntryId -> (Text, u) -> Toc u -> Toc u
 growWith eid (newHeading, newSize) toc =
   case reverse toc of
-    []                    -> [leaf]
-    Node top kids : older -> reverse older ++ [Node top (kids ++ [leaf])]
+    -- the last arc has episodes: add the new one after them
+    -- 最後の章に話がある：その話の後ろに足す
+    Node top kids@(_ : _) : older ->
+      reverse older ++ [Node top (kids ++ [leaf])]
+    -- a serial without arcs (or an empty table): add it at the end
+    -- 章のない連載（か、空の目次）：森の最後に足す
+    _ -> toc ++ [leaf]
   where
     leaf = Node (Entry eid newHeading newSize) []
 -- ANCHOR_END: grow

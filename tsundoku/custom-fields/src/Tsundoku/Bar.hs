@@ -78,19 +78,25 @@ unreadBadge p
 
 -- ANCHOR: cardSummary
 -- 🗂️ The summary line of a card, from its reading log. Each kind
---    of work counts in its own unit; a film or a game has no table,
---    so no bar.
--- カードの1行のまとめ（読書ログから）。作品の種類ごとに、
--- その単位で数える。映画とゲームには目次がないので、バーはない
+--    of work counts in its own unit. A serial keeps growing, so it
+--    shows the episodes left, not a bar. A film or a game has no
+--    table, so no line.
+-- カードの1行のまとめ（読書ログから）。作品の種類ごとに、その単位で
+-- 数える。連載は育つので、バーではなく未読の話数。映画とゲームには
+-- 目次がないので、まとめはない
 cardSummary :: Int -> Card -> Maybe Text
 cardSummary width card =
   case contents (work card) of
     Book   toc -> Just (summaryLine width (progressOf finished toc))
-    Serial toc -> Just (summaryLine width (progressOf finished toc))
+    Serial toc -> Just (unreadOrDone (progressOf finished toc))
     Series toc -> Just (summaryLine width (progressOf finished toc))
     Film   _   -> Nothing
     Game       -> Nothing
   where
     finished = finishedIn (readLog card)
+    unreadOrDone p =
+      case unreadBadge p of
+        Just badge -> badge
+        Nothing    -> "最新話まで読了"
 -- ANCHOR_END: cardSummary
 -- ANCHOR_END: all
