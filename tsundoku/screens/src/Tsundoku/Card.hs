@@ -152,11 +152,15 @@ rateEntry i r card = do
   pure card { entryRatings = Map.insert i r (entryRatings card) }
 
 -- 🧺 Every rating I gave this work: the whole work (if rated) and
---    each entry, from top to bottom.
+--    each entry, walking the table from top to bottom.
 -- この作品に付けた評価を全部：作品全体（付けていれば）と、
--- 項目ごとの評価（上から順）
+-- 項目ごとの評価（目次を上から順に歩いて拾う）
 ratingsOf :: Card -> [Score]
-ratingsOf card = maybeToList (rating card) ++ Map.elems (entryRatings card)
+ratingsOf card = maybeToList (rating card) ++ entryScores
+  where
+    entryScores =
+      [ r | i <- entryIds (contents (work card))
+          , Just r <- [Map.lookup i (entryRatings card)] ]
 -- ANCHOR_END: rateEntry
 
 -- ANCHOR: editAttrs

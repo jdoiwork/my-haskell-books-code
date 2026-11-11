@@ -11,6 +11,7 @@ import Data.Map.Strict qualified as Map
 
 import Tsundoku.Card
 import Tsundoku.Rating (Score, scoreValue)
+import Tsundoku.Types (Work (..), entryIds)
 -- ANCHOR_END: head
 
 -- ANCHOR: recent
@@ -29,6 +30,8 @@ laterHeavier scores = Just (weighted / fromIntegral (sum weights))
 --    first episode to the newest, later ones heavier.
 -- 連載の最近の調子：話ごとの評価を、第1話から最新話の順に、後ろほど重く
 recentForm :: Card -> Maybe Rational
-recentForm card = laterHeavier (Map.elems (entryRatings card))
+recentForm card = laterHeavier
+  [ r | i <- entryIds (contents (work card))
+      , Just r <- [Map.lookup i (entryRatings card)] ]
 -- ANCHOR_END: recent
 -- ANCHOR_END: all

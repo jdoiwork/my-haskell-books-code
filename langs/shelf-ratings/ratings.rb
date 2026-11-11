@@ -17,6 +17,9 @@ def rank(works, ratings)
     count[title] += 1
     total[title] += points
   end
+  # Nothing rated yet: an empty ranking.
+  # まだ何も評価していなければ、空のランキング
+  return [] if count.empty?
 
   # The usual points: the mean of each work's mean (one work, one vote).
   # ふつうの点：作品ごとの平均の平均（1作品1票）
@@ -53,6 +56,7 @@ end
 def ranking(works, ratings)
   points = ratings.group_by(&:first).transform_values { it.map(&:last) }
   rated = works.filter_map { |w| [w, points[w]] if points.key?(w) }
+  return [] if rated.empty? # nothing rated yet / まだ何も評価していない
   usual = rated.sum { |_, ps| Rational(ps.sum, ps.size) } / rated.size
   rated.map { |w, ps| [w, bayes(ps, usual)] }
        .sort_by.with_index { |(_, score), i| [-score, i] }
@@ -98,5 +102,6 @@ raise unless (a.to_h[COPYIST] - 90.914).abs < 1e-3
 # 同点なら本棚の順のまま
 TIES = [["A", 80], ["B", 80], ["C", 80]]
 raise unless rank(%w[A B C], TIES).map(&:first) == %w[A B C]
+raise unless rank(%w[A B], []) == [] && ranking(%w[A B], []) == []
 raise unless ranking(%w[C B A], TIES).map(&:first) == %w[C B A]
 puts "ok"

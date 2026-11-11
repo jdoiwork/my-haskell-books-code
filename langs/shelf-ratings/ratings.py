@@ -18,6 +18,10 @@ def rank(works, ratings):
     for title, points in ratings:
         count[title] = count.get(title, 0) + 1
         total[title] = total.get(title, 0) + points
+    # Nothing rated yet: an empty ranking.
+    # まだ何も評価していなければ、空のランキング
+    if not count:
+        return []
 
     # The usual points: the mean of each work's mean (one work, one vote).
     # ふつうの点：作品ごとの平均の平均（1作品1票）
@@ -60,6 +64,8 @@ def bayes(points, usual):
 def ranking(works, ratings):
     points = {w: [p for t, p in ratings if t == w] for w in works}
     rated = {w: ps for w, ps in points.items() if ps}
+    if not rated:  # nothing rated yet / まだ何も評価していない
+        return []
     usual = mean(mean(map(Fraction, ps)) for ps in rated.values())
     scores = [(w, bayes(ps, usual)) for w, ps in rated.items()]
     return sorted(scores, key=lambda pair: pair[1], reverse=True)
@@ -112,5 +118,6 @@ assert abs(dict(a)[COPYIST] - 90.914) < 1e-3
 # 同点なら本棚の順のまま（reverse でも sort は安定）
 TIES = [("A", 80), ("B", 80), ("C", 80)]
 assert [w for w, _ in rank(["A", "B", "C"], TIES)] == ["A", "B", "C"]
+assert rank(["A", "B"], []) == [] and ranking(["A", "B"], []) == []
 assert [w for w, _ in ranking(["C", "B", "A"], TIES)] == ["C", "B", "A"]
 print("ok")

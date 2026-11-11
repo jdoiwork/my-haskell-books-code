@@ -476,10 +476,12 @@ main = hspec $ do
                                                           (scoresOf xs))))
                               - own)
         in  gap (k + 1) <= gap k && gap k <= gap 0
-    -- 「何件ぶんが 0 なら、ふつうの平均と同じ」
-    prop "is the plain average when the weight is 0" $ \u (NonEmpty xs) ->
-      let t = tally (scoresOf xs)
-      in  Just (bayesian (Prior 0 (toRational (u :: Int))) t) === mean t
+    -- 「何件ぶんが 0 なら（0 未満も）、ふつうの平均と同じ」
+    prop "is the plain average when the weight is 0 or less" $
+      \(NonNegative c) u (NonEmpty xs) ->
+        let t = tally (scoresOf xs)
+        in  Just (bayesian (Prior (negate c) (toRational (u :: Int))) t)
+              === mean t
     -- 「全部の評価を同じだけ上げても、順位は変わらない」
     prop "keeps the order when every rating goes up by the same amount" $
       forAll (choose (1, 30)) $ \up ->
@@ -491,6 +493,17 @@ main = hspec $ do
                                           . tally)
                                          (cards ns))
         in  order (map (map (+ up)) shelf) === order shelf
+    -- 「わたしの本棚の★を全部1つ（20 点）下げても、並びは同じ。
+    --   ★5 があるので、上げる向きは、天井で止まって並びが変わる」
+    it "keeps the order on my shelf when every rating goes down a star" $ do
+      let shift d s = surely (score (min 100 (scoreValue s + d)))
+          moved d card = card { rating       = fmap (shift d) (rating card)
+                              , entryRatings = fmap (shift d)
+                                                    (entryRatings card) }
+          order shelf  = titles (rankCards (bayesian (shelfPrior 5 shelf)
+                                             . tally) shelf)
+      order (map (moved (-20)) myShelf) `shouldBe` order myShelf
+      order (map (moved 20) myShelf) `shouldNotBe` order myShelf
     -- 「わたしの本棚：ふつうの平均なら1話だけの★5が1位、
     --   ベイズ平均なら30話の連載が1位」
     it "puts 30 episodes above a single ★5 on my shelf" $ do
@@ -537,13 +550,15 @@ main = hspec $ do
       map scoreValue (ratingsOf librarianCard) `shouldBe` [100]
       length (ratingsOf copyistCard)          `shouldBe` 30
       ratingsOf (newCard dungeonGame)         `shouldBe` []
-    -- 「目盛りに寄せた点は、元の点と同じに見える」
-    prop "snaps a score to what the style shows" $
-      forAll (elements allStyles) $ \style ->
-      forAll (choose (0, 100)) $ \n ->
-        let s = surely (score n)
-        in  render style (snap style s) === render style s
-              .&&. snap style s `elem` marks style
+    -- 「目盛りに寄せた点は、元の点と同じに見える
+    --   （見せ方4つ × 点 101 個の 404 通りを、全部試す）」
+    it "snaps a score to what the style shows" $
+      [ (style, n)
+      | style <- allStyles, n <- [0 .. 100]
+      , let s = surely (score n)
+      , render style (snap style s) /= render style s
+          || snap style s `notElem` marks style ]
+        `shouldBe` []
     -- 「ヒストグラムは、評価を1件残らず数える」
     prop "counts every rating in the histogram" $
       forAll (elements allStyles) $ \style -> \xs ->
