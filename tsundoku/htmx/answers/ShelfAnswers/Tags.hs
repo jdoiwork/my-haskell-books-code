@@ -39,8 +39,12 @@ memoryTagging shelf = do
     { tagWork = \wid name -> onWork shelf wid $
         atomicModifyIORef' ref (\m ->
           (Map.insertWith Set.union wid (Set.singleton (clean name)) m, ()))
-    , tagsOf  = \wid ->
-        maybe [] Set.toAscList . Map.lookup wid <$> readIORef ref
+    , tagsOf  = \wid -> do
+        -- A work taken off the shelf has no tags (like SQLite's CASCADE).
+        -- 本棚から消えた作品には、タグもない（SQLite の CASCADE と同じ）
+        found <- shelf.getCard wid
+        tags  <- maybe [] Set.toAscList . Map.lookup wid <$> readIORef ref
+        pure (maybe [] (const tags) found)
     }
 
 -- 🪶 Tags in SQLite: one more table. In the real code, this would be

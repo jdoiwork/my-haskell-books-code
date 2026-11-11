@@ -32,9 +32,16 @@ data StoreConfig
 parseStoreConfig :: String -> Either String StoreConfig
 parseStoreConfig "memory" = Right UseMemory
 parseStoreConfig setting
-  | Just path <- stripPrefix "sqlite:"   setting = Right (UseSqlite path)
-  | Just url  <- stripPrefix "postgres:" setting = Right (UsePostgres url)
+  | Just path <- stripPrefix "sqlite:"   setting = nonEmpty UseSqlite path
+  | Just url  <- stripPrefix "postgres:" setting = nonEmpty UsePostgres url
   | otherwise = Left ("unknown store: " <> setting)
+  where
+    -- "sqlite:" with nothing after it would open a database that is
+    -- thrown away (SQLite), or the default server (libpq): refuse it.
+    -- "sqlite:" のうしろが空だと、使い捨てのデータベース（SQLite）や、
+    -- 既定のサーバー（libpq）を開いてしまう。断る
+    nonEmpty _    ""   = Left ("no file or URL after: " <> setting)
+    nonEmpty make rest = Right (make rest)
 
 -- 🔀 Open the chosen shelf, and lend it to the action.
 -- 選んだ本棚を開いて、仕事に貸す

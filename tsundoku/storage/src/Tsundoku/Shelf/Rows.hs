@@ -65,8 +65,8 @@ fromPlain kind minutes toc = case (kind, minutes) of
 stateName :: ReadingState -> Text
 stateName = T.pack . show
 
--- 🔎 And back. Only the words of the five states are states.
--- そして、もとに戻す。5つの状態の言葉だけが、状態
+-- 🔎 And back. Only the words of the four states are states.
+-- そして、もとに戻す。4つの状態の言葉だけが、状態
 stateFromName :: Text -> Maybe ReadingState
 stateFromName name =
   lookup name [ (stateName s, s) | s <- [minBound .. maxBound] ]

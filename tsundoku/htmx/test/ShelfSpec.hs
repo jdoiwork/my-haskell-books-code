@@ -12,9 +12,11 @@ import Control.Monad (forM_, unless, void)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Lazy qualified as LT
-import Data.Tree (Forest)
+import Data.Tree (Forest, flatten)
 import Database.SQLite.Simple qualified as SQLite
+import System.Directory (getTemporaryDirectory, removeFile)
 import System.Exit (ExitCode (..))
+import System.IO (hClose, openTempFile)
 import System.Process (readProcessWithExitCode)
 import System.Timeout (timeout)
 import TestContainers.Hspec hiding (Paused)
@@ -71,6 +73,7 @@ shelfSpec = do
         _     <- shelf.removeWork wid
         left  <- SQLite.query_ conn "SELECT count(*) FROM notes"
         left `shouldBe` [SQLite.Only (0 :: Int)]
+    sqliteOverlapSpec
     -- ANCHOR: earlierFile
     -- 「前の章までのファイルにあったものも、探せる」
     it "finds what a file from the earlier chapters had" $
@@ -133,6 +136,8 @@ shelfAnswers = do
         tags.tagsOf wid `shouldReturn` ["ドラゴン", "魔法"]
         tags.tagWork (WorkId 9) "?"
           `shouldReturn` Left (NoSuchWork (WorkId 9))
+        _ <- shelf.removeWork wid
+        tags.tagsOf wid `shouldReturn` []
   -- ANCHOR: answerTorn
   -- 「-1 ページの本を、メモリはしまい、SQLite は断る」
   it "finds a work memory keeps and SQLite refuses" $
@@ -161,6 +166,14 @@ shelfAnswers = do
       map (reading . snd) before `shouldBe` map reading myShelf
       map (length . notes . snd) before
         `shouldBe` map (length . notes) myShelf
+      -- The dragon book last: its entries get new numbers, and the log
+      -- follows them.
+      -- ドラゴン学の本を最後に：項目の番号が変わり、ログもついていく
+      backwards <- newMemoryShelf
+      mapM_ (copyCard backwards) (reverse myShelf)
+      after <- backwards.listCards
+      map (loggedHeadings . snd) after
+        `shouldBe` map loggedHeadings (reverse myShelf)
   -- ANCHOR_END: answerMove
   -- ANCHOR: answerSpoilers
   -- 「感想だけを探す」
@@ -238,6 +251,55 @@ postgres = do
     portOpen  = waitUntilMappedPortReachable "5432/tcp"
 -- ANCHOR_END: postgres
 
+-- ANCHOR: sqliteOverlap
+-- 🤼 Two programs on one SQLite file. While the other program holds
+--    the right to write, our shelf waits (busy_timeout) instead of
+--    failing at once. Two programs that open a new file and change it
+--    at the same time both get through: the tables are made once, and
+--    "read, decide, write" never deadlocks (IMMEDIATE).
+-- 1つの SQLite のファイルを、2つのプログラムで。ほかのプログラムが書く権利を
+-- 持っているあいだ、こちらの本棚は、すぐ失敗せずに待つ（busy_timeout）。
+-- 新しいファイルを同時に開いて同時に変えても、どちらも通る。表を作るのは
+-- 1回だけで、「読む → 決める → 書く」が待ち合いにならない（IMMEDIATE）
+sqliteOverlapSpec :: Spec
+sqliteOverlapSpec = do
+  -- 「ほかのプログラムが書いているあいだは、待ってから書く」
+  it "waits while another program is writing the file" $
+    withTempDb $ \path -> withSqliteShelf path $ \shelf ->
+      SQLite.withConnection path $ \other -> do
+        SQLite.execute_ other "BEGIN IMMEDIATE"
+        answer <- newEmptyMVar
+        _      <- forkFinally (shelf.addWork dragonBook) (putMVar answer)
+        -- Give the shelf time to come to the lock.
+        -- 本棚が鍵のところまで来るのを待つ
+        threadDelay 300_000
+        SQLite.execute_ other "COMMIT"
+        wid <- takeMVar answer >>= either throwIO pure
+        fmap (title . work) <$> shelf.getCard wid
+          `shouldReturn` Just (title dragonBook)
+  -- 「2つのプログラムが、新しいファイルを同時に開いて同時に変えても、
+  --   どちらも通る」
+  it "lets two programs open and change a new file at the same time" $
+    withTempDb $ \path -> do
+      let program = withSqliteShelf path $ \shelf ->
+            forM_ [1 .. 20 :: Int] $ \_ -> do
+              wid <- shelf.addWork dragonBook
+              shelf.applyEvent wid Start
+      done <- mapM (const newEmptyMVar) [1 .. 2 :: Int]
+      forM_ done $ \answer -> forkFinally program (putMVar answer)
+      forM_ done $ \answer -> takeMVar answer >>= either throwIO pure
+      cards <- withSqliteShelf path (\shelf -> shelf.listCards)
+      map (reading . snd) cards `shouldBe` replicate 40 Reading
+
+-- 🗂️ A new, empty SQLite file in the temporary folder, removed after.
+-- 一時フォルダーに、新しい空の SQLite のファイル。終わったら消す
+withTempDb :: (FilePath -> IO a) -> IO a
+withTempDb action = do
+  tmp <- getTemporaryDirectory
+  bracket (openTempFile tmp "shelf.db") (removeFile . fst) $
+    \(path, handle) -> hClose handle >> action path
+-- ANCHOR_END: sqliteOverlap
+
 -- ANCHOR: overlap
 -- 🤼 Another program pauses the book while our shelf finishes it. The
 --    test holds the row with a second connection, waits until the shelf
@@ -312,3 +374,17 @@ waitForLock conn = do
       (D.singleRow (D.column (D.nonNullable D.int8)))
 -- ANCHOR_END: overlap
 -- ANCHOR_END: all
+
+-- 📖 The headings of the entries in a card's reading log.
+-- カードの読書ログが指す項目の見出し
+loggedHeadings :: Card -> [Text]
+loggedHeadings card =
+  [ h | l <- readLog card, Just h <- [lookup (readEntry l) headings] ]
+  where
+    headings = case contents (work card) of
+      Book   toc -> pairs toc
+      Serial toc -> pairs toc
+      Series toc -> pairs toc
+      Film   _   -> []
+      Game       -> []
+    pairs toc = [ (entryId e, heading e) | e <- concatMap flatten toc ]

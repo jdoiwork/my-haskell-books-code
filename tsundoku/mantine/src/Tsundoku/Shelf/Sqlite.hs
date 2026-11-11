@@ -637,6 +637,7 @@ migrations =
             CHECK (kind IN ('book', 'serial', 'series', 'film', 'game'))
         , minutes INTEGER
         , reading TEXT    NOT NULL
+            CHECK (reading IN ('Piled', 'Reading', 'Finished', 'Paused'))
         , rating  INTEGER CHECK (rating BETWEEN 0 AND 100)
         )
       """

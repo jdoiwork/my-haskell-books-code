@@ -12,7 +12,8 @@ module ShelfAnswers.Move
   , moveFile
   ) where
 
-import Control.Monad (forM_, void)
+import Control.Exception (throwIO)
+import Control.Monad (forM_)
 import Data.Map.Strict qualified as Map
 
 import Tsundoku.Card (Card (..))
@@ -41,18 +42,23 @@ copyCard to card = do
   let newIds = maybe [] (entryIds . contents . work) made
       table  = Map.fromList (zip (entryIds (contents (work card))) newIds)
       moved i = Map.findWithDefault i i table
-  forM_ (pathTo (reading card)) (void . to.reading.applyEvent wid)
+  forM_ (pathTo (reading card)) (sure . to.reading.applyEvent wid)
   forM_ (notes card) $ \n ->
-    to.reading.addNote wid n { target = onEntry moved (target n) }
+    sure $ to.reading.addNote wid n { target = onEntry moved (target n) }
   forM_ (readLog card) $ \l ->
-    to.reading.logReading wid l { readEntry = moved (readEntry l) }
-  forM_ (rating card) (to.reading.rate wid)
+    sure $ to.reading.logReading wid l { readEntry = moved (readEntry l) }
+  forM_ (rating card) (sure . to.reading.rate wid)
   forM_ (Map.toList (entryRatings card)) $ \(i, s) ->
-    to.reading.rateEntry wid (moved i) s
+    sure $ to.reading.rateEntry wid (moved i) s
   pure wid
   where
     onEntry _     OnWork      = OnWork
     onEntry moved (OnEntry i) = OnEntry (moved i)
+    -- The new shelf refused what the old one kept: the copy went wrong.
+    -- Stop here, instead of dropping it without a word.
+    -- 古い本棚にあったものを、新しい本棚が断った：写し方がまちがっている。
+    -- 黙って落とさずに、ここで止める
+    sure act = act >>= either (throwIO . userError . show) (const (pure ()))
 
 -- 🗺️ The events that take a new card (on the pile) to a state.
 -- 新しいカード（積読）を、その状態まで連れていくできごと

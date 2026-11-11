@@ -769,6 +769,7 @@ migrations =
           CHECK (kind IN ('book', 'serial', 'series', 'film', 'game'))
       , minutes bigint
       , reading text    NOT NULL
+          CHECK (reading IN ('Piled', 'Reading', 'Finished', 'Paused'))
       , rating  bigint  CHECK (rating BETWEEN 0 AND 100)
       );
     CREATE TABLE entries
