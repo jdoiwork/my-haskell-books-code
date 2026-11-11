@@ -11,12 +11,18 @@ module Tsundoku.Html.Server
   ( pagesApp
   , siteApp
   , htmxOnly
+  , localOnly
+  , localNames
   , ratingFrom
+  , answer
+  , refuse
   ) where
 
 -- IO in a handler, text, and reading numbers
 -- ハンドラーの中の IO、文字列、数を読む
 import Control.Monad.IO.Class (liftIO)
+import Data.ByteString (ByteString)
+import Data.ByteString.Char8 qualified as B
 import Data.Char (isDigit)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -25,7 +31,8 @@ import Text.Read (readMaybe)
 -- HTML, HTTP, WAI, and servant
 -- HTML、HTTP、WAI、servant
 import Lucid (Html, p_, renderBS)
-import Network.HTTP.Types (hContentType, methodGet, methodHead, status403)
+import Network.HTTP.Types (hContentType, hHost, methodGet, methodHead,
+                           status403)
 import Network.Wai (Middleware, pathInfo, requestHeaders, requestMethod,
                     responseLBS)
 import Servant
@@ -78,6 +85,30 @@ htmxOnly app request reply
     plain    = [(hContentType, "text/plain; charset=utf-8")]
     refused  = "changes come only from the shelf's own pages\n"
 -- ANCHOR_END: htmxOnly
+
+-- ANCHOR: localOnly
+-- 🏠 The names this machine goes by.
+-- このマシンの呼び名
+localNames :: [ByteString]
+localNames = ["localhost", "127.0.0.1"]
+
+-- 🏠 Only requests addressed to one of these names: the Host header,
+--    without its port. A page elsewhere can point a name of its own at
+--    127.0.0.1 (DNS rebinding), and then it is "the same site" to the
+--    browser. But the Host the browser sends is still that other name.
+-- この名前あての要求だけを通す（Host ヘッダーの、ポートを除いた所）。
+-- よそのページは、自分の名前を 127.0.0.1 に向けられる（DNS リバイン
+-- ディング）。ブラウザーには「同じサイト」に見えるが、ブラウザーが
+-- 送る Host は、よその名前のまま
+localOnly :: [ByteString] -> Middleware
+localOnly names app request reply =
+  case lookup hHost (requestHeaders request) of
+    Just host | B.takeWhile (/= ':') host `notElem` names ->
+      reply (responseLBS status403 plain "only for this machine\n")
+    _ -> app request reply
+  where
+    plain = [(hContentType, "text/plain; charset=utf-8")]
+-- ANCHOR_END: localOnly
 
 -- ANCHOR: pageServer
 -- 🧭 The pages. Each one asks the window and draws.
@@ -169,14 +200,7 @@ ratingFrom style fs
   where
     points = field "points" fs
     typed  = field "typed"  fs
-    -- Only digits, at most 3 of them: readMaybe alone takes "0x50" as 80,
-    -- and wraps a number too big for Int around to another one.
-    -- 数字だけ、3けたまで。readMaybe だけだと "0x50" を 80 と読み、Int に
-    -- 入らない数を、輪を回して別の数にする
-    readPoints t
-      | T.all isDigit t, T.length t <= 3, Just n <- readMaybe (T.unpack t)
-                  = score n
-      | otherwise = Left (BadRating t)
+    readPoints t = maybe (Left (BadRating t)) score (digitsOnly 3 t)
 
 -- 📝 A new note from the form. Nothing if the entry is not a number.
 -- フォームから新しい感想を。項目が数でなければ Nothing
@@ -184,12 +208,23 @@ newNote :: Fields -> Maybe NewNote
 newNote fs = do
   entry <- case field "entry" fs of
     ""   -> Just Nothing
-    word -> Just <$> readMaybe (T.unpack word)
+    word -> Just <$> digitsOnly 9 word
   pure NewNote
     { entry   = entry
     , body    = field "body" fs
     , spoiler = field "spoiler" fs /= ""
     }
+
+-- 🔢 A number in digits only, at most this many of them. readMaybe
+--    alone takes "0x50" as 80 and " 3 " as 3, and wraps a number too
+--    big for Int around to another one.
+-- 数字だけで、このけた数までの数。readMaybe だけだと "0x50" を 80、
+-- " 3 " を 3 と読み、Int に入らない数を、輪を回して別の数にする
+digitsOnly :: Int -> Text -> Maybe Int
+digitsOnly most t
+  | not (T.null t), T.all isDigit t, T.length t <= most
+              = readMaybe (T.unpack t)
+  | otherwise = Nothing
 -- ANCHOR_END: ratingFrom
 
 -- ANCHOR: helpers

@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 総合演習：読書メモのレビューサイトを作る
--- （2. 目次の木と進み具合：どこまで読んだ？）
+-- （目次の木と進み具合：どこまで読んだ？）
 
 common shared
   default-language: GHC2024

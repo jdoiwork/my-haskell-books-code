@@ -30,7 +30,7 @@ import Network.HTTP.Client.TLS (newTlsManager)
 import Data.Time (getCurrentTime)
 import Network.Wai.Handler.Warp qualified as Warp
 
-import Tsundoku.Html.Server (siteApp)
+import Tsundoku.Html.Server (localNames, localOnly, siteApp)
 import Tsundoku.Bar (cardSummary, showAmount)
 import Tsundoku.Card (Card (..))
 import Tsundoku.Examples
@@ -307,7 +307,8 @@ serveShelf shelf port = do
   style   <- maybe (die ("unknown TSUNDOKU_RATING: " <> setting)) pure
                    (lookup setting ratingStyles)
   putStrLn ("serving the shelf on http://localhost:" <> show port)
-  Warp.runSettings settings (siteApp style getCurrentTime shelf)
+  Warp.runSettings settings
+    (localOnly localNames (siteApp style getCurrentTime shelf))
   where
     settings = Warp.setHost "127.0.0.1"
                  (Warp.setPort port Warp.defaultSettings)

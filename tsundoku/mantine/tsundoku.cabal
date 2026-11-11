@@ -5,7 +5,10 @@ build-type:    Simple
 
 -- htmx and the style are put inside the program (Tsundoku.Html.Static)
 -- htmx と見た目は、プログラムの中に入れる（Tsundoku.Html.Static）
-extra-source-files: static/*
+extra-source-files:
+  static/*.js
+  static/*.css
+  static/*.LICENSE
 
 -- 総合演習：読書メモのレビューサイトを作る
 -- （画面をおしゃれに：Mantine で本棚の画面を着替える）

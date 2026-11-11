@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 総合演習：読書メモのレビューサイトを作る
--- （4. 窓口と記録：やれることを型にして SQLite にしまう）
+-- （窓口と記録：やれることを型にして SQLite にしまう）
 
 common shared
   default-language: GHC2024

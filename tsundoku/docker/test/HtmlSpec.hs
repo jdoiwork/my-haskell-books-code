@@ -17,7 +17,8 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Text.Lazy qualified as TL
 import Data.Time (UTCTime (..), fromGregorian)
-import Network.HTTP.Types (Method, hContentType, methodPost, methodPut)
+import Network.HTTP.Types (Method, hContentType, methodGet, methodPost,
+                           methodPut)
 import Network.Wai (Application)
 
 -- the tests: hspec, QuickCheck, and hspec-wai
@@ -59,7 +60,7 @@ siteWith style = do
   shelf <- newMemoryShelf
   _     <- shelf.works.addWork dragonBook
   mapM_ shelf.custom.defineAttr libraryAttrs
-  pure (siteApp style stopped shelf)
+  pure (localOnly localNames (siteApp style stopped shelf))
 
 -- 📮 What htmx sends: a form, with the header HX-Request.
 -- htmx が送るもの：フォームと、ヘッダー HX-Request
@@ -153,7 +154,11 @@ routesSpec = describe "the pages" $ do
   with (siteWith FiveStars) $ do
     -- 「本棚と作品のページを見せる。ない作品は 404」
     it "shows the shelf and a work, and 404 for no such work" $ do
-      get "/" `shouldRespondWith` showing 200 ["はじめてのドラゴン学", "積読"]
+      -- the settings that let 4xx answers reach the problem box
+      -- 4xx の答えを problem の箱に届ける設定
+      get "/" `shouldRespondWith` showing 200
+        [ "はじめてのドラゴン学", "積読"
+        , "name=\"htmx-config\"", "swapOverride" ]
       get "/works/1"
         `shouldRespondWith` showing 200 ["目次", "第1章 見分け方"]
       get "/works/9" `shouldRespondWith` showing 404 ["本棚にない作品です"]
@@ -165,17 +170,25 @@ routesSpec = describe "the pages" $ do
     -- 「JSON の API は /api の下に、そのまま」
     it "keeps the JSON API as it was, under /api" $
       get "/api/works/1" `shouldRespondWith` showing 200 ["\"rating\":null"]
-    -- 「HX-Request のない変更は 403」
-    it "refuses a change without HX-Request, with 403" $
+    -- 「HX-Request のない変更と、よその名前あての要求は 403」
+    it "refuses a change without HX-Request, and other hosts, with 403" $ do
       request methodPut "/works/1/rating"
               [(hContentType, "application/x-www-form-urlencoded")]
               "points=90"
         `shouldRespondWith` 403
+      request methodGet "/api/works" [("Host", "evil.example:8080")] ""
+        `shouldRespondWith` 403
+      request methodGet "/api/works" [("Host", "localhost:8080")] ""
+        `shouldRespondWith` 200
     -- 「★を押すと、★の部品だけが返り、API の点も変わる」
     it "answers only the stars, and the API sees the points" $ do
       htmx methodPut "/works/1/rating" "points=70"
         `shouldRespondWith`
-          showing 200 ["class=\"now\">★3.5<", "id=\"rating\""]
+          showing 200 ["class=\"now\">★3.5<", "id=\"rating\""
+                      -- an empty box, to clear an earlier refusal
+                      -- 前の断りを消す、空の箱
+                      , "<div id=\"problem\" class=\"problem\""
+                        <> " hx-swap-oob=\"true\"></div>" ]
       get "/api/works/1" `shouldRespondWith` showing 200 ["\"rating\":70"]
     -- 「状態のボタンは、新しい状態と次のボタンを返す」
     it "moves the reading state, and draws the next buttons" $ do
@@ -195,12 +208,28 @@ routesSpec = describe "the pages" $ do
           showing 200 ["<li>", "&lt;b&gt;竜&lt;/b&gt;", "1.1 うろこの色"]
       htmx methodPost "/works/1/notes" "body=+&entry="
         `shouldRespondWith` showing 422 ["感想が空っぽです"]
+      -- the entry in digits only / 項目の番号は、数字だけ
+      htmx methodPost "/works/1/notes" "body=a&entry=0x3"
+        `shouldRespondWith` showing 400 ["「0x3」は entry として読めません"]
     -- 「属性のフォームは、定義で確かめる」
     it "checks the attributes with their definitions" $ do
       htmx methodPost "/works/1/attrs" "%E6%8E%A8%E3%81%97%E5%BA%A6=many"
         `shouldRespondWith` showing 422 ["推し度 に「many」は入りません"]
       htmx methodPost "/works/1/attrs" "%E6%8E%A8%E3%81%97%E5%BA%A6=4"
         `shouldRespondWith` showing 200 ["value=\"4\""]
+      -- サイン本=&サイン本=はい: the hidden "" comes first, the later wins
+      -- 隠した "" が先に来て、あとのほうが勝つ
+      htmx methodPost "/works/1/attrs"
+                      (signed <> "=&" <> signed <> "=" <> yes)
+        `shouldRespondWith` showing 200
+          [ "<input type=\"hidden\" name=\"サイン本\" value>"
+            <> "<input type=\"checkbox\" name=\"サイン本\""
+            <> " value=\"はい\" checked"
+          ]
+      -- サイン本= alone: the box was unchecked / 箱のチェックを外した
+      htmx methodPost "/works/1/attrs" (signed <> "=")
+        `shouldRespondWith` showing 200
+          ["<input type=\"checkbox\" name=\"サイン本\" value=\"はい\">"]
     -- 「見つかった語に <mark> を付ける」
     it "marks the words it found" $ do
       get "/search?q=%E3%83%89%E3%83%A9%E3%82%B4%E3%83%B3"
@@ -216,15 +245,22 @@ routesSpec = describe "the pages" $ do
       htmx methodPut "/works/1/rating" "typed=88%E7%82%B9&shown=88%E7%82%B9"
         `shouldRespondWith` showing 200 ["value=\"88点\""]
       get "/api/works/1" `shouldRespondWith` showing 200 ["\"rating\":88"]
+  where
+    -- サイン本 and はい, URL-encoded
+    -- URL エンコードした「サイン本」と「はい」
+    signed = "%E3%82%B5%E3%82%A4%E3%83%B3%E6%9C%AC"
+    yes    = "%E3%81%AF%E3%81%84"
 -- ANCHOR_END: routesSpec
 
 -- ANCHOR: answersSpec
 answersSpec :: Spec
 answersSpec = describe "the answers" $ do
-  -- 「打つたびに探す箱は、keyup と delay を持つ」
-  it "searches as you type" $
+  -- 「打つたびに探す箱は、input と delay を持ち、空なら聞かない」
+  it "searches as you type" $ do
     html liveSearchBox `shouldSatisfy`
-      T.isInfixOf "hx-trigger=\"input changed delay:300ms, search\""
+      T.isInfixOf "hx-trigger=\"input changed delay:300ms\""
+    html liveSearchBox `shouldSatisfy`
+      T.isInfixOf "event.preventDefault()"
   -- 「読み終えたら、状態とバーを一度に差し替える」
   with finishSite $
     it "swaps the state and the bar at once" $
@@ -232,10 +268,16 @@ answersSpec = describe "the answers" $ do
         `shouldRespondWith` showing 200
           [ "id=\"reading\"", "読了"
           , "id=\"bar\" hx-swap-oob=\"true\"", "100%" ]
+  -- 「まだ読み始めていない作品は、409 で断る」
+  with finishSite $
+    it "refuses a work not started yet, with 409" $
+      htmx methodPost "/works/2/finish" ""
+        `shouldRespondWith` showing 409 ["いまの読書の状態では"]
   where
     finishSite = do
       shelf <- newMemoryShelf
       _     <- shelf.works.addWork dragonBook
+      _     <- shelf.works.addWork librarianSerial
       _     <- shelf.reading.applyEvent (WorkId 1) Start
       pure (finishApp (pure (UTCTime (fromGregorian 2026 11 9) 0)) shelf)
 -- ANCHOR_END: answersSpec

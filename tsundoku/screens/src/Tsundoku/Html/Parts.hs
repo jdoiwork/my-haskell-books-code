@@ -263,8 +263,12 @@ noteForm wid toc =
   form_ [ class_ "note-form"
         , hxPost (workUrl wid "notes"), hxTarget "#notes"
         , hxSwap "afterbegin"
+          -- not "successful": the settings make 4xx "not an error", so
+          -- htmx calls a refusal successful too. Look at the status.
+          -- successful ではなく状態で見る。設定で 4xx を「エラーではない」
+          -- にしたので、htmx は断りも successful と呼ぶ
         , makeAttribute "hx-on::after-request"
-                         "if (event.detail.successful) this.reset()" ] $ do
+                         "if (event.detail.xhr.status < 300) this.reset()" ] $ do
     textarea_ [name_ "body", rows_ "3"] ""
     select_ [name_ "entry"] $ do
       option_ [value_ ""] "作品の全体"

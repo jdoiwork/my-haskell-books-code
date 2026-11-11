@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 総合演習：読書メモのレビューサイトを作る
--- （5. 自分で決める属性と状態：型の外側を型で守る）
+-- （自分で決める属性と状態：型の外側を型で守る）
 
 common shared
   default-language: GHC2024

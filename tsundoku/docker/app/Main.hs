@@ -31,7 +31,7 @@ import Network.HTTP.Client.TLS (newTlsManager)
 import Data.Time (getCurrentTime)
 import Network.Wai.Handler.Warp qualified as Warp
 
-import Tsundoku.Html.Server (siteApp)
+import Tsundoku.Html.Server (localNames, localOnly, siteApp)
 import Tsundoku.Bar (cardSummary, showAmount)
 import Tsundoku.Card (Card (..))
 import Tsundoku.Examples
@@ -371,8 +371,13 @@ serveShelf host shelf port = do
   style   <- maybe (die ("unknown TSUNDOKU_RATING: " <> setting)) pure
                    (lookup setting ratingStyles)
   putStrLn ("serving the shelf on http://localhost:" <> show port)
-  Warp.runSettings settings (siteApp style getCurrentTime shelf)
+  Warp.runSettings settings
+    (localOnly names (siteApp style getCurrentTime shelf))
   where
+    -- the other containers of compose call the shelf by its
+    --   service name (tui: http://shelf:8080/api)
+    -- compose のほかのコンテナは、サービスの名前で呼ぶ
+    names    = "shelf" : localNames
     settings = Warp.setHost (fromString host)
                  (Warp.setPort port Warp.defaultSettings)
 

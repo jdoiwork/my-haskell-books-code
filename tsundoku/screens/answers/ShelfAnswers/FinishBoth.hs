@@ -18,27 +18,33 @@ import Tsundoku.Api.Server (Clock)
 import Tsundoku.Card (Card (..))
 import Tsundoku.Html.Parts (progressBar, readingPart)
 import Tsundoku.Html.Routes (HTML)
+import Tsundoku.Html.Server (answer, htmxOnly, refuse)
 import Tsundoku.Shelf
 import Tsundoku.Types
 
 type FinishApi =
   "works" :> Capture "id" Int :> "finish" :> Post '[HTML] (Html ())
 
--- 🏁 Finish a work: every entry is read today, then the event Finish.
--- 作品を読み終える：どの項目も今日読んだことにして、できごと Finish
+-- 🏁 Finish a work: the event Finish, then every entry is read today.
+--    Only from htmx, as every change of the pages.
+-- 作品を読み終える：できごと Finish のあと、どの項目も今日読んだことに。
+-- ページのほかの変更と同じく、htmx からだけ
 finishApp :: Clock -> Shelf -> Application
-finishApp clock shelf = serve (Proxy :: Proxy FinishApi) finish
+finishApp clock shelf = htmxOnly (serve (Proxy :: Proxy FinishApi) finish)
   where
     finish n = do
       let wid = WorkId n
       today <- utctDay <$> liftIO clock
       found <- liftIO (shelf.getCard wid)
-      card  <- maybe (throwError err404) pure found
-      liftIO $ mapM_ (shelf.logReading wid . LogLine today)
-                     (entryIds card.work.contents)
-      _     <- liftIO (shelf.applyEvent wid Finish)
+      card  <- maybe (refuse (NoSuchWork wid)) pure found
+      -- the event first: if it cannot happen now (still piled), say so
+      --   before anything is written in the log
+      -- できごとが先。いまできないなら（積読のまま）、ログを書く前に断る
+      _     <- answer (shelf.applyEvent wid Finish)
+      mapM_ (answer . shelf.logReading wid . LogLine today)
+            (entryIds card.work.contents)
       after <- liftIO (shelf.getCard wid)
-      maybe (throwError err404) (pure . finishedParts . (,) wid) after
+      maybe (refuse (NoSuchWork wid)) (pure . finishedParts . (,) wid) after
 
 -- 🧩 The reading part, and the bar that replaces id="bar" wherever it is.
 -- 読書の状態の部品と、どこにあっても id="bar" を差し替えるバー

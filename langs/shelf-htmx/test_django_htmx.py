@@ -43,7 +43,12 @@ STARS = engines["django"].from_string("""
 # Python（Django：ビューは部品だけを答える）
 def rating(request, wid):
     if request.method == "PUT":
-        points = int(request.body.decode().removeprefix("points="))
+        typed = request.body.decode().removeprefix("points=")
+        # digits only, as readPoints: int() also reads "+70", "7_0", "٧٠"
+        # readPoints と同じく数字だけ。int() は "+70"・"7_0"・"٧٠" も読む
+        if not (typed.isascii() and typed.isdigit() and len(typed) <= 3):
+            return HttpResponse("点として読めません", status=422)
+        points = int(typed)
         if not 0 <= points <= 100:
             return HttpResponse("点は 0〜100 です", status=422)
         RATINGS[wid] = points
@@ -73,6 +78,13 @@ def test_refuses_101_points():
     res = Client().put("/works/1/rating", "points=101",
                        content_type="application/x-www-form-urlencoded")
     assert res.status_code == 422
+
+
+def test_refuses_what_is_not_digits():
+    for typed in ["abc", "", "+70", "7_0", "٧٠", " 70"]:
+        res = Client().put("/works/1/rating", f"points={typed}",
+                           content_type="application/x-www-form-urlencoded")
+        assert res.status_code == 422, typed
 
 
 # ANCHOR: csrf

@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 総合演習：読書メモのレビューサイトを作る
--- （7. 中身を探す：SQLite FTS5 で全文検索）
+-- （中身を探す：SQLite FTS5 で全文検索）
 
 common shared
   default-language: GHC2024
