@@ -16,7 +16,6 @@ module Review.Gate
 
 import Data.List (mapAccumL)
 import Data.Text (Text)
-
 import Data.Text.Encoding (encodeUtf8)
 
 import MiniKv.Client (Connection, request)

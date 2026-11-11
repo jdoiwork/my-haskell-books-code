@@ -68,6 +68,15 @@ main = hspec $ do
             other -> expectationFailure ("not refused: " <> show other)
           left <- run conn (Typed.Get (counterKey "rust"))
           left `shouldBe` Right Nothing
+    -- 守れない決まり（0回、0秒）では、通さず、数えもしない
+    it "lets nobody in under a rule it cannot keep" $
+      withServerAt (pure 0) $ \port ->
+        withConnection port $ \conn -> do
+          let rules = [Rule { limit = 0, windowSeconds = 60 }
+                      , Rule { limit = 3, windowSeconds = 0 }]
+          answers <- traverse (\bad -> allow conn bad "go") rules
+          left <- run conn (Typed.Get (counterKey "go"))
+          (answers, left) `shouldBe` (map Right [False, False], Right Nothing)
   -- ANCHOR_END: network
   -- ANCHOR: mendSpec
   describe "allowMending (step 4)" $ do
@@ -96,4 +105,13 @@ main = hspec $ do
           writeIORef clock 61000
           b <- allow conn gate "python"
           (a, b) `shouldBe` (map Right [True, False], Right False)
+    -- 直す門番も、守れない決まりでは、通さず、数えもしない
+    it "lets nobody in under a rule it cannot keep, either" $
+      withServerAt (pure 0) $ \port ->
+        withConnection port $ \conn -> do
+          let rules = [Rule { limit = 0, windowSeconds = 60 }
+                      , Rule { limit = 3, windowSeconds = 0 }]
+          answers <- traverse (\bad -> allowMending conn bad "go") rules
+          left <- run conn (Typed.Get (counterKey "go"))
+          (answers, left) `shouldBe` (map Right [False, False], Right Nothing)
   -- ANCHOR_END: mendSpec
