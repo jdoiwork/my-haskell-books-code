@@ -19,6 +19,7 @@ module Tsundoku.Api.Site
   , TagCount (..)
   , KindCount (..)
   , MonthItem (..)
+  , PaceItem (..)
   , StatsItem (..)
   , extrasItem
   , tagCounts
@@ -33,6 +34,8 @@ import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Time (Day)
+import Data.Time.Format.ISO8601 (iso8601Show)
 import GHC.Generics (Generic)
 import Text.Printf (printf)
 
@@ -109,14 +112,31 @@ data MonthItem = MonthItem
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
--- 📊 The statistics of a year's page: the months (oldest first), the
---    kinds, and the best works finished in that year.
--- 統計のページ1年ぶん：月ごと（古い順）、種類ごと、その年のベスト
+-- 🏁 A work I am reading now: what is left, and the day I would finish
+--    at the pace of the last 7 days ("2026-11-14"; null: none read).
+-- いま読んでいる作品：残りと、最近7日のペースで読み終わる日
+-- （"2026-11-14"。null：最近7日は読んでいない）
+data PaceItem = PaceItem
+  { work     :: Int
+  , title    :: Text
+  , left     :: Text
+  , finishOn :: Maybe Text
+  }
+  deriving stock    (Show, Eq, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+-- 📊 The statistics of a year's page: the days in a row I have read,
+--    the works I am reading, the months (oldest first), the kinds, and
+--    the best works finished in that year.
+-- 統計のページ1年ぶん：続けて読んだ日数、いま読んでいる作品、月ごと
+-- （古い順）、種類ごと、その年のベスト
 data StatsItem = StatsItem
-  { year   :: Int
-  , months :: [MonthItem]
-  , kinds  :: [KindCount]
-  , best   :: [WorkSummary]
+  { year    :: Int
+  , streak  :: Int
+  , reading :: [PaceItem]
+  , months  :: [MonthItem]
+  , kinds   :: [KindCount]
+  , best    :: [WorkSummary]
   }
   deriving stock    (Show, Eq, Generic)
   deriving anyclass (ToJSON, FromJSON)
@@ -158,19 +178,25 @@ taggedWith :: Text -> [(WorkId, Card)] -> [WorkSummary]
 taggedWith t cards =
   [ summaryOf wc | wc@(_, c) <- cards, t `Set.member` c.tags ]
 
--- 📊 The statistics of a year: its months only, the kinds of the whole
---    shelf, and its best ten.
--- 1年の統計：その年の月だけ、本棚の全体の種類、その年のベスト10
-statsItem :: Integer -> [(WorkId, Card)] -> StatsItem
-statsItem y cards = StatsItem
-  { year   = fromInteger y
-  , months = [ MonthItem (monthWord m) s.finished (count s.pagesRead)
-             | (m, s) <- Map.toList (monthly (map snd cards)), m.year == y ]
-  , kinds  = [ KindCount k n | (k, n) <- kindShare (map snd cards) ]
-  , best   = map summaryOf (yearTop y 10 cards)
+-- 📊 The statistics of a year, seen on a day (the reader's today): the
+--    streak and the paces up to that day, its months only, the kinds of
+--    the whole shelf, and its best ten.
+-- 1年の統計を、ある日（読む人の今日）に見る：その日までの連続とペース、
+-- その年の月だけ、本棚の全体の種類、その年のベスト10
+statsItem :: Day -> Integer -> [(WorkId, Card)] -> StatsItem
+statsItem today y cards = StatsItem
+  { year    = fromInteger y
+  , streak  = readingStreak today (map snd cards)
+  , reading = [ PaceItem n c.work.title p.left (dayWord <$> p.finishOn)
+              | (WorkId n, c) <- cards, Just p <- [paceOf today c] ]
+  , months  = [ MonthItem (monthWord m) s.finished (count s.pagesRead)
+              | (m, s) <- Map.toList (monthly (map snd cards)), m.year == y ]
+  , kinds   = [ KindCount k n | (k, n) <- kindShare (map snd cards) ]
+  , best    = map summaryOf (yearTop y 10 cards)
   }
   where
     monthWord m = T.pack (printf "%d-%02d" m.year m.month)
+    dayWord     = T.pack . iso8601Show
 -- ANCHOR_END: statsItem
 
 -- ANCHOR: typescript
@@ -182,7 +208,7 @@ statsItem y cards = StatsItem
 -- 持ち、TypeScript には合併型ができる
 $(concat <$> traverse (deriveTypeScript defaultOptions)
     [ ''ExtrasItem, ''SeenNote, ''AlikeItem
-    , ''TagCount, ''KindCount, ''MonthItem, ''StatsItem
+    , ''TagCount, ''KindCount, ''MonthItem, ''PaceItem, ''StatsItem
     ])
 -- ANCHOR_END: typescript
 -- ANCHOR_END: all

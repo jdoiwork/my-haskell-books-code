@@ -19,6 +19,7 @@ module Tsundoku.Api.Server
 -- ハンドラーの中の IO、JSON、答えのヘッダー
 import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (encode)
+import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -67,9 +68,11 @@ shelfServer clock shelf = ShelfRoutes
   -- ANCHOR: siteHandlers
   , tags      =          tagCounts      <$> everything
   , tagged    = \t   -> taggedWith t    <$> everything
-  , stats     = \asked -> do
-      y <- maybe thisYear yearIn asked
-      statsItem y <$> everything
+  , stats     = \asked onDay -> do
+      day <- maybe serverDay pure onDay
+      let (thisYear, _, _) = toGregorian day
+      y <- yearIn (fromMaybe thisYear asked)
+      statsItem day y <$> everything
   -- ANCHOR_END: siteHandlers
   }
   where
@@ -88,10 +91,11 @@ shelfServer clock shelf = ShelfRoutes
       cardOf shelf wid
     -- ANCHOR: siteHelpers
     everything = liftIO shelf.works.listCards
-    thisYear   = do
-      now <- liftIO clock
-      let (y, _, _) = toGregorian (utctDay now)
-      pure y
+    -- the reader's today, if the screen sent it (?today=2026-11-14);
+    -- else the server's clock, in UTC
+    -- 画面が送れば読む人の今日（?today=2026-11-14）。なければサーバーの
+    -- 時計の UTC の日付
+    serverDay  = utctDay <$> liftIO clock
     -- ANCHOR_END: siteHelpers
 -- ANCHOR_END: shelfServer
 

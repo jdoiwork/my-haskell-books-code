@@ -16,6 +16,7 @@ module Tsundoku.Api.Routes
 import Data.Map.Strict (Map)
 import Data.Proxy (Proxy (..))
 import Data.Text (Text)
+import Data.Time (Day)
 import GHC.Generics (Generic)
 import Servant.API
 
@@ -40,6 +41,7 @@ data ShelfRoutes mode = ShelfRoutes
   , tagged    :: mode :- "tags"   :> Capture "tag" Text
                                   :> Get '[JSON] [WorkSummary]
   , stats     :: mode :- "stats"  :> QueryParam "year" Integer
+                                  :> QueryParam "today" Day
                                   :> Get '[JSON] StatsItem
   -- ANCHOR_END: siteRoutes
   }

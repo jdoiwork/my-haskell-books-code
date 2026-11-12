@@ -63,4 +63,16 @@ export function cloudSize(works: number, cloud: TagCount[]): CloudSize {
   return sizes[Math.min(sizes.length - 1, Math.max(0, step))];
 }
 // ANCHOR_END: cloud
+
+// ANCHOR: pace
+// 🏁 The words for a pace: the day comes as "2026-11-14" (the core
+//    counted it), or null when nothing was read in the last 7 days.
+// ペースの言葉：日は "2026-11-14"（数えたのは核）。最近7日に読んでいな
+// ければ null
+export function paceWords(left: string, finishOn: string | null): string {
+  if (finishOn === null) return `あと${left}。最近7日は読んでいません`;
+  const [, month, day] = finishOn.split("-").map(Number);
+  return `あと${left}。このペースなら、${month}月${day}日に読み終わります`;
+}
+// ANCHOR_END: pace
 // ANCHOR_END: all

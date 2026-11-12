@@ -1,7 +1,7 @@
 // The charts get the shapes they want, from the API's numbers.
 // グラフは、API の数から、欲しい形を受け取る
 import { describe, expect, it } from "vitest";
-import { cloudSize, kindSlices, monthRows } from "./charts";
+import { cloudSize, kindSlices, monthRows, paceWords } from "./charts";
 
 describe("monthRows", () => {
   // 「12か月そろえて、送られなかった月は 0」
@@ -42,5 +42,14 @@ describe("cloudSize", () => {
   it("never goes below xs", () => {
     expect(cloudSize(0, cloud)).toBe("xs");
     expect(cloudSize(0, [])).toBe("xs");
+  });
+});
+
+describe("paceWords", () => {
+  // 「読み終わる日を、月と日で」
+  it("says the day I would finish, or that I read none lately", () => {
+    expect(paceWords("30ページ", "2026-11-14"))
+      .toBe("あと30ページ。このペースなら、11月14日に読み終わります");
+    expect(paceWords("3話", null)).toBe("あと3話。最近7日は読んでいません");
   });
 });

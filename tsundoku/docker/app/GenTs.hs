@@ -47,6 +47,7 @@ main = do
       , getTypeScriptDeclarations (Proxy @TagCount)
       , getTypeScriptDeclarations (Proxy @KindCount)
       , getTypeScriptDeclarations (Proxy @MonthItem)
+      , getTypeScriptDeclarations (Proxy @PaceItem)
       , getTypeScriptDeclarations (Proxy @StatsItem)
       -- ANCHOR_END: siteTypes
       ]

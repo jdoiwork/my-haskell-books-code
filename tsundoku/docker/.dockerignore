@@ -1,10 +1,13 @@
 # What the image does not need: builds, databases, the React screen's
-# packages, and the tests.
-# イメージに要らないもの：ビルド、データベース、React の画面のパッケージ、テスト
+# packages and build (the web stage installs and builds its own), and
+# the tests.
+# イメージに要らないもの：ビルド、データベース、React の画面のパッケージと
+# ビルドしたもの（web の段が自分で入れて、ビルドする）、テスト
 dist-newstyle
 *.db
 *.db-*
-web
+web/node_modules
+web/dist
 test
 broken
 extras

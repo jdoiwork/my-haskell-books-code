@@ -11,6 +11,7 @@ module Tsundoku.Deploy
   , readSettings
   , storeSetting
   , retryOpen
+  , webSite
   ) where
 
 import Control.Concurrent (threadDelay)
@@ -21,14 +22,23 @@ import Data.List (dropWhileEnd, stripPrefix)
 import Data.Maybe (fromMaybe, isJust)
 import System.Environment (lookupEnv)
 import System.IO (hPutStrLn, stderr)
+
+-- the site: the API, and the folder of the React screen
+-- サイト：API と、React の画面のフォルダー
+import Network.Wai (Application, pathInfo)
+import Servant (Proxy (..), Raw, serve, serveDirectoryWebApp)
+
+import Tsundoku.Api.Server (Clock, shelfApp)
+import Tsundoku.Shelf (Shelf)
 -- ANCHOR_END: header
 
 -- ANCHOR: settings
 -- ⚙️ Where to keep the shelf, and which address to wait on.
--- 本棚をしまう場所と、待つ住所
+-- 本棚をしまう場所と、待つ住所と、配る画面
 data Settings = Settings
   { store :: String     -- "sqlite:…", "postgres:…", or "memory"
   , host  :: String     -- 127.0.0.1 on your machine, 0.0.0.0 in a container
+  , web   :: Maybe FilePath  -- the React screen, built (none: htmx)
   }
   deriving (Show, Eq)
 
@@ -36,19 +46,25 @@ data Settings = Settings
 --      TSUNDOKU_DB               the store (sqlite:tsundoku.db if unset)
 --      TSUNDOKU_DB_PASSWORD_FILE a file holding PostgreSQL's password
 --      TSUNDOKU_HOST             the address (127.0.0.1 if unset)
+--      TSUNDOKU_WEB              the folder of the React screen, built
+--                                (the htmx pages if unset)
 -- 環境変数から設定を読む：
 --      TSUNDOKU_DB               しまう場所（なければ sqlite:tsundoku.db）
 --      TSUNDOKU_DB_PASSWORD_FILE PostgreSQL のパスワードを書いたファイル
 --      TSUNDOKU_HOST             住所（なければ 127.0.0.1）
+--      TSUNDOKU_WEB              ビルドした React の画面のフォルダー
+--                                （なければ htmx のページ）
 readSettings :: IO Settings
 readSettings = do
   setting  <- lookupEnv "TSUNDOKU_DB"
   file     <- lookupEnv "TSUNDOKU_DB_PASSWORD_FILE"
   password <- traverse readFile file
   address  <- lookupEnv "TSUNDOKU_HOST"
+  folder   <- lookupEnv "TSUNDOKU_WEB"
   pure Settings
     { store = storeSetting setting password
     , host  = fromMaybe "127.0.0.1" address
+    , web   = folder
     }
 
 -- 🔑 The store, with the password added for PostgreSQL. The setting is in
@@ -112,4 +128,22 @@ retryOpen tries pause open work = go tries
 isStop :: SomeException -> Bool
 isStop e = isJust (fromException e :: Maybe SomeAsyncException)
 -- ANCHOR_END: retry
+
+-- ANCHOR: webSite
+-- 🌐 The site handed out: the JSON API under /api, and the React screen
+--    (what Vite built into a folder) everywhere else; "/" is its
+--    index.html. The screen asks /api on the same server, so no proxy
+--    is needed.
+-- 配るサイト：/api の下は JSON の API、ほかは全部 React の画面（Vite が
+-- フォルダーに作ったもの）。「/」は index.html。画面は同じサーバーの /api
+-- に聞くので、中継は要らない
+webSite :: FilePath -> Clock -> Shelf -> Application
+webSite folder clock shelf request reply =
+  case pathInfo request of
+    "api" : rest -> shelfApp clock shelf request { pathInfo = rest } reply
+    []           -> files request { pathInfo = ["index.html"] } reply
+    _            -> files request reply
+  where
+    files = serve (Proxy :: Proxy Raw) (serveDirectoryWebApp folder)
+-- ANCHOR_END: webSite
 -- ANCHOR_END: all

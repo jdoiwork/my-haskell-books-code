@@ -16,7 +16,8 @@ import { useEffect, useState } from "react";
 
 import { shelf } from "./api";
 import { Problems } from "./NewWork";
-import { cloudSize, kindSlices, monthRows } from "./charts";
+import { cloudSize, kindSlices, monthRows, paceWords } from "./charts";
+import { dayOf } from "./day";
 import { halfStars } from "./shadows";
 import { tone } from "./theme";
 import type { StatsItem, TagCount } from "./tsundoku-api";
@@ -31,7 +32,7 @@ export function Stats({ onTag, onOpen }: {
   const [cloud, setCloud] = useState<TagCount[]>([]);
   const [why, setWhy] = useState<string[]>([]);
   useEffect(() => {
-    shelf.stats(year).then((a) => {
+    shelf.stats(year, dayOf(new Date())).then((a) => {
       if (a.ok) { setStats(a.value); setWhy([]); }
       else setWhy(a.problem.messages);
     });
@@ -60,13 +61,26 @@ export function Stats({ onTag, onOpen }: {
           </ActionIcon>
         </Group>
       </Group>
-      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+      <SimpleGrid cols={{ base: 2, sm: 4 }}>
+        <BigNumber label="続けて読んだ日" unit="日" value={stats.streak} />
         <BigNumber label="読み終えた作品" unit="作品"
                    value={sum((m) => m.finished)} />
         <BigNumber label="読んだページ" unit="ページ"
                    value={sum((m) => m.pages)} />
         <BigNumber label="タグ" value={cloud.length} unit="種類" />
       </SimpleGrid>
+      {stats.reading.length > 0 &&
+        <Paper withBorder p="md">
+          <Text fw={700} mb="sm">いま読んでいる作品</Text>
+          <Stack gap="xs">
+            {stats.reading.map((r) => (
+              <Group key={r.work} gap="xs">
+                <Button variant="subtle" size="compact-sm"
+                        onClick={() => onOpen(r.work)}>{r.title}</Button>
+                <Text size="sm">{paceWords(r.left, r.finishOn)}</Text>
+              </Group>))}
+          </Stack>
+        </Paper>}
       {/* ANCHOR: charts */}
       <Paper withBorder p="md">
         <Text fw={700} mb="sm">月ごとに読んだページ</Text>

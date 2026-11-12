@@ -133,8 +133,12 @@ pageServer style clock shelf = PageRoutes
     statsOf = do
       cards <- liftIO shelf.works.listCards
       today <- liftIO clock
-      let (y, _, _) = toGregorian (utctDay today)
-      pure (statsPage style y (monthly (map snd cards)) (tagCloud (map snd cards))
+      let day       = utctDay today
+          (y, _, _) = toGregorian day
+          reading   = [ (wid, c, p) | (wid, c) <- cards
+                                    , Just p <- [paceOf day c] ]
+      pure (statsPage style y (readingStreak day (map snd cards)) reading
+                      (monthly (map snd cards)) (tagCloud (map snd cards))
                       (yearTop y 10 cards))
     wholeCard wid = do
       found  <- liftIO (shelf.works.getCard wid)

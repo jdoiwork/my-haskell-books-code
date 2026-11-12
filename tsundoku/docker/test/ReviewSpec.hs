@@ -155,9 +155,22 @@ statsSpec = describe "statistics" $ do
   -- 「タグの雲は、多い順、同じなら名前の順」
   it "makes a tag cloud, most first" $
     take 3 (tagCloud cards) `shouldBe` [("魔法", 3), ("冒険", 2), ("図書館", 2)]
-  -- 「その年のベスト」
-  it "picks the best of a year" $
+  -- 「その年のベスト。★5 が1件より、★4.6 が30件が上（ベイズ平均）」
+  it "picks the best of a year" $ do
     map fst (yearTop 2026 10 taggedShelf) `shouldBe` [WorkId 1]
+    let done c = c { reading = Finished
+                   , readLog = [LogLine (nov 12) (EntryId 1)] }
+        shelf  = zip (map WorkId [1 ..]) (map done myShelf)
+    take 2 (map fst (yearTop 2026 10 shelf)) `shouldBe` [WorkId 3, WorkId 2]
+  -- 「続けて読んだ日数と、このペースで読み終わる日」
+  it "says the streak and the day I would finish" $ do
+    readingStreak (nov 9) myShelf `shouldBe` 3
+    paceOf (nov 9) dragonCard
+      `shouldBe` Just (Pace "30ページ" (Just (nov 14)))
+    -- nothing read in the last 7 days: no day to promise
+    -- 最近7日に読んでいなければ、日は約束しない
+    paceOf (nov 20) dragonCard `shouldBe` Just (Pace "30ページ" Nothing)
+    paceOf (nov 9) finishedDragon `shouldBe` Nothing
   -- 「Jaccard：共有するもの ÷ どちらかにあるもの」
   it "measures how alike two sets of tags are" $ do
     let a = Set.fromList ["竜", "魔法"] :: Set.Set Text

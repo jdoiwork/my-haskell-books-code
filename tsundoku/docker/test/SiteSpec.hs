@@ -91,10 +91,15 @@ siteSpec = describe "the review site on the wire" $ do
       `shouldBe` [(5, 25), (2, 20), (3, 20)]
   -- 「統計は、その年の月だけ」
   it "gives the statistics of one year" $ do
-    let this = statsItem 2026 taggedShelf
+    let this = statsItem (nov 13) 2026 taggedShelf
     this.months `shouldBe` [MonthItem "2026-11" 1 78]
     map (.id) this.best `shouldBe` [1]
-    (statsItem 2025 taggedShelf).months `shouldBe` []
+    (statsItem (nov 13) 2025 taggedShelf).months `shouldBe` []
+    -- the streak and the paces are counted up to the day given
+    -- 連続とペースは、渡した日まで数える
+    this.streak `shouldBe` 3
+    map (.work) this.reading `shouldBe` [2, 3, 4]
+    (statsItem (nov 20) 2026 taggedShelf).streak `shouldBe` 0
   -- ANCHOR_END: shapeSpec
 
   -- ANCHOR: routeSpec
@@ -119,12 +124,16 @@ siteSpec = describe "the review site on the wire" $ do
         (\x -> x.tags == ["図鑑", "竜", "魔法"]
              && map (.work) x.alike == [5, 2, 3])
       get "/works/9/extras" `shouldRespondWith` refusedWith 404 "no-such-work"
-    -- 「年を言わなければ、時計の年の統計」
+    -- 「年を言わなければ、今日の年の統計」
     it "answers the statistics of this year, or of the year asked" $ do
       get "/stats" `shouldRespondWith`
         reading' (decode @StatsItem) ((== 2026) . (.year))
       get "/stats?year=2025" `shouldRespondWith`
         reading' (decode @StatsItem) (\s -> s.year == 2025 && null s.best)
+      -- the reader's today decides this year, when the screen sends it
+      -- 画面が読む人の今日を送れば、それが今年を決める
+      get "/stats?today=2025-12-31" `shouldRespondWith`
+        reading' (decode @StatsItem) ((== 2025) . (.year))
   -- ANCHOR_END: routeSpec
   -- ANCHOR: alikeSpec
   -- 「トレーニングのステップ2：似ている作品を n 個。n は 1〜20」

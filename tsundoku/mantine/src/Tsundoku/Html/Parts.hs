@@ -50,6 +50,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
+import Data.Time (toGregorian)
 import Network.HTTP.Types.URI (urlEncode)
 
 -- HTML as Haskell functions
@@ -61,7 +62,7 @@ import Tsundoku.Api.Json
 import Tsundoku.Form (FormRow (..), Widget (..))
 import Tsundoku.Card (Card (rating, work))
 import Tsundoku.Labels (eventLabel, stateLabel)
-import Tsundoku.Review (Month (..), MonthStat (..), Seen (..))
+import Tsundoku.Review (Month (..), MonthStat (..), Pace (..), Seen (..))
 import Tsundoku.Rating (RatingStyle, Score, marks, render, score, scoreValue,
                         snap, step)
 import Tsundoku.Types (Pages (..), Work (title), WorkId (..))
@@ -256,12 +257,23 @@ alikePart works = do
 -- ANCHOR_END: extras
 
 -- ANCHOR: statsPage
--- 📊 The statistics: month by month, the tag cloud, the best of a year.
--- 統計：月ごと、タグの雲、その年のベスト
-statsPage :: RatingStyle -> Integer -> Map Month MonthStat -> [(Text, Int)]
-          -> [(WorkId, Card)] -> Html ()
-statsPage style y months cloud best = page "読書の統計" $ do
+-- 📊 The statistics: the streak and the works I am reading, month by
+--    month, the tag cloud, the best of a year.
+-- 統計：続けて読んだ日数といま読んでいる作品、月ごと、タグの雲、
+-- その年のベスト
+statsPage :: RatingStyle -> Integer -> Int -> [(WorkId, Card, Pace)]
+          -> Map Month MonthStat -> [(Text, Int)] -> [(WorkId, Card)]
+          -> Html ()
+statsPage style y days reading months cloud best = page "読書の統計" $ do
   h1_ "読書の統計"
+  p_ [class_ "streak"]
+    (toHtml ("🔥 " <> shown days <> "日続けて読んでいます"))
+  unless (null reading) $ do
+    h2_ "いま読んでいる作品"
+    ul_ $ forM_ reading $ \(WorkId n, c, pace) ->
+      li_ $ do
+        a_ [href_ ("/works/" <> shown n)] (toHtml c.work.title)
+        toHtml (" あと" <> pace.left <> "。" <> paceWords pace.finishOn)
   table_ [class_ "months"] $ do
     tr_ (th_ "月" <> th_ "読み終えた" <> th_ "ページ")
     forM_ (Map.toList months) $ \(Month yy mm, MonthStat n (Pages p)) ->
@@ -284,6 +296,11 @@ statsPage style y months cloud best = page "読書の統計" $ do
   where
     pagesOf = [ p | MonthStat _ (Pages p) <- Map.elems months ]
     shown n = T.pack (show (n :: Int))
+    paceWords on = case on of
+      Nothing -> "最近7日は読んでいません"
+      Just d  -> let (_, m, dd) = toGregorian d
+                 in  "このペースなら、" <> shown m <> "月" <> shown dd
+                     <> "日に読み終わります"
 -- ANCHOR_END: statsPage
 
 -- ANCHOR: toc

@@ -217,10 +217,21 @@ export interface IMonthItem {
   pages: number;
 }
 
+export type PaceItem = IPaceItem;
+
+export interface IPaceItem {
+  work: number;
+  title: string;
+  left: string;
+  finishOn: string | null;
+}
+
 export type StatsItem = IStatsItem;
 
 export interface IStatsItem {
   year: number;
+  streak: number;
+  reading: PaceItem[];
   months: MonthItem[];
   kinds: KindCount[];
   best: WorkSummary[];

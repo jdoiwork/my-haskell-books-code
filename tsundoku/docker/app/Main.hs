@@ -51,7 +51,7 @@ import Tsundoku.Rating
 import Tsundoku.Review (Month (..), MonthStat (..), monthly, tagCloud, toCsv,
                         toMarkdown)
 import Tsundoku.Search
-import Tsundoku.Deploy (Settings (..), readSettings, retryOpen)
+import Tsundoku.Deploy (Settings (..), readSettings, retryOpen, webSite)
 import Tsundoku.Shelf.Sqlite (backupSqlite)
 import Tsundoku.Shelf
 import Tsundoku.Shelf.Config
@@ -88,8 +88,8 @@ main = do
       ["updates"]        -> checkUpdates shelf
       "search" : typed   -> searchShelf shelf (T.pack (unwords typed))
       -- ANCHOR: serveArgs
-      ["serve"]          -> serveShelf settings.host shelf 8080
-      ["serve", port]    -> maybe (die usage) (serveShelf settings.host shelf)
+      ["serve"]          -> serveShelf settings shelf 8080
+      ["serve", port]    -> maybe (die usage) (serveShelf settings shelf)
                                   (readPort port)
       -- ANCHOR_END: serveArgs
       -- ANCHOR: mcpArgs
@@ -372,20 +372,24 @@ backupInto config to = case config of
 -- 本棚を出す。止めるまで（Ctrl-C）：ページは / に、JSON の API は /api に。
 -- 入ってこられるのは、このマシンだけ（127.0.0.1）。
 -- TSUNDOKU_RATING で評価の見せ方を選ぶ（なければ ★）
-serveShelf :: String -> Shelf -> Int -> IO ()
-serveShelf host shelf port = do
+serveShelf :: Settings -> Shelf -> Int -> IO ()
+serveShelf chosen shelf port = do
   setting <- fromMaybe "stars" <$> lookupEnv "TSUNDOKU_RATING"
   style   <- maybe (die ("unknown TSUNDOKU_RATING: " <> setting)) pure
                    (lookup setting ratingStyles)
   putStrLn ("serving the shelf on http://localhost:" <> show port)
-  Warp.runSettings settings
-    (localOnly names (siteApp style getCurrentTime shelf))
+  -- the React screen if TSUNDOKU_WEB names its folder, else htmx
+  -- TSUNDOKU_WEB がフォルダーを言えば React の画面、なければ htmx
+  let site = case chosen.web of
+        Just folder -> webSite folder getCurrentTime shelf
+        Nothing     -> siteApp style getCurrentTime shelf
+  Warp.runSettings settings (localOnly names site)
   where
     -- the other containers of compose call the shelf by its
     --   service name (tui: http://shelf:8080/api)
     -- compose のほかのコンテナは、サービスの名前で呼ぶ
     names    = "shelf" : localNames
-    settings = Warp.setHost (fromString host)
+    settings = Warp.setHost (fromString chosen.host)
                  (Warp.setPort port Warp.defaultSettings)
 
 -- ⭐ The names of the rating styles, for TSUNDOKU_RATING.

@@ -22,6 +22,10 @@ module Tsundoku.Review
   , tagCloud
   , kindShare
   , yearTop
+    -- * Where I am going / これからの読書
+  , readingStreak
+  , Pace (..)
+  , paceOf
     -- * Works alike / 似ている作品
   , jaccard
   , similarTo
@@ -44,9 +48,12 @@ import Data.Text qualified as T
 import Data.Time (Day, toGregorian)
 import Data.Time.Format.ISO8601 (iso8601Show)
 
-import Tsundoku.Card (Card (..))
+import Tsundoku.Bar (showAmount)
+import Tsundoku.Card (Card (..), ratingsOf)
 import Tsundoku.Labels (stateLabel)
-import Tsundoku.Progress (finishedIn, perDay)
+import Tsundoku.Progress (finishBy, finishedIn, lastWeek, perDay, progressOf,
+                          remaining, streak)
+import Tsundoku.Ranking (bayesian, shelfPrior, tally)
 import Tsundoku.Rating (RatingStyle (..), render, scoreValue)
 import Tsundoku.Search (trailTo)
 import Tsundoku.Shelf.Rows (toPlain)
@@ -150,17 +157,57 @@ kindShare cards = Map.toList (Map.fromListWith (+) [ (kindOf c, 1) | c <- cards 
   where
     kindOf c = let (word, _, _) = toPlain c.work.contents in word
 
--- 🏆 The best n works finished in a year, by their rating (the unrated
---    last). The shelf's order breaks ties.
--- その年に読み終えた作品のうち、評価の高い n 冊（評価のないものは最後）。
--- 同じなら本棚の順
+-- 🏆 The best n works finished in a year, by the Bayesian average of all
+--    their ratings (the whole work and each entry), with the usual
+--    points of the shelf worth 5 ratings: one ★5 does not beat thirty
+--    ★4.6. The unrated come last; the shelf's order breaks ties.
+-- その年に読み終えた作品のうち、よい n 冊。作品全体と項目ごとの評価の
+-- 全部のベイズ平均で並べる（本棚のふつうの点を5件ぶん）：★5 が1件では、
+-- ★4.6 が30件に勝てない。評価のないものは最後、同じなら本棚の順
 yearTop :: Integer -> Int -> [(WorkId, Card)] -> [(WorkId, Card)]
 yearTop y n cards = take n (sortOn (Down . points . snd) thatYear)
   where
     thatYear = [ wc | wc@(_, c) <- cards, Just d <- [finishedOn c], yearOf d == y ]
     yearOf d = let (yy, _, _) = toGregorian d in yy
-    points c = maybe (-1) scoreValue c.rating
+    prior    = shelfPrior 5 (map snd cards)
+    points c = case ratingsOf c of
+      []    -> Nothing
+      given -> Just (bayesian prior (tally given))
 -- ANCHOR_END: stats
+
+-- ANCHOR: pace
+-- 🔥 How many days in a row I have read anything on the shelf, up to
+--    today (today not read yet still counts up to yesterday).
+-- 本棚のどれかを、今日まで何日続けて読んだか（今日まだでも、昨日まで）
+readingStreak :: Day -> [Card] -> Int
+readingStreak today cards =
+  streak today (Set.fromList [ readOn l | c <- cards, l <- c.readLog ])
+
+-- 🏁 A work I am reading now: how much is left, and the day I would
+--    finish at the pace of the last 7 days (Nothing: I read none of it).
+-- いま読んでいる作品：残りの量と、最近7日のペースで読み終わる日
+-- （Nothing：最近7日は、この作品を読んでいない）
+data Pace = Pace { left :: Text, finishOn :: Maybe Day }
+  deriving (Show, Eq)
+
+-- 🏁 The pace of a card, if I am reading it and it has a table.
+-- 読書中で、目次のある作品なら、そのペース
+paceOf :: Day -> Card -> Maybe Pace
+paceOf today card
+  | card.reading /= Reading = Nothing
+  | otherwise               = case card.work.contents of
+      Book   toc -> Just (pace toc)
+      Serial toc -> Just (pace toc)
+      Series toc -> Just (pace toc)
+      Film   _   -> Nothing
+      Game       -> Nothing
+  where
+    pace :: Amount u => Toc u -> Pace
+    pace toc =
+      let rest = remaining (progressOf (finishedIn card.readLog) toc)
+          week = lastWeek today (perDay toc card.readLog)
+      in  Pace (showAmount rest) (finishBy today rest week)
+-- ANCHOR_END: pace
 
 -- ANCHOR: similar
 -- 🤝 How alike two sets are: what they share, out of what either has

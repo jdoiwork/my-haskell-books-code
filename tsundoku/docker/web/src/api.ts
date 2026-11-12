@@ -116,8 +116,12 @@ export const shelf = {
   tagged: async (tag: string) =>
     ask<WorkSummary[]>(
       await fetch(`${base}/tags/${encodeURIComponent(tag)}`)),
-  stats: async (year: number) =>
-    ask<StatsItem>(await fetch(`${base}/stats?year=${year}`)),
+  // today: the reader's day ("2026-11-14", dayOf), for the streak and
+  // the paces
+  // today：読む人の今日（"2026-11-14"、dayOf）。連続とペースのため
+  stats: async (year: number, today: string) =>
+    ask<StatsItem>(
+      await fetch(`${base}/stats?year=${year}&today=${today}`)),
   // ANCHOR_END: site
 };
 // ANCHOR_END: routes
