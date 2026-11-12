@@ -10,6 +10,7 @@ module EditSpec (editSpec) where
 
 -- JSON, dictionaries, and trees
 -- JSON、辞書、木
+import Control.Monad (forM_)
 import Data.Aeson (decode)
 import Data.List (subsequences)
 import Data.ByteString.Lazy qualified as LBS
@@ -18,15 +19,13 @@ import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
 import Data.Tree (Tree (..), flatten)
 
--- the tests: hspec, QuickCheck, and hspec-wai
--- テスト：hspec、QuickCheck、hspec-wai
+-- the tests: hspec and hspec-wai
+-- テスト：hspec と hspec-wai
 import Network.HTTP.Types (methodDelete, methodPost, methodPut,
                            renderSimpleQuery)
 import Test.Hspec
-import Test.Hspec.QuickCheck (prop)
 import Test.Hspec.Wai hiding (pending)
 import Test.Hspec.Wai.JSON (json)
-import Test.QuickCheck
 
 import Tsundoku.Api.Json
 import Tsundoku.Shelf (Shelf (..), WorkWindow (..))
@@ -82,30 +81,40 @@ coreSpec = describe "fixing a work by hand" $ do
       `shouldBe` Right [EntryId 8]
 
   -- 「何も変えない Revision は、カードを変えない（どの見本でも）」
-  it "changes nothing with a revision that changes nothing" $
+  it "changes nothing with a revision that changes nothing" $ do
     sequence_
       [ revise (EntryId 99) (asRevision (work c)) c `shouldBe` Right c
       | c <- [ dragonCard, librarianCard, copyistCard, detectiveCard
              , filmCard ] ]
+    -- a table that came in by another way (501 episodes, grown by
+    --   updates): fixing only the creator is not refused for it
+    -- ほかの入り口から来た目次（更新で 501 話に育った連載）でも、
+    -- 作者だけを直すのは断らない
+    let long  = newCard (Work "長い連載" "" (Serial (numbered
+                  [ Node ("第" <> T.pack (show n) <> "話", Episodes 1) []
+                  | n <- [1 .. 501 :: Int] ])))
+        byHim = (asRevision (work long)) { newCreator = "竜" }
+    fmap (creator . work) (revise (EntryId 600) byHim long)
+      `shouldBe` Right "竜"
 
   -- 「どの行を消しても、感想は1つも消えず、どれもある所を指す」
-  prop "never loses a note, whichever lines are gone" $
-    forAll (elements (subsequences [1 .. 8])) $ \gone ->
+  it "never loses a note, whichever lines are gone" $
+    forM_ (subsequences [1 .. 8]) $ \gone ->
       let r      = dropLines gone (asRevision (work dragonCard))
           result = revise (EntryId 9) r dragonCard
           ok c   = length (notes c) == length (notes dragonCard)
                 && all (pointsInto c . target) (notes c)
-      in  fmap ok result === Right True
+      in  fmap ok result `shouldBe` Right True
 
   -- 「消すと選べば、残る行と作品全体の感想だけが、そのまま残る」
-  prop "keeps just the notes that still have a place, when asked" $
-    forAll (elements (subsequences [1 .. 8])) $ \gone ->
+  it "keeps just the notes that still have a place, when asked" $
+    forM_ (subsequences [1 .. 8]) $ \gone ->
       let r      = (dropLines gone (asRevision (work dragonCard)))
                      { notesOnRemoved = DropNotes }
           result = revise (EntryId 9) r dragonCard
           ok c   = notes c == filter (pointsInto c . target)
                                      (notes dragonCard)
-      in  fmap ok result === Right True
+      in  fmap ok result `shouldBe` Right True
 
   -- 「よその番号、2回出る番号は断る」
   it "refuses a number of another work, or one number twice" $ do
@@ -154,9 +163,18 @@ shapeSpec = describe "the shape of a table" $ do
         , SameHeading ["第1章"] "1.1" ]
 
   -- 「深さは4段まで」
-  it "says a table is too deep below 4 levels" $
+  it "says a table is too deep below 4 levels" $ do
     shapeProblems [Node "1" [Node "2" [Node "3" [Node "4" [Node "5" []]]]]]
       `shouldBe` [TooDeep ["1", "2", "3", "4", "5"]]
+    -- only where it first goes too deep, not every row below
+    -- はじめて深すぎた所だけ。その下の行は言わない
+    let deep n = foldr (\h t -> [Node h t]) [] (map (T.pack . show) [1 .. n])
+    length (shapeProblems (deep (400 :: Int))) `shouldBe` 1
+    -- too many is said alone / 多すぎるときは、それだけ
+    shapeProblems (deep (501 :: Int)) `shouldBe` [TooMany 501]
+    -- one problem is said once / 同じまずい所は1回
+    shapeProblems [Node "第1章" [Node "" [], Node " " []]]
+      `shouldBe` [EmptyHeading ["第1章"]]
 
   -- 「新しく足す作品も、同じ門を通る」
   it "is checked for a new work too" $

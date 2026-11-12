@@ -40,7 +40,9 @@ export function EditWork({ id, onDone }: {
   // カードを読んで、そこから始める。「読み直す」も、これ
   const load = useCallback(() => {
     shelf.card(id).then((a) => {
-      if (!a.ok) return;
+      // could not read it (shelf serve stopped, the work gone): say why
+      // 読めなかった（shelf serve が止まった、作品が消えた）：理由を見せる
+      if (!a.ok) { setProblems(a.problem.messages); return; }
       setCard(a.value);
       setTitle(a.value.work.title);
       setCreator(a.value.work.creator);
@@ -52,7 +54,9 @@ export function EditWork({ id, onDone }: {
 
   useEffect(load, [load]);
 
-  if (card === null) return <p>読みこみ中…</p>;
+  if (card === null) return problems.length > 0
+    ? <Problems messages={problems} />
+    : <p>読みこみ中…</p>;
   const unit = unitOf(card.work.kind);
   const lost = losses(card, rows);
 

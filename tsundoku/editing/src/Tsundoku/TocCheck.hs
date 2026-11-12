@@ -16,7 +16,7 @@ module Tsundoku.TocCheck
 
 -- lists, text, and trees
 -- リスト、文字列、木
-import Data.List (group, sort)
+import Data.List (group, nub, sort)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Tree (Forest, Tree (..))
@@ -32,18 +32,24 @@ maxDepth = 4
 maxItems = 500
 
 -- 🔍 Every problem with the shape of a tree of headings, all at once
---    (not only the first), each with the path to it.
+--    (not only the first), each with the path to it, and each said once.
+--    Two limits keep the answer small: too many items is said alone
+--    (nothing else is counted), and too deep is said only where a
+--    branch first goes too deep, not for every row below it.
 -- 見出しの木の形のまずいところを、全部いっぺんに（最初の1つだけでなく）。
--- どれも、そこまでの道順つきで
+-- どれも、そこまでの道順つきで、1回ずつ。答えが大きくならないように：
+-- 多すぎるときは、それだけを言う（ほかは数えない）。深すぎるのは、
+-- 枝がはじめて深すぎた所だけを言う（その下の行は、言わない）
 shapeProblems :: Forest Text -> [TocProblem]
-shapeProblems forest = concat
-  [ [ TooMany (length rows) | length rows > maxItems ]
-  , [ EmptyHeading above | (above, h) <- rows, blank h ]
-  , [ SameHeading above h | (above, siblings) <- families
-                          , h <- twice siblings ]
-  , [ TooDeep (above ++ [h]) | (above, h) <- rows
-                             , length above >= maxDepth ]
-  ]
+shapeProblems forest
+  | length rows > maxItems = [ TooMany (length rows) ]
+  | otherwise              = nub $ concat
+      [ [ EmptyHeading above | (above, h) <- rows, blank h ]
+      , [ SameHeading above h | (above, siblings) <- families
+                              , h <- twice siblings ]
+      , [ TooDeep (above ++ [h]) | (above, h) <- rows
+                                 , length above == maxDepth ]
+      ]
   where
     rows     = [ (above, rootLabel t) | (above, t) <- walk [] forest ]
     families = ([], map rootLabel forest) :

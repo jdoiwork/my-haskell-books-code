@@ -59,10 +59,15 @@ export function TocRows({ rows, setRows, unit }: {
                  aria-label="見出し" autoFocus={r.key === focused}
                  onKeyDown={enter(i)}
                  onChange={(e) => write(i, { heading: e.target.value })} />
+          {/* a whole number: the API reads only whole numbers, so
+              8.5 is cut to 8 here (min and step tell the browser too) */}
+          {/* 整数だけ。API は整数しか読まないので、8.5 はここで 8 に切る
+              （min と step で、ブラウザーにも伝える） */}
           <input className="size" type="number" value={r.size}
+                 min={0} step={1}
                  aria-label={unit} onKeyDown={enter(i)}
                  onChange={(e) =>
-                   write(i, { size: Number(e.target.value) })} />
+                   write(i, { size: Math.trunc(Number(e.target.value)) })} />
           <span className="tools">
             <button type="button" title="1段上へ"
                     onClick={() => move(outdent, i)}>←</button>

@@ -260,10 +260,21 @@ sizeLimit = 1000000
 -- 外から来た作品を確かめる：題があって（長すぎず）、目次の形がよく
 -- （TocCheck。まずい所は全部いっぺんに）、どの量もマイナスでないこと
 checkWork :: Work -> Checked Work
-checkWork w = do
+checkWork = checkWorkAllowing []
+
+-- 🚪 The same gate, letting through the problems of shape the table
+--    already had. A work can come in by other ways (imported, or grown
+--    by new episodes) without this gate; fixing its title must not be
+--    refused for what was there before.
+-- 同じ門。ただし、目次にもとからあった形のまずい所は通す。作品は、
+-- この門を通らない入り口（取り込み、新しい話）からも来る。題を直す
+-- だけで、前からあったものを理由に断らない
+checkWorkAllowing :: [TocProblem] -> Work -> Checked Work
+checkWorkAllowing known w = do
   when (T.null (T.strip (title w)))       (Left EmptyTitle)
   when (T.length (title w) > titleLimit) (Left (LongTitle titleLimit))
-  case shapeProblems (headingsOf (contents w)) of
+  case [ p | p <- shapeProblems (headingsOf (contents w))
+           , p `notElem` known ] of
     []       -> Right ()
     problems -> Left (BadToc problems)
   case [ name | (name, n) <- amountsIn w, n < 0 ] of
@@ -307,21 +318,24 @@ amountsIn w = case contents w of
 --    meanwhile, say so and change nothing. A line with a number keeps
 --    it, wherever it moved; a new line gets the next number from `from`
 --    on (the shelf keeps that many free: newItems). Then the new work
---    goes through the same gate as a new one (checkWork), and what hung
---    on a line that is gone is carried over (followTable).
+--    goes through the same gate as a new one (checkWork; what the table
+--    already had is let through), and what hung on a line that is gone
+--    is carried over (followTable).
 -- 作品を手で直す：新しい題・作者・目次。まず、作品が画面の見たとおりの
 -- ままか（basedOn）を確かめる。そのあいだに変わっていたら、そう言って、
 -- 何も変えない。番号のある行は、どこへ動いても番号を保つ。新しい行は
 -- from から順に番号をもらう（本棚はその分を空けておく：newItems）。
--- そのあと、新しい作品と同じ門（checkWork）を通し、消えた行にぶら
--- 下がっていたものを引き継ぐ（followTable）
+-- そのあと、新しい作品と同じ門（checkWork。もとの目次にあったまずい
+-- 所は通す）を通し、消えた行にぶら下がっていたものを引き継ぐ
+-- （followTable）
 revise :: EntryId -> Revision -> Card -> Checked Card
 revise from r card = do
   -- ANCHOR: staleCheck
   when (asOpened (work card) /= basedOn r) (Left ChangedElsewhere)
   -- ANCHOR_END: staleCheck
   table <- retable from r (contents (work card))
-  fixed <- checkWork (Work (newTitle r) (newCreator r) table)
+  let before = shapeProblems (headingsOf (contents (work card)))
+  fixed <- checkWorkAllowing before (Work (newTitle r) (newCreator r) table)
   pure (followTable (notesOnRemoved r) (entryIds table)
                     card { work = fixed })
 

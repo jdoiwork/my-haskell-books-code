@@ -83,6 +83,7 @@ export function TocRows({ rows, setRows, unit }: {
                        onChange={(e) =>
                          write(i, { heading: e.currentTarget.value })} />
             <NumberInput w={90} value={r.size} aria-label={unit} min={0}
+                         allowDecimal={false}
                          onKeyDown={enter(i)}
                          onChange={(v) => write(i, { size: Number(v) })} />
             <ActionIcon.Group>

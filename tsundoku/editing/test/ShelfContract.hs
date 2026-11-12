@@ -489,6 +489,16 @@ reviseContract = do
     next  <- shelf.addWork librarianSerial
     later <- fromJust <$> shelf.getCard next
     take 1 (entryIds (contents (work later))) `shouldBe` [EntryId 10]
+    -- two new lines at once: the shelf keeps both numbers free
+    -- 新しい行を2つ一度に。本棚は2つとも番号を空けておく
+    let asIs  = Card.asRevision (work later)
+        extra = [ Node (Item Nothing h 1) [] | h <- ["番外編1", "番外編2"] ]
+    _      <- shelf.reviseWork next asIs { newToc = newToc asIs ++ extra }
+    grown  <- fromJust <$> shelf.getCard next
+    let EntryId top = maximum (entryIds (contents (work grown)))
+    third  <- shelf.addWork copyistSerial
+    after3 <- fromJust <$> shelf.getCard third
+    take 1 (entryIds (contents (work after3))) `shouldBe` [EntryId (top + 1)]
 
   -- 「探すものも、直したとおりに変わる」
   it "finds what the fixed work says, and not what it said" $ \shelf -> do
@@ -500,6 +510,9 @@ reviseContract = do
     places shelf "うろこの本文" `shouldReturn` Right [InText (EntryId 3)]
     places shelf "火を吐くもの" `shouldReturn` Right []
     places shelf "暮らす" `shouldReturn` Right [InHeading (EntryId 9)]
+    -- the renamed heading is found by its new words
+    -- 名前を変えた見出しは、新しい言葉で見つかる
+    places shelf "色と火" `shouldReturn` Right [InHeading (EntryId 3)]
     places shelf "竜の会" `shouldReturn` Right [InCreator]
     places shelf "吐かない種" `shouldReturn` Right [InNote OnWork True]
 

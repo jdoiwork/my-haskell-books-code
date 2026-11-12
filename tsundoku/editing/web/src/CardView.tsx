@@ -58,15 +58,22 @@ export function CardView({ id, onEdit }: {
   // ANCHOR: mark
   // ✅ A tick writes today in the log, for the entry and every entry
   //    under it; taking it off drops their lines. One at a time, and
-  //    the first refusal stops the rest.
+  //    the first refusal stops the rest. While they are going out, more
+  //    ticks are not taken: the card is not read again yet, so they
+  //    would send the same lines twice.
   // チェックを入れたら、その項目と下の全部について、今日の日付でログに
-  // 書く。外したら、その行を消す。1つずつ順に、断られたらそこで止める
-  const mark = (entry: number, read: boolean) => {
-    if (card === null) return;
+  // 書く。外したら、その行を消す。1つずつ順に、断られたらそこで止める。
+  // 送っているあいだは、次のチェックを受けない（カードをまだ読み直して
+  // いないので、同じ行をもう一度送ってしまう）
+  const marking = useRef(false);
+  const mark = async (entry: number, read: boolean) => {
+    if (card === null || marking.current) return;
+    marking.current = true;
     const today = dayOf(new Date());
     const asks = marksFor(card.toc, entry, read).map((e) => () =>
       read ? shelf.logReading(id, today, e) : shelf.unread(id, e));
-    change(inOrder(asks));
+    await change(inOrder(asks));
+    marking.current = false;
   };
   // ANCHOR_END: mark
 
