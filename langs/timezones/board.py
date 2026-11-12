@@ -1,5 +1,5 @@
-# The Python code in the "dates, times, and time zones" chapter.
-# 日付と時刻とタイムゾーンの章の Python のコード
+# The Python code in the "time zones and summer time" chapter.
+# タイムゾーンと夏時間の章の Python のコード
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 

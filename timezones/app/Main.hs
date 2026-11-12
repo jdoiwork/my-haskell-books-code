@@ -19,7 +19,7 @@ import System.Exit (die)
 import Board (Quest (..), noticeLine)
 import Branches (Branch, wallClockAt)
 import Clock (Clock, postQuest, stoppedAt, systemClock)
-import Formats (toWire)
+import Offsets (toWire)
 -- ANCHOR_END: module
 
 -- ANCHOR: main

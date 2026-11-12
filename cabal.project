@@ -24,6 +24,7 @@ packages:
   debuglog
   libtour
   datetime
+  timezones
   jsonbook
   loot
   mondex

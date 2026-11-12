@@ -75,7 +75,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | デバッグとログ：プログラムの中をのぞく | [`debuglog/`](debuglog/) |
 | 関数とドキュメントの探し方：Hoogle・Hackage・GHCi、そして AI | [`finding/`](finding/) |
 | よく使うライブラリ | [`libtour/`](libtour/) |
-| 日付と時刻とタイムゾーン：time で、まちがえやすいものを型で分ける | [`datetime/`](datetime/)、[`langs/datetime/`](langs/datetime/)、[`langs/cargo/`](langs/cargo/) |
+| 日付と時刻：time で、瞬間と暦と長さを型で分ける | [`datetime/`](datetime/)、[`langs/datetime/`](langs/datetime/)、[`langs/cargo/`](langs/cargo/) |
+| タイムゾーンと夏時間：土地の時計と、世界で1つの瞬間 | [`timezones/`](timezones/)、[`langs/timezones/`](langs/timezones/)、[`langs/cargo/`](langs/cargo/) |
 | JSON を扱う：aeson でシリアライズ・デシリアライズ | [`jsonbook/`](jsonbook/)、[`langs/json/`](langs/json/)、[`langs/cargo/`](langs/cargo/) |
 | テスト | [`loot/`](loot/)、[`langs/testing/`](langs/testing/)、[`langs/cargo/`](langs/cargo/) |
 | CLI ツールを作る | [`mondex/`](mondex/)、[`langs/cli-tool/`](langs/cli-tool/)、[`langs/cargo/`](langs/cargo/) |

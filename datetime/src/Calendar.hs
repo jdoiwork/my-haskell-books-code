@@ -1,23 +1,18 @@
 -- ANCHOR: all
--- 🧮 Counting days, months, and hours for the quests.
--- 依頼の日・月・時間を数える
+-- 🧮 Counting days, weeks, and months for the quests.
+-- 依頼の日・週・月を数える
 -- ANCHOR: module
 module Calendar where
 
 import Data.Time
   ( Day
   , DayOfWeek (..)
-  , NominalDiffTime
-  , UTCTime
   , addDays
   , addGregorianMonthsClip
   , addGregorianMonthsRollOver
-  , addUTCTime
   , dayOfWeek
   , diffDays
-  , diffUTCTime
   , fromGregorian
-  , nominalDay
   )
 import Data.Time.Calendar.Month (Month)
 import Data.Time.Calendar.WeekDate (toWeekDate)
@@ -81,16 +76,4 @@ monthOf day =
   let month = dayPeriod day
   in (month, periodFirstDay month, periodLastDay month)
 -- ANCHOR_END: periods
-
--- ANCHOR: moments
--- ⌛ A quest that must be done within 72 hours of being posted.
--- 貼ってから 72 時間以内に終わらせる依頼
-rushLimit :: UTCTime -> UTCTime
-rushLimit posted = addUTCTime (3 * nominalDay) posted
-
--- ⏱️ How much time is left, in seconds (as NominalDiffTime).
--- 残り時間（秒。NominalDiffTime で）
-timeLeft :: UTCTime -> UTCTime -> NominalDiffTime
-timeLeft now limit = diffUTCTime limit now
--- ANCHOR_END: moments
 -- ANCHOR_END: all

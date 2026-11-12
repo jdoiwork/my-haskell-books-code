@@ -1,5 +1,5 @@
-// The Rust code in the "dates, times, and time zones" chapter (jiff).
-// 日付と時刻とタイムゾーンの章の Rust のコード（jiff）
+// The Rust code in the "time zones and summer time" chapter (jiff).
+// タイムゾーンと夏時間の章の Rust のコード（jiff）
 use jiff::{Timestamp, ToSpan, civil::date, tz::TimeZone};
 
 #[test]

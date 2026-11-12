@@ -6,28 +6,20 @@ module DateAnswers where
 
 import Data.Time
   ( Day
-  , LocalTime (..)
+  , NominalDiffTime
   , TimeLocale (..)
-  , TimeOfDay (..)
-  , TimeZone
-  , UTCTime
-  , addDays
   , diffDays
   , formatTime
-  , localTimeOfDay
-  , utcToLocalTime
   )
 import Data.Time.Calendar (periodLastDay)
 import Data.Time.Calendar.Month (Month)
 
-import Branches (Branch, Reading (..), readWallClock)
 import Calendar (payDayClip)
-import Clock (Clock)
 import Formats (japanese)
 -- ANCHOR_END: module
 
 -- ANCHOR: step1
--- 📣 "あと7日（金曜日）" / "今日まで（金曜日）" / "3日過ぎた（月曜日）"
+-- 📣 "あと7日（金曜日）" / "今日まで（金曜日）" / "3日過ぎた（火曜日）"
 -- 締め切りまでの日数と曜日
 dueNotice :: Day -> Day -> String
 dueNotice today due =
@@ -72,36 +64,16 @@ showWafu day = formatTime wafu "%B%-d日（%a）" day
 -- ANCHOR_END: step3
 
 -- ANCHOR: step4
--- 👋 A greeting that depends on the hour of the wall clock.
--- 壁の時計の「時」で変わる、あいさつ
-greeting :: Clock -> TimeZone -> IO String
-greeting clock zone = do
-  now <- clock
-  let hour = todHour (localTimeOfDay (utcToLocalTime zone now))
-  pure (greetingAt hour)
-
--- 🌅 Morning from 5, afternoon from 12, evening from 18.
--- 朝は 5 時から、昼は 12 時から、夜は 18 時から
-greetingAt :: Int -> String
-greetingAt hour
-  | hour >= 5 && hour < 12 = "Good morning"
-  | hour >= 12 && hour < 18 = "Good afternoon"
-  | otherwise = "Good evening"
+-- ⏳ "あと1日2時間5分". A part of a minute counts as a whole minute.
+-- 残り時間を日・時間・分で。1分に満たない端数は、1分と数える
+remaining :: NominalDiffTime -> String
+remaining left
+  | left <= 0 = "締め切りを過ぎた"
+  | otherwise =
+      let minutes       = ceiling (left / 60) :: Integer
+          (days, rest)  = minutes `divMod` (24 * 60)
+          (hours, mins) = rest `divMod` 60
+      in "あと" <> show days <> "日" <> show hours <> "時間"
+           <> show mins <> "分"
 -- ANCHOR_END: step4
-
--- ANCHOR: step5
--- 🗓️ The meeting at the same wall clock time, every day for n days.
---    A skipped time is left out; a time shown twice is the first one.
--- 毎日、壁の時計の同じ時刻にある会議を n 日分。
--- 飛ばされた時刻は外し、2回ある時刻は1回目にする
-dailyMeetings :: Branch -> Day -> Integer -> TimeOfDay -> [UTCTime]
-dailyMeetings branch start n time =
-  concatMap meetingOn [addDays k start | k <- [0 .. n - 1]]
-  where
-    meetingOn day =
-      case readWallClock branch (LocalTime day time) of
-        Once moment    -> [moment]
-        Twice first _  -> [first]
-        Skipped        -> []
--- ANCHOR_END: step5
 -- ANCHOR_END: all

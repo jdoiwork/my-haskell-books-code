@@ -1,0 +1,47 @@
+cabal-version: 3.16
+name:          guildzones
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「タイムゾーンと夏時間」の章のコード（ギルドの掲示板と、3つの支部の時計）
+
+common shared
+  default-language: GHC2024
+  ghc-options:      -Wall
+  build-depends:
+    , base ^>=4.22.0.0
+    , time ^>=1.15
+    , tz   ^>=0.1.3
+
+-- The time zones, the board, the branches, the borders, and the clock.
+-- 時間帯、掲示板、支部、境目、時計
+library
+  import:           shared
+  exposed-modules:
+    Board
+    Branches
+    Clock
+    Offsets
+    Wire
+    ZoneAnswers
+    Zones
+  hs-source-dirs:   src answers
+
+-- Show a quest on the board, in every branch's wall clock.
+-- 依頼を、どの支部の壁の時計でも見せる
+executable guild-board
+  import:           shared
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    guildzones
+
+-- Tests with a stopped clock.
+-- 止まった時計でテストする
+test-suite guildzones-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , guildzones
+    , hspec      ^>=2.11

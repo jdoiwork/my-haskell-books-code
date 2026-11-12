@@ -1,5 +1,5 @@
-// The TypeScript code in the "dates, times, and time zones" chapter.
-// 日付と時刻とタイムゾーンの章の TypeScript のコード
+// The TypeScript code in the "time zones and summer time" chapter.
+// タイムゾーンと夏時間の章の TypeScript のコード
 function check(ok: boolean, what: string): void {
   if (!ok) throw new Error(`failed: ${what}`);
 }
@@ -67,20 +67,4 @@ const due = today.add({ days: 7 });                     // "2026-11-20"
 same(wall.toString(), "2026-11-13T06:00:00+09:00[Asia/Tokyo]");
 same(today.toString(), "2026-11-13");
 same(due.toString(), "2026-11-20");
-
-// ANCHOR: clip
-// TypeScript (Temporal: one month after 31 January)
-// TypeScript（Temporal：1月31日の1か月後）
-const payDay = Temporal.PlainDate.from("2027-01-31");
-const clipped = payDay.add({ months: 1 });              // "2027-02-28"
-// ANCHOR_END: clip
-
-same(clipped.toString(), "2027-02-28");
-let rejected = false;
-try {
-  payDay.add({ months: 1 }, { overflow: "reject" });
-} catch {
-  rejected = true;
-}
-check(rejected, "overflow: reject throws");
 console.log("ok");

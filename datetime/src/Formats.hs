@@ -6,21 +6,20 @@ module Formats where
 
 import Data.Time
   ( Day
+  , LocalTime
   , TimeLocale (..)
   , UTCTime
-  , ZonedTime
   , addDays
   , defaultTimeLocale
   , formatTime
   , parseTimeM
-  , zonedTimeToUTC
   )
 import Data.Time.Format.ISO8601 (iso8601ParseM, iso8601Show)
 -- ANCHOR_END: module
 
 -- ANCHOR: iso
 -- 🌐 The format for the borders (files, JSON, databases): ISO 8601.
---    "2026-11-12T21:00:00Z"
+--    "2026-11-13T09:00:00Z"
 -- 境目（ファイル、JSON、データベース）の書式：ISO 8601
 toWire :: UTCTime -> String
 toWire moment = iso8601Show moment
@@ -30,16 +29,6 @@ toWire moment = iso8601Show moment
 fromWire :: String -> Maybe UTCTime
 fromWire text = iso8601ParseM text
 -- ANCHOR_END: iso
-
--- ANCHOR: isoAny
--- 🤝 Read a moment written with "Z" or with an offset ("+09:00").
--- "Z" でも、ずれ（"+09:00"）つきでも読む
-fromWireAny :: String -> Maybe UTCTime
-fromWireAny text =
-  case iso8601ParseM text of
-    Just moment -> Just moment
-    Nothing     -> fmap zonedTimeToUTC (iso8601ParseM text)
--- ANCHOR_END: isoAny
 
 -- ANCHOR: locale
 -- 🎌 Japanese names for the days of the week, and 午前 / 午後.
@@ -59,9 +48,9 @@ japanese =
     , amPm  = ("午前", "午後")
     }
 
--- 🪧 "2026年11月13日（金）午前6時00分"
+-- 🪧 "2026年11月13日（金）午前9時00分"
 -- 掲示板に貼る、日本語の日時
-showJapanese :: ZonedTime -> String
+showJapanese :: LocalTime -> String
 showJapanese moment =
   formatTime japanese "%Y年%-m月%-d日（%a）%p%-I時%M分" moment
 -- ANCHOR_END: locale
