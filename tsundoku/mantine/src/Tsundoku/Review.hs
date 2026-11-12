@@ -107,9 +107,14 @@ instance Monoid MonthStat where
   mempty = MonthStat 0 mempty
 
 -- 🏁 The day a work was finished: the last day in its log, if it is
---    finished (or being read again).
--- 作品を読み終えた日：読み終えているなら、ログの
--- 最後の日
+--    finished. The card does not keep the day of Finish itself, so a
+--    finished work with no log (a film, a game, a book finished without
+--    ticking its entries) is not counted, and a line logged later moves
+--    the month.
+-- 作品を読み終えた日：読み終えているなら、ログの最後の日。カードは
+-- 「読み終えた」の日そのものを持っていないので、ログのない読了（映画・
+-- ゲーム、目次にチェックせずに読み終えた本）は数えず、あとからログを
+-- 足すと月が動く
 finishedOn :: Card -> Maybe Day
 finishedOn card
   | card.reading == Finished, not (null days) = Just (maximum days)
@@ -199,8 +204,14 @@ toMarkdown cards = T.unlines (concatMap section cards)
     facts c = [stateLabel c.reading]
               ++ [ render FiveStars s | Just s <- [c.rating] ]
               ++ [ T.unwords (map ("#" <>) (Set.toList c.tags)) | not (Set.null c.tags) ]
-    note _ (Shown n)  = "> " <> n.body
-    note c (Hidden t) = "> （" <> hiddenHint c.work.contents t <> "）"
+    note _ (Shown n)  = quote n.body
+    note c (Hidden t) = quote ("（" <> hiddenHint c.work.contents t <> "）")
+    -- every line of a note quoted, and a blank line after it: each note
+    -- its own quote (not one paragraph), and a "## " in a note stays
+    -- inside it
+    -- 感想の行ごとに引用の印を付け、あとに空行：感想ごとに別の引用になり
+    -- （1つの段落にくっつかない）、感想の中の「## 」も引用の中に残る
+    quote body = T.unlines (map ("> " <>) (T.lines body))
 
 -- 📄 The shelf as CSV (RFC 4180): a header, then one row for each work.
 --    Points stay points (0-100), tags are joined with a space.

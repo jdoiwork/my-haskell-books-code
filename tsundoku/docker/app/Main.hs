@@ -340,7 +340,8 @@ showStats :: Shelf -> IO ()
 showStats shelf = do
   cards <- map snd <$> shelf.works.listCards
   forM_ (Map.toList (monthly cards)) $ \(Month y m, MonthStat n (Pages p)) ->
-    T.putStrLn (T.pack (show y <> "-" <> show m) <> "  " <> T.pack (show n)
+    T.putStrLn (T.pack (show y) <> "-" <> T.justifyRight 2 '0' (T.pack (show m))
+                <> "  " <> T.pack (show n)
                 <> "冊  " <> T.pack (show p) <> "ページ")
   T.putStrLn (T.unwords [ "#" <> t <> "(" <> T.pack (show k) <> ")"
                         | (t, k) <- tagCloud cards ])

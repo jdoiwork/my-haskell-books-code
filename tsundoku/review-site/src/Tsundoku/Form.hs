@@ -123,7 +123,7 @@ explain mistake = case mistake of
   ChangedElsewhere   -> [ "開いたあとに、ほかの所で題・作者・目次が"
                           <> "変わりました。読み直してから直してください" ]
   -- ANCHOR_END: explainEdit
-  BadTag t           -> ["タグに使えません：「" <> t <> "」（空・カンマ・"
+  BadTag t           -> ["タグに使えません：「" <> t <> "」（空・カンマ・改行・"
                          <> T.pack (show tagLength) <> " 字より長いものは使えません）"]
   TooManyTags n      -> ["タグは " <> T.pack (show tagLimit) <> " 個までです："
                          <> T.pack (show n) <> " 個"]

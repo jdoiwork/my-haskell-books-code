@@ -7,6 +7,7 @@
 -- 統計、似ている作品、書き出し、ページ
 module ReviewSpec (reviewSpec) where
 
+import Control.Monad (forM_)
 import Data.ByteString.Lazy qualified as LBS
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -84,14 +85,20 @@ reviewSpec = do
 tagSpec :: Spec
 tagSpec = describe "tags" $ do
   -- 「カンマで分けて、前後の空白を落とす」
-  it "reads tags typed in one box" $
+  it "reads tags typed in one box" $ do
     readTags "推理, 魔法、図書館 , " `shouldBe` Set.fromList ["推理", "魔法", "図書館"]
+    -- the full-width comma splits too / 全角のカンマでも分ける
+    readTags "推理，魔法" `shouldBe` Set.fromList ["推理", "魔法"]
   -- 「空・カンマ入り・長すぎ・多すぎは断る」
   it "refuses blank, comma, too long, and too many" $ do
     (.tags) <$> setTags (Set.fromList ["竜"]) dragonCard
       `shouldBe` Right (Set.fromList ["竜"])
     fmap (.tags) (setTags (Set.fromList [" 竜"]) dragonCard) `shouldBe` Left (BadTag " 竜")
     fmap (.tags) (setTags (Set.fromList ["a,b"]) dragonCard) `shouldBe` Left (BadTag "a,b")
+    -- 、 and ，, and control characters (a line break, NUL)
+    -- 、と ，、制御文字（改行・NUL）
+    forM_ ["推理、魔法", "推理，魔法", "a\nb", "a\0b"] $ \t ->
+      fmap (.tags) (setTags (Set.fromList [t]) dragonCard) `shouldBe` Left (BadTag t)
     fmap (.tags) (setTags (Set.fromList [T.replicate 31 "x"]) dragonCard)
       `shouldBe` Left (BadTag (T.replicate 31 "x"))
     let many = Set.fromList [ T.pack (show n) | n <- [1 .. 21 :: Int] ]
@@ -138,9 +145,13 @@ statsSpec = describe "statistics" $ do
     finishedOn finishedDragon `shouldBe` Just (nov 12)
     finishedOn dragonCard     `shouldBe` Nothing
   -- 「月ごとに、読み終えた数と読んだページ」
-  it "counts works finished and pages read, month by month" $
+  it "counts works finished and pages read, month by month" $ do
     monthly cards `shouldBe`
       Map.fromList [(Month 2026 11, MonthStat 1 (Pages 78))]
+    -- two works finished in the same month add up
+    -- 同じ月に読み終えた2冊は、足し合わさる
+    monthly [finishedDragon, finishedDragon] `shouldBe`
+      Map.fromList [(Month 2026 11, MonthStat 2 (Pages 156))]
   -- 「タグの雲は、多い順、同じなら名前の順」
   it "makes a tag cloud, most first" $
     take 3 (tagCloud cards) `shouldBe` [("魔法", 3), ("冒険", 2), ("図書館", 2)]
@@ -154,6 +165,9 @@ statsSpec = describe "statistics" $ do
     jaccard (Set.empty :: Set.Set Text) Set.empty `shouldBe` 0
     [ w | (_, w, _) <- similarTo 3 (WorkId 1) taggedShelf ]
       `shouldBe` [WorkId 5, WorkId 2, WorkId 3]
+    -- a work with no tag in common is never "alike"
+    -- 共有するタグのない作品は、似ていない
+    length (similarTo 10 (WorkId 1) taggedShelf) `shouldBe` 3
   -- 「似ている度合いは 0〜1、向きを入れかえても同じ」
   prop "is between 0 and 1, and the same both ways" $ \a b ->
     let x = Set.fromList (a :: [Int]); y = Set.fromList b
@@ -167,6 +181,7 @@ exportSpec = describe "writing out" $ do
   it "quotes CSV fields with commas and quotes" $ do
     csvField "司書" `shouldBe` "司書"
     csvField "竜,魔法" `shouldBe` "\"竜,魔法\""
+    csvField "1行目\n2行目" `shouldBe` "\"1行目\n2行目\""
     csvField "司書は「しーっ」と\"言った\"" `shouldBe` "\"司書は「しーっ」と\"\"言った\"\"\""
   -- 「書き出しの見出しの行と、作品の行」
   it "writes a header and a row for each work" $
@@ -178,6 +193,9 @@ exportSpec = describe "writing out" $ do
     let md = toMarkdown [(WorkId 1, spoiled)]
     md `shouldSatisfy` T.isInfixOf "（ネタバレ（「第4章 怒らせたときは」を読んだら見えます））"
     md `shouldNotSatisfy` T.isInfixOf "最後に竜は眠る"
+    -- each note its own quote, with a blank line after it
+    -- 感想ごとに別の引用。あとに空行
+    md `shouldSatisfy` T.isInfixOf "> 絵が多くて読みやすい\n\n> "
 -- ANCHOR_END: exportSpec
 
 -- ANCHOR: pageSpec
@@ -187,17 +205,31 @@ pageSpec = describe "the review pages" $ with taggedSite $ do
   it "filters the shelf by a tag" $ do
     get "/?tag=%E8%BF%B7%E5%AE%AE"
       `shouldRespondWith` showing 200 ["迷宮図書館の写本係"]
+    -- and the works without the tag are gone
+    -- タグのない作品は、出ない
+    get "/?tag=%E8%BF%B7%E5%AE%AE" `shouldRespondWith` 200
+      { matchBody = MatchBody $ \_ body ->
+          if "はじめてのドラゴン学" `T.isInfixOf` TE.decodeUtf8 (LBS.toStrict body)
+            then Just "a work without the tag is shown"
+            else Nothing }
   -- 「カードのページに、タグと似ている作品」
   it "shows tags and works alike on a card's page" $
     get "/works/1" `shouldRespondWith`
       showing 200 ["#魔法", "この作品が好きなら", "/works/2"]
   -- 「タグを保存すると、タグの部品だけが返る」
-  it "saves tags and answers the tags part" $
+  it "saves tags and answers the tags part" $ do
     request methodPost "/works/1/tags"
       [ (hContentType, "application/x-www-form-urlencoded")
       , ("HX-Request", "true") ]
       "tags=%E6%8E%A8%E7%90%86%2C+%E7%AB%9C"
       `shouldRespondWith` showing 200 ["id=\"tags\"", "#推理", "#竜"]
+    -- a tag with # goes into the link URL-encoded (C# → C%23)
+    -- # 入りのタグは、URL の形にしてリンクに入る（C# → C%23）
+    request methodPost "/works/1/tags"
+      [ (hContentType, "application/x-www-form-urlencoded")
+      , ("HX-Request", "true") ]
+      "tags=C%23"
+      `shouldRespondWith` showing 200 ["href=\"/?tag=C%23\""]
   -- 「統計のページ」
   it "shows the statistics" $
     get "/stats" `shouldRespondWith` showing 200 ["読書の統計", "#魔法", "2026年のベスト"]

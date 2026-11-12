@@ -50,6 +50,7 @@ import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as TE
+import Network.HTTP.Types.URI (urlEncode)
 
 -- HTML as Haskell functions
 -- HTML を Haskell の関数で
@@ -114,7 +115,10 @@ page title body = doctypehtml_ $ do
     script_ [src_ "/static/htmx.min.js"] ("" :: Text)
   body_ [ makeAttribute "hx-on:htmx:response-error" noAnswer
         , makeAttribute "hx-on:htmx:send-error"     noAnswer ] $ do
-    header_ (a_ [href_ "/"] "📚 tsundoku")
+    header_ $ do
+      a_ [href_ "/"] "📚 tsundoku"
+      " "
+      a_ [href_ "/stats"] "📊 読書の統計"
     problemBox []
     main_ body
   where
@@ -221,10 +225,19 @@ tagsPart wid ts =
   form_ [ id_ "tags", class_ "tags"
         , hxPost (workUrl wid "tags"), hxSwap "outerHTML" ] $ do
     forM_ (Set.toList ts) $ \t ->
-      a_ [class_ "tag", href_ ("/?tag=" <> t)] (toHtml ("#" <> t))
+      a_ [class_ "tag", href_ (tagHref t)] (toHtml ("#" <> t))
     input_ [ type_ "text", name_ "tags", placeholder_ "タグ（カンマで区切る）"
            , value_ (T.intercalate ", " (Set.toList ts)) ]
     button_ "タグを保存"
+
+-- 🔗 The shelf with one tag. The tag goes into the URL encoded: "#",
+--    "&" and "+" mean something else there (C# would ask for "C").
+--    lucid escapes HTML, not URLs.
+-- タグ1つで絞った本棚へのリンク。タグは URL の形に直す（"#"・"&"・"+" は
+-- URL の中では別の意味。C# だと "C" を頼んでしまう）。lucid がするのは
+-- HTML のエスケープで、URL のエンコードではない
+tagHref :: Text -> Text
+tagHref t = "/?tag=" <> TE.decodeUtf8 (urlEncode True (TE.encodeUtf8 t))
 
 -- 🙈 A note as I may see it: shown, or a hint of when it will show.
 -- いまの自分に見せてよい感想：見せるか、いつ見えるかのヒント
@@ -260,7 +273,7 @@ statsPage style y months cloud best = page "読書の統計" $ do
           toHtml (" " <> shown p)
   h2_ "タグ"
   p_ [class_ "cloud"] $ forM_ cloud $ \(t, n) ->
-    a_ [ href_ ("/?tag=" <> t)
+    a_ [ href_ (tagHref t)
        , style_ ("font-size: " <> T.pack (show (100 + 20 * min 5 n)) <> "%") ]
        (toHtml ("#" <> t <> " "))
   h2_ (toHtml (T.pack (show y) <> "年のベスト"))
@@ -453,8 +466,12 @@ hitsPart hits = ol_ [class_ "hits"] $ forM_ hits $ \hit -> li_ $ do
   a_ [href_ ("/works/" <> T.pack (show hit.work))] (toHtml hit.title)
   unless (null hit.trail) $
     span_ [class_ "trail"] (toHtml (" > " <> T.intercalate " > " hit.trail))
-  p_ $ forM_ hit.snippet $ \snip ->
-    if snip.match then mark_ (toHtml snip.text) else toHtml snip.text
+  -- a spoiler is hidden in the hits too, as on the card's page
+  -- ネタバレは、カードのページと同じく、ヒットでも伏せる
+  if hit.spoiler
+    then p_ [class_ "hidden"] "（ネタバレの感想に当たりました。伏せています）"
+    else p_ $ forM_ hit.snippet $ \snip ->
+      if snip.match then mark_ (toHtml snip.text) else toHtml snip.text
 -- ANCHOR_END: hits
 
 -- ANCHOR: labelOf

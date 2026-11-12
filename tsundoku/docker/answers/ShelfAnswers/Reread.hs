@@ -6,7 +6,7 @@
 -- たったもの。そろそろ読み返す？
 module ShelfAnswers.Reread (wantReread) where
 
-import Data.Time (Day, addDays)
+import Data.Time (Day, addGregorianYearsClip)
 
 import Tsundoku.Card (Card (..))
 import Tsundoku.Rating (scoreValue)
@@ -20,5 +20,5 @@ wantReread today cards =
   [ wc | wc@(_, c) <- cards
        , maybe False (>= 80) (scoreValue <$> c.rating)
        , Just d <- [finishedOn c]
-       , d < addDays (-365) today ]
+       , d < addGregorianYearsClip (-1) today ]
 -- ANCHOR_END: all

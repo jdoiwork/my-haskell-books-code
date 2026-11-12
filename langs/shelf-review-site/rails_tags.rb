@@ -26,7 +26,7 @@ class Tag < ActiveRecord::Base
   has_many :taggings
   has_many :works, through: :taggings
   validates :name, presence: true, length: { maximum: 30 },
-                   format: { without: /[,、]/ }
+                   format: { without: /[,、，[:cntrl:]]/ }
 end
 
 class Tagging < ActiveRecord::Base
@@ -41,7 +41,7 @@ class Work < ActiveRecord::Base
   # "推理, 魔法" -> the tags 推理 and 魔法 (made if new)
   # 「推理, 魔法」→ タグ 推理 と 魔法（なければ作る）
   def tag_list=(typed)
-    names = typed.split(/[,、]/).map(&:strip).reject(&:empty?).uniq
+    names = typed.split(/[,、，]/).map(&:strip).reject(&:empty?).uniq
     self.tags = names.map { |n| Tag.find_or_create_by!(name: n) }
   end
 end
@@ -66,9 +66,11 @@ raise "cloud: #{tag_cloud}" unless tag_cloud.first == ["魔法", 2]
 
 # A tag with a comma is refused by the validation
 # カンマ入りのタグは、検証が断る
-begin
-  Tag.create!(name: "a,b")
-  raise "a comma was taken"
-rescue ActiveRecord::RecordInvalid
+["a,b", "a，b", "a\nb"].each do |name|
+  begin
+    Tag.create!(name: name)
+    raise "#{name.inspect} was taken"
+  rescue ActiveRecord::RecordInvalid
+  end
 end
 puts "ok"

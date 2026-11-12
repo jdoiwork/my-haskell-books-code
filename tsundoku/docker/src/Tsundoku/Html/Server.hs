@@ -141,7 +141,12 @@ pageServer style clock shelf = PageRoutes
       schema <- liftIO shelf.custom.getSchema
       case found of
         Just card -> do
-          cards <- liftIO shelf.works.listCards
+          -- the whole shelf only for "alike", and only when there are
+          -- tags to compare: this is the page opened most often
+          -- 本棚の全部は「似ている作品」のためだけ。くらべるタグがある
+          -- ときだけ読む（いちばんよく開くページなので）
+          cards <- if Set.null card.tags then pure []
+                   else liftIO shelf.works.listCards
           pure (cardPage style (formFor schema card) (extrasOf cards wid card)
                          (detailOf (wid, card)))
         Nothing   -> throwError err404

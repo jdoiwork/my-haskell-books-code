@@ -38,6 +38,7 @@ module Tsundoku.Card
 -- `when`, dictionaries, Maybe, and text
 -- when、辞書、Maybe、文字列
 import Control.Monad (when)
+import Data.Char (isControl)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (maybeToList)
@@ -450,9 +451,11 @@ tagLimit  = 20
 tagLength = 30
 
 -- 🏷️ Put these tags on a card (replacing the old ones). A tag must not
---    be blank, hold a comma, or be too long; and not too many of them.
--- カードにタグを付ける（前のタグと取り替える）。空白だけ、カンマ入り、
--- 長すぎるタグは使えない。数も多すぎてはいけない
+--    be blank, hold a comma (, 、 or ，) or a control character (a line
+--    break, NUL), or be too long; and not too many of them.
+-- カードにタグを付ける（前のタグと取り替える）。空白だけ、カンマ（, と
+-- 、と ，）入り、制御文字（改行・NUL）入り、長すぎるタグは使えない。
+-- 数も多すぎてはいけない
 setTags :: Set Text -> Card -> Checked Card
 setTags new card
   | Set.size new > tagLimit = Left (TooManyTags (Set.size new))
@@ -461,15 +464,21 @@ setTags new card
       []      -> Right card { tags = new }
   where
     unusable t = T.null (T.strip t) || T.strip t /= t
-              || T.any (`elem` [',', '、']) t || T.length t > tagLength
+              || T.any (`elem` tagCommas) t || T.any isControl t
+              || T.length t > tagLength
+
+-- ✂️ The commas that split tags: the ASCII one, 、, and the full-width ，.
+-- タグを分けるカンマ：半角の , と 、と、全角の ，
+tagCommas :: [Char]
+tagCommas = [',', '、', '，']
 
 -- ✂️ Tags typed in one box: "推理, 魔法、図書館" → {図書館, 推理, 魔法}.
---    Commas (, or 、) split them; blanks around them go away.
+--    Commas (, 、 or ，) split them; blanks around them go away.
 -- 1つの箱に打ったタグ：「推理, 魔法、図書館」→ {図書館, 推理, 魔法}。
--- カンマ（, か 、）で分け、前後の空白は落とす
+-- カンマ（, か 、か ，）で分け、前後の空白は落とす
 readTags :: Text -> Set Text
 readTags typed = Set.fromList
-  [ t | piece <- T.split (`elem` [',', '、']) typed
+  [ t | piece <- T.split (`elem` tagCommas) typed
       , let t = T.strip piece, not (T.null t) ]
 -- ANCHOR_END: tags
 -- ANCHOR_END: all
