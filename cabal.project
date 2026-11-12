@@ -23,6 +23,7 @@ packages:
   treasury
   debuglog
   libtour
+  datetime
   jsonbook
   loot
   mondex

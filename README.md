@@ -75,6 +75,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | デバッグとログ：プログラムの中をのぞく | [`debuglog/`](debuglog/) |
 | 関数とドキュメントの探し方：Hoogle・Hackage・GHCi、そして AI | [`finding/`](finding/) |
 | よく使うライブラリ | [`libtour/`](libtour/) |
+| 日付と時刻とタイムゾーン：time で、まちがえやすいものを型で分ける | [`datetime/`](datetime/)、[`langs/datetime/`](langs/datetime/)、[`langs/cargo/`](langs/cargo/) |
 | JSON を扱う：aeson でシリアライズ・デシリアライズ | [`jsonbook/`](jsonbook/)、[`langs/json/`](langs/json/)、[`langs/cargo/`](langs/cargo/) |
 | テスト | [`loot/`](loot/)、[`langs/testing/`](langs/testing/)、[`langs/cargo/`](langs/cargo/) |
 | CLI ツールを作る | [`mondex/`](mondex/)、[`langs/cli-tool/`](langs/cli-tool/)、[`langs/cargo/`](langs/cargo/) |
@@ -183,7 +184,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 設計：値とコマンドを型で描く | [`minikv/01-design/`](minikv/01-design/)、[`langs/kv-design/`](langs/kv-design/) |
 | プロトコルとパーサー | [`minikv/02-protocol/`](minikv/02-protocol/)、[`minikv/01-design/`](minikv/01-design/)、[`langs/kv-protocol/`](langs/kv-protocol/) |
 | TCP サーバーにする | [`minikv/03-server/`](minikv/03-server/)、[`minikv/02-protocol/`](minikv/02-protocol/)、[`langs/kv-server/`](langs/kv-server/) |
-| 期限切れと時計 | [`minikv/04-expiry/`](minikv/04-expiry/)、[`langs/kv-expiry/`](langs/kv-expiry/) |
+| 期限切れと時計 | [`minikv/04-expiry/`](minikv/04-expiry/)、[`minikv/04-expiry/answers/pexpire/`](minikv/04-expiry/answers/pexpire/)、[`langs/kv-expiry/`](langs/kv-expiry/) |
 | 永続化：落ちても戻れる | [`minikv/05-persist/`](minikv/05-persist/)、[`langs/kv-persistence/`](langs/kv-persistence/) |
 | Pub/Sub とブロッキング | [`minikv/06-pubsub/`](minikv/06-pubsub/)、[`minikv/05-persist/`](minikv/05-persist/)、[`langs/kv-pubsub/`](langs/kv-pubsub/) |
 | 型に厳しいクライアント | [`minikv/07-client/`](minikv/07-client/)、[`minikv/06-pubsub/`](minikv/06-pubsub/)、[`langs/kv-typed-client/`](langs/kv-typed-client/) |
