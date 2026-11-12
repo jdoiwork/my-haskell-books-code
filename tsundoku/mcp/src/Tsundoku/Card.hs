@@ -46,7 +46,7 @@ import Tsundoku.Custom (findFlow, nextStates, readFields)
 import Tsundoku.Progress (growWith)
 import Tsundoku.Rating (Score)
 import Tsundoku.Reading (advance)
-import Tsundoku.TocCheck (shapeProblems)
+import Tsundoku.TocCheck (newProblems)
 import Tsundoku.Types
 -- ANCHOR_END: header
 
@@ -262,19 +262,19 @@ sizeLimit = 1000000
 checkWork :: Work -> Checked Work
 checkWork = checkWorkAllowing []
 
--- 🚪 The same gate, letting through the problems of shape the table
---    already had. A work can come in by other ways (imported, or grown
---    by new episodes) without this gate; fixing its title must not be
---    refused for what was there before.
--- 同じ門。ただし、目次にもとからあった形のまずい所は通す。作品は、
--- この門を通らない入り口（取り込み、新しい話）からも来る。題を直す
--- だけで、前からあったものを理由に断らない
-checkWorkAllowing :: [TocProblem] -> Work -> Checked Work
-checkWorkAllowing known w = do
+-- 🚪 The same gate, given the headings of the table before: the
+--    problems of shape it already had are let through (newProblems). A
+--    work can come in by other ways (imported, or grown by new episodes)
+--    without this gate; fixing its title must not be refused for what
+--    was there before.
+-- 同じ門。もとの目次の見出しを受け取り、もとからあった形のまずい所は通す
+-- （newProblems）。作品は、この門を通らない入り口（取り込み、新しい話）
+-- からも来る。題を直すだけで、前からあったものを理由に断らない
+checkWorkAllowing :: Forest Text -> Work -> Checked Work
+checkWorkAllowing before w = do
   when (T.null (T.strip (title w)))       (Left EmptyTitle)
   when (T.length (title w) > titleLimit) (Left (LongTitle titleLimit))
-  case [ p | p <- shapeProblems (headingsOf (contents w))
-           , p `notElem` known ] of
+  case newProblems before (headingsOf (contents w)) of
     []       -> Right ()
     problems -> Left (BadToc problems)
   case [ name | (name, n) <- amountsIn w, n < 0 ] of
@@ -334,7 +334,7 @@ revise from r card = do
   when (asOpened (work card) /= basedOn r) (Left ChangedElsewhere)
   -- ANCHOR_END: staleCheck
   table <- retable from r (contents (work card))
-  let before = shapeProblems (headingsOf (contents (work card)))
+  let before = headingsOf (contents (work card))
   fixed <- checkWorkAllowing before (Work (newTitle r) (newCreator r) table)
   pure (followTable (notesOnRemoved r) (entryIds table)
                     card { work = fixed })

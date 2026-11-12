@@ -96,6 +96,19 @@ coreSpec = describe "fixing a work by hand" $ do
         byHim = (asRevision (work long)) { newCreator = "竜" }
     fmap (creator . work) (revise (EntryId 600) byHim long)
       `shouldBe` Right "竜"
+    -- one line less is let through (still too long, but shorter); a
+    --   blank heading is refused even in a table that is too long
+    -- 1行へらすのは通す（まだ長すぎるが、短くなった）。長すぎる目次でも、
+    -- 空の見出しは断る
+    let asIs    = asRevision (work long)
+        shorter = dropLines [501] asIs
+        blanked = asIs { newToc = case newToc asIs of
+                           Node i kids : rest ->
+                             Node i { itemHeading = "" } kids : rest
+                           [] -> [] }
+    fmap (const ()) (revise (EntryId 600) shorter long) `shouldBe` Right ()
+    revise (EntryId 600) blanked long
+      `shouldBe` Left (BadToc [EmptyHeading []])
 
   -- 「どの行を消しても、感想は1つも消えず、どれもある所を指す」
   it "never loses a note, whichever lines are gone" $

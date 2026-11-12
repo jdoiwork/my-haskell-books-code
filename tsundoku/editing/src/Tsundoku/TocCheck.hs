@@ -9,6 +9,7 @@
 -- ANCHOR: header
 module Tsundoku.TocCheck
   ( shapeProblems
+  , newProblems
   , explainToc
   , maxDepth
   , maxItems
@@ -42,14 +43,40 @@ maxItems = 500
 -- 枝がはじめて深すぎた所だけを言う（その下の行は、言わない）
 shapeProblems :: Forest Text -> [TocProblem]
 shapeProblems forest
-  | length rows > maxItems = [ TooMany (length rows) ]
-  | otherwise              = nub $ concat
-      [ [ EmptyHeading above | (above, h) <- rows, blank h ]
-      , [ SameHeading above h | (above, siblings) <- families
-                              , h <- twice siblings ]
-      , [ TooDeep (above ++ [h]) | (above, h) <- rows
-                                 , length above == maxDepth ]
-      ]
+  | n > maxItems = [ TooMany n ]
+  | otherwise    = details forest
+  where
+    n = length (walk [] forest)
+
+-- 🆕 The problems a fixed table has that the table before it did not
+--    have. Too many is said only when the rows grew, so a table that is
+--    already too long can be cut down a little at a time; the other
+--    problems are compared one by one even then (a long table does not
+--    hide a new blank heading), and only the first ten are said, to keep
+--    the answer small.
+-- 直した目次の、もとの目次になかったまずい所。多すぎるのは、行が増えた
+-- ときだけ言う（もう長すぎる目次を、少しずつ減らして直せる）。ほかの
+-- まずい所は、そのときも1つずつくらべる（長い目次の陰に、新しい空の
+-- 見出しを隠さない）。答えを小さく保つため、言うのは初めの10個まで
+newProblems :: Forest Text -> Forest Text -> [TocProblem]
+newProblems before after
+  | n > maxItems, n > length (walk [] before) = [ TooMany n ]
+  | n > maxItems = take 10 fresh
+  | otherwise    = fresh
+  where
+    n     = length (walk [] after)
+    fresh = [ p | p <- details after, p `notElem` details before ]
+
+-- 🔍 The problems other than too many, each said once.
+-- 多すぎる、のほかのまずい所を、1回ずつ
+details :: Forest Text -> [TocProblem]
+details forest = nub $ concat
+  [ [ EmptyHeading above | (above, h) <- rows, blank h ]
+  , [ SameHeading above h | (above, siblings) <- families
+                          , h <- twice siblings ]
+  , [ TooDeep (above ++ [h]) | (above, h) <- rows
+                             , length above == maxDepth ]
+  ]
   where
     rows     = [ (above, rootLabel t) | (above, t) <- walk [] forest ]
     families = ([], map rootLabel forest) :
