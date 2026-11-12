@@ -20,7 +20,9 @@ module Review.BookClub
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Text qualified as T
 import Data.Tree (flatten)
+import Graphics.Text.Width (safeWcswidth)
 
 import Tsundoku.Bar (cardSummary)
 import Tsundoku.Card (Card (..), addNote)
@@ -34,7 +36,12 @@ import Tsundoku.Types
 
 -- ANCHOR: member
 -- 👥 One person of the circle, with their own card of the same book.
--- 読書会の1人。同じ本の、その人のカードを持つ
+--    The cards are copies from one shelf: entries are matched by their
+--    numbers, and a shelf numbers its entries all through (two shelves
+--    give the same book different numbers).
+-- 読書会の1人。同じ本の、その人のカードを持つ。カードは、1つの本棚から
+-- 写したもの：項目は番号で突き合わせるが、番号は本棚の通し番号なので、
+-- べつべつの本棚では、同じ本でも番号がちがう
 data Member = Member
   { name :: Text
   , card :: Card
@@ -42,13 +49,18 @@ data Member = Member
 
 -- 📊 Where everyone is: a name, then the bar of their own card. Names
 --    are padded by their width on the screen (padTo counts a full-width
---    letter as two), so the bars line up.
--- みんながどこまで：名前と、その人のカードのバー。名前は画面の幅で詰める
--- （padTo は全角の文字を2桁と数える）ので、バーがそろう
+--    letter as two) to the longest name and two more, so the bars line
+--    up however long a name is.
+-- みんながどこまで：名前と、その人のカードのバー。名前は画面の幅で、
+-- いちばん長い名前の2桁先まで詰める（padTo は全角の文字を2桁と数える）。
+-- 名前がどんなに長くても、バーがそろう
 progressLines :: [Member] -> [Text]
 progressLines members =
-  [ padTo 12 m.name <> fromMaybe "（進み具合なし）" (cardSummary 10 m.card)
+  [ padTo width m.name <> fromMaybe "（進み具合なし）" (cardSummary 10 m.card)
   | m <- members ]
+  where
+    width = 2 + maximum (0 : map nameWidth members)
+    nameWidth m = safeWcswidth (T.unpack m.name)
 -- ANCHOR_END: member
 
 -- ANCHOR: seenBy
@@ -71,7 +83,8 @@ seenBy reader writer =
 -- いけないところ
 ahead :: Card -> Card -> [Text]
 ahead front back =
-  [ h | (e, h) <- entriesOf front, e `Set.member` mine, not (e `Set.member` theirs) ]
+  [ h | (e, h) <- entriesOf front
+      , e `Set.member` mine, not (e `Set.member` theirs) ]
   where
     mine   = finishedIn front.readLog
     theirs = finishedIn back.readLog
@@ -98,7 +111,8 @@ meetingPoint members = case members of
     (_, h) : _ -> Just h
     []         -> Nothing
   where
-    everyone (e, _) = all (\x -> e `Set.member` finishedIn x.card.readLog) members
+    everyone (e, _) = all (readIt e) members
+    readIt e x      = e `Set.member` finishedIn x.card.readLog
 -- ANCHOR_END: meetingPoint
 
 -- ANCHOR: sampleClub
@@ -112,7 +126,8 @@ sampleClub =
   , Member "TS くん"   dragonCard ]
   where
     lambda = surely $ addNote
-      (Note (OnEntry (EntryId 8)) "最後は、竜と和解する" (onDay 2026 11 12) True)
+      (Note (OnEntry (EntryId 8)) "最後は、竜と和解する"
+            (onDay 2026 11 12) True)
       finishedDragon
 -- ANCHOR_END: sampleClub
 -- ANCHOR_END: all

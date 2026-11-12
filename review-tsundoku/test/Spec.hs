@@ -15,7 +15,8 @@ import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 
 import Tsundoku.Card (Card (..))
-import Tsundoku.Examples (dragonCard, finishedDragon, nov)
+import Tsundoku.Card (addNote)
+import Tsundoku.Examples (dragonCard, finishedDragon, nov, onDay, surely)
 import Tsundoku.Progress (finishedIn)
 import Tsundoku.Review (Seen (..))
 import Tsundoku.Types
@@ -44,10 +45,18 @@ readerWith :: [Int] -> Card
 readerWith ns = dragonCard
   { readLog = [ LogLine (nov 1) (EntryId n) | n <- ns ]
   , reading = Reading }
--- ANCHOR_END: helpers
 
+-- 🔒 ラムダくん's card with one more spoiler, on the whole work.
+-- ラムダくんのカードに、作品全体へのネタバレをもう1つ
+lambdaWithEnd :: Card
+lambdaWithEnd = surely $ addNote
+  (Note OnWork "竜は、じつは司書だった" (onDay 2026 11 13) True) lambdaCard
+
+-- every step's tests go below
+-- どのステップのテストも、この下に並べる
 main :: IO ()
 main = hspec $ do
+-- ANCHOR_END: helpers
   -- ANCHOR: step1
   describe "where everyone is" $
     -- 「みんなのバー」
@@ -62,7 +71,8 @@ main = hspec $ do
     -- 「TS くんには、最後の章のネタバレは見えない」
     it "hides from TS-kun the spoiler on the last chapter" $
       bodies (seenBy tsCard lambdaCard) `shouldBe`
-        [ Just "絵が多くて読みやすい", Just "火を吐かない種もいるとは！", Nothing ]
+        [ Just "絵が多くて読みやすい", Just "火を吐かない種もいるとは！"
+        , Nothing ]
     -- 「ラムダくんには、全部見える」
     it "shows ラムダくん everything" $
       bodies (seenBy lambdaCard lambdaCard) `shouldBe`
@@ -71,20 +81,23 @@ main = hspec $ do
     -- 「ラムダくんが、まだ話してはいけない章」
     it "says what ラムダくん should not talk about yet" $
       ahead lambdaCard tsCard `shouldBe`
-        ["第2部 ドラゴンと話す", "第3章 あいさつの作法", "第4章 怒らせたときは"]
+        [ "第2部 ドラゴンと話す", "第3章 あいさつの作法"
+        , "第4章 怒らせたときは" ]
   -- ANCHOR_END: step2
 
   -- ANCHOR: step3
   describe "no spoiler leaks" $
-    -- 「どんなに飛ばし読みしても、見えるネタバレは、読んだ項目のものだけ」
+    -- 「読み終えていない人なら、どんなに飛ばし読みしても、見えるネタバレは、
+    --   読んだ項目のものだけ」
     prop "shows a spoiler only on an entry the reader has read" $
       forAll (sublistOf [1 .. 8]) $ \ns ->
-        let reader = readerWith ns
+      forAll (elements [Piled, Reading, Paused]) $ \state ->
+        let reader = (readerWith ns) { reading = state }
             read'  = finishedIn reader.readLog
         in  and [ case n.target of
                     OnEntry e -> e `Set.member` read'
                     OnWork    -> False
-                | Shown n <- seenBy reader lambdaCard, n.spoiler ]
+                | Shown n <- seenBy reader lambdaWithEnd, n.spoiler ]
   -- ANCHOR_END: step3
 
   -- ANCHOR: step4

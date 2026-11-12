@@ -14,6 +14,9 @@ common shared
     , tsundoku
     , containers       ^>=0.8
     , text             ^>=2.1
+    -- vty: the width of a name on the screen (safeWcswidth)
+    -- vty：名前の画面の幅（safeWcswidth）
+    , vty              ^>=6.7
     -- unicode-show: to show Japanese as it is in GHCi (uprint)
     -- unicode-show：GHCi で日本語をそのまま見せるため（uprint）
     , unicode-show     ^>=0.1.1
