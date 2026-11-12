@@ -27,7 +27,7 @@ module Tsundoku.Mcp.Toc
 -- bits and words for the key, lists, text, and trees
 -- 鍵のためのビットと数、リスト、文字列、木
 import Data.Bits (xor)
-import Data.Char (ord)
+import Data.Char (isControl, ord)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Tree (Tree (..))
@@ -65,19 +65,29 @@ data Chapter = Chapter
   deriving (Show, Eq)
 
 -- 📥 Read from the arguments. creator and children may be left out.
--- 引数から読む。creator と children は、なくてもよい
+--    A line break in a title, a creator, or a heading becomes a space:
+--    the draft is shown line by line, and a line put in there would look
+--    like one of ours ("key: …").
+-- 引数から読む。creator と children は、なくてもよい。題・作者・見出しの
+-- 改行は空白にする。下書きは1行ずつ見せるので、そこに入れた行は、こちらの
+-- 行（「key: …」）に見えてしまう
 instance FromJSON TocDraft where
   parseJSON = withObject "TocDraft" $ \o -> TocDraft
-    <$> o .:  "title"
-    <*> o .:? "creator" .!= ""
+    <$> (oneLine <$> o .:  "title")
+    <*> (oneLine <$> o .:? "creator" .!= "")
     <*> o .:  "last_page"
     <*> o .:  "toc"
 
 instance FromJSON Chapter where
   parseJSON = withObject "Chapter" $ \o -> Chapter
-    <$> o .:  "heading"
+    <$> (oneLine <$> o .:  "heading")
     <*> o .:  "page"
     <*> o .:? "children" .!= []
+
+-- ↩️ Control characters (line breaks, tabs) to spaces.
+-- 制御文字（改行・タブ）を空白に
+oneLine :: Text -> Text
+oneLine = T.map (\c -> if isControl c then ' ' else c)
 -- ANCHOR_END: draft
 
 -- ANCHOR: problems
@@ -88,16 +98,28 @@ instance FromJSON Chapter where
 -- 一度に直せるように。形は、どの目次とも同じように確かめ（TocCheck）、
 -- ページはここだけで確かめる
 tocProblems :: TocDraft -> [TocProblem]
-tocProblems d = concat
-  [ [ NoChapters | null d.toc ]
-  , shapeProblems (map headings d.toc)
-  , [ PageOutside (pathOf above c) c.page
-    | (above, c) <- rows, c.page < 1 || c.page > d.lastPage ]
-  , [ PageBefore (pathOf above c) c.page before.heading before.page
-    | ((_, before), (above, c)) <- zip rows (drop 1 rows)
-    , c.page < before.page ]
-  ]
+tocProblems d
+  | any tooBig shape = [ NoChapters | null d.toc ] ++ shape
+  | otherwise        = concat
+      [ [ NoChapters | null d.toc ]
+      , shape
+      , [ PageOutside (pathOf above c) c.page
+        | (above, c) <- rows, c.page < 1 || c.page > d.lastPage ]
+      , [ PageBefore (pathOf above c) c.page before.heading before.page
+        | ((_, before), (above, c)) <- zip rows (drop 1 rows)
+        , c.page < before.page ]
+      ]
   where
+    -- too many or too deep: say only that (fix the shape first). The
+    -- pages of every row, each with its whole path, would make the
+    -- answer grow with the square of the depth
+    -- 多すぎ・深すぎ：それだけを言う（まず形を直す）。どの行のページにも
+    -- 道順をまるごと付けると、答えが深さの2乗でふくらむ
+    shape = shapeProblems (map headings d.toc)
+    tooBig p = case p of
+      TooMany _ -> True
+      TooDeep _ -> True
+      _         -> False
     rows = walk [] d.toc
     pathOf above c = above ++ [c.heading]
     headings c = Node c.heading (map headings c.children)

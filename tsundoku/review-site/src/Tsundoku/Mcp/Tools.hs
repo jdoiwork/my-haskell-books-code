@@ -64,7 +64,7 @@ lookTools :: Glance -> [Tool]
 lookTools g =
   [ Tool "list_works" "本棚の作品の一覧（番号・状態・評価・題）"
          (objectSchema [] [])
-         (\_ -> Answer . T.unlines . map line <$> g.listCards)
+         (\_ -> Answer . shelfText <$> g.listCards)
   , Tool "show_work"
          "作品1つ：進み具合・読書の状態・目次（✓は読了）・感想"
          (objectSchema [ ("id",       intP  "作品の番号")
@@ -77,11 +77,16 @@ lookTools g =
          searchWords
   ]
   where
+    -- an empty shelf says so: "" alone looks like no answer at all
+    -- 空の本棚は、そう言う（"" だけだと、答えがないように見える）
+    shelfText []    = "本棚に作品がありません"
+    shelfText cards = T.unlines (map line cards)
     line (WorkId n, card) =
       T.pack (show n) <> ". " <> workLine (summaryOf (WorkId n, card))
-    showWork args = case arg "id" args of
-      Nothing -> pure (Refuse "id（作品の番号）がありません")
-      Just n  -> do
+    showWork args = case argOf "id" args of
+      Missing -> pure (Refuse "id（作品の番号）がありません")
+      Wrong   -> pure (Refuse "id は数で送ってください（\"1\" ではなく 1）")
+      Got n   -> do
         found <- g.getCard (WorkId n)
         pure $ case found of
           Nothing   -> Refuse (T.unlines (explain (NoSuchWork (WorkId n))))
@@ -159,8 +164,15 @@ unitWord u = case u of
 hitLine :: HitItem -> Text
 hitLine h = T.pack (show h.work) <> ". "
          <> T.intercalate " > " (h.title : h.trail) <> "："
-         <> foldMap piece h.snippet
+         <> snippet
   where
+    -- a spoiler is hidden here too, as in show_work: the AI would read
+    -- it out in the chat
+    -- ネタバレは、show_work と同じく、ここでも伏せる（AI がチャットで
+    -- 読み上げてしまう）
+    snippet
+      | h.spoiler = "（ネタバレの感想に当たりました。伏せています）"
+      | otherwise = foldMap piece h.snippet
     piece s = if s.match then "【" <> s.text <> "】" else s.text
 -- ANCHOR_END: text
 
@@ -184,11 +196,20 @@ editTools clock works reading keep =
   ]
   where
     addToc args = case parseEither parseJSON (Object args) of
-      Left why    -> pure (Refuse ("目次の形が読めません：" <> T.pack why))
+      Left why    -> pure (Refuse (T.unlines
+        [ "目次の形が読めません：" <> T.pack why
+        , "page は数で（引用符なしで）送ってください。ページの書いていない"
+          <> "見出し（部の扉など）にも、その下の最初の章と同じページを"
+          <> "入れてください" ]))
       Right draft -> do
         shelf <- works.listCards
-        decideToc works keep args (planToc shelf draft)
+        let same = [ wid | (wid, c) <- shelf
+                         , c.work.title   == draft.title
+                         , c.work.creator == draft.creator ]
+        decideToc works keep args same (planToc shelf draft)
     addNote args = case (arg "id" args, arg "body" args) of
+      _ | Wrong <- (argOf "id" args :: Arg Int) ->
+            pure (Refuse "id は数で送ってください（\"1\" ではなく 1）")
       (Just n, Just body) -> do
         now <- clock
         let note = Note OnWork body now (fromMaybe False (arg "spoiler" args))
@@ -207,8 +228,10 @@ editTools clock works reading keep =
 -- 同じ鍵があれば、足す。同じ目次がもう一度来たら、もうあると言う（二重には
 -- 足さない）
 decideToc :: WorkWindow -> (WorkId -> Text -> IO (Checked ())) -> Object
-          -> Plan -> IO Reply
-decideToc works keep args plan = case plan of
+          -> [WorkId] -> Plan -> IO Reply
+decideToc works keep args same plan = case plan of
+  _ | Wrong <- commitArg -> pure (Refuse
+        "commit は true か false で送ってください（引用符なしで）")
   Problems why -> pure (Refuse (T.unlines ("目次を直してください：" : why)))
   Already wid  -> pure (Answer ("もう登録してあります：作品 " <> num wid
                                <> "。二重には登録しません"))
@@ -216,6 +239,10 @@ decideToc works keep args plan = case plan of
     | not commit -> pure (Answer (T.unlines (
         "下書きです。まだ登録していません。" : preview w
         ++ [ "出版社：" <> p | Just p <- [publisher] ]
+        ++ [ "同じ題と作者の作品 " <> T.intercalate "・" (map num same)
+             <> " が、もう本棚にあります（目次がちがいます）。"
+             <> "直したいなら、画面の「直す」で直してください"
+           | not (null same) ]
         ++ [ "key: " <> key
            , "よければ、同じ引数に commit: true と、この key を付けて"
              <> "送ってください" ])))
@@ -233,7 +260,10 @@ decideToc works keep args plan = case plan of
               : either (\m -> "出版社は書けませんでした：" : explain m)
                        (const []) kept)))
   where
-    commit    = fromMaybe False (arg "commit" args)
+    commitArg = argOf "commit" args :: Arg Bool
+    commit    = case commitArg of
+      Got c -> c
+      _     -> False
     publisher = mfilter (not . T.null) (arg "publisher" args)
     num (WorkId n) = T.pack (show n)
 
@@ -270,8 +300,14 @@ tocSchema = object
       [ "chapter" .= object
           [ "type"       .= ("object" :: Text)
           , "properties" .= object
-              [ "heading"  .= textP "見出し"
-              , "page"     .= intP  "始まるページ"
+              [ "heading"  .= object
+                  [ "type"        .= ("string" :: Text)
+                  , "minLength"   .= (1 :: Int)
+                  , "description" .= ("見出し" :: Text) ]
+              , "page"     .= object
+                  [ "type"        .= ("integer" :: Text)
+                  , "minimum"     .= (1 :: Int)
+                  , "description" .= ("始まるページ" :: Text) ]
               , "children" .= arrayOf chapterRef ]
           , "required"   .= (["heading", "page"] :: [Text]) ] ]
   ]
@@ -283,7 +319,8 @@ addTocHelp = T.unwords
   [ "本の目次を、木の形で登録する。page は各章の始まるページ。"
   , "出版社がわかれば publisher に書く（作者の欄には入れない）。"
   , "まず commit なしで送ると、登録される本と key が返る。"
-  , "よければ commit: true と key を付けて、もう一度送る。" ]
+  , "その下書きを、そのまま人に見せて、よいと言われてから、"
+  , "commit: true と key を付けて、もう一度送る。" ]
 
 -- 🧱 Small pieces of JSON Schema.
 -- JSON Schema の小さな部品

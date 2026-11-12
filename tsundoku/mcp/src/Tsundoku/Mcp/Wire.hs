@@ -15,14 +15,20 @@ module Tsundoku.Mcp.Wire
   , handle
   , serveStdio
   , arg
+  , Arg (..)
+  , argOf
   ) where
 
--- JSON, bytes, text, and stdout
--- JSON、バイト列、文字列、標準出力
+-- exceptions, JSON, bytes, text, and stdout
+-- 例外、JSON、バイト列、文字列、標準出力
+import Control.Exception (SomeAsyncException, displayException,
+                          fromException, throwIO, try)
 import Data.Aeson
+import Data.Aeson.KeyMap qualified as KM
 import Data.Aeson.Types (Parser, parseMaybe)
 import Data.ByteString.Lazy.Char8 qualified as BL
 import Data.Text (Text)
+import Data.Text qualified as T
 import System.IO (BufferMode (..), hSetBuffering, stdout)
 -- ANCHOR_END: header
 
@@ -46,6 +52,18 @@ data Reply = Answer Text | Refuse Text
 -- 引数を1つ、道具が欲しい型として読む
 arg :: FromJSON a => Key -> Object -> Maybe a
 arg key args = parseMaybe (.: key) args
+
+-- 🔎 The same, telling "not there" from "there, but of another type"
+--    ("1" for a number): the AI can fix the second only if it is told.
+-- 同じく。ただし「ない」と「あるが型がちがう」（数に "1"）を分ける。
+-- 2つ目は、言われなければ AI は直せない
+data Arg a = Missing | Wrong | Got a
+
+argOf :: FromJSON a => Key -> Object -> Arg a
+argOf key args = case KM.lookup key args of
+  Nothing   -> Missing
+  Just Null -> Missing
+  Just v    -> maybe Wrong Got (parseMaybe parseJSON v)
 -- ANCHOR_END: tool
 
 -- ANCHOR: handle
@@ -98,24 +116,42 @@ hello server message = object
 -- AI が名指しした道具を、その引数で呼ぶ。名前がない・ない道具は、MCP の
 -- 仕様のとおりプロトコルのエラー。道具そのものの断りは isError の結果
 call :: [Tool] -> Value -> IO (Either (Int, Text) Value)
-call tools message = case parseMaybe nameAndArgs message of
+call tools message = case parseMaybe nameOf message of
   Nothing -> pure (Left (-32602, "params.name is missing"))
-  Just (wanted, args) ->
-    case [ t | t <- tools, t.name == wanted ] of
+  Just wanted -> case parseMaybe argsOf message of
+    Nothing -> pure (Left (-32602, "params.arguments must be an object"))
+    Just args -> case [ t | t <- tools, t.name == wanted ] of
       []    -> pure (Left (-32602, "Unknown tool: " <> wanted))
       t : _ -> do
-        reply <- t.run args
+        reply <- runSafely (t.run args)
         pure $ Right $ case reply of
           Answer text -> result False text
           Refuse text -> result True  text
   where
-    nameAndArgs = withObject "message" $ \o -> do
+    nameOf = withObject "message" $ \o -> o .: "params" >>= (.: "name")
+    argsOf = withObject "message" $ \o -> do
       params <- o .: "params"
-      (,) <$> params .: "name" <*> (params .:? "arguments" .!= mempty)
+      params .:? "arguments" .!= mempty
     result :: Bool -> Text -> Value
     result isError text = object
       [ "content" .= [object ["type" .= ("text" :: Text), "text" .= text]]
       , "isError" .= isError ]
+
+-- 🧯 Run a tool. If it throws (the shelf locked by another program, the
+--    database gone), say so as a refusal the AI can read, and keep
+--    serving: the next message still gets an answer. Ctrl-C and other
+--    asynchronous exceptions go on as they are.
+-- 道具を動かす。例外が飛んだら（ほかのプログラムが本棚に鍵をかけた、
+-- データベースが消えた）、AI が読める断りにして、サーバーは続ける。
+-- 次のメッセージにも答える。Ctrl-C などの非同期の例外は、そのまま通す
+runSafely :: IO Reply -> IO Reply
+runSafely act = try act >>= \case
+  Right reply -> pure reply
+  Left e
+    | Just (_ :: SomeAsyncException) <- fromException e -> throwIO e
+    | otherwise -> pure (Refuse
+        ("本棚でエラーが起きました：" <> T.pack (displayException e)
+           <> "。少し待って、もう一度試してください"))
 
 -- 📮 A JSON-RPC answer, or an error.
 -- JSON-RPC の答えか、エラー

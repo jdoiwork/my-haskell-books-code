@@ -103,6 +103,13 @@ tocSpec = describe "the tree from the AI" $ do
                  [Chapter "d" 1 [Chapter "e" 1 []]]]]
     tocProblems (withToc [deep]) `shouldBe` [TooDeep ["a", "b", "c", "d", "e"]]
     tocProblems (withToc [Chapter "a" 121 []]) `shouldBe` [PageOutside ["a"] 121]
+    tocProblems (withToc [Chapter "a" 0 []]) `shouldBe` [PageOutside ["a"] 0]
+    -- too deep is said alone: the pages are not looked at yet
+    -- 深すぎるときは、それだけ。ページはまだ見ない
+    let deepAt0 = Chapter "a" 0 [Chapter "b" 0 [Chapter "c" 0
+                    [Chapter "d" 0 [Chapter "e" 0 []]]]]
+    tocProblems (withToc [deepAt0])
+      `shouldBe` [TooDeep ["a", "b", "c", "d", "e"]]
   -- 「直し方がわかる言葉で」
   it "says what to fix" $
     explainToc (PageBefore ["第3章"] 12 "第2章" 30)
@@ -128,6 +135,11 @@ tocSpec = describe "the tree from the AI" $ do
     Just c <- shelf.works.getCard wid
     workKey c.work `shouldBe` workKey w
     workKey w `shouldNotBe` workKey (Work "竜の飼い方入門 第2版" "竜田まもる" w.contents)
+    -- the sizes are in the key too: one more page, another key
+    -- 量も鍵の材料：1ページちがえば、別の鍵
+    Right longer <- pure (draftWork
+                      (TocDraft eggs.title eggs.creator 121 eggs.toc))
+    workKey longer `shouldNotBe` workKey w
   -- 「同じ目次は Already、題が空なら核が断る」
   it "plans: already there, or refused by the core" $ do
     Right w <- pure (draftWork eggs)
@@ -171,6 +183,14 @@ toolSpec = describe "the tools" $ do
       (object (eggsArgs ++ ["commit" .= True, "key" .= key]))
     again `shouldBe` "もう登録してあります：作品 1。二重には登録しません"
     length <$> shelf.works.listCards `shouldReturn` 1
+    -- one page fixed: a new draft, which says the work is there already
+    -- 1ページ直した目次：新しい下書き。もう本棚にある作品のことも言う
+    let fixed = [ if k == "last_page" then (k, toJSON (121 :: Int))
+                                     else (k, v)
+                | (k, v) <- eggsArgs ]
+    (False, redraft) <- callTool tools "add_toc" (object fixed)
+    redraft `shouldSatisfy`
+      T.isInfixOf "同じ題と作者の作品 1 が、もう本棚にあります"
   -- 「下書きとちがう key では登録しない」
   it "refuses a commit whose key does not match the draft" $ do
     shelf <- newMemoryShelf
@@ -178,6 +198,16 @@ toolSpec = describe "the tools" $ do
       (object (eggsArgs ++ ["commit" .= True, "key" .= ("0000" :: Text)]))
     failed `shouldBe` True
     length <$> shelf.works.listCards `shouldReturn` 0
+    -- commit as a string is refused, not taken as "no commit"
+    -- 文字列の commit は断る（「commit なし」と取らない）
+    (stringy, _) <- callTool (shelfTools ReadWrite clock shelf) "add_toc"
+      (object (eggsArgs ++ ["commit" .= ("true" :: Text)]))
+    stringy `shouldBe` True
+    -- an id sent as a string: say it must be a number
+    -- 文字列の id：数で送るように言う
+    (_, why) <- callTool (shelfTools ReadOnly clock shelf) "show_work"
+                         (object ["id" .= ("1" :: Text)])
+    why `shouldSatisfy` T.isInfixOf "id は数で"
   -- 「出版社は、作者の欄ではなく、属性「出版社」に」
   it "keeps the publisher in its attribute, not as the creator" $ do
     shelf <- newMemoryShelf
@@ -202,6 +232,11 @@ toolSpec = describe "the tools" $ do
     (_, hidden) <- callTool tools "show_work" (object ["id" .= n])
     (_, shown)  <- callTool tools "show_work" (object ["id" .= n, "spoilers" .= True])
     (T.isInfixOf "犯人" hidden, T.isInfixOf "犯人" shown) `shouldBe` (False, True)
+    -- search, the next tool, does not tell it either
+    -- となりの道具の search も、言わない
+    (_, found) <- callTool tools "search"
+                           (object ["words" .= ("犯人は" :: Text)])
+    T.isInfixOf "犯人" found `shouldBe` False
   -- 「AI 向けのカードは、名前：値の行。押すキーの番号は出さない」
   it "shows the AI a card of named lines, with no keys to press" $ do
     shelf <- newMemoryShelf
@@ -213,8 +248,9 @@ toolSpec = describe "the tools" $ do
       [ "作品 1：はじめてのドラゴン学", "作者：ギルド図書室", "種類：本"
       , "状態：積読（次にできること：読み始める）" ]
     T.isInfixOf "1 読み" text `shouldBe` False
-  -- 「お知らせには答えない。版は話し合って決める」
-  it "answers no notification, and agrees on a version" $ do
+  -- 「お知らせには答えない。版は話し合って決める。
+  --   道具が例外を投げても答える」
+  it "answers no notification, agrees on a version, and outlives a throw" $ do
     none <- handle "test" [] (object [ "jsonrpc" .= ("2.0" :: Text)
                                      , "method" .= ("notifications/initialized" :: Text) ])
     none `shouldBe` Nothing
@@ -224,6 +260,11 @@ toolSpec = describe "the tools" $ do
       , "params" .= object ["protocolVersion" .= ("2025-06-18" :: Text)] ])
     parseMaybe (withObject "a" $ \o -> o .: "result" >>= (.: "protocolVersion")) hi
       `shouldBe` Just ("2025-06-18" :: Text)
+    -- a tool that throws (a locked shelf, say) answers with isError
+    -- 例外を投げる道具（鍵のかかった本棚など）も、isError の答えを返す
+    let boom = Tool "boom" "" (object []) (\_ -> ioError (userError "locked"))
+    (failed, said) <- callTool [boom] "boom" (object [])
+    (failed, T.isInfixOf "locked" said) `shouldBe` (True, True)
   where
     head' (x : _) = x
     head' []      = ""
@@ -244,9 +285,17 @@ answersSpec = describe "the answers" $ do
     Just card <- shelf.works.getCard wid
     take 2 (unnoted (detailOf (wid, card)))
       `shouldBe` ["第1部 ドラゴンを知る", "第1章 見分け方"]
+    -- an entry with a note is left out
+    -- 感想のある項目は、入らない
+    _ <- shelf.reading.addNote wid
+           (Note (OnEntry (EntryId 1)) "扉の絵" stamp False)
+    Just noted <- shelf.works.getCard wid
+    take 1 (unnoted (detailOf (wid, noted))) `shouldBe` ["第1章 見分け方"]
     let WorkId n = wid
     (False, text) <- callTool [unnotedTool (glance shelf)] "unnoted_entries"
                               (object ["id" .= n])
-    length (T.lines text) `shouldBe` 8
+    length (T.lines text) `shouldBe` 7
+  where
+    stamp = UTCTime (fromGregorian 2026 11 9) 0
 -- ANCHOR_END: answersSpec
 -- ANCHOR_END: all
