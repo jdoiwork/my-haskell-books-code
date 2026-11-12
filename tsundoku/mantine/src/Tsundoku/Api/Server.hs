@@ -68,11 +68,19 @@ shelfServer clock shelf = ShelfRoutes
   , tags      =          tagCounts      <$> everything
   , tagged    = \t   -> taggedWith t    <$> everything
   , stats     = \asked -> do
-      y <- maybe thisYear pure asked
+      y <- maybe thisYear yearIn asked
       statsItem y <$> everything
   -- ANCHOR_END: siteHandlers
   }
   where
+    -- a year of 1 to 9999: a bigger one would overflow the Int it is
+    -- answered in
+    -- 年は 1〜9999。もっと大きいと、答えの Int にあふれる
+    yearIn y
+      | y >= 1 && y <= 9999 = pure y
+      | otherwise           = throwProblem err400 Problem
+          { mistake  = "bad-year"
+          , messages = ["year は 1〜9999 の数で送ってください"] }
     addOne new = do
       needMinutes new
       what <- known "kind" new.kind (workFrom new)
@@ -143,11 +151,19 @@ workServer clock shelf wid = WorkRoutes
       points <- gate (score p.points)
       done (keep points)
     -- ANCHOR: extrasOf
+    -- the whole shelf only for "alike", and only when the card has tags
+    -- to compare (as the htmx card's page does)
+    -- 本棚の全部は「似ている作品」のためだけ。くらべるタグがあるときだけ
+    -- 読む（htmx のカードのページと同じ）
     extrasOf = do
-      cards <- liftIO shelf.works.listCards
-      case lookup wid cards of
-        Just card -> pure (extrasItem cards wid card)
-        Nothing   -> refuse (NoSuchWork wid)
+      found <- liftIO (shelf.works.getCard wid)
+      case found of
+        Nothing -> refuse (NoSuchWork wid)
+        Just card
+          | Set.null card.tags -> pure (extrasItem [] wid card)
+          | otherwise -> do
+              cards <- liftIO shelf.works.listCards
+              pure (extrasItem cards wid card)
     tagWith ts = do
       answer (shelf.tagging.setTags wid (Set.fromList ts))
       card <- liftIO (shelf.works.getCard wid)

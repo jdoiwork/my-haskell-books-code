@@ -97,7 +97,7 @@ tagSpec = describe "tags" $ do
     fmap (.tags) (setTags (Set.fromList ["a,b"]) dragonCard) `shouldBe` Left (BadTag "a,b")
     -- 、 and ，, and control characters (a line break, NUL)
     -- 、と ，、制御文字（改行・NUL）
-    forM_ ["推理、魔法", "推理，魔法", "a\nb", "a\0b"] $ \t ->
+    forM_ ["推理、魔法", "推理，魔法", "a\nb", "a\0b", ".."] $ \t ->
       fmap (.tags) (setTags (Set.fromList [t]) dragonCard) `shouldBe` Left (BadTag t)
     fmap (.tags) (setTags (Set.fromList [T.replicate 31 "x"]) dragonCard)
       `shouldBe` Left (BadTag (T.replicate 31 "x"))

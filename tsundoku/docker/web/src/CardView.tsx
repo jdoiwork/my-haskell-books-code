@@ -59,17 +59,24 @@ export function CardView({ id, onEdit, onTag, onOpen }: {
   const asked = useRef(0);
   const reload = useCallback(async () => {
     const mine = ++asked.current;
-    const [c, f, x, t] = await Promise.all(
-      [shelf.card(id), shelf.form(id), shelf.extras(id), shelf.tags()]);
+    const [c, f, x] = await Promise.all(
+      [shelf.card(id), shelf.form(id), shelf.extras(id)]);
     if (mine !== asked.current) return;
     if (c.ok) setCard(c.value);
     else setProblem(c.problem.messages);
     if (f.ok) setFields(f.value);
     else setProblem(f.problem.messages);
     if (x.ok) setExtras(x.value);
-    if (t.ok) setKnown(t.value.map((k) => k.tag));
+    else setProblem(x.problem.messages);
   }, [id]);
   useEffect(() => { reload(); }, [reload]);
+  // the tags on the shelf, for the box to offer: read once, when the
+  //   card opens (it reads the whole shelf; not again on every change)
+  // 箱の候補にする本棚のタグ：カードを開いたときに1回だけ読む（本棚の
+  // 全部を読むので、変えるたびには読み直さない）
+  useEffect(() => {
+    shelf.tags().then((t) => { if (t.ok) setKnown(t.value.map((k) => k.tag)); });
+  }, []);
   // ANCHOR_END: reload
 
   // ✅ Change through the API, then read the card again (or say why not).
@@ -116,7 +123,8 @@ export function CardView({ id, onEdit, onTag, onOpen }: {
           <Text c="dimmed">{w.creator}</Text>
           <Group gap={6} mt={6}>
             {extras.tags.map((t) => (
-              <Badge key={t} variant="outline" style={{ cursor: "pointer" }}
+              <Badge key={t} variant="outline" tt="none"
+                     style={{ cursor: "pointer" }}
                      onClick={() => onTag(t)}>#{t}</Badge>))}
           </Group>
         </div>
@@ -138,9 +146,15 @@ export function CardView({ id, onEdit, onTag, onOpen }: {
                 {eventLabel(e)}
               </Button>))}
           </Group>
-          <Rating value={w.rating === null ? 0 : halfStars(w.rating)}
-                  fractions={2} size="lg" color={tone.star}
-                  onChange={(v) => change(shelf.rate(id, pointsOf(v)))} />
+          <Group gap="xs">
+            {/* no rating and 0 points look the same in stars: say it */}
+            {/* 評価なしと 0 点は、★では同じ見た目。言葉で言う */}
+            {w.rating === null &&
+              <Text size="sm" c="dimmed">まだ評価なし</Text>}
+            <Rating value={w.rating === null ? 0 : halfStars(w.rating)}
+                    fractions={2} size="lg" color={tone.star}
+                    onChange={(v) => change(shelf.rate(id, pointsOf(v)))} />
+          </Group>
         </Group>
         {w.progress && <Bar p={w.progress} />}
       </Paper>
@@ -247,12 +261,19 @@ function TagsBox({ tags, known, onSave }: {
   onSave: (tags: string[]) => Promise<boolean>;
 }) {
   const [typed, setTyped] = useState<string[]>(tags);
-  useEffect(() => { setTyped(tags); }, [tags]);
+  // back to the shelf's tags only when they really changed: a reload
+  //   after a refusal makes a new array of the same tags, and what was
+  //   typed must stay
+  // 本棚のタグが本当に変わったときだけ、箱を合わせる。断られたあとの
+  // 読み直しも、同じタグの新しい配列を作るので、打ったものを消さない
+  const onShelf = tags.join("\n");
+  useEffect(() => { setTyped(onShelf === "" ? [] : onShelf.split("\n")); },
+            [onShelf]);
   return (
     <Paper withBorder p="md">
       <TagsInput label="タグ" leftSection={<IconTag size={16} />}
                  data={known} value={typed} onChange={setTyped}
-                 splitChars={[",", "、"]} clearable />
+                 splitChars={[",", "、", "，"]} clearable />
       <Button mt="sm" size="xs" variant="light"
               onClick={() => onSave(typed)}>タグを保存</Button>
     </Paper>

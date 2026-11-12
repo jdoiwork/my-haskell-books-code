@@ -42,7 +42,16 @@ async function ask<T>(res: Response): Promise<Answer<T>> {
 function problemOf(res: Response, body: string): Problem {
   try {
     const said = JSON.parse(body);
-    if (Array.isArray(said?.messages)) return said as Problem;
+    if (Array.isArray(said?.messages) && said.messages.length > 0)
+      return said as Problem;
+    // A Problem with no words (servant's 404 for a route this server
+    //   does not have: an older `shelf serve`, say): say the status.
+    // 言葉のない Problem（このサーバーにない道への servant の 404。前の章の
+    // shelf serve を動かしたまま、など）：状態を言う
+    if (Array.isArray(said?.messages))
+      return { mistake: said.mistake ?? "no-words", messages: [
+        `${res.status}：サーバーが理由を言わずに断りました。`
+        + "shelf serve が、この章のものか確かめてください"] };
   } catch {
     // Not JSON: say the status and the words as they came.
     // JSON ではない：状態と、届いた言葉をそのまま言う

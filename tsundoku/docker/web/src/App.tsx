@@ -24,9 +24,9 @@ import { WorkList } from "./WorkList";
 // ANCHOR_END: imports
 
 // ANCHOR: lazy
-// 📦 The statistics page carries the charts (recharts), more than half
+// 📦 The statistics page carries the charts (recharts), close to half
 //    of the JavaScript. Fetch it only when it is opened.
-// 統計のページは、グラフ（recharts）を抱えている。JavaScript の半分以上。
+// 統計のページは、グラフ（recharts）を抱えている。JavaScript の半分近く。
 // 開いたときにだけ取りに行く
 const Stats = lazy(() =>
   import("./Stats").then((m) => ({ default: m.Stats })));

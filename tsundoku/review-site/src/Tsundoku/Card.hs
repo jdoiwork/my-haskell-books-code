@@ -466,6 +466,11 @@ setTags new card
     unusable t = T.null (T.strip t) || T.strip t /= t
               || T.any (`elem` tagCommas) t || T.any isControl t
               || T.length t > tagLength
+              -- "." and "..": in a URL's path they mean "here" and "up",
+              -- and a browser folds them away (/api/tags/.. is /api/)
+              -- 「.」と「..」は、URL の道では「ここ」と「1つ上」。ブラウザーが
+              -- 畳んでしまう（/api/tags/.. は /api/ になる）
+              || t `elem` [".", ".."]
 
 -- ✂️ The commas that split tags: the ASCII one, 、, and the full-width ，.
 -- タグを分けるカンマ：半角の , と 、と、全角の ，

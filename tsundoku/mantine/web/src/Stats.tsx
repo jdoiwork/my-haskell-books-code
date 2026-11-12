@@ -15,6 +15,7 @@ import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 
 import { shelf } from "./api";
+import { Problems } from "./NewWork";
 import { cloudSize, kindSlices, monthRows } from "./charts";
 import { halfStars } from "./shadows";
 import { tone } from "./theme";
@@ -28,12 +29,18 @@ export function Stats({ onTag, onOpen }: {
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [stats, setStats] = useState<StatsItem | null>(null);
   const [cloud, setCloud] = useState<TagCount[]>([]);
+  const [why, setWhy] = useState<string[]>([]);
   useEffect(() => {
-    shelf.stats(year).then((a) => { if (a.ok) setStats(a.value); });
+    shelf.stats(year).then((a) => {
+      if (a.ok) { setStats(a.value); setWhy([]); }
+      else setWhy(a.problem.messages);
+    });
     shelf.tags().then((a) => { if (a.ok) setCloud(a.value); });
   }, [year]);
 
-  if (stats === null) return <Text>読みこみ中…</Text>;
+  if (stats === null) return why.length > 0
+    ? <Problems messages={why} />
+    : <Text>読みこみ中…</Text>;
   const sum = (f: (m: StatsItem["months"][number]) => number) =>
     stats.months.reduce((n, m) => n + f(m), 0);
   const works = stats.kinds.reduce((n, k) => n + k.works, 0);
@@ -87,7 +94,7 @@ export function Stats({ onTag, onOpen }: {
           <Group gap="xs">
             {cloud.map((t) => (
               <Badge key={t.tag} size={cloudSize(t.works, cloud)}
-                     variant="light" style={{ cursor: "pointer" }}
+                     variant="light" tt="none" style={{ cursor: "pointer" }}
                      onClick={() => onTag(t.tag)}>#{t.tag}</Badge>))}
           </Group>
         </Paper>

@@ -32,12 +32,17 @@ export function WorkList({ tag, onTag, onOpen }: {
   // 本棚が読めなかった理由。空の並びだけだと、空の本棚に見えてしまう
   const [why, setWhy] = useState<string[]>([]);
   useEffect(() => {
+    // an answer for a tag chosen before comes late: drop it (A, then B)
+    // 前に選んだタグの答えが遅れて届いたら、捨てる（A のあと B）
+    let stale = false;
     const asked = tag === null ? shelf.listWorks() : shelf.tagged(tag);
     asked.then((a) => {
+      if (stale) return;
       if (a.ok) { setWorks(a.value); setWhy([]); }
-      else setWhy(a.problem.messages);
+      else { setWorks([]); setWhy(a.problem.messages); }
     });
-    shelf.tags().then((a) => { if (a.ok) setCloud(a.value); });
+    shelf.tags().then((a) => { if (!stale && a.ok) setCloud(a.value); });
+    return () => { stale = true; };
   }, [tag]);
   return (
     <Stack>
@@ -96,7 +101,7 @@ function TagPicker({ cloud, chosen, onTag }: {
 }) {
   if (cloud.length === 0) return null;
   const badge = (label: string, value: string | null, works?: number) => (
-    <Badge key={label} size="lg" style={{ cursor: "pointer" }}
+    <Badge key={label} size="lg" tt="none" style={{ cursor: "pointer" }}
            variant={chosen === value ? "filled" : "light"}
            onClick={() => onTag(chosen === value ? null : value)}>
       {label}{works !== undefined && ` ${works}`}
@@ -144,9 +149,14 @@ function Search({ onOpen }: { onOpen: (id: number) => void }) {
           <Paper key={i} withBorder p="sm">
             <Anchor component="button" type="button" fw={700}
                     onClick={() => onOpen(h.work)}>{h.title}</Anchor>
-            <Text size="sm">{h.snippet.map((s, j) =>
-              s.match ? <Mark key={j} color={tone.mark}>{s.text}</Mark>
-                      : s.text)}</Text>
+            {/* a spoiler is hidden in the hits too, as on the card */}
+            {/* ネタバレは、カードと同じく、ヒットでも伏せる */}
+            {h.spoiler
+              ? <Text size="sm" c="dimmed" fs="italic">
+                  （ネタバレの感想に当たりました。伏せています）</Text>
+              : <Text size="sm">{h.snippet.map((s, j) =>
+                  s.match ? <Mark key={j} color={tone.mark}>{s.text}</Mark>
+                          : s.text)}</Text>}
           </Paper>
         ))}
       </Stack>
