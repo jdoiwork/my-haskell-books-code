@@ -7,7 +7,8 @@
 -- データベースが起きるまでの開き直し、バックアップ
 module DeploySpec (deploySpec) where
 
-import Control.Exception (AsyncException (..), ErrorCall (..), throwIO,
+import Control.Exception (AsyncException (..), ErrorCall (..),
+                          MaskingState (..), getMaskingState, throwIO,
                           try)
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.Time (diffTimeToPicoseconds, getCurrentTime, utctDayTime)
@@ -32,9 +33,13 @@ deploySpec = do
     it "is SQLite's file when unset" $
       storeSetting Nothing Nothing `shouldBe` "sqlite:tsundoku.db"
     -- 「PostgreSQL には、ファイルのパスワードを足す（改行は落とす）」
-    it "adds the password from a file to PostgreSQL's" $
+    it "adds the password from a file to PostgreSQL's" $ do
       storeSetting (Just "postgres:host=db user=shelf") (Just "s3cret\n")
         `shouldBe` "postgres:host=db user=shelf password='s3cret'"
+      -- a space is part of it; only the line break goes (CR LF too)
+      -- 空白はパスワードの一部。落とすのは改行だけ（CR LF も）
+      storeSetting (Just "postgres:host=db") (Just " pw \r\n")
+        `shouldBe` "postgres:host=db password=' pw '"
     -- 「パスワードの中の ' と \ はエスケープする」
     it "escapes quotes and backslashes in the password" $
       storeSetting (Just "postgres:host=db") (Just "it's\\x")
@@ -54,6 +59,14 @@ deploySpec = do
             if n < 3 then throwIO (ErrorCall "not yet") else work ()
       retryOpen 5 0 open (\() -> pure "opened") `shouldReturn` ("opened" :: String)
       readIORef opens `shouldReturn` 3
+      -- the work after a retry is not masked (not run in a handler)
+      -- やり直したあとの仕事は、mask されていない（受け止め方の中ではない）
+      later <- newIORef (0 :: Int)
+      let openLater work = do
+            modifyIORef' later (+ 1)
+            k <- readIORef later
+            if k < 2 then throwIO (ErrorCall "not yet") else work ()
+      retryOpen 5 0 openLater (\() -> getMaskingState) `shouldReturn` Unmasked
     -- 「仕事が始まってからの失敗は、やり直さない」
     it "does not retry once the work has begun" $ do
       opens <- newIORef (0 :: Int)
@@ -94,9 +107,15 @@ deploySpec = do
 
   describe "the answers" $
     -- 「新しいものを残して、古いバックアップを消す」
-    it "removes all but the newest backups" $
+    it "removes all but the newest backups" $ do
       toRemove 2 [ "tsundoku.db", "backup-2026-11-07.db", "backup-2026-11-09.db"
                  , "backup-2026-11-08.db", "notes.txt" ]
         `shouldBe` ["backup-2026-11-07.db"]
+      -- a backup taken by hand is not counted; fewer than 1 removes none
+      -- 手で取った写しは数えない。1より小さい数なら、何も消さない
+      toRemove 1 [ "backup-2026-11-08.db", "backup-2026-11-09.db"
+                 , "backup-before-upgrade.db" ]
+        `shouldBe` ["backup-2026-11-08.db"]
+      toRemove (-1) ["backup-2026-11-08.db"] `shouldBe` []
 -- ANCHOR_END: deploySpec
 -- ANCHOR_END: all

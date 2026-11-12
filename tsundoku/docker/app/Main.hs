@@ -17,7 +17,8 @@ import Data.Text.IO qualified as T
 import System.Environment (getArgs, lookupEnv)
 import System.Exit (die, exitFailure)
 import System.FilePath (takeBaseName)
-import System.IO (hSetEncoding, stderr, stdout, utf8)
+import System.IO (BufferMode (..), hSetBuffering, hSetEncoding, stderr,
+                  stdout, utf8)
 import Data.String (fromString)
 import Text.Read (readMaybe)
 import Data.Char (isDigit)
@@ -64,6 +65,11 @@ main :: IO ()
 main = do
   hSetEncoding stdout utf8
   hSetEncoding stderr utf8
+  -- a line at a time even with no terminal (in a container, stdout is
+  -- not one): "serving the shelf…" shows in docker compose logs at once
+  -- 端末がなくても1行ずつ書く（コンテナの中の標準出力は端末ではない）。
+  -- 「serving the shelf…」が、すぐ docker compose logs に出る
+  hSetBuffering stdout LineBuffering
   -- ANCHOR: settings
   settings <- readSettings
   config   <- either die pure (parseStoreConfig settings.store)

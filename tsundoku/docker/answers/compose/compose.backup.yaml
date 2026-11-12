@@ -17,7 +17,8 @@ services:
     command:
       - |
         while true; do
-          shelf backup "/data/backup-$$(date +%F).db"
+          f="/data/backup-$$(date +%F).db"
+          [ -e "$$f" ] || shelf backup "$$f"
           sleep 86400
         done
 # ANCHOR_END: all

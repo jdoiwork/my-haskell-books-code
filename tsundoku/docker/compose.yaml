@@ -18,6 +18,11 @@ name: tsundoku
 x-shelf: &shelf
   image: ${TSUNDOKU_IMAGE:-tsundoku:0.1}
   restart: unless-stopped
+  # the shelf is PID 1 in the container, and GHC's runtime stops on
+  # SIGINT (Ctrl-C), not on SIGTERM: stop it the way it listens to
+  # コンテナの中で本棚は PID 1。GHC の実行時の仕組みが受けて止まるのは
+  # SIGINT（Ctrl-C）で、SIGTERM ではない。聞こえる合図で止める
+  stop_signal: SIGINT
   ports:
     - "127.0.0.1:${TSUNDOKU_PORT:-8080}:8080"
   networks:

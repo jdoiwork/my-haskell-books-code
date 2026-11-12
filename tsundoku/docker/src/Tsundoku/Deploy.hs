@@ -14,11 +14,10 @@ module Tsundoku.Deploy
   ) where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (SomeAsyncException, SomeException, catch,
-                          fromException, throwIO)
+import Control.Exception (SomeAsyncException, SomeException,
+                          fromException, throwIO, try)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (dropWhileEnd, stripPrefix)
-import Data.Char (isSpace)
 import Data.Maybe (fromMaybe, isJust)
 import System.Environment (lookupEnv)
 import System.IO (hPutStrLn, stderr)
@@ -64,7 +63,11 @@ storeSetting setting password = case (stripPrefix "postgres:" chosen, password) 
   _                    -> chosen
   where
     chosen   = fromMaybe "sqlite:tsundoku.db" setting
-    trim     = dropWhileEnd isSpace . dropWhile isSpace
+    -- only the line break at the end (as the PostgreSQL image does);
+    -- a space is part of the password
+    -- 落とすのは最後の改行だけ（PostgreSQL のイメージと同じ）。空白は
+    -- パスワードの一部
+    trim     = dropWhileEnd (`elem` ("\r\n" :: String))
     quoted s = "'" <> concatMap escape s <> "'"
     escape c = if c `elem` ['\\', '\''] then ['\\', c] else [c]
 -- ANCHOR_END: settings
@@ -85,15 +88,22 @@ retryOpen tries pause open work = go tries
     go n = do
       begun <- newIORef False
       let started s = writeIORef begun True >> work s
-      open started `catch` \e -> do
-        didBegin <- readIORef begun
-        if didBegin || n <= 1 || isStop e
-          then throwIO e
-          else do
-            hPutStrLn stderr
-              ("cannot open the shelf yet; trying again: " <> show e)
-            threadDelay pause
-            go (n - 1)
+      -- try, not catch: the next try runs outside the handler, so it is
+      --   not masked (the exceptions chapter: do not retry in a handler)
+      -- catch ではなく try。次の試しは、受け止め方の外で、mask の外で動く
+      -- （IO の例外の章：受け止め方の中でやり直さない）
+      result <- try (open started)
+      case result of
+        Right a -> pure a
+        Left e  -> do
+          didBegin <- readIORef begun
+          if didBegin || n <= 1 || isStop e
+            then throwIO e
+            else do
+              hPutStrLn stderr
+                ("cannot open the shelf yet; trying again: " <> show e)
+              threadDelay pause
+              go (n - 1)
 
 -- 🛑 An asynchronous exception: Ctrl-C (UserInterrupt), a thread killed,
 --    a timeout. Someone outside asks us to stop.
