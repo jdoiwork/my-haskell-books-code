@@ -11,8 +11,8 @@ module MiniSearch.Config
 
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import Text.Read (readMaybe)
 
+import MiniSearch.Cli (wholeNumber)
 import MiniSearch.Tokenizer (Tokenizer, tokenizerByName)
 -- ANCHOR_END: head
 
@@ -34,7 +34,7 @@ loadConfig env =
   where
     setting name def = fromMaybe def (lookup name env)
     docs = setting "MINISEARCH_DOCS" "samples/docs"
-    port = case readMaybe (setting "PORT" "8080") of
+    port = case wholeNumber (setting "PORT" "8080") of
       Just n | n >= 1 && n <= 65535 -> Right n
       -- 「PORT は 1 から 65535 まで」
       _ -> Left ("PORT must be 1 to 65535: " <> setting "PORT" "")

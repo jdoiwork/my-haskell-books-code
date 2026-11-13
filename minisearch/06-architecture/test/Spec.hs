@@ -172,6 +172,12 @@ main = hspec $ do
     it "rejects a limit of 0" $
       parseArgs ["search", "-n", "0", "dragon"] `shouldBe` Nothing
 
+    -- 「数字だけを数として読む（0x5 や、Int に入らない数は断る）」
+    it "reads digits only, and refuses 0x5 and numbers too big for Int" $ do
+      parseArgs ["search", "-n", "0x5", "dragon"] `shouldBe` Nothing
+      parseArgs ["search", "-n", "18446744073709551617", "dragon"] `shouldBe` Nothing
+      parseArgs ["search", "-n", " 7", "dragon"] `shouldBe` Nothing
+
     -- 「単語がなければ断る」
     it "needs at least one word" $
       parseArgs ["search"] `shouldBe` Nothing
@@ -403,6 +409,8 @@ main = hspec $ do
     it "refuses a bad port and a bad language" $ do
       fmap name (loadConfig [("PORT", "http")])
         `shouldBe` Left "PORT must be 1 to 65535: http"
+      fmap name (loadConfig [("PORT", "0x1F90")])
+        `shouldBe` Left "PORT must be 1 to 65535: 0x1F90"
       fmap name (loadConfig [("MINISEARCH_LANG", "fr")])
         `shouldBe` Left "MINISEARCH_LANG must be en or ja: fr"
   -- ANCHOR_END: config

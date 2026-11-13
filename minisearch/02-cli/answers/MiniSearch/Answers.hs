@@ -15,6 +15,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Options.Applicative (ReadM, eitherReader)
 
+import MiniSearch.Cli (wholeNumber)
 import MiniSearch.Types
 -- ANCHOR_END: head
 
@@ -48,11 +49,11 @@ formatStats s =
 -- 1 から、指定した上限までの数
 smallPositiveInt :: Int -> ReadM Int
 smallPositiveInt maxN = eitherReader $ \s ->
-  case reads s of
-    [(n, "")]
+  case wholeNumber s of
+    Just n
       | n < 1     -> Left ("not a positive number: " <> s)
       | n > maxN  -> Left ("too many (at most " <> show maxN <> "): " <> s)
       | otherwise -> Right n
-    _ -> Left ("not a number: " <> s)
+    Nothing -> Left ("not a number: " <> s)
 -- ANCHOR_END: small
 -- ANCHOR_END: all

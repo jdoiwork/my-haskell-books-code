@@ -7,8 +7,10 @@ module MiniSearch.Cli
   , IndexOptions (..)
   , SearchOptions (..)
   , commandInfo
+  , wholeNumber
   ) where
 
+import Data.Char (isDigit)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Options.Applicative
@@ -91,9 +93,21 @@ searchOptions =
 -- 1 以上の数
 positiveInt :: ReadM Int
 positiveInt = eitherReader $ \s ->
-  case reads s of
-    [(n, "")] | n >= 1 -> Right n
-    _                  -> Left ("not a positive number: " <> s)
+  case wholeNumber s of
+    Just n | n >= 1 -> Right n
+    _               -> Left ("not a positive number: " <> s)
+
+-- 🔢 Digits only, and small enough for an Int. "0x5", " 7" and numbers
+--    too big for an Int are not numbers here ('reads' would take them).
+-- 数字だけで、Int に入る大きさの数。「0x5」「 7」や、Int に入らない数は、
+-- ここでは数にしない（'reads' なら読んでしまう）
+wholeNumber :: String -> Maybe Int
+wholeNumber s
+  | null s || not (all isDigit s)  = Nothing
+  | n > toInteger (maxBound :: Int) = Nothing
+  | otherwise                       = Just (fromInteger n)
+  where
+    n = read s :: Integer
 -- ANCHOR_END: parsers
 
 -- ANCHOR: command

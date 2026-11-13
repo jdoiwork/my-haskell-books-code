@@ -111,6 +111,12 @@ main = hspec $ do
     it "rejects a limit of 0" $
       parseArgs ["search", "-n", "0", "dragon"] `shouldBe` Nothing
 
+    -- 「数字だけを数として読む（0x5 や、Int に入らない数は断る）」
+    it "reads digits only, and refuses 0x5 and numbers too big for Int" $ do
+      parseArgs ["search", "-n", "0x5", "dragon"] `shouldBe` Nothing
+      parseArgs ["search", "-n", "18446744073709551617", "dragon"] `shouldBe` Nothing
+      parseArgs ["search", "-n", " 7", "dragon"] `shouldBe` Nothing
+
     -- 「単語がなければ断る」
     it "needs at least one word" $
       parseArgs ["search"] `shouldBe` Nothing
@@ -126,8 +132,8 @@ main = hspec $ do
       let readN s = getParseResult (execParserPure defaultPrefs
                       (info (option (smallPositiveInt 50) (long "n")) mempty)
                       ["--n", s])
-      map readN ["1", "50", "51", "0"]
-        `shouldBe` [Just 1, Just 50, Nothing, Nothing]
+      map readN ["1", "50", "51", "0", "0x10", "18446744073709551617"]
+        `shouldBe` [Just 1, Just 50, Nothing, Nothing, Nothing, Nothing]
 
     -- ANCHOR: answer3
     -- 「保存して読み戻すと、同じインデックスになる」
