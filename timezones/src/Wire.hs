@@ -1,7 +1,7 @@
 -- ANCHOR: all
 -- 🪣 Handing a moment over to the others: Unix seconds and
 --    JavaScript milliseconds.
--- 瞬間をほかの人へ渡す：Unix の秒と、JavaScript のミリ秒
+-- 日時をほかの人へ渡す：Unix の秒と、JavaScript のミリ秒
 -- ANCHOR: module
 module Wire where
 

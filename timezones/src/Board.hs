@@ -28,7 +28,7 @@ import Data.Time
 -- 掲示板の依頼
 data Quest = Quest
   { title    :: String
-  , postedAt :: UTCTime -- the moment it was posted / 貼り出した瞬間
+  , postedAt :: UTCTime -- the moment it was posted / 貼り出した日時
   , postedOn :: Day     -- the day on the board    / 掲示板に出す日付
   , dueOn    :: Day     -- the last day            / 締め切りの日
   }

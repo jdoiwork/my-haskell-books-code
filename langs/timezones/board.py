@@ -17,7 +17,7 @@ assert due == date(2026, 11, 19)
 
 # ANCHOR: aware
 # Python (aware datetimes: the moment, and the wall clock of Tokyo)
-# Python（aware な datetime：瞬間と、東京の壁の時計）
+# Python（aware な datetime：UTC の日時と、東京の壁の時計）
 posted = datetime(2026, 11, 12, 21, 0, tzinfo=timezone.utc)
 tokyo = posted.astimezone(ZoneInfo("Asia/Tokyo"))
 today = tokyo.date()                         # 2026-11-13

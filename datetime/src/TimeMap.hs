@@ -26,7 +26,7 @@ postedLocal = LocalTime postedDay nineAM
 
 -- ANCHOR: moment
 -- 🌍 One moment for the whole world, counted in UTC.
--- 世界で1つの瞬間。UTC で数える
+-- 世界共通の日時。UTC で数える
 postedUtc :: UTCTime
 postedUtc = UTCTime postedDay (9 * 60 * 60)
 -- ANCHOR_END: moment

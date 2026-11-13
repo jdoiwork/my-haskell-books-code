@@ -53,19 +53,19 @@ zoneOf NewYork = tzByLabel America__New_York
 zoneOf London  = tzByLabel Europe__London
 
 -- 🔎 The fixed offset of a branch at that moment ("EST", "EDT", ...).
--- その瞬間の、支部の決まったずれ（"EST"、"EDT" など）
+-- その日時の、支部の決まったずれ（"EST"、"EDT" など）
 zoneAt :: Branch -> UTCTime -> TimeZone
 zoneAt branch moment = timeZoneForUTCTime (zoneOf branch) moment
 
 -- 🕰️ The wall clock of a branch at that moment.
--- その瞬間の、支部の壁の時計
+-- その日時の、支部の壁の時計
 wallClockAt :: Branch -> UTCTime -> ZonedTime
 wallClockAt branch moment = utcToZonedTime (zoneAt branch moment) moment
 -- ANCHOR_END: zoneOf
 
 -- ANCHOR: reading
 -- 🔁 A wall clock time can mean one moment, no moment, or two moments.
--- 壁の時計の時刻は、1つの瞬間か、ない瞬間か、2つの瞬間を指す
+-- 壁の時計の時刻は、UTC の日時の1つか、0個か、2つを指す
 data Reading
   = Once UTCTime            -- an ordinary time / ふつうの時刻
   | Skipped                 -- the clock jumped over it / 時計が飛ばした
@@ -73,7 +73,7 @@ data Reading
   deriving (Show, Eq)
 
 -- 🧭 Which moment does the wall clock of the branch mean?
--- 支部の壁の時計のこの時刻は、どの瞬間のこと？
+-- 支部の壁の時計のこの時刻は、UTC ではいつのこと？
 readWallClock :: Branch -> LocalTime -> Reading
 readWallClock branch wall =
   case localTimeToUTCFull (zoneOf branch) wall of

@@ -1,6 +1,6 @@
 -- ANCHOR: all
 -- 🤝 Moments written with "Z", or with an offset such as "+09:00".
--- "Z" で書いた瞬間と、"+09:00" のようなずれつきで書いた瞬間
+-- "Z" で書いた日時と、"+09:00" のようなずれつきで書いた日時
 -- ANCHOR: module
 module Offsets where
 
@@ -10,7 +10,7 @@ import Data.Time.Format.ISO8601 (iso8601ParseM, iso8601Show)
 
 -- ANCHOR: iso
 -- 🌐 Write a moment for the borders, always in UTC with "Z".
--- 境目に出す瞬間は、いつも UTC の "Z" で書く
+-- 境目に出す日時は、いつも UTC の "Z" で書く
 toWire :: UTCTime -> String
 toWire moment = iso8601Show moment
 

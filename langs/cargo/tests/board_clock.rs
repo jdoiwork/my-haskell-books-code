@@ -6,7 +6,7 @@ use jiff::{Timestamp, ToSpan, civil::date, tz::TimeZone};
 fn the_day_on_the_board() -> Result<(), jiff::Error> {
     // ANCHOR: jiff
     // Rust (jiff: a moment, a wall clock with its zone, and a day)
-    // Rust（jiff：瞬間、時間帯つきの壁の時計、日付）
+    // Rust（jiff：UTC の日時、時間帯つきの壁の時計、日付）
     let posted: Timestamp = "2026-11-12T21:00:00Z".parse()?;
     let tokyo = posted.in_tz("Asia/Tokyo")?;    // Zoned
     let today = tokyo.date();                   // civil::Date

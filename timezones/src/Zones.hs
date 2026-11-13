@@ -1,7 +1,7 @@
 -- ANCHOR: all
 -- 🗾 One quest, posted at 6 a.m. in Japan: the wall clock, the time zone,
 --    and the moment.
--- 日本の朝6時に貼った1つの依頼：壁の時計、時間帯、瞬間
+-- 日本の朝6時に貼った1つの依頼：壁の時計、時間帯、UTC の日時
 -- ANCHOR: module
 module Zones where
 
@@ -27,7 +27,7 @@ postedZoned = ZonedTime postedLocal jst
 
 -- ANCHOR: moment
 -- 🌍 The same moment, for the whole world.
--- 同じ瞬間を、世界で1つの形で
+-- 同じ時刻を、世界共通の UTC の日時で
 postedUtc :: UTCTime
 postedUtc = zonedTimeToUTC postedZoned
 -- ANCHOR_END: moment

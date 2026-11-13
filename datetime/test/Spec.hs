@@ -16,7 +16,7 @@ import Spans (servedFor, showLeft, termEnds)
 
 -- ANCHOR: moments
 -- 🎲 Moments from the year 1 to 9999, down to the picosecond.
--- 1年から 9999 年までの瞬間。ピコ秒まで
+-- 1年から 9999 年までの日時。ピコ秒まで
 moments :: Gen UTCTime
 moments = do
   -- Days are counted from 1858-11-17 (the Modified Julian Day).
@@ -67,7 +67,7 @@ main = hspec $ do
   -- 「書式」
   describe "formats" $ do
     -- ANCHOR: roundtrip
-    -- 「ISO 8601 の文字は、もとの瞬間に戻る」
+    -- 「ISO 8601 の文字は、もとの日時に戻る」
     it "reads back what ISO 8601 wrote" $
       property $ forAll moments $ \moment ->
         fromWire (toWire moment) === Just moment

@@ -36,15 +36,15 @@ main = do
   mapM_ (putStrLn . branchLine quest) [minBound .. maxBound]
 
 -- 🕰️ The real clock, or a clock stopped at the moment in the arguments.
--- 本物の時計か、引数の瞬間で止まった時計
+-- 本物の時計か、引数の日時で止まった時計
 clockFrom :: [String] -> IO Clock
 clockFrom []     = pure systemClock
 clockFrom [text] =
   case iso8601ParseM text of
     Just moment -> pure (stoppedAt moment)
-    -- 「ISO 8601 の瞬間ではありません」
+    -- 「ISO 8601 の日時ではありません」
     Nothing     -> die ("not an ISO 8601 moment: " <> text)
--- 「使い方：guild-board [瞬間]」
+-- 「使い方：guild-board [日時]」
 clockFrom _      = die "usage: guild-board [2026-11-12T21:00:00Z]"
 
 -- 🏰 "  NewYork  : 2026-11-12 16:00 EST"

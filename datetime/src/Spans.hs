@@ -1,7 +1,7 @@
 -- ANCHOR: all
 -- ⏳ Lengths of time: seconds on the line of moments, and months and
 --    days on the calendar.
--- 時間の長さ：瞬間の線の上の秒と、暦の上の月と日
+-- 時間の長さ：時間の線の上の秒と、暦の上の月と日
 -- ANCHOR: module
 module Spans where
 
