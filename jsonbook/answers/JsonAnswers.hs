@@ -73,8 +73,8 @@ instance FromJSON Potion where
 
 -- 🧪 Potions written in JSON. The second one heals too much.
 -- JSON で書いたポーション。2つ目は回復しすぎ
-potionJson :: ByteString
-potionJson = """
+healPotionJson :: ByteString
+healPotionJson = """
   {
     "name": "potion",
     "heal": 30
