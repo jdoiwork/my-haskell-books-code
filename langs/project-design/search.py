@@ -7,7 +7,9 @@ STOP_WORDS = {"a", "an", "and", "the", "of", "on", "in", "to",
               "is", "it", "its", "at", "with", "for"}
 
 def tokenize(text):
-    pieces = re.split(r"[^0-9a-z]", text.lower())
+    # Cut at anything that is not a letter or a digit (Unicode too).
+    # 文字でも数字でもないところで切る（Unicode の文字も）
+    pieces = re.split(r"[\W_]", text.lower())
     return [w for w in pieces if w and w not in STOP_WORDS]
 
 # ANCHOR: procedural
@@ -73,6 +75,7 @@ docs = [
 ]
 
 assert tokenize("The red Dragon, of fire!") == ["red", "dragon", "fire"]
+assert tokenize("café 赤いドラゴンが炎を吐く") == ["café", "赤いドラゴンが炎を吐く"]
 p1, l1 = build_index(docs)
 p2, l2 = build_index_fn(docs)
 assert p1 == dict(p2) and l1 == l2

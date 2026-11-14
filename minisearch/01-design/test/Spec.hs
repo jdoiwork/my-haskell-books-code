@@ -68,6 +68,25 @@ exampleTests = do
     -- 「知らない単語なら、何も返さない」
     it "returns nothing for an unknown word" $
       search sampleIndex "unicorn" `shouldBe` []
+
+    -- 「同じ単語を2回書いても、1回と同じ」
+    it "a word twice counts as once" $
+      search sampleIndex "dragon dragon"
+        `shouldBe` search sampleIndex "dragon"
+
+    -- 「同じ点数なら、番号の小さい順」
+    it "ties go to the smaller number first" $
+      let twins = [ Document (DocId 2) "Twin" "dragon"
+                  , Document (DocId 1) "Twin" "dragon" ]
+      in map hitDoc (search (buildIndex twins) "dragon")
+           `shouldBe` [DocId 1, DocId 2]
+
+  -- 「珍しい単語ほど、IDF が大きい」
+  describe "inverseDocFrequency" $
+    -- 「1つにしか出ない lava は、3つに出る dragon より大きい」
+    it "is larger for a rarer word" $
+      inverseDocFrequency (Token "lava") sampleIndex
+        `shouldSatisfy` (> inverseDocFrequency (Token "dragon") sampleIndex)
 -- ANCHOR_END: examples
 
 -- ANCHOR: props
@@ -98,9 +117,11 @@ propertyTests =
     -- 「文書を入れる順番を変えても、同じインデックスになる」
     it "the order of documents does not matter" $
       property $ forAll genDocs $ \docs ->
-        buildIndex docs === buildIndex (reverse docs)
+        forAll (shuffle docs) $ \shuffled ->
+          buildIndex docs === buildIndex shuffled
 -- ANCHOR_END: props
 
+-- ANCHOR: answer-tests
 -- 🏋️ Tests for the training answers.
 -- トレーニングの解答のテスト
 answerTests :: Spec
@@ -115,6 +136,7 @@ answerTests =
     it "commonTokens counts documents" $
       commonTokens 2 sampleIndex
         `shouldBe` [(Token "fire", 4), (Token "dragon", 3)]
+-- ANCHOR_END: answer-tests
 
     -- ANCHOR: answer3
     -- 「文書の題で検索すると、その文書が見つかる」
