@@ -17,7 +17,11 @@ common shared
 library
   import:           shared
   exposed-modules:  Review.Suggest
+                    Review.SuggestApi
   hs-source-dirs:   src
+  build-depends:
+    , aeson            ^>=2.3
+    , servant-server   ^>=0.20.3
 
 executable suggest-measure
   import:           shared
@@ -35,5 +39,7 @@ test-suite review-search-test
   hs-source-dirs:   test
   build-depends:
     , review-search
+    , aeson            ^>=2.3
     , hspec            ^>=2.11
+    , hspec-wai        ^>=0.12
     , QuickCheck       >=2.18 && <2.20
