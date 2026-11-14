@@ -4,6 +4,7 @@
 -- minisearch-server：生きているインデックスを HTTP で公開する。
 module Main (main) where
 
+import Control.Exception (IOException, displayException, try)
 import qualified Data.Text as T
 import Network.Wai.Handler.Warp
   (Settings, defaultSettings, runSettings, setBeforeMainLoop, setHost,
@@ -24,8 +25,17 @@ main = do
     -- 「設定がまちがっています：……」
     Left err  -> die ("bad setting: " <> err)
     Right cfg -> do
-      live <- newLive (configTokenizer cfg)
-                      (readDocuments (configDocs cfg))
+      -- The folder can only be checked by looking at it: here, in
+      -- the shell, with the name of the setting in the message.
+      -- フォルダーがあるかは、見に行かないとわからない。殻のここで
+      -- 確かめ、メッセージには設定の名前を入れる
+      started <- try (newLive (configTokenizer cfg)
+                              (readDocuments (configDocs cfg)))
+      live <- case started of
+        -- 「設定がまちがっています：MINISEARCH_DOCS：……」
+        Left err -> die ("bad setting: MINISEARCH_DOCS: "
+                         <> displayException (err :: IOException))
+        Right l  -> pure l
       -- Say "Listening" only after the port is open.
       -- ポートを開いてから「待っています」と言う
       let language = T.unpack (tokenizerName (configTokenizer cfg))

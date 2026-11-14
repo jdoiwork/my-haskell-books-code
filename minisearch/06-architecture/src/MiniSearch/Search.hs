@@ -19,8 +19,7 @@ import Data.Ord (Down (..))
 import Data.Text (Text)
 
 import MiniSearch.Index (documentCount, postingsOf)
-import MiniSearch.Tokenize (tokenize)
-import MiniSearch.Tokenizer (Tokenizer (..))
+import MiniSearch.Tokenizer (Tokenizer (..), english)
 import MiniSearch.Types
 -- ANCHOR_END: head
 
@@ -69,7 +68,7 @@ score tokens doc index =
 -- 🔍 Search: find, score, and sort (high score first).
 -- 検索：見つけて、点を付けて、並べる（点の高い順）
 search :: Index -> Text -> [Hit]
-search index query = searchTokens index (nub (tokenize query))
+search = searchWith english
 
 -- ANCHOR: searchWith
 -- 🔍 The same, with any tokenizer.

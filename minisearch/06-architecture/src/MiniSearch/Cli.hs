@@ -10,12 +10,12 @@ module MiniSearch.Cli
   , wholeNumber
   ) where
 
-import Data.Char (isDigit)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Options.Applicative
 
-import MiniSearch.Tokenizer (tokenizerByName)
+import MiniSearch.Number (wholeNumber)
+import MiniSearch.Tokenizer (tokenizerByName, tokenizerNames)
 -- ANCHOR_END: head
 
 -- ANCHOR: types
@@ -67,7 +67,8 @@ indexOptions =
       , metavar "LANG"
       , value (T.pack "en")
       , showDefault
-      , help "The language of the documents: en or ja"
+      , help ("The language of the documents: "
+              <> T.unpack tokenizerNames)
       ]
 
 -- 🔍 minisearch search WORDS... [--index FILE] [--limit N]
@@ -106,7 +107,8 @@ knownLang :: ReadM Text
 knownLang = eitherReader $ \s ->
   case tokenizerByName (T.pack s) of
     Just _  -> Right (T.pack s)
-    Nothing -> Left ("unknown language: " <> s <> " (en or ja)")
+    Nothing -> Left ("unknown language: " <> s <> " ("
+                     <> T.unpack tokenizerNames <> ")")
 
 -- 🔢 A number that is 1 or more.
 -- 1 以上の数
@@ -115,18 +117,6 @@ positiveInt = eitherReader $ \s ->
   case wholeNumber s of
     Just n | n >= 1 -> Right n
     _               -> Left ("not a positive number: " <> s)
-
--- 🔢 Digits only, and small enough for an Int. "0x5", " 7" and numbers
---    too big for an Int are not numbers here ('reads' would take them).
--- 数字だけで、Int に入る大きさの数。「0x5」「 7」や、Int に入らない数は、
--- ここでは数にしない（'reads' なら読んでしまう）
-wholeNumber :: String -> Maybe Int
-wholeNumber s
-  | null s || not (all isDigit s)  = Nothing
-  | n > toInteger (maxBound :: Int) = Nothing
-  | otherwise                       = Just (fromInteger n)
-  where
-    n = read s :: Integer
 -- ANCHOR_END: parsers
 
 -- ANCHOR: command

@@ -81,12 +81,17 @@ parseSearchQuery :: Tokenizer -> Text -> Either QueryError SearchQuery
 parseSearchQuery tok raw
   | T.null text                    = Left EmptyQuery
   | T.length text > maxQueryLength = Left (QueryTooLong (T.length text))
-  | length tokens > maxQueryWords  = Left (TooManyWords (length tokens))
+  | wordCount > maxQueryWords      = Left (TooManyWords wordCount)
   | null tokens                    = Left NoSearchableWords
   | otherwise                      = Right (SearchQuery text tokens)
   where
     text   = T.strip raw
     tokens = nub (cut tok text)
+    -- Words split by spaces, not tokens: a Japanese query of 12
+    -- characters is 11 bigrams, but still one phrase.
+    -- トークンではなく、空白で分けた語の数：12字の日本語は bigram で
+    -- 11 個になるが、ひとつながりの言葉
+    wordCount = length (T.words text)
 
 -- 🚪 The gate for the limit. No limit given -> 10.
 -- 件数の門番。指定がなければ 10

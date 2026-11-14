@@ -1,9 +1,11 @@
 -- ANCHOR: head
 -- ANCHOR: all
 -- | The server's settings, read from the environment variables.
---   A pure function: easy to test, and every mistake found at start.
+--   A pure function: easy to test, and a mistake is found at start
+--   (the first one: Either stops at the first Left).
 -- サーバーの設定を、環境変数から読む。
--- 純粋な関数なので、テストしやすく、まちがいは起動のときに全部見つかる。
+-- 純粋な関数なので、テストしやすく、まちがいは起動のときに見つかる
+-- （Either は最初の Left で止まるので、最初の1つ）。
 module MiniSearch.Config
   ( Config (..)
   , loadConfig
@@ -12,8 +14,8 @@ module MiniSearch.Config
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 
-import MiniSearch.Cli (wholeNumber)
-import MiniSearch.Tokenizer (Tokenizer, tokenizerByName)
+import MiniSearch.Number (wholeNumber)
+import MiniSearch.Tokenizer (Tokenizer, tokenizerByName, tokenizerNames)
 -- ANCHOR_END: head
 
 -- ANCHOR: config
@@ -42,7 +44,8 @@ loadConfig env =
       let lang = setting "MINISEARCH_LANG" "en"
       in case tokenizerByName (T.pack lang) of
            Just tok -> Right tok
-           -- 「MINISEARCH_LANG は en か ja」
-           Nothing  -> Left ("MINISEARCH_LANG must be en or ja: " <> lang)
+           -- 「MINISEARCH_LANG は en, ja のどれか」
+           Nothing  -> Left ("MINISEARCH_LANG must be one of "
+                             <> T.unpack tokenizerNames <> ": " <> lang)
 -- ANCHOR_END: config
 -- ANCHOR_END: all

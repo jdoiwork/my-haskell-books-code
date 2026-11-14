@@ -9,10 +9,12 @@ module MiniSearch.Tokenizer
   , japanese
   , tokenizers
   , tokenizerByName
+  , tokenizerNames
   ) where
 
 import Data.List (find)
 import Data.Text (Text)
+import qualified Data.Text as T
 
 import MiniSearch.Bigram (bigramTokenize, charSnippet)
 import MiniSearch.Snippet (snippet)
@@ -58,5 +60,10 @@ tokenizers = [english, japanese]
 
 tokenizerByName :: Text -> Maybe Tokenizer
 tokenizerByName name = find (\t -> tokenizerName t == name) tokenizers
+
+-- 🏷️ "en, ja": the names, for help and error messages.
+-- 「en, ja」：ヘルプとエラーのメッセージのための、名前の一覧
+tokenizerNames :: Text
+tokenizerNames = T.intercalate ", " (map tokenizerName tokenizers)
 -- ANCHOR_END: tokenizers
 -- ANCHOR_END: all

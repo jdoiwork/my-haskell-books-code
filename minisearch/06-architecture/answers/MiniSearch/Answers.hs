@@ -12,7 +12,7 @@ module MiniSearch.Answers
 
 import qualified Data.Text as T
 
-import MiniSearch.Bigram (bigramTokenize, charSnippet)
+import MiniSearch.Bigram (bigramTokenize, charSnippet, isJapanese)
 import MiniSearch.Snippet (snippet)
 import MiniSearch.Tokenize (tokenize)
 import MiniSearch.Tokenizer (Tokenizer (..))
@@ -26,9 +26,12 @@ import MiniSearch.Types (Token (..))
 -- 「炎」のような1文字の問い合わせも当たるように
 unigramsToo :: T.Text -> [Token]
 unigramsToo text =
-  let grams = bigramTokenize text
+  let grams   = bigramTokenize text
+      -- One token for each Japanese character, once for each time it
+      -- appears (letters and digits are left as whole words).
+      -- 日本語の字ごとに、出てきた回数だけ1つずつ（英数字は単語のまま）
       singles = [ Token (T.singleton c)
-                | Token t <- grams, T.length t == 2, c <- T.unpack t ]
+                | c <- T.unpack (T.toLower text), isJapanese c ]
   in grams <> singles
 
 japaneseWithUnigrams :: Tokenizer

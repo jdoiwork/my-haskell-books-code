@@ -4,19 +4,19 @@
 -- minisearch：インデックスを作って、引く。
 module Main (main) where
 
+import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Options.Applicative (execParser)
 import System.Exit (die)
 
 import MiniSearch.Cli
-import Data.Maybe (fromMaybe)
 
 import MiniSearch.Index (buildIndexWith)
 import MiniSearch.Load (readDocuments)
 import MiniSearch.Report (formatResults)
 import MiniSearch.Search (searchWith)
 import MiniSearch.Store (loadIndex, saveIndex)
-import MiniSearch.Tokenizer (english, tokenizerByName)
+import MiniSearch.Tokenizer (tokenizerByName)
 -- ANCHOR_END: head
 
 main :: IO ()
@@ -32,10 +32,13 @@ main = do
 runIndex :: IndexOptions -> IO ()
 runIndex opts = do
   docs <- readDocuments (docsDir opts)
-  -- The language was already checked when reading the options.
-  -- 言語は、オプションを読むときに確かめてある
-  let tok   = fromMaybe english (tokenizerByName (indexLang opts))
-      index = buildIndexWith tok docs
+  -- The options carry the name; look the Tokenizer up again here.
+  -- オプションは名前を運ぶので、ここで Tokenizer を引き直す
+  tok <- case tokenizerByName (indexLang opts) of
+    Just t  -> pure t
+    -- 「知らない言語です」（オプションで確かめてあるので、ふつうは来ない）
+    Nothing -> die ("unknown language: " <> T.unpack (indexLang opts))
+  let index = buildIndexWith tok docs
   saveIndex (indexOut opts) tok index
   -- 「8 個の文書を、index.json に入れました」
   putStrLn ("Indexed " <> show (length docs)

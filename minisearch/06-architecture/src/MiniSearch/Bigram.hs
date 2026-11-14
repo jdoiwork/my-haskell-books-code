@@ -6,9 +6,12 @@
 module MiniSearch.Bigram
   ( bigramTokenize
   , charSnippet
+  , isJapanese
   ) where
 
 import Data.Char (isAlphaNum)
+import Data.List (nub, sortOn)
+import Data.Ord (Down (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -60,25 +63,41 @@ bigrams t
 
 -- ANCHOR: snippet
 -- ✂️ Some characters around the first word of the query found in
---    the body, with every query word in [brackets].
+--    the body, with every query word in [brackets]. Like cutting,
+--    it does not care about upper and lower case ("hp" finds "HP").
 -- 本文の中で最初に見つかった問い合わせの語のまわりの文字。
--- 問い合わせの語は、すべて [ ] で囲む
+-- 問い合わせの語は、すべて [ ] で囲む。切るときと同じく、
+-- 大文字と小文字は区別しない（「hp」で「HP」が見つかる）
 charSnippet :: Int -> Text -> Text -> Text
 charSnippet width query body =
   let flat   = T.unwords (T.words body)
-      words' = filter (not . T.null) (T.words query)
+      lower  = T.toLower flat
+      -- Each word once, the longest first ("ドラゴン" before "ドラ").
+      -- 語は1回ずつ、長い順に（「ドラ」より「ドラゴン」が先）
+      words' = sortOn (Down . T.length)
+                 (nub (filter (not . T.null) (T.words (T.toLower query))))
       places = [ T.length before
                | w <- words'
-               , let (before, rest) = T.breakOn w flat
+               , let (before, rest) = T.breakOn w lower
                , not (T.null rest) ]
       first  = if null places then 0 else minimum places
       start  = max 0 (first - width)
       piece  = T.take (2 * width) (T.drop start flat)
-      marked = foldr mark piece words'
       before' = if start > 0 then "…" else ""
       after'  = if start + T.length piece < T.length flat then "…" else ""
-  in before' <> marked <> after'
-  where
-    mark w t = T.intercalate ("[" <> w <> "]") (T.splitOn w t)
+  in before' <> markWords words' piece <> after'
+
+-- 🖍️ Put [ ] around each place where a word starts, in one pass, so
+--    a short word inside a longer one is not marked twice.
+-- 語の見つかった所を、1回の走査で [ ] で囲む（長い語の中の短い語を、
+-- 二重に囲まないため）
+markWords :: [Text] -> Text -> Text
+markWords ws t
+  | T.null t  = t
+  | otherwise =
+      case [ w | w <- ws, T.toLower (T.take (T.length w) t) == w ] of
+        (w : _) -> let (hit, rest) = T.splitAt (T.length w) t
+                   in "[" <> hit <> "]" <> markWords ws rest
+        []      -> T.cons (T.head t) (markWords ws (T.tail t))
 -- ANCHOR_END: snippet
 -- ANCHOR_END: all

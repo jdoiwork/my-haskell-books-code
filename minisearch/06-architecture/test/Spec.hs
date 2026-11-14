@@ -18,7 +18,7 @@ import Data.List (isPrefixOf, sort)
 import qualified Data.Map as Map
 import qualified Data.Text.IO as TIO
 import System.Directory (listDirectory)
-import System.FilePath ((</>))
+import System.FilePath (takeBaseName, (</>))
 import System.IO.Temp (withSystemTempDirectory)
 
 import MiniSearch.Answers
@@ -77,20 +77,32 @@ coreModules :: [FilePath]
 coreModules =
   map (\m -> "src/MiniSearch/" <> m <> ".hs")
     [ "Types", "Tokenize", "Bigram", "Tokenizer", "Index", "Search"
-    , "Snippet", "Query", "Report", "Config" ]
+    , "Snippet", "Query", "Report", "Config", "Number" ]
 
 -- 🚫 Modules that touch files, threads, or the network.
 -- ファイル、スレッド、ネットワークに触れるモジュール
 outsideModules :: [String]
 outsideModules =
   [ "System.", "Control.Concurrent", "Network.", "Data.IORef"
-  , "MiniSearch.Load", "MiniSearch.Store", "MiniSearch.Live"
-  , "MiniSearch.Api" ]
+  , "Data.Text.IO", "Data.ByteString", "Data.Time.Clock", "GHC.IO"
+  , "Control.Monad.STM" ]
 
 -- 🔎 The import lines of a file that bring in an outside module.
 -- ファイルの import の行のうち、外の世界のモジュールを持ちこむもの
 importsOutside :: FilePath -> IO [String]
 importsOutside = importsAnyOf outsideModules
+
+-- 🧭 Our own modules (MiniSearch.*) that the core may import: only
+--    the core itself. Any other (Cli, Live, Store, and those still to
+--    come) is a door from the core to the shell.
+-- 核が import してよい自分たちのモジュール（MiniSearch.*）は、核だけ。
+-- それ以外（Cli・Live・Store、これから足すものも）は、核から殻への扉
+importsShell :: FilePath -> IO [String]
+importsShell path = do
+  ours <- importsAnyOf ["MiniSearch."] path
+  let coreNames = [ "MiniSearch." <> takeBaseName m | m <- coreModules ]
+      name l    = drop 2 (dropWhile (/= ':') l)
+  pure [ l | l <- ours, name l `notElem` coreNames ]
 
 importsAnyOf :: [String] -> FilePath -> IO [String]
 importsAnyOf forbidden path = do
@@ -111,9 +123,9 @@ importsAnyOf forbidden path = do
 outsideModulesWithTrace :: [String]
 outsideModulesWithTrace =
   [ "System.", "Control.Concurrent", "Network.", "Data.IORef"
-  , "Debug.Trace"
-  , "MiniSearch.Load", "MiniSearch.Store", "MiniSearch.Live"
-  , "MiniSearch.Api" ]
+  , "Data.Text.IO", "Data.ByteString", "Data.Time.Clock", "GHC.IO"
+  , "Control.Monad.STM"
+  , "Debug.Trace" ]
 -- ANCHOR_END: answer3
 
 -- ANCHOR: name
@@ -494,6 +506,18 @@ main = hspec $ do
         `shouldBe` map Token ["hp", "30", "のス", "スラ", "ライ", "イム"]
     -- ANCHOR_END: bigramtest
 
+    -- 「門番の単語の数は、空白で分けた語で数える（12字の日本語も通る）」
+    it "lets a long Japanese phrase through the gate" $
+      fmap queryText (parseSearchQuery japanese "金貨の山の上で眠っている")
+        `shouldBe` Right "金貨の山の上で眠っている"
+
+    -- 「抜粋は、大文字と小文字を区別せず、長い語を先に囲む」
+    it "marks words in an excerpt, ignoring case, longest first" $ do
+      charSnippet 15 "hp" "スライムの HP は 30 だ"
+        `shouldBe` "スライムの [HP] は 30 だ"
+      charSnippet 15 "ドラ ドラゴン ドラゴン" "赤いドラゴン"
+        `shouldBe` "赤い[ドラゴン]"
+
     -- 「日本語の文書を検索できる」
     it "searches Japanese documents" $ do
       docs <- readDocuments "samples/docs-ja"
@@ -526,15 +550,20 @@ main = hspec $ do
       fmap name (loadConfig [("PORT", "0x1F90")])
         `shouldBe` Left "PORT must be 1 to 65535: 0x1F90"
       fmap name (loadConfig [("MINISEARCH_LANG", "fr")])
-        `shouldBe` Left "MINISEARCH_LANG must be en or ja: fr"
+        `shouldBe` Left "MINISEARCH_LANG must be one of en, ja: fr"
   -- ANCHOR_END: config
 
   -- ANCHOR: arch
   -- 「設計の決まり」
-  describe "architecture" $
+  describe "architecture" $ do
     -- 「純粋な核は、外の世界に触れるモジュールを import しない」
     it "the pure core imports nothing that touches the outside" $ do
       problems <- concat <$> mapM importsOutside coreModules
+      problems `shouldBe` []
+
+    -- 「核が import する自分たちのモジュールは、核だけ」
+    it "the core imports only core modules of ours" $ do
+      problems <- concat <$> mapM importsShell coreModules
       problems `shouldBe` []
   -- ANCHOR_END: arch
 
@@ -548,6 +577,12 @@ main = hspec $ do
       ( length (searchWith japanese plain "炎")
         , length (searchWith japaneseWithUnigrams both "炎") )
         `shouldBe` (0, 4)
+
+    -- 「1文字ずつにするのは日本語だけ（HP や 30 は分けない）」
+    it "unigramsToo splits only Japanese characters" $
+      filter (`elem` map Token ["h", "p", "3", "0"])
+             (unigramsToo "HP 30のスライム")
+        `shouldBe` []
 
     -- 「Debug.Trace も核に入っていない」（ステップ3）
     it "the core does not use Debug.Trace" $ do
