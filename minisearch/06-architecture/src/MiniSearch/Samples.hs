@@ -2,8 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | A few documents to try the engine in GHCi.
 -- GHCi で試すための、いくつかの文書。
-module MiniSearch.Samples (sampleDocs) where
+module MiniSearch.Samples
+  ( sampleDocs
+  , sampleIndex
+  ) where
 
+import MiniSearch.Index (buildIndex)
 import MiniSearch.Types
 
 -- 📜 The guild library: six short notes about monsters and places.
@@ -31,4 +35,9 @@ sampleDocs =
       "A dragon tamer speaks to a dragon with a flute. \
       \A calm dragon is a friend, an angry dragon is fire."
   ]
+
+-- 📚 The index of the six notes, ready to search in GHCi.
+-- 6つの覚え書きのインデックス（GHCi ですぐ検索できるように）
+sampleIndex :: Index
+sampleIndex = buildIndex sampleDocs
 -- ANCHOR_END: all

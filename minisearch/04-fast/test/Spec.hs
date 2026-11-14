@@ -6,6 +6,7 @@ module Main (main) where
 import Data.Aeson (decode, encode)
 import qualified Data.Binary as Binary
 import qualified Data.ByteString as BS
+import Data.List (sort)
 import qualified Data.Text as T
 import Options.Applicative
 import Test.Hspec
@@ -61,8 +62,83 @@ parseArgs args =
   getParseResult (execParserPure defaultPrefs commandInfo args)
 -- ANCHOR_END: parse
 
+-- 📝 Tests with examples, kept from the design chapter.
+-- 例のテスト（設計の章から、そのまま残す）
+exampleTests :: Spec
+exampleTests = do
+  -- 「トークンに切る」
+  describe "tokenize" $
+    -- 「小文字にして、記号とよくある単語を捨てる」
+    it "lowers, and drops punctuation and stop words" $
+      tokenize "The red Dragon, of fire!"
+        `shouldBe` [Token "red", Token "dragon", Token "fire"]
+
+  -- 「検索する」
+  describe "search" $ do
+    -- 「すべての単語を含む文書だけを返す」
+    it "returns only documents with all the words" $
+      map hitTitle (search sampleIndex "dragon fire")
+        `shouldBe` ["Dragon Tamer", "Ice Dragon", "Red Dragon"]
+
+    -- 「知らない単語なら、何も返さない」
+    it "returns nothing for an unknown word" $
+      search sampleIndex "unicorn" `shouldBe` []
+
+    -- 「同じ単語を2回書いても、1回と同じ」
+    it "a word twice counts as once" $
+      search sampleIndex "dragon dragon"
+        `shouldBe` search sampleIndex "dragon"
+
+    -- 「同じ点数なら、番号の小さい順」
+    it "ties go to the smaller number first" $
+      let twins = [ Document (DocId 2) "Twin" "dragon"
+                  , Document (DocId 1) "Twin" "dragon" ]
+      in map hitDoc (search (buildIndex twins) "dragon")
+           `shouldBe` [DocId 1, DocId 2]
+
+  -- 「珍しい単語ほど、IDF が大きい」
+  describe "inverseDocFrequency" $
+    -- 「1つにしか出ない lava は、3つに出る dragon より大きい」
+    it "is larger for a rarer word" $
+      inverseDocFrequency (Token "lava") sampleIndex
+        `shouldSatisfy` (> inverseDocFrequency (Token "dragon") sampleIndex)
+
+-- ⚖️ Properties, kept from the design chapter.
+-- 性質（設計の章から、そのまま残す）
+propertyTests :: Spec
+propertyTests =
+  -- 「性質」
+  describe "properties" $ do
+    -- 「当たるのは、問い合わせの単語を全部含む文書で、そのすべて」
+    it "hits are exactly the documents with all the query tokens" $
+      property $ forAll genDocs $ \docs -> forAll genQuery $ \q ->
+        let tokens   = tokenize q
+            -- Read each document itself, not the index.
+            -- インデックスではなく、文書そのものを読む
+            wordsOf d = tokenize (docTitle d <> " " <> docBody d)
+            expected = [ docId d | d <- docs
+                                 , all (`elem` wordsOf d) tokens ]
+            actual   = map hitDoc (search (buildIndex docs) q)
+        in sort actual === sort expected
+
+    -- 「結果は、点の高い順に並ぶ」
+    it "hits are sorted by score, high first" $
+      property $ forAll genDocs $ \docs -> forAll genQuery $ \q ->
+        let scores = map hitScore (search (buildIndex docs) q)
+        in and (zipWith (>=) scores (drop 1 scores))
+
+    -- 「文書を入れる順番を変えても、同じインデックスになる」
+    it "the order of documents does not matter" $
+      property $ forAll genDocs $ \docs ->
+        forAll (shuffle docs) $ \shuffled ->
+          buildIndex docs === buildIndex shuffled
+
+
 main :: IO ()
 main = hspec $ do
+  exampleTests
+  propertyTests
+
   -- 「文書を読む」
   describe "toDocument" $
     -- 「1行目が題、残りが本文」
