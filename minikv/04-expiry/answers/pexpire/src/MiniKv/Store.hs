@@ -149,18 +149,18 @@ touched command store = case command of
 -- 時刻の3つのコマンドと、残りは今までどおり
 run :: Millis -> Command -> Store -> (Reply, Store)
 run now command store = case command of
-  Expire key seconds -> case deadlineAfter now seconds of
-    Nothing -> (Failed (BadExpire key), store)
-    Just t
-      | Map.member key (values store) ->
-          let ds = Map.insert key t (deadlines store)
-          in  (Number 1, store { deadlines = ds })
-      | otherwise -> (Number 0, store)
+  Expire key secs
+    | Map.member key (values store) ->
+        let ds = Map.insert key (deadlineAfter now secs) (deadlines store)
+        in  (Number 1, store { deadlines = ds })
+    | otherwise -> (Number 0, store)
   -- ANCHOR: pexpireRun
   PExpire key ms
-    | overflows now ms -> (Failed (BadExpire key), store)
     | Map.member key (values store) ->
-        let ds = Map.insert key (now + ms) (deadlines store)
+        -- the same end of time as EXPIRE / EXPIRE と同じ時の果て
+        let n  = fromMilliseconds ms
+            t  = if overflows now n then maxBound else now + n
+            ds = Map.insert key t (deadlines store)
         in  (Number 1, store { deadlines = ds })
     | otherwise -> (Number 0, store)
   -- ANCHOR_END: pexpireRun
@@ -170,7 +170,7 @@ run now command store = case command of
     in  case (present, deadline) of
           (False, _)      -> (Number (-2), store)   -- no key / キーがない
           (True, Nothing) -> (Number (-1), store)   -- no deadline / 期限なし
-          (True, Just t)  -> (Number ((t - now + 999) `div` 1000), store)
+          (True, Just t)  -> (Number (secondsUntil t), store)
   Persist key -> case Map.lookup key (deadlines store) of
     Just _  ->
       let ds = Map.delete key (deadlines store)
@@ -182,6 +182,12 @@ run now command store = case command of
     let cleared = store { deadlines = Map.delete key (deadlines store) }
     in  (Ok, put key (Str text) cleared)
   _ -> valueCommand command store
+  where
+    -- The seconds left, rounded up (written so that it never goes round:
+    -- t - now + 999 would, when t is near maxBound).
+    -- 残りの秒数を切り上げて（t - now + 999 は、t が maxBound に近いと
+    -- あふれるので、あふれない形で）
+    secondsUntil t = negate ((now - t) `div` 1000)
 -- ANCHOR_END: time
 
 -- ANCHOR: value
@@ -302,18 +308,18 @@ readInt t
     n      = read (T.unpack t) :: Integer
 
 -- ANCHOR: deadlineAfter
--- ⏰ The time `seconds` after `now`, or Nothing if it would go round
---    the Int ring (the same watch as INCR's `overflows`).
--- now の seconds 秒後の時刻。Int の輪を回ってしまうなら Nothing
--- （INCR の overflows と同じ見張り）
-deadlineAfter :: Millis -> Int -> Maybe Millis
-deadlineAfter now seconds
-  | seconds > limit || seconds < negate limit = Nothing
-  | overflows now ms                          = Nothing
-  | otherwise                                 = Just (now + ms)
+-- ⏰ The time `secs` after `now`. Seconds × 1000 always fits in Int
+--    (the gate saw to it); if now + that would go round the Int ring,
+--    stop at the end of time (maxBound) instead.
+-- now の secs 秒後の時刻。秒数の 1000 倍は、いつも Int に入る（門が
+-- 確かめた）。now に足すと Int の輪を回ってしまうなら、
+-- 時の果て（maxBound）で止める
+deadlineAfter :: Millis -> Seconds -> Millis
+deadlineAfter now secs
+  | overflows now ms = maxBound
+  | otherwise        = now + ms
   where
-    limit = maxBound `div` 1000
-    ms    = seconds * 1000
+    ms = fromSeconds secs * 1000
 -- ANCHOR_END: deadlineAfter
 
 -- 💰 Would old + n go round the Int ring?

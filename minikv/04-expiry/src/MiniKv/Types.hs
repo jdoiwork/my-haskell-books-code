@@ -11,6 +11,10 @@ module MiniKv.Types
   , Reply (..)
   , KvError (..)
   , Millis
+  , Seconds
+  , seconds
+  , fromSeconds
+  , maxSeconds
   ) where
 -- ANCHOR_END: exports
 
@@ -72,7 +76,7 @@ data Command
   | HGetAll Key
   | TypeOf Key
   | Keys
-  | Expire Key Int     -- ^ forget the key after n seconds / n 秒後に忘れる
+  | Expire Key Seconds -- ^ forget the key after n seconds / n 秒後に忘れる
   | Ttl Key            -- ^ seconds left / 残りの秒数
   | Persist Key        -- ^ never forget it / 忘れないことにする
   deriving (Show, Eq)
@@ -97,7 +101,6 @@ data KvError
   = WrongType Key Kind Kind    -- ^ key, wanted, found / キー、欲しい、実際
   | NotAnInteger Key
   | Overflow Key
-  | BadExpire Key              -- ^ deadline goes round / 期限があふれる
   deriving (Show, Eq)
 -- ANCHOR_END: kverror
 -- ANCHOR_END: reply
@@ -108,4 +111,31 @@ data KvError
 -- 時刻。1970 年からのミリ秒（核は時計を読まない。いつも今の時刻を教わる）
 type Millis = Int
 -- ANCHOR_END: millis
+
+-- ANCHOR: seconds
+-- ⏱️ The seconds of an EXPIRE, already checked at the gate: at least 1,
+--    and small enough that × 1000 stays within Int. The constructor is
+--    not exported, so `seconds` is the only way in.
+-- EXPIRE の秒数。門で確かめ済み：1 以上で、1000 倍しても Int に入る。
+-- コンストラクターは書き出さないので、作るには seconds を通るしかない
+newtype Seconds = Seconds Int
+  deriving (Show, Eq)
+
+-- 🚪 The gate: Just only for a number that may be a Seconds.
+-- 門：Seconds になってよい数だけ Just
+seconds :: Int -> Maybe Seconds
+seconds n
+  | n >= 1 && n <= maxSeconds = Just (Seconds n)
+  | otherwise                 = Nothing
+
+-- 📏 The largest one: × 1000 still fits in Int.
+-- いちばん大きな秒数：1000 倍しても Int に入る
+maxSeconds :: Int
+maxSeconds = maxBound `div` 1000
+
+-- 🔓 Take the number out (to write it on the wire, or to compute).
+-- 中の数を取り出す（回線に書くとき、計算するとき）
+fromSeconds :: Seconds -> Int
+fromSeconds (Seconds n) = n
+-- ANCHOR_END: seconds
 -- ANCHOR_END: all

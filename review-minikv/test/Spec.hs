@@ -7,7 +7,7 @@ import Test.QuickCheck
 
 import MiniKv.Client (withConnection)
 import MiniKv.Server (withServerAt)
-import MiniKv.Typed (ClientError (..), run)
+import MiniKv.Typed (run, seconds)
 import qualified MiniKv.Typed as Typed
 import Review.Gate
 
@@ -26,12 +26,13 @@ main = hspec $ do
     it "opens again after the window" $
       allowAll rule "lambda" [0, 1000, 2000, 3000, 60000]
         `shouldBe` [True, True, True, False, True]
-    -- 守れない決まり（0 回まで、0 秒、あふれる秒数）では、だれも通さない
-    it "lets nobody in under a rule it cannot keep" $ do
-      let shut rule' = or (allowAll rule' "lambda" [0, 1, 60000])
-      shut (Rule 0 60) `shouldBe` False
-      shut (Rule 3 0) `shouldBe` False
-      shut (Rule 3 maxBound) `shouldBe` False
+    -- 守れない決まり（0 回まで）では、だれも通さない
+    it "lets nobody in under a rule it cannot keep" $
+      or (allowAll (Rule 0 (secs 60)) "lambda" [0, 1, 60000])
+        `shouldBe` False
+    -- 0 秒の窓や、あふれる秒数の窓は、そもそも作れない
+    it "cannot even make a window of 0 seconds, or of too many" $
+      map seconds [0, -1, maxBound] `shouldBe` [Nothing, Nothing, Nothing]
   -- ANCHOR_END: examples
   -- ANCHOR: properties
   describe "properties" $ do
@@ -52,31 +53,19 @@ main = hspec $ do
       clock <- newIORef 0
       withServerAt (readIORef clock) $ \port ->
         withConnection port $ \conn -> do
-          let gate = Rule { limit = 2, windowSeconds = 60 }
+          let gate = Rule { limit = 2, windowSeconds = secs 60 }
           a <- traverse (const (allow conn gate "python")) [1 .. 3 :: Int]
           writeIORef clock 61000
           b <- allow conn gate "python"
           (a, b) `shouldBe` (map Right [True, True, False], Right True)
-    -- EXPIRE が断られたら（あふれる秒数）、通さず、数も残さない
-    it "lets nobody in when the deadline is refused" $ do
-      clock <- newIORef 0
-      withServerAt (readIORef clock) $ \port ->
-        withConnection port $ \conn -> do
-          let gate = Rule { limit = 3, windowSeconds = maxBound }
-          allow conn gate "rust" >>= \answer -> case answer of
-            Left (ServerSaid _) -> pure ()
-            other -> expectationFailure ("not refused: " <> show other)
-          left <- run conn (Typed.Get (counterKey "rust"))
-          left `shouldBe` Right Nothing
-    -- 守れない決まり（0回、0秒）では、通さず、数えもしない
+    -- 守れない決まり（0回）では、通さず、数えもしない
     it "lets nobody in under a rule it cannot keep" $
       withServerAt (pure 0) $ \port ->
         withConnection port $ \conn -> do
-          let rules = [Rule { limit = 0, windowSeconds = 60 }
-                      , Rule { limit = 3, windowSeconds = 0 }]
-          answers <- traverse (\bad -> allow conn bad "go") rules
+          let bad = Rule { limit = 0, windowSeconds = secs 60 }
+          answer <- allow conn bad "go"
           left <- run conn (Typed.Get (counterKey "go"))
-          (answers, left) `shouldBe` (map Right [False, False], Right Nothing)
+          (answer, left) `shouldBe` (Right False, Right Nothing)
   -- ANCHOR_END: network
   -- ANCHOR: mendSpec
   describe "allowMending (step 4)" $ do
@@ -85,7 +74,7 @@ main = hspec $ do
       clock <- newIORef 0
       withServerAt (readIORef clock) $ \port ->
         withConnection port $ \conn -> do
-          let gate = Rule { limit = 2, windowSeconds = 60 }
+          let gate = Rule { limit = 2, windowSeconds = secs 60 }
           -- The client fell right after INCR: a count, and no deadline.
           -- INCR の直後にクライアントが落ちた：数だけあって、期限がない
           _ <- run conn (Typed.Incr (counterKey "python"))
@@ -99,7 +88,7 @@ main = hspec $ do
       clock <- newIORef 0
       withServerAt (readIORef clock) $ \port ->
         withConnection port $ \conn -> do
-          let gate = Rule { limit = 2, windowSeconds = 60 }
+          let gate = Rule { limit = 2, windowSeconds = secs 60 }
           _ <- run conn (Typed.Incr (counterKey "python"))
           a <- traverse (const (allow conn gate "python")) [1, 2 :: Int]
           writeIORef clock 61000
@@ -109,9 +98,8 @@ main = hspec $ do
     it "lets nobody in under a rule it cannot keep, either" $
       withServerAt (pure 0) $ \port ->
         withConnection port $ \conn -> do
-          let rules = [Rule { limit = 0, windowSeconds = 60 }
-                      , Rule { limit = 3, windowSeconds = 0 }]
-          answers <- traverse (\bad -> allowMending conn bad "go") rules
+          let bad = Rule { limit = 0, windowSeconds = secs 60 }
+          answer <- allowMending conn bad "go"
           left <- run conn (Typed.Get (counterKey "go"))
-          (answers, left) `shouldBe` (map Right [False, False], Right Nothing)
+          (answer, left) `shouldBe` (Right False, Right Nothing)
   -- ANCHOR_END: mendSpec

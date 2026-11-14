@@ -64,8 +64,8 @@ type Clock = IO Millis
 
 systemClock :: Clock
 systemClock = do
-  seconds <- getPOSIXTime
-  pure (floor (seconds * 1000))
+  posix <- getPOSIXTime
+  pure (floor (posix * 1000))
 
 -- ANCHOR: env
 -- 🎒 Everything the server carries around. New: a broadcast channel
@@ -207,9 +207,9 @@ stateTVar' var f = do
 -- 待つあいだ、クライアントも見張る。クライアントが切ったら、何も取らずに
 -- やめる（Nothing）。そのあいだに届いたバイトは取っておき、答えと一緒に返す
 blockingPop :: Env -> Socket -> Key -> Int -> IO (Maybe (Wire, ByteString))
-blockingPop env sock key seconds = do
-  timeUp <- if seconds == 0 then newTVarIO False
-                            else registerDelay (seconds * 1000000)
+blockingPop env sock key waitSecs = do
+  timeUp <- if waitSecs == 0 then newTVarIO False
+                             else registerDelay (waitSecs * 1000000)
   let attempt early = do
         woke <- race waitForClient
                      (atomically (waitForItem `orElse` waitForTimeout timeUp))

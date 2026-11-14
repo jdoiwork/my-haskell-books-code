@@ -31,7 +31,7 @@ import MiniKv.Wire (Wire (..))
 -- 何秒のあいだに、何回まで
 data Rule = Rule
   { limit         :: Int
-  , windowSeconds :: Int
+  , windowSeconds :: Seconds   -- checked at the gate / 門で確かめた秒数
   }
   deriving (Show, Eq)
 
@@ -47,22 +47,24 @@ gateKey who = "gate:" <> who
 counterKey :: Text -> Typed.Key Int
 counterKey who = Typed.Key (gateKey who)
 
--- 🧐 A rule the gate can keep: at least one knock, at least one second.
--- 門番が守れる決まり：1回以上、1秒以上
+-- 🧐 A rule the gate can keep: at least one knock. (At least one
+--    second, and not too many, is already in the type Seconds.)
+-- 門番が守れる決まり：1回以上（1秒以上で、多すぎない秒数は、
+-- もう Seconds の型が守っている）
 sane :: Rule -> Bool
-sane rule = limit rule >= 1 && windowSeconds rule >= 1
+sane rule = limit rule >= 1
 -- ANCHOR_END: rule
 
 -- ANCHOR: hit
 -- 🚪 Step 1: one knock on the gate, at time `now`. Count it with INCR;
 --    the first knock of a window also sets the deadline with EXPIRE.
---    If the deadline cannot be set (EXPIRE is refused), the knock is
---    not counted at all: a count without a deadline would stay for
---    ever. When in doubt, the gate stays shut.
+--    Its answer is read, too: if it is not 1 (the deadline was not
+--    set), the knock is not counted at all, since a count without a
+--    deadline would stay for ever. When in doubt, the gate stays shut.
 -- ステップ1：時刻 now に、門を1回たたく。INCR で数え、
--- 窓の最初の1回なら、EXPIRE で期限も決める。期限を決められなかったら
--- （EXPIRE が断られたら）、数えたこともなかったことにする：期限のない
--- 数は、いつまでも残ってしまう。迷ったら、門は開けない
+-- 窓の最初の1回なら、EXPIRE で期限も決める。その答えも見る：1 でなければ
+-- （期限を決められなかったら）、数えたこともなかったことにする。期限の
+-- ない数は、いつまでも残ってしまう。迷ったら、門は開けない
 hit :: Rule -> Millis -> Text -> Store -> (Bool, Store)
 hit rule now who store0
   | not (sane rule) = (False, store0)

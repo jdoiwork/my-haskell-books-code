@@ -6,6 +6,7 @@ import qualified Data.Text as T
 import Control.Concurrent.Async (forConcurrently_, withAsync)
 import Control.Concurrent.STM (atomically, check, newTVarIO, readTVar)
 import Data.IORef
+import Data.Maybe (fromMaybe)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import Control.Monad (replicateM_)
@@ -50,7 +51,7 @@ genCommand = oneof
   , SRem <$> key <*> listOf1 text, SMembers <$> key
   , SIsMember <$> key <*> text, HSet <$> key <*> text <*> text
   , HGet <$> key <*> text, HGetAll <$> key, TypeOf <$> key, pure Keys
-  , Expire <$> key <*> small, Ttl <$> key, Persist <$> key
+  , Expire <$> key <*> secsGen, Ttl <$> key, Persist <$> key
   ]
   where
     key   = elements ["a", "b", "c"]
@@ -59,6 +60,9 @@ genCommand = oneof
     text  = elements
       ["x", "y", "z", "1", "2", T.pack (show (maxBound :: Int))]
     small = choose (-3, 3)
+    -- 1 to 3 seconds (only numbers that pass the gate)
+    -- 1〜3 秒（門を通る数だけ）
+    secsGen = choose (1, 3) `suchThatMap` seconds
 -- ANCHOR_END: gens
 
 main :: IO ()
@@ -104,15 +108,15 @@ main = hspec $ do
         let (_, s) = applyAll 0 commands emptyStore
         in  all (not . emptyCollection) (storedValues s)
     -- ANCHOR: failedSpec
-    -- エラーを答えたコマンドは、見えるものを変えない（時刻が来たキーを
-    -- 忘れることはある。だから、掃除したあとのストアでくらべる）
-    it "a failed command changes nothing we can see" $
+    -- エラーを答えたコマンドは、ストアを変えない（時刻 0 のままなので、
+    -- 1 秒以上の期限は、まだ来ない）
+    it "a failed command leaves the store as it was" $
       forAll (listOf genCommand) $ \commands ->
         forAll genCommand $ \command ->
           let (_, s)       = applyAll 0 commands emptyStore
               (reply, s')  = apply 0 command s
           in  case reply of
-                Failed _ -> snd (sweep 0 s') == snd (sweep 0 s)
+                Failed _ -> s' == s
                 _        -> True
     -- ANCHOR_END: failedSpec
   -- ANCHOR_END: spec
@@ -167,6 +171,17 @@ main = hspec $ do
         `shouldBe` Left "not an integer: 0x10"
       toCommand ["INCRBY", "gold", "9223372036854775808"]
         `shouldBe` Left "not an integer: 9223372036854775808"
+    -- ANCHOR: gateSpec
+    -- EXPIRE の秒数は、門で確かめる：0 以下と、1000 倍してあふれる数は断る
+    it "lets only good seconds through the gate of EXPIRE" $ do
+      let expire n = toCommand ["EXPIRE", "k", BC.pack (show n)]
+          tooMany  = maxSeconds + 1
+      expire (0 :: Int) `shouldBe` Left "invalid expire time: 0"
+      expire (-5 :: Int) `shouldBe` Left "invalid expire time: -5"
+      expire tooMany `shouldBe`
+        Left ("invalid expire time: " <> T.pack (show tooMany))
+      expire maxSeconds `shouldBe` Right (Expire "k" (secs maxSeconds))
+    -- ANCHOR_END: gateSpec
     -- 種類ちがいのエラーは、WRONGTYPE で始まる
     it "renders WrongType as a WRONGTYPE error" $
       render (replyWire (Failed (WrongType "hero" KList KString)))
@@ -211,46 +226,45 @@ main = hspec $ do
   describe "expiry" $ do
     -- 期限の前は読めて、期限を過ぎると消えている
     it "forgets a key when its time has come" $ do
-      let commands = [Set "session" "abc", Expire "session" 10]
+      let commands = [Set "session" "abc", Expire "session" (secs 10)]
           (_, s)   = applyAll 0 commands emptyStore
       fst (apply 9999 (Get "session") s) `shouldBe` Bulk "abc"
       fst (apply 10000 (Get "session") s) `shouldBe` Nil
     -- TTL は、ないキーで -2、期限なしで -1、ほかは残りの秒数
     it "TTL says -2, -1, or the seconds left" $
-      let commands = [Ttl "x", Set "x" "1", Ttl "x", Expire "x" 30]
+      let commands = [Ttl "x", Set "x" "1", Ttl "x", Expire "x" (secs 30)]
       in  fst (applyAll 0 commands emptyStore)
             `shouldBe` [Number (-2), Ok, Number (-1), Number 1]
     -- SET しなおすと、期限は消える
     it "SET clears the deadline" $ do
-      let commands = [Set "k" "a", Expire "k" 5, Set "k" "b"]
+      let commands = [Set "k" "a", Expire "k" (secs 5), Set "k" "b"]
           (_, s)   = applyAll 0 commands emptyStore
       fst (apply 60000 (Get "k") s) `shouldBe` Bulk "b"
     -- TTL の残りは、秒に切り上げる（残り 0.999 秒でも 1）
     it "TTL rounds the time left up to whole seconds" $ do
-      let (_, s) = applyAll 0 [Set "x" "1", Expire "x" 30] emptyStore
+      let (_, s) = applyAll 0 [Set "x" "1", Expire "x" (secs 30)] emptyStore
       fst (apply 3000 (Ttl "x") s) `shouldBe` Number 27
       fst (apply 29001 (Ttl "x") s) `shouldBe` Number 1
     -- PERSIST は期限を消す。2回目は、消す期限がないので 0
     it "PERSIST takes the deadline away" $ do
-      let commands = [Set "k" "v", Expire "k" 5, Persist "k", Persist "k"]
+      let commands =
+            [Set "k" "v", Expire "k" (secs 5), Persist "k", Persist "k"]
           (replies, s) = applyAll 0 commands emptyStore
       replies `shouldBe` [Ok, Number 1, Number 1, Number 0]
       fst (apply 60000 (Get "k") s) `shouldBe` Bulk "v"
-    -- 期限が Int の輪を回る EXPIRE は断り、キーはそのまま
-    it "refuses an EXPIRE whose deadline would go round" $
+    -- ANCHOR: farSpec
+    -- ずっと先の期限は、時の果て（maxBound）で止まる。キーは読めて、
+    -- TTL も、あふれずに正の数
+    it "stops a far deadline at the end of time" $
       let now      = 1794000000000
-          commands =
-            [ Set "k" "v"
-            , Expire "k" (maxBound `div` 1000 + 1)   -- × 1000 goes round
-            , Expire "k" (maxBound `div` 1000)       -- now + goes round
-            , Expire "k" minBound
-            , Ttl "k" ]
-      in  fst (applyAll now commands emptyStore)
-            `shouldBe` [Ok] ++ replicate 3 (Failed (BadExpire "k"))
-                         ++ [Number (-1)]
+          commands = [Set "k" "v", Expire "k" (secs maxSeconds)]
+          (_, s)   = applyAll now commands emptyStore
+      in  do fst (apply (now + 1) (Get "k") s) `shouldBe` Bulk "v"
+             fst (apply 0 (Ttl "k") s) `shouldSatisfy` positive
+    -- ANCHOR_END: farSpec
     -- 掃除係は、だれも触らないキーも忘れる（GET で先に忘れさせない）
     it "the sweeper forgets keys that nobody touches" $ do
-      let commands = [Set "a" "1", Expire "a" 1, Set "b" "2"]
+      let commands = [Set "a" "1", Expire "a" (secs 1), Set "b" "2"]
       var <- newTVarIO (snd (applyAll 0 commands emptyStore))
       swept <- withAsync (sweeper (pure 5000) var) $ \_ ->
         timeout 2000000 $ atomically $ do
@@ -325,3 +339,16 @@ main = hspec $ do
 oneLineError :: Either T.Text Command -> Bool
 oneLineError (Left message) = T.all (`notElem` ("\r\n" :: String)) message
 oneLineError (Right _)      = False
+
+-- ANCHOR: secs
+-- ⏱️ Seconds for the tests: a number we know is fine (stop if not).
+-- テスト用の秒数：よいとわかっている数から（だめなら止める）
+secs :: Int -> Seconds
+secs n = fromMaybe (error ("not a Seconds: " <> show n)) (seconds n)
+
+-- ➕ A positive number answer (for the TTL of a far deadline).
+-- 正の数の答え（ずっと先の期限の TTL のため）
+positive :: Reply -> Bool
+positive (Number n) = n > 0
+positive _          = False
+-- ANCHOR_END: secs

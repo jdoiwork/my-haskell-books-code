@@ -14,6 +14,8 @@ module MiniKv.Typed
   , runMany
   , cmdWords
   , decodeReply
+  , Seconds
+  , seconds
   ) where
 
 import Data.ByteString (ByteString)
@@ -23,6 +25,7 @@ import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 
 import MiniKv.Client (Connection, request, requestMany)
 import MiniKv.Store (readInt)
+import MiniKv.Types (Seconds, fromSeconds, seconds)
 import MiniKv.Wire
 -- ANCHOR_END: head
 
@@ -65,7 +68,7 @@ data Cmd a where
   Incr   :: Key Int -> Cmd Int
   RPush  :: Codec v => ListKey v -> [v] -> Cmd Int
   LRange :: Codec v => ListKey v -> Int -> Int -> Cmd [v]
-  Expire :: Key v -> Int -> Cmd Bool
+  Expire :: Key v -> Seconds -> Cmd Bool
   Del    :: Key v -> Cmd Bool
 -- ANCHOR_END: cmd
 
@@ -79,7 +82,7 @@ cmdWords command = map encodeUtf8 $ case command of
   Incr (Key k)             -> ["INCR", k]
   RPush (ListKey k) vs     -> "RPUSH" : k : map encode vs
   LRange (ListKey k) a b   -> ["LRANGE", k, showT a, showT b]
-  Expire (Key k) seconds   -> ["EXPIRE", k, showT seconds]
+  Expire (Key k) secs      -> ["EXPIRE", k, showT (fromSeconds secs)]
   Del (Key k)              -> ["DEL", k]
   where
     showT n = T.pack (show n)

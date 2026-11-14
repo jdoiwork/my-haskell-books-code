@@ -57,8 +57,8 @@ type Clock = IO Millis
 
 systemClock :: Clock
 systemClock = do
-  seconds <- getPOSIXTime
-  pure (floor (seconds * 1000))
+  posix <- getPOSIXTime
+  pure (floor (posix * 1000))
 
 -- ANCHOR: env
 -- 🎒 Everything the server carries around, in one record.

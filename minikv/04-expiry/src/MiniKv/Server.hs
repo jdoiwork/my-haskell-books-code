@@ -47,8 +47,8 @@ type Clock = IO Millis
 
 systemClock :: Clock
 systemClock = do
-  seconds <- getPOSIXTime
-  pure (floor (seconds * 1000))
+  posix <- getPOSIXTime
+  pure (floor (posix * 1000))
 
 -- ⚛️ Run one command on the shared store, atomically, at the time
 --    the clock says.

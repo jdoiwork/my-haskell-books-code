@@ -88,7 +88,7 @@ toCommand (name : rawArgs) = do
     ("HGETALL",   [k])            -> Right (HGetAll k)
     ("TYPE",      [k])            -> Right (TypeOf k)
     ("KEYS",      [])             -> Right Keys
-    ("EXPIRE",    [k, n])         -> Expire k <$> number n
+    ("EXPIRE",    [k, n])         -> Expire k <$> secondsArg n
     ("TTL",       [k])            -> Right (Ttl k)
     ("PERSIST",   [k])            -> Right (Persist k)
     (other,       _)              ->
@@ -101,6 +101,11 @@ toCommand (name : rawArgs) = do
     number t = case readInt t of
       Just n  -> Right n
       Nothing -> Left (oneLine ("not an integer: " <> t))
+    -- The gate of EXPIRE: a number, and one that may be a Seconds.
+    -- EXPIRE の門：数で、しかも Seconds になってよい数
+    secondsArg t = do
+      n <- number t
+      maybe (Left (oneLine ("invalid expire time: " <> t))) Right (seconds n)
 -- ANCHOR_END: toCommand
 
 -- ANCHOR: commandWords
@@ -129,7 +134,7 @@ commandWords command = map encodeUtf8 $ case command of
   HGetAll k       -> ["HGETALL", k]
   TypeOf k        -> ["TYPE", k]
   Keys            -> ["KEYS"]
-  Expire k n      -> ["EXPIRE", k, showT n]
+  Expire k s      -> ["EXPIRE", k, showT (fromSeconds s)]
   Ttl k           -> ["TTL", k]
   Persist k       -> ["PERSIST", k]
   where
@@ -164,7 +169,6 @@ errorText err = case err of
       <> ", not a " <> kindWord wanted
   NotAnInteger k -> "ERR the value of " <> k <> " is not an integer"
   Overflow k     -> "ERR increment would overflow " <> k
-  BadExpire k    -> "ERR invalid expire time for " <> k
   where
     kindWord KString = "string"
     kindWord KList   = "list"

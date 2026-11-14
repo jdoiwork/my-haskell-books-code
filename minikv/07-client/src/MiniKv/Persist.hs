@@ -35,7 +35,9 @@ import MiniKv.Wire
 -- （あとで読み戻しても、同じ期限になるように）
 toLogged :: Millis -> Command -> Maybe Command
 toLogged now command = case command of
-  Expire key seconds -> Just (PExpireAt key (now + seconds * 1000))
+  -- the same deadline apply gives (stopping at the end of time)
+  -- apply と同じ期限（時の果てで止まるところも同じ）
+  Expire key secs -> Just (PExpireAt key (deadlineAfter now secs))
   Get {}       -> Nothing
   Exists {}    -> Nothing
   LRange {}    -> Nothing

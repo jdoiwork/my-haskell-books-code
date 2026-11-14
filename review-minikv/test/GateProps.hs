@@ -5,6 +5,7 @@
 module GateProps
   ( Knocks (..)
   , rule
+  , secs
   , prop_slidingDraft
   , prop_slidingTwice
   , prop_firstOnesPass
@@ -13,7 +14,9 @@ module GateProps
 import Data.List (sort)
 import Test.QuickCheck
 
-import MiniKv.Types (Millis)
+import Data.Maybe (fromMaybe)
+
+import MiniKv.Types (Millis, Seconds, seconds)
 import Review.Gate
 -- ANCHOR_END: head
 
@@ -32,7 +35,12 @@ instance Arbitrary Knocks where
 -- 3 times a minute.
 -- 1分に3回まで
 rule :: Rule
-rule = Rule { limit = 3, windowSeconds = 60 }
+rule = Rule { limit = 3, windowSeconds = secs 60 }
+
+-- ⏱️ Seconds for the tests: a number we know is fine (stop if not).
+-- テスト用の秒数：よいとわかっている数から（だめなら止める）
+secs :: Int -> Seconds
+secs n = fromMaybe (error ("not a Seconds: " <> show n)) (seconds n)
 
 -- 🔢 For each time t that was let in, count how many were let in
 --    during [t, t + 60 s); answer the largest count.

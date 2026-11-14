@@ -127,9 +127,9 @@ listenTo env sock first early = do
 -- （並べた順に、最初のキー）、キーと値を答える。ほかは blockingPop のまま
 blockingPopAny :: Env -> Socket -> [Key] -> Int
                -> IO (Maybe (Wire, ByteString))
-blockingPopAny env sock keys seconds = do
-  timeUp <- if seconds == 0 then newTVarIO False
-                            else registerDelay (seconds * 1000000)
+blockingPopAny env sock keys waitSecs = do
+  timeUp <- if waitSecs == 0 then newTVarIO False
+                             else registerDelay (waitSecs * 1000000)
   let attempt early = do
         woke <- race waitForClient
                      (atomically ((Just <$> firstFilled)
