@@ -18,7 +18,7 @@ import MiniSearch.Types
 -- ANCHOR_END: head
 
 -- ANCHOR: words
--- 🔤 Word number i, made of syllables: 0 -> "ka", 17 -> "riri", ...
+-- 🔤 Word number i, made of syllables: 0 -> "ri", 16 -> "riri", ...
 -- i 番目の単語を、音節を並べて作る
 wordAt :: Int -> Text
 wordAt i = T.concat (map (syllables !!) (digits (i + 1)))

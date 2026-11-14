@@ -347,6 +347,11 @@ main = hspec $ do
       property $ forAll genDocs $ \docs ->
         buildIndex docs === buildIndexNaive docs
 
+    -- 「1つずつ入れても（addDocument）、一度に作っても、同じ」
+    it "adding one by one builds the same index" $
+      property $ forAll genDocs $ \docs ->
+        foldl' (flip addDocument) emptyIndex docs === buildIndex docs
+
     -- 「検索の結果も、お手本と同じ（点数は誤差まで）」
     it "finds the same hits as the naive one" $
       property $ forAll genDocs $ \docs -> forAll genQuery $ \q ->

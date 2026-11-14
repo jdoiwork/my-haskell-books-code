@@ -285,6 +285,11 @@ main = hspec $ do
       property $ forAll genDocs $ \docs ->
         buildIndex docs === buildIndexNaive docs
 
+    -- 「1つずつ入れても（addDocument）、一度に作っても、同じ」
+    it "adding one by one builds the same index" $
+      property $ forAll genDocs $ \docs ->
+        foldl' (flip addDocument) emptyIndex docs === buildIndex docs
+
     -- 「検索の結果も、お手本と同じ（点数は誤差まで）」
     it "finds the same hits as the naive one" $
       property $ forAll genDocs $ \docs -> forAll genQuery $ \q ->
@@ -346,9 +351,19 @@ main = hspec $ do
         loaded `shouldBe`
           Left ("this index is version 3, but this program"
                 <> " reads version 4: run index again")
+        -- An old file whose index has another shape: still the version.
+        -- 形のちがうインデックスの入った古いファイルでも、版で断る
+        Binary.encodeFile path (3 :: Int, [1, 2, 3 :: Int])
+        loadVersioned path `shouldReturn`
+          Left ("this index is version 3, but this program"
+                <> " reads version 4: run index again")
+        -- A file of this version reads back.
+        -- この版のファイルは、読み戻せる
+        saveVersioned path (buildIndex sampleDocs)
+        loadVersioned path `shouldReturn` Right (buildIndex sampleDocs)
 
     -- ANCHOR: answer1
-    -- 「件数 0 も 400」（トレーニングのステップ1）
+    -- 「件数 0 も 400」（検索 Web API の章のトレーニングのステップ1）
     with (pure (app (buildIndex sampleDocs))) $
       it "answers 400 for a limit of 0" $
         get "/search?q=dragon&limit=0"

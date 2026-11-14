@@ -11,6 +11,8 @@ module MiniSearch.Answers
 
 import Control.Exception (IOException, try)
 import qualified Data.Binary as Binary
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 import Data.List (insertBy)
 import Data.Ord (Down (..), comparing)
 
@@ -44,19 +46,24 @@ saveVersioned :: FilePath -> Index -> IO ()
 saveVersioned path index =
   replaceFile path (Binary.encode (formatVersion, index))
 
--- 📥 Read the version first; refuse a file of another version.
--- 先に版を読む。違う版のファイルは断る
+-- 📥 Read the version first, and the index only if the version is
+--    right: an old file may hold an Index of another shape.
+-- 先に版だけを読み、版が合ったときだけインデックスを読む：
+-- 古いファイルには、形のちがう Index が入っているかもしれない
 loadVersioned :: FilePath -> IO (Either String Index)
 loadVersioned path = do
-  result <- try (Binary.decodeFileOrFail path)
+  result <- try (BS.readFile path)
   pure $ case result of
-    Left err -> Left (show (err :: IOException))
-    Right (Left (_, msg)) -> Left msg
-    Right (Right (v, index))
-      | v == formatVersion -> Right index
-      | otherwise ->
-          Left ("this index is version " <> show (v :: Int)
-                <> ", but this program reads version "
-                <> show formatVersion <> ": run index again")
+    Left err    -> Left (show (err :: IOException))
+    Right bytes -> case Binary.decodeOrFail (BL.fromStrict bytes) of
+      Left (_, _, msg) -> Left msg
+      Right (rest, _, v)
+        | v /= formatVersion ->
+            Left ("this index is version " <> show (v :: Int)
+                  <> ", but this program reads version "
+                  <> show formatVersion <> ": run index again")
+        | otherwise -> case Binary.decodeOrFail rest of
+            Left (_, _, msg)    -> Left msg
+            Right (_, _, index) -> Right index
 -- ANCHOR_END: versioned
 -- ANCHOR_END: all

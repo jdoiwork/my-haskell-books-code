@@ -17,6 +17,7 @@ import Control.Exception (evaluate)
 import qualified Data.Map as Map
 import GHC.Clock (getMonotonicTime)
 import System.Environment (getArgs)
+import Text.Read (readMaybe)
 import Text.Printf (printf)
 
 import MiniSearch.Corpus (corpus, queries)
@@ -34,9 +35,11 @@ import MiniSearch.Types
 main :: IO ()
 main = do
   args <- getArgs
-  let n = case args of
-            (a : _) -> read a
-            []      -> 20000
+  -- The first argument is the number of documents (20000 if none).
+  -- 最初の引数は文書の数（なければ 20000）
+  let n = case map readMaybe (take 1 args) of
+            [Just k] -> k
+            _        -> 20000
       naive        = "naive" `elem` args
       parallel     = "parallel" `elem` args
       build
