@@ -6,7 +6,8 @@ module Main (main) where
 
 import qualified Data.Text as T
 import Network.Wai.Handler.Warp
-  (Settings, defaultSettings, runSettings, setHost, setPort)
+  (Settings, defaultSettings, runSettings, setBeforeMainLoop, setHost,
+   setPort)
 import System.Environment (getEnvironment)
 import System.Exit (die)
 
@@ -25,11 +26,16 @@ main = do
     Right cfg -> do
       live <- newLive (configTokenizer cfg)
                       (readDocuments (configDocs cfg))
-      -- 「http://localhost:8080 で待っています（言語：en）」
-      putStrLn ("Listening on http://localhost:" <> show (configPort cfg)
-                <> " (language: "
-                <> T.unpack (tokenizerName (configTokenizer cfg)) <> ")")
-      runSettings (onlyThisMachine (configPort cfg)) (app live)
+      -- Say "Listening" only after the port is open.
+      -- ポートを開いてから「待っています」と言う
+      let language = T.unpack (tokenizerName (configTokenizer cfg))
+          ready    = setBeforeMainLoop
+            -- 「http://localhost:8080 で待っています（言語：en）」
+            (putStrLn ("Listening on http://localhost:"
+                       <> show (configPort cfg)
+                       <> " (language: " <> language <> ")"))
+            (onlyThisMachine (configPort cfg))
+      runSettings ready (app live)
 -- 🔒 Listen on 127.0.0.1 only: other machines on the same network
 --    cannot come in.
 -- 127.0.0.1 だけで待つ。同じネットワークのほかの機械からは入れない

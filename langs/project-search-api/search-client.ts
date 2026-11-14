@@ -45,15 +45,21 @@ export async function searchDocs(
 }
 
 // 💬 Our own errors are {"message": ...}. Others (a limit servant could
-//    not read, a proxy that is down) may be plain text: show them as is.
+//    not read, a proxy that is down) may be plain text, or JSON of
+//    another shape: show them as is.
 // 自分で断るときは {"message": ...}。ほか（servant が読めなかった limit、
-// 止まった中継など）はただの文字のことがあるので、そのまま見せる
+// 止まった中継など）は、ただの文字や、形のちがう JSON のことがあるので、
+// そのまま見せる
 function messageOf(status: number, body: string): string {
   try {
-    return (JSON.parse(body) as ApiError).message;
+    const m = (JSON.parse(body) as { message?: unknown }).message;
+    if (typeof m === "string") {
+      return m;
+    }
   } catch {
-    return `${status}: ${body}`;
+    // Not JSON: fall through. / JSON でない：下へ
   }
+  return `${status}: ${body}`;
 }
 // ANCHOR_END: url
 
@@ -78,6 +84,11 @@ check(
   messageOf(400, '{"message":"the query q is empty"}')
     === "the query q is empty",
   "our own errors are JSON",
+);
+check(
+  messageOf(502, '{"error":"upstream down"}')
+    === '502: {"error":"upstream down"}',
+  "JSON without a message is shown as is",
 );
 check(
   messageOf(400, "could not parse: `abc'")

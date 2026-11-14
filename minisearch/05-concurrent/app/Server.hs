@@ -5,7 +5,8 @@
 module Main (main) where
 
 import Network.Wai.Handler.Warp
-  (Settings, defaultSettings, runSettings, setHost, setPort)
+  (Settings, defaultSettings, runSettings, setBeforeMainLoop, setHost,
+   setPort)
 import System.Environment (lookupEnv)
 
 import MiniSearch.Api (app)
@@ -21,9 +22,13 @@ main = do
   -- POST /reindex reads the folder again.
   -- POST /reindex で、フォルダーを読み直す
   live <- newLive (readDocuments dir)
-  -- 「http://localhost:8080 で待っています」
-  putStrLn ("Listening on http://localhost:" <> show port)
-  runSettings (onlyThisMachine port) (app live)
+  -- Say "Listening" only after the port is open.
+  -- ポートを開いてから「待っています」と言う
+  let ready = setBeforeMainLoop
+        -- 「http://localhost:8080 で待っています」
+        (putStrLn ("Listening on http://localhost:" <> show port))
+        (onlyThisMachine port)
+  runSettings ready (app live)
 -- 🔒 Listen on 127.0.0.1 only: other machines on the same network
 --    cannot come in.
 -- 127.0.0.1 だけで待つ。同じネットワークのほかの機械からは入れない

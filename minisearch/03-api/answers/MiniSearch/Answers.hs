@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of the Web API chapter.
 -- Web API の章のトレーニングの解答。
 module MiniSearch.Answers
@@ -8,12 +9,18 @@ module MiniSearch.Answers
   , page
   , maxOffset
   ) where
+-- ANCHOR_END: head
 
 -- ANCHOR: offset
 -- 📄 Where a page starts: 0 to maxOffset.
 -- ページの始まり：0 から maxOffset まで
-newtype Offset = Offset { offsetValue :: Int }
+newtype Offset = Offset Int
   deriving (Eq, Show)
+
+-- 🔢 Read the number (no field: a field could change it from outside).
+-- 数を読む（フィールドにすると、外から書きかえられる）
+offsetValue :: Offset -> Int
+offsetValue (Offset n) = n
 
 maxOffset :: Int
 maxOffset = 1000

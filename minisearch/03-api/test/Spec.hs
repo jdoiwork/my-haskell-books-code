@@ -127,11 +127,22 @@ propertyTests =
           buildIndex docs === buildIndex shuffled
 
 
+-- ANCHOR: main
+-- 🧪 The tests of the chapters before, then the Web API.
+-- 前の章までのテストに、Web API のテストを足す
 main :: IO ()
 main = hspec $ do
   exampleTests
   propertyTests
+  cliTests
+  apiTests
+  answerTests
+-- ANCHOR_END: main
 
+-- 🖥️ The tests of the CLI chapter, kept.
+-- CLI の章のテスト（そのまま残す）
+cliTests :: Spec
+cliTests = do
   -- 「文書を読む」
   describe "toDocument" $
     -- 「1行目が題、残りが本文」
@@ -200,13 +211,18 @@ main = hspec $ do
     -- 「数字だけを数として読む（0x5 や、Int に入らない数は断る）」
     it "reads digits only, and refuses 0x5 and numbers too big for Int" $ do
       parseArgs ["search", "-n", "0x5", "dragon"] `shouldBe` Nothing
-      parseArgs ["search", "-n", "18446744073709551617", "dragon"] `shouldBe` Nothing
+      parseArgs ["search", "-n", "18446744073709551617", "dragon"]
+        `shouldBe` Nothing
       parseArgs ["search", "-n", " 7", "dragon"] `shouldBe` Nothing
 
     -- 「単語がなければ断る」
     it "needs at least one word" $
       parseArgs ["search"] `shouldBe` Nothing
 
+-- 🌐 Tests for this chapter: the gatekeepers and the Web API.
+-- この章のテスト：門番と Web API
+apiTests :: Spec
+apiTests = do
   -- 「門番」
   describe "parseSearchQuery" $ do
     -- 「前後の空白を取り、トークンに切る」
@@ -218,6 +234,31 @@ main = hspec $ do
     it "rejects only stop words" $
       fmap queryText (parseSearchQuery "the of")
         `shouldBe` Left NoSearchableWords
+
+    -- ANCHOR: gate
+    -- 「境目の両側：200 字と 201 字、10 語と 11 語、空白だけ」
+    it "takes 200 characters and 10 words, not 201 or 11" $ do
+      let manyWords k =
+            T.unwords [T.pack ('w' : show i) | i <- [1 .. k :: Int]]
+      fmap queryText (parseSearchQuery (T.replicate 200 "a"))
+        `shouldBe` Right (T.replicate 200 "a")
+      fmap queryText (parseSearchQuery (T.replicate 201 "a"))
+        `shouldBe` Left (QueryTooLong 201)
+      fmap (length . queryTokens) (parseSearchQuery (manyWords 10))
+        `shouldBe` Right 10
+      fmap queryText (parseSearchQuery (manyWords 11))
+        `shouldBe` Left (TooManyWords 11)
+      fmap queryText (parseSearchQuery "   ") `shouldBe` Left EmptyQuery
+
+  -- 「件数の門番」
+  describe "parseLimit" $
+    -- 「指定なしは 10。1 と 50 は通し、0 と 51 は断る」
+    it "is 10 by default, takes 1 and 50, not 0 or 51" $
+      map (fmap limitValue . parseLimit)
+        [Nothing, Just 1, Just 50, Just 0, Just 51]
+        `shouldBe` [ Right 10, Right 1, Right 50
+                   , Left (LimitOutOfRange 0), Left (LimitOutOfRange 51) ]
+    -- ANCHOR_END: gate
 
   -- ANCHOR: wai
   -- 「Web API」
@@ -250,11 +291,24 @@ main = hspec $ do
   -- ANCHOR_END: wai
 
   with (pure (app (buildIndex sampleDocs))) $
-    describe "GET /docs/{id}" $
+    describe "GET /docs/{id}" $ do
+      -- 「ある番号なら、その文書」
+      it "answers the document for a known id" $
+        get "/docs/5"
+          `shouldRespondWith` 200
+            { matchBody = bodyEquals (encode (DocumentView 5 "Goblin Camp"
+                ( "Goblins steal gold from travelers"
+                    <> " and hide it in the forest." )))
+            }
+
       -- 「ない番号なら 404」
       it "answers 404 for an unknown id" $
         get "/docs/99" `shouldRespondWith` 404
 
+-- 🏋️ Tests for the training answers.
+-- トレーニングの解答のテスト
+answerTests :: Spec
+answerTests = do
   -- 「トレーニング」
   describe "answers" $ do
     -- 「offset は 0 から 1000 まで」

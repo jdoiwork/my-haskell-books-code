@@ -27,20 +27,32 @@ import MiniSearch.Types (Token)
 -- ANCHOR_END: head
 
 -- ANCHOR: types
--- 🎫 A query that passed the gate. The constructor is not exported:
---    the only way to get one is parseSearchQuery.
--- 門を通った問い合わせ。コンストラクターは見せない：
+-- 🎫 A query that passed the gate. Neither the constructor nor record
+--    fields are exported (with a field, `q { queryText = "" }` could
+--    change it): the only way to get one is parseSearchQuery.
+-- 門を通った問い合わせ。コンストラクターも、レコードのフィールドも見せない
+-- （フィールドがあると、q { queryText = "" } で書きかえられる）：
 -- 手に入れる方法は parseSearchQuery だけ
-data SearchQuery = SearchQuery
-  { queryText   :: Text
-  , queryTokens :: [Token]
-  }
+data SearchQuery = SearchQuery Text [Token]
   deriving (Eq, Show)
+
+-- 📖 Read the parts of a query (only read, never change).
+-- 問い合わせの中身を読む（読むだけで、書きかえられない）
+queryText :: SearchQuery -> Text
+queryText (SearchQuery text _) = text
+
+queryTokens :: SearchQuery -> [Token]
+queryTokens (SearchQuery _ tokens) = tokens
 
 -- 🔢 How many results to return, from 1 to maxLimit.
 -- 返す件数。1 から maxLimit まで
-newtype Limit = Limit { limitValue :: Int }
+newtype Limit = Limit Int
   deriving (Eq, Show)
+
+-- 📖 Read the number of a limit.
+-- 件数の数を読む
+limitValue :: Limit -> Int
+limitValue (Limit n) = n
 
 -- 🚨 Why a request was turned away.
 -- 要求を断った理由
