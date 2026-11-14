@@ -18,7 +18,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import MiniSearch.Search (search)
-import MiniSearch.Tokenize (tokenize)
+import MiniSearch.Tokenizer (Tokenizer (..), english)
 import MiniSearch.Types
 -- ANCHOR_END: head
 
@@ -93,14 +93,14 @@ data Answer
 -- ANCHOR_END: answertype
 
 -- 🔍 Search; if nothing is found, try fixing each unknown word.
---    The words are cut the same way search cuts them.
+--    The words are cut by the tokenizer search uses (english).
 -- 検索する。何もなければ、知らない単語を1つずつ直してみる。
--- 単語は、search と同じ道具で切る
+-- 単語は、search と同じトークナイザー（english）で切る
 answer :: Index -> Text -> Answer
 answer index query =
   case search index query of
     hits@(_ : _) -> Found hits
-    [] -> case traverse fix [w | Token w <- tokenize query] of
+    [] -> case traverse fix [w | Token w <- cut english query] of
       Just ws
         | let fixed = T.unwords ws
         , not (null (search index fixed)) -> DidYouMean fixed

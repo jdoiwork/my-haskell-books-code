@@ -45,13 +45,20 @@ def excerpt_en(query, body):
     return " ".join(f"[{w}]" if set(tokenize_en(w)) & hits else w
                     for w in part)
 
+def phrases(text):
+    # The runs of Japanese, or of letters and digits (as in cutting).
+    # 日本語か英数字が続く、かたまり（切るときと同じ）
+    return ["".join(g) for k, g in groupby(text.lower(), key=kind)
+            if k != "other"]
+
 def excerpt_ja(query, body):
     # The characters around the first word found, the words in [ ].
     # 最初に見つかった語のまわりの文字。語は [ ] で囲む
-    found = [body.find(w) for w in query.split() if w in body]
+    words = phrases(query)
+    found = [body.find(w) for w in words if w in body]
     start = max(0, min(found, default=0) - 15)
     part = body[start:start + 30]
-    for w in sorted(set(query.split()), key=len, reverse=True):
+    for w in sorted(set(words), key=len, reverse=True):
         part = part.replace(w, f"[{w}]")
     return part
 
@@ -79,4 +86,6 @@ assert tokenize_ja("炎") == ["炎"]
 assert ENGLISH.excerpt_of("dragon", "The red dragon sleeps") == (
     "The red [dragon] sleeps")
 assert JAPANESE.excerpt_of("ドラゴン", "赤いドラゴン") == "赤い[ドラゴン]"
+assert JAPANESE.excerpt_of("ドラゴン、金貨", "金貨を守るドラゴン") == (
+    "[金貨]を守る[ドラゴン]")
 print("ok")

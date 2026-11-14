@@ -22,6 +22,7 @@ import Data.List (nub)
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import MiniSearch.Bigram (phrases)
 import MiniSearch.Tokenizer (Tokenizer (..))
 import MiniSearch.Types (Token)
 -- ANCHOR_END: head
@@ -87,11 +88,11 @@ parseSearchQuery tok raw
   where
     text   = T.strip raw
     tokens = nub (cut tok text)
-    -- Words split by spaces, not tokens: a Japanese query of 12
-    -- characters is 11 bigrams, but still one phrase.
-    -- トークンではなく、空白で分けた語の数：12字の日本語は bigram で
-    -- 11 個になるが、ひとつながりの言葉
-    wordCount = length (T.words text)
+    -- Phrases, not tokens: a Japanese query of 12 characters is
+    --   11 bigrams, but one phrase. "dragon,fire" is still two.
+    -- トークンではなく、かたまりの数：12字の日本語は bigram で
+    -- 11 個になるが、ひとつのかたまり。"dragon,fire" は2つ
+    wordCount = length (phrases text)
 
 -- 🚪 The gate for the limit. No limit given -> 10.
 -- 件数の門番。指定がなければ 10

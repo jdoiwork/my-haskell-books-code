@@ -5,6 +5,7 @@
 -- 日本語：文章を2文字ずつ（bigram）に切る。
 module MiniSearch.Bigram
   ( bigramTokenize
+  , phrases
   , charSnippet
   , isJapanese
   ) where
@@ -40,18 +41,26 @@ isJapanese c =
 -- ANCHOR_END: kind
 
 -- ANCHOR: tokenize
+-- 🧱 "HP 30のスライム、赤い!" -> [hp, 30, のスライム, 赤い]
+--    The runs of Japanese, or of letters and digits (lower case).
+--    Spaces and marks only separate them.
+-- 日本語か英数字が続く、かたまり（小文字にする）。
+-- 空白や記号は、区切るだけ
+phrases :: Text -> [Text]
+phrases text =
+  [ run
+  | run <- T.groupBy (\a b -> kindOf a == kindOf b) (T.toLower text)
+  , kindOf (T.head run) /= Other ]
+
 -- ✂️ "赤いドラゴン" -> [赤い, いド, ドラ, ラゴ, ゴン]
 --    Letters and digits stay whole words: "HP 30" -> [hp, 30]
 -- 英数字は、単語のまま
 bigramTokenize :: Text -> [Token]
-bigramTokenize text =
-  let runs = T.groupBy (\a b -> kindOf a == kindOf b) (T.toLower text)
-  in concatMap tokensOfRun runs
+bigramTokenize text = concatMap tokensOfRun (phrases text)
   where
-    tokensOfRun run = case kindOf (T.head run) of
-      Japanese -> map Token (bigrams run)
-      AlphaNum -> [Token run]
-      Other    -> []
+    tokensOfRun run
+      | isJapanese (T.head run) = map Token (bigrams run)
+      | otherwise               = [Token run]
 
 -- 🧩 "ドラゴン" -> ["ドラ", "ラゴ", "ゴン"]; one character stays as it is.
 -- 1文字だけなら、そのまま
@@ -63,19 +72,19 @@ bigrams t
 
 -- ANCHOR: snippet
 -- ✂️ Some characters around the first word of the query found in
---    the body, with every query word in [brackets]. Like cutting,
---    it does not care about upper and lower case ("hp" finds "HP").
+--    the body, with every query word in [brackets]. The words are
+--    the phrases, as in cutting: "ドラゴン、金貨" is two words,
+--    and "hp" finds "HP".
 -- 本文の中で最初に見つかった問い合わせの語のまわりの文字。
--- 問い合わせの語は、すべて [ ] で囲む。切るときと同じく、
--- 大文字と小文字は区別しない（「hp」で「HP」が見つかる）
+-- 問い合わせの語は、すべて [ ] で囲む。語は、切るときと同じ
+-- かたまり：「ドラゴン、金貨」は2つの語で、「hp」で「HP」が見つかる
 charSnippet :: Int -> Text -> Text -> Text
 charSnippet width query body =
   let flat   = T.unwords (T.words body)
       lower  = T.toLower flat
       -- Each word once, the longest first ("ドラゴン" before "ドラ").
       -- 語は1回ずつ、長い順に（「ドラ」より「ドラゴン」が先）
-      words' = sortOn (Down . T.length)
-                 (nub (filter (not . T.null) (T.words (T.toLower query))))
+      words' = sortOn (Down . T.length) (nub (phrases query))
       places = [ T.length before
                | w <- words'
                , let (before, rest) = T.breakOn w lower

@@ -297,6 +297,12 @@ main = hspec $ do
       fmap queryText (parseSearchQuery english "   ")
         `shouldBe` Left EmptyQuery
 
+    -- 「記号でつないでも、語の数は同じ」
+    it "counts words joined by commas too" $
+      fmap queryText (parseSearchQuery english (T.intercalate ","
+          [T.pack ('w' : show i) | i <- [1 .. 11 :: Int]]))
+        `shouldBe` Left (TooManyWords 11)
+
   -- 「件数の門番」
   describe "parseLimit" $
     -- 「指定なしは 10。1 と 50 は通し、0 と 51 は断る」
@@ -506,7 +512,7 @@ main = hspec $ do
         `shouldBe` map Token ["hp", "30", "のス", "スラ", "ライ", "イム"]
     -- ANCHOR_END: bigramtest
 
-    -- 「門番の単語の数は、空白で分けた語で数える（12字の日本語も通る）」
+    -- 「門番の単語の数は、かたまりで数える（12字の日本語も通る）」
     it "lets a long Japanese phrase through the gate" $
       fmap queryText (parseSearchQuery japanese "金貨の山の上で眠っている")
         `shouldBe` Right "金貨の山の上で眠っている"
@@ -517,6 +523,11 @@ main = hspec $ do
         `shouldBe` "スライムの [HP] は 30 だ"
       charSnippet 15 "ドラ ドラゴン ドラゴン" "赤いドラゴン"
         `shouldBe` "赤い[ドラゴン]"
+
+    -- 「抜粋の語は、切るときと同じかたまり（読点で区切っても囲む）」
+    it "takes the words of an excerpt the way it cuts" $
+      charSnippet 15 "ドラゴン、金貨" "金貨を守るドラゴン"
+        `shouldBe` "[金貨]を守る[ドラゴン]"
 
     -- 「日本語の文書を検索できる」
     it "searches Japanese documents" $ do
