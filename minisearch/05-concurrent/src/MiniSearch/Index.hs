@@ -84,9 +84,11 @@ buildIndexParallel chunkSize docs =
   in mconcat parts
 
 -- ✂️ [1..7] in chunks of 3 -> [[1,2,3],[4,5,6],[7]]
+--    The size is at least 1 (with 0, splitAt takes nothing forever).
+-- 大きさは1以上にする（0 だと、splitAt が何も取らずに、いつまでも続く）
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
-chunksOf n xs = let (front, rest) = splitAt n xs
+chunksOf n xs = let (front, rest) = splitAt (max 1 n) xs
                 in front : chunksOf n rest
 -- ANCHOR_END: parallel
 

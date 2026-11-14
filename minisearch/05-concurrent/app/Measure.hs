@@ -74,8 +74,8 @@ main = do
       scores'
         | parallel  = scores `using` parListChunk 50 rdeepseq
         | otherwise = scores
-  -- ANCHOR_END: parsearch
   total <- evaluate (sum scores')
+  -- ANCHOR_END: parsearch
   t3 <- getMonotonicTime
   printf "search: %.2f s (1000 queries, checksum %.3f)\n" (t3 - t2) total
 

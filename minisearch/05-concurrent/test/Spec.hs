@@ -479,6 +479,22 @@ main = hspec $ do
         (True, Just "user error (the folder is gone)", 2, True, Nothing)
     -- ANCHOR_END: answer3
 
+    -- 「UTF-8 でないファイルも、読むときの失敗として覚える」（ステップ3）
+    it "remembers a file that is not UTF-8" $
+      withSystemTempDirectory "minisearch" $ \dir -> do
+        writeFile (dir </> "slime.txt") "Slime\nSoft and blue.\n"
+        status <- newTVarIO Nothing
+        live   <- newLive (reportingSource status (readDocuments dir))
+        -- "caf\xe9" in Latin-1 is not UTF-8.
+        -- Latin-1 の「café」は、UTF-8 ではない
+        BS.writeFile (dir </> "cafe.txt") (BS.pack [99, 97, 102, 233])
+        _      <- startReindex live
+        waitIdle live
+        failed <- readTVarIO status
+        kept   <- documentCount <$> currentIndex live
+        (failed, kept)
+          `shouldBe` (Just "user error (cafe.txt: not UTF-8)", 1)
+
     -- 「保存して読み戻すと、同じインデックスになる」
     it "an index survives a round trip through JSON" $
       property $ forAll genDocs $ \docs ->

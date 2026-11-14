@@ -42,8 +42,15 @@ def build_parallel(docs, size):
     return reduce(merge, parts, {})
 # ANCHOR_END: pool
 
+# ANCHOR: main
+# Call it only under __main__: each child process reads this file
+# again, to find build_index by its name.
+# 呼ぶのは __main__ の中だけ：子のプロセスは、build_index を名前で
+# 探すために、このファイルを読み直す
 if __name__ == "__main__":
-    docs = [(i, f"Doc {i}", " ".join(["dragon", "fire", "gold"][: i % 3 + 1]))
+    words = ["dragon", "fire", "gold"]
+    docs = [(i, f"Doc {i}", " ".join(words[: i % 3 + 1]))
             for i in range(1, 101)]
     assert build_parallel(docs, 10) == build_index(docs)
     print("ok")
+# ANCHOR_END: main

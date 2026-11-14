@@ -12,6 +12,7 @@ module MiniSearch.Load
 -- ANCHOR_END: module
 
 -- ANCHOR: imports
+import Control.Exception (throwIO)
 import qualified Crypto.Hash.SHA256 as SHA256
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -63,9 +64,16 @@ readDocuments dir = do
 --    not from where it is in the folder.
 -- ファイルを1つ読む。番号は、名前と中身から決まる。
 -- フォルダーの中の何番目かには、よらない
+--    UTF-8 is checked here, while reading (decodeUtf8' gives an
+--    Either), so a bad file fails now, with its name.
+-- UTF-8 かどうかは、読むときにここで確かめる（decodeUtf8' は Either を
+-- 返す）。だめなファイルは、あとでではなく、いま、名前つきで失敗する
 readDocument :: FilePath -> FilePath -> IO Document
 readDocument dir name = do
   bytes <- BS.readFile (dir </> name)
-  pure (toDocument (fileDocId name bytes) (TE.decodeUtf8 bytes))
+  case TE.decodeUtf8' bytes of
+    -- 「cafe.txt：UTF-8 ではありません」
+    Left _     -> throwIO (userError (name <> ": not UTF-8"))
+    Right text -> pure (toDocument (fileDocId name bytes) text)
 -- ANCHOR_END: read
 -- ANCHOR_END: all
