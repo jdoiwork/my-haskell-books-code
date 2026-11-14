@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
-import Data.List (sortOn)
+import Data.List (sort)
 import qualified Data.Text as T
 import Test.Hspec
 import Test.QuickCheck
@@ -36,8 +36,21 @@ genQuery :: Gen T.Text
 genQuery = T.unwords <$> listOf1 (elements vocabulary)
 -- ANCHOR_END: gen
 
+-- ANCHOR: main
+-- 🧪 Run all the tests: examples, properties, and the answers.
+-- テストを全部動かす：例、性質、トレーニングの解答
 main :: IO ()
 main = hspec $ do
+  exampleTests
+  propertyTests
+  answerTests
+-- ANCHOR_END: main
+
+-- ANCHOR: examples
+-- 📝 Tests with examples: this input gives this output.
+-- 例のテスト：この入力なら、この出力
+exampleTests :: Spec
+exampleTests = do
   -- 「トークンに切る」
   describe "tokenize" $
     -- 「小文字にして、記号とよくある単語を捨てる」
@@ -47,26 +60,21 @@ main = hspec $ do
 
   -- 「検索する」
   describe "search" $ do
-    let index = buildIndex sampleDocs
     -- 「すべての単語を含む文書だけを返す」
     it "returns only documents with all the words" $
-      map hitTitle (search index "dragon fire")
+      map hitTitle (search sampleIndex "dragon fire")
         `shouldBe` ["Dragon Tamer", "Ice Dragon", "Red Dragon"]
 
     -- 「知らない単語なら、何も返さない」
     it "returns nothing for an unknown word" $
-      search index "unicorn" `shouldBe` []
+      search sampleIndex "unicorn" `shouldBe` []
+-- ANCHOR_END: examples
 
-    -- 「OR 検索は、どれか1つの単語を含む文書を返す」（トレーニング）
-    it "searchAny returns documents with any of the words" $
-      searchAny index "slime lava" `shouldBe` [DocId 2, DocId 4]
-
-    -- 「よく出る単語」（トレーニング）
-    it "commonTokens counts documents" $
-      commonTokens 2 index
-        `shouldBe` [(Token "fire", 4), (Token "dragon", 3)]
-
-  -- ANCHOR: props
+-- ANCHOR: props
+-- ⚖️ Properties: true for any library and any query.
+-- 性質：どんな書庫、どんな問い合わせでも成り立つ
+propertyTests :: Spec
+propertyTests =
   -- 「性質」
   describe "properties" $ do
     -- 「当たるのは、問い合わせの単語を全部含む文書で、そのすべて」
@@ -79,7 +87,7 @@ main = hspec $ do
             expected = [ docId d | d <- docs
                                  , all (`elem` wordsOf d) tokens ]
             actual   = map hitDoc (search (buildIndex docs) q)
-        in sortOn idOf' actual === sortOn idOf' expected
+        in sort actual === sort expected
 
     -- 「結果は、点の高い順に並ぶ」
     it "hits are sorted by score, high first" $
@@ -90,8 +98,23 @@ main = hspec $ do
     -- 「文書を入れる順番を変えても、同じインデックスになる」
     it "the order of documents does not matter" $
       property $ forAll genDocs $ \docs ->
-        buildIndex docs === buildIndex (sortOn (negate . idOf) docs)
-  -- ANCHOR_END: props
+        buildIndex docs === buildIndex (reverse docs)
+-- ANCHOR_END: props
+
+-- 🏋️ Tests for the training answers.
+-- トレーニングの解答のテスト
+answerTests :: Spec
+answerTests =
+  -- 「トレーニング」
+  describe "training" $ do
+    -- 「OR 検索は、どれか1つの単語を含む文書を返す」
+    it "searchAny returns documents with any of the words" $
+      searchAny sampleIndex "slime lava" `shouldBe` [DocId 2, DocId 4]
+
+    -- 「よく出る単語」
+    it "commonTokens counts documents" $
+      commonTokens 2 sampleIndex
+        `shouldBe` [(Token "fire", 4), (Token "dragon", 3)]
 
     -- ANCHOR: answer3
     -- 「文書の題で検索すると、その文書が見つかる」
@@ -101,6 +124,3 @@ main = hspec $ do
             finds d = docId d `elem` map hitDoc (search index (docTitle d))
         in all finds docs
     -- ANCHOR_END: answer3
-  where
-    idOf d = idOf' (docId d)
-    idOf' (DocId i) = i
