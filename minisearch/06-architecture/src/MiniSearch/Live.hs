@@ -29,11 +29,20 @@ import MiniSearch.Types
 --    and where the documents come from.
 -- いまのインデックス、作り直しの最中かどうか、文書の出どころ
 data Live = Live
-  { liveTokenizer :: Tokenizer
-  , liveIndex     :: TVar Index
-  , liveBusy      :: TVar Bool
-  , liveSource    :: IO [Document]
+  { liveTok    :: Tokenizer
+  , liveIndex  :: TVar Index
+  , liveBusy   :: TVar Bool
+  , liveSource :: IO [Document]
   }
+
+-- 🔤 The Tokenizer the index was built with. A function, not a field:
+--    with an exported field, `live { liveTokenizer = japanese }` would
+--    search an English index with Japanese tokens.
+-- インデックスを作ったときの Tokenizer。フィールドではなく関数にする：
+-- フィールドを export すると、live { liveTokenizer = japanese } で、
+-- 英語のインデックスを日本語のトークンで引けてしまう
+liveTokenizer :: Live -> Tokenizer
+liveTokenizer = liveTok
 
 -- 🏗️ Read the documents and build the first index.
 -- 文書を読んで、最初のインデックスを作る
