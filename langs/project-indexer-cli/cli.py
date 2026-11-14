@@ -8,6 +8,10 @@ import json
 import argparse
 
 def positive_int(s):
+    # int() also reads " 7", "+7", "1_0" and full-width digits.
+    # int() は " 7"・"+7"・"1_0"・全角の数字も読むので、先に確かめる
+    if not (s.isascii() and s.isdigit()):
+        raise argparse.ArgumentTypeError(f"not a positive number: {s}")
     n = int(s)
     if n < 1:
         raise argparse.ArgumentTypeError(f"not a positive number: {s}")
@@ -35,6 +39,15 @@ assert args.command == "search"
 assert args.limit == 3
 assert " ".join(args.words) == "red dragon"
 assert args.index == "index.json"
+for bad in ["0", "0x5", " 7", "+7", "1_0", "１２"]:
+    try:
+        positive_int(bad)
+        raise AssertionError(bad)
+    except argparse.ArgumentTypeError:
+        pass
+# No upper limit: Python's int has no end to wrap around.
+# 上限はない：Python の int には、一周する端がない
+assert positive_int("18446744073709551617") == 18446744073709551617
 
 # ANCHOR: keys
 # Python (JSON keys are always strings)
