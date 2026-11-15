@@ -159,9 +159,13 @@ atom = choice
 
 -- ANCHOR: mapLiteral
 -- 🗺️ {"Python": 82, "TS": 75}  is sugar for
---    Map.fromList [("Python", 82), ("TS", 75)].  The keys are strings
---    written as they are, like JSON. {} is the empty map.
--- Map.fromList の糖衣構文。キーは、JSON と同じく、そのまま書いた文字列
+--    Map.fromList [("Python", 82), ("TS", 75)].  {} is the empty map.
+--    A key is a string written as it is, like JSON. When it looks like
+--    a name, the quotes may be left out, like JavaScript:
+--    {name: "Lam"} is {"name": "Lam"} (name is NOT a variable here).
+-- Map.fromList の糖衣構文。キーは、JSON と同じく、そのまま書いた文字列。
+-- 名前の形なら、JavaScript と同じく " を省ける。{name: "Lam"} は
+-- {"name": "Lam"} のこと（ここの name は変数ではない）
 mapLiteral :: Parser Expr
 mapLiteral = do
   entries <- between (symbol "{") (symbol "}") (entry `sepBy` symbol ",")
@@ -169,10 +173,18 @@ mapLiteral = do
             (List [ Tuple [Lit (LString k), v] | (k, v) <- entries ]))
   where
     entry = do
-      k <- stringLiteral
+      k <- stringLiteral <|> bareKey
       _ <- symbol ":"
       v <- expr
       pure (k, v)
+    -- A key without quotes: letters, digits, _ and ', not starting
+    -- with a digit. Keywords are fine here ({if: 1}).
+    -- " のないキー：文字・数字・_・'（数字では始まらない）。
+    -- ここでは、キーワードも使える
+    bareKey = (<?> "a key") $ lexeme $ do
+      first <- letterChar <|> char '_'
+      rest  <- many (alphaNumChar <|> char '_' <|> char '\'')
+      pure (T.pack (first : rest))
 -- ANCHOR_END: mapLiteral
 
 -- ANCHOR: tuple

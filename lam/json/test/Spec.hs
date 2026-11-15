@@ -455,6 +455,10 @@ main = hspec $ do
       fmap render (parseExpr "{\"a\": 1, \"b\": x + 1}")
         `shouldBe` Right "Map.fromList [(\"a\", 1), (\"b\", x + 1)]"
       fmap render (parseExpr "{}") `shouldBe` Right "Map.fromList []"
+      -- 「名前の形のキーは、" を省ける（変数ではなく、ただの文字列）」
+      fmap render (parseExpr "{name: 1, if: 2, \"two words\": 3}")
+        `shouldBe` Right
+          "Map.fromList [(\"name\", 1), (\"if\", 2), (\"two words\", 3)]"
     -- ANCHOR_END: qualified
 
   -- 「JSON」
