@@ -475,6 +475,12 @@ main = hspec $ do
       replay (rewriteLog big) `shouldBe` Replayed big 1 Nothing
       n `shouldBe` 1100
       replay bytes `shouldBe` Replayed cleared 2201 Nothing
+    -- ずっと先の EXPIRE は、ログにも、apply と同じ時の果てで書く
+    -- （now + 秒数 * 1000 と自分で足すと、ログだけが Int の輪を回る）
+    it "logs a far EXPIRE at the same end of time as apply" $
+      let now = 1794000000000
+      in  toLogged now (Expire "k" (secs maxSeconds))
+            `shouldBe` Just (PExpireAt "k" maxBound)
   -- ANCHOR_END: persistSpec
 
   -- 「トレーニング」

@@ -33,9 +33,11 @@ main = hspec $ do
                     emptyStore)
         `shouldBe` [Ok, Number 1, Bulk "v"]
     -- 0 以下のミリ秒は、門で断る
-    it "refuses 0 or fewer milliseconds at the gate" $
+    it "refuses 0 or fewer milliseconds at the gate" $ do
       toCommand ["PEXPIRE", "k", "0"]
         `shouldBe` Left "invalid expire time: 0"
+      toCommand ["PEXPIRE", "k", "-5"]
+        `shouldBe` Left "invalid expire time: -5"
     -- toCommand に足し忘れると、文字列の場合分けなので警告が出ない
     it "is read from the wire, and written back" $ do
       toCommand ["PEXPIRE", "k", "100"]
