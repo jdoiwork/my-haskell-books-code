@@ -2,6 +2,7 @@
 -- ANCHOR: all
 -- | Matrices whose shape is written in their type: Matrix 35 32.
 -- 形が型に書いてある行列：Matrix 35 32
+-- ANCHOR: exports
 module MiniTorch.Typed
   ( Matrix
   , Vector
@@ -21,6 +22,7 @@ module MiniTorch.Typed
   , transposeM
   , vstack
   ) where
+-- ANCHOR_END: exports
 
 import Data.Proxy (Proxy (..))
 import GHC.TypeLits
