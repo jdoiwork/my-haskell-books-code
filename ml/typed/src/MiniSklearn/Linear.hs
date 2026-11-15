@@ -10,6 +10,7 @@ module MiniSklearn.Linear
   , predict
   , score
   , mse
+  , checkShapes
   ) where
 
 import qualified MiniNumpy as Np
@@ -54,7 +55,7 @@ mse y guess = Np.item (Np.mean ((guess - y) * (guess - y)))
 -- 1歩ずつ下りていく
 fit :: Options -> NDArray -> NDArray -> LinearRegression
 fit opts x y =
-  let features = Np.shape x !! 1
+  let features = checkShapes "fit" opts x y
       n        = fromIntegral (Np.nrows x)
       start    = LinearRegression (Np.zeros [features]) 0
       step m =
@@ -66,13 +67,32 @@ fit opts x y =
             lr    = learningRate opts
         in LinearRegression (coef m - Np.scalar lr * gradW)
                             (intercept m - lr * gradB)
-  in iterate step start !! epochs opts
+  -- Check the shapes first (seq), then walk.
+  -- 先に形を確かめて（seq）から歩く
+  in features `seq` (iterate step start !! epochs opts)
+
+-- 🚧 X must be 2-D (rows, features), y 1-D (one number per row), and
+--    the steps 0 or more. Gives the number of features.
+--    (A y of shape [n, 1] would broadcast into [n, n] and learn wrong.)
+-- X は2次元（行、特徴）、y は1次元（行ごとに1つ）、歩数は 0 以上。
+-- 特徴の数を返す（y が [n, 1] だと、ブロードキャストで [n, n] になり、
+-- 黙ってまちがって学ぶ）
+checkShapes :: String -> Options -> NDArray -> NDArray -> Int
+checkShapes name opts x y = case (Np.shape x, Np.shape y) of
+  ([rows, features], [rows'])
+    | rows == rows' && epochs opts >= 0 -> features
+  (sx, sy) -> error (name <> ": X must be 2-D (rows, features), y 1-D"
+                     <> " (rows), epochs 0 or more; got X " <> show sx
+                     <> ", y " <> show sy <> ", epochs "
+                     <> show (epochs opts))
 -- ANCHOR_END: fit
 
 -- ANCHOR: score
 -- 🏅 R², like sklearn's score: 1 is perfect, 0 is no better than
---    always guessing the mean.
+--    always guessing the mean. (If every y is the same, it is
+--    -Infinity or NaN: there is nothing to explain.)
 -- 決定係数 R²。1 なら完ぺき、0 なら平均を言い続けるのと同じ
+-- （y が全部同じだと、説明するものがないので -Infinity か NaN）
 score :: LinearRegression -> NDArray -> NDArray -> Double
 score m x y =
   let guess    = predict m x

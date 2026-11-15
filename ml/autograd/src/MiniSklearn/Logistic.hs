@@ -13,7 +13,7 @@ module MiniSklearn.Logistic
 
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
-import MiniSklearn.Linear (Options (..))
+import MiniSklearn.Linear (Options (..), checkShapes)
 
 -- ANCHOR: model
 -- 🎚️ Like linear regression, but the line goes through sigmoid,
@@ -53,7 +53,7 @@ score m x y =
 -- 勾配降下法で学ぶ。対数損失の傾きは、線形回帰と同じ形になる
 fit :: Options -> NDArray -> NDArray -> LogisticRegression
 fit opts x y =
-  let features = Np.shape x !! 1
+  let features = checkShapes "fit" opts x y
       n        = fromIntegral (Np.nrows x)
       start    = LogisticRegression (Np.zeros [features]) 0
       step m =
@@ -63,6 +63,8 @@ fit opts x y =
             lr    = learningRate opts
         in LogisticRegression (coef m - Np.scalar lr * gradW)
                               (intercept m - lr * gradB)
-  in iterate step start !! epochs opts
+  -- Check the shapes first (seq), then walk.
+  -- 先に形を確かめて（seq）から歩く
+  in features `seq` (iterate step start !! epochs opts)
 -- ANCHOR_END: fit
 -- ANCHOR_END: all
