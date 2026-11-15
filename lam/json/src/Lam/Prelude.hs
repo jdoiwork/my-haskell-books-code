@@ -134,6 +134,20 @@ preludeSource = """
   let Json.bool j = case j of | JBool b -> Just b | _ -> Nothing
   let Json.array j = case j of | JArr xs -> Just xs | _ -> Nothing
   -- ANCHOR_END: jsonTools
+
+  -- ANCHOR: mkDec
+  -- Make a number with a fraction, in the same shape as Json.parse
+  -- makes it: the 0s at the end of c move into d, and a whole number
+  -- is JInt.  Json.mkDec 19990 3 is JDec 1999 2, and
+  -- Json.mkDec 1900 2 is JInt 19.
+  -- 小数を、Json.parse と同じ形で作る。c の後ろの 0 は d へ移し、
+  -- 整数なら JInt にする
+  let Json.mkDec c d =
+    if c == 0 then JInt 0
+    else if mod c 10 == 0 then Json.mkDec (c / 10) (d - 1)
+    else if d > 0 || d < 0 - 1024 then JDec c d
+    else JInt (c * pow 10 (0 - d))
+  -- ANCHOR_END: mkDec
   """
 -- ANCHOR_END: source
 

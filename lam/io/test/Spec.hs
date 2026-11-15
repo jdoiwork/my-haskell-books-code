@@ -558,6 +558,32 @@ main = hspec $ do
         toAeson (fromAeson j) == Right j
     -- ANCHOR_END: roundTrip
 
+    -- ANCHOR: mkDec
+    -- 「Json.mkDec は、Json.parse と同じ形の小数を作る」
+    it "makes a number in the same shape as Json.parse" $
+      runLines
+        [ "JDec 1999 2 == JDec 19990 3"
+        , "Json.mkDec 19990 3", "Json.mkDec 1900 2", "Json.mkDec 0 5"
+        , "Json.mkDec 1999 2 == Json.mkDec 19990 3" ]
+        `shouldBe`
+          [ "false : Bool"
+          , "JDec 1999 2 : Json", "JInt 19 : Json", "JInt 0 : Json"
+          , "true : Bool" ]
+
+    -- 「どんな c と d でも、JDec c d を書き出して読みなおしたものと同じ」
+    it "makes the same Json as writing JDec c d out and reading it" $
+      property $ forAll ((,) <$> arbitrary <*> choose (-6, 8)) $
+        \(c, d) ->
+          let lam n = if n < 0 then "(0 - " <> T.pack (show (abs n)) <> ")"
+                               else T.pack (show (n :: Integer))
+              dec = "JDec " <> lam c <> " " <> lam d
+          in runLines
+               [ "Json.mkDec " <> lam c <> " " <> lam d
+                   <> " == (case Json.parse (Json.show (" <> dec
+                   <> ")) of | Ok j -> j | Err _ -> JNull)" ]
+               === ["true : Bool"]
+    -- ANCHOR_END: mkDec
+
     -- ANCHOR: jsonTools
     -- 「奥の値を、道すじで取り出す」
     it "takes a value from deep inside, by its path" $
