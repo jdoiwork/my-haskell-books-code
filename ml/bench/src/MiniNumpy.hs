@@ -105,6 +105,7 @@ array xs = NDArray [length xs] (VU.fromList xs)
 -- 形と Unboxed の Vector から配列を作る（大きなデータ用）
 fromVector :: [Int] -> VU.Vector Double -> NDArray
 fromVector sh vs
+  | any (< 0) sh = error ("negative dimensions are not allowed: " <> show sh)
   | product sh == VU.length vs = NDArray sh vs
   | otherwise = error "fromVector: the shape does not fit the values"
 -- ANCHOR_END: fromVector
@@ -215,8 +216,13 @@ row i a = case arrShape a of
 -- i 行目から n 行（NumPy の a[i:i+n]）。コピーしない
 rowsFrom :: Int -> Int -> NDArray -> NDArray
 rowsFrom i n a = case arrShape a of
-  [_, c] -> NDArray [n, c] (VU.slice (i * c) (n * c) (arrValues a))
-  _      -> error "rowsFrom: only for 2-D arrays"
+  [r, c]
+    | i >= 0 && n >= 0 && i + n <= r ->
+        NDArray [n, c] (VU.slice (i * c) (n * c) (arrValues a))
+    | otherwise -> error ("rowsFrom: rows " <> show i <> " .. "
+                          <> show (i + n - 1) <> " are out of bounds for "
+                          <> show r <> " rows")
+  _ -> error "rowsFrom: only for 2-D arrays"
 -- ANCHOR_END: rowsFrom
 -- ANCHOR_END: at
 

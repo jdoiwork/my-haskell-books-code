@@ -10,8 +10,6 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
-
 DATA = Path(__file__).parent.parent.parent / "ml" / "data" / "mnist"
 if not (DATA / "train-images-idx3-ubyte").exists():
     print("skip: MNIST is not downloaded")
@@ -26,8 +24,13 @@ from torch import nn
 
 
 # ANCHOR: load
-# Python (NumPy reads the IDX files)
-# Python（NumPy で IDX ファイルを読む）
+# Python (NumPy reads the IDX files. DATA is the folder of the files,
+#   a pathlib.Path)
+# Python（NumPy で IDX ファイルを読む。DATA はファイルのフォルダー、
+#   pathlib の Path）
+import numpy as np
+
+
 def load(prefix):
     images = np.fromfile(DATA / f"{prefix}-images-idx3-ubyte",
                          dtype=np.uint8, offset=16)

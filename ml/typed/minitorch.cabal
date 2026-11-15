@@ -9,7 +9,11 @@ build-type:    Simple
 -- ANCHOR: lib
 common shared
   default-language: GHC2024
-  ghc-options:      -Wall
+  -- -O2 for the library too: it does the heavy work (see the neural
+  -- network chapter)
+  -- ライブラリにも -O2（重い計算をするのはライブラリ。
+  -- ニューラルネットワークの章を参照）
+  ghc-options:      -Wall -O2
   build-depends:
     , base             >=4.20 && <5
     , vector           ^>=0.13

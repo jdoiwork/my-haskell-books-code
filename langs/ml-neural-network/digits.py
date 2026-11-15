@@ -64,10 +64,10 @@ with torch.no_grad():
     model[2].weight.copy_(torch.tensor(init_weights(8, 32, 10)).T)
     model[2].bias.zero_()
 
-X = torch.tensor(x_train)
-Y = torch.tensor(y_train)
 start = time.time()
 # ANCHOR: loop
+X = torch.tensor(x_train)
+Y = torch.tensor(y_train)
 for epoch in range(301):
     loss = loss_fn(model(X), Y)      # forward and loss / 前向きと損失
     optimizer.zero_grad()

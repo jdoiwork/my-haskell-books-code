@@ -9,7 +9,10 @@ build-type:    Simple
 -- ANCHOR: lib
 common shared
   default-language: GHC2024
-  ghc-options:      -Wall
+  -- -O2 for the library too, where the heavy work is (the chapter
+  -- adds it in the section on making training faster)
+  -- ライブラリにも -O2（重い計算はライブラリ。「学習を速くする」の節で足す）
+  ghc-options:      -Wall -O2
   build-depends:
     , base             >=4.20 && <5
     , vector           ^>=0.13
@@ -55,6 +58,7 @@ executable train-mnist
     , filepath         ^>=1.5
 -- ANCHOR_END: mnistexe
 
+-- ANCHOR: confusionexe
 -- The answer to step 3: the confusion table.
 -- ステップ3の解答：混同行列を見せる
 executable confusion-digits
@@ -64,6 +68,7 @@ executable confusion-digits
   ghc-options:      -O2
   build-depends:
     , minitorch
+-- ANCHOR_END: confusionexe
 
 -- ANCHOR: test
 test-suite minitorch-test

@@ -35,10 +35,15 @@ type Grads = Map String NDArray
 -- 💡 Like Value in the last chapter, but the value is an array,
 --    and so is the gradient sent back.
 -- 前の章の Value と同じ。ただし、値も、送り返す傾きも、配列
-data Tensor = Tensor
-  { tvalue   :: NDArray
-  , backprop :: NDArray -> Grads
-  }
+--    The constructor and backprop stay inside this module (like Value).
+-- コンストラクターと backprop は、このモジュールの中だけ（Value と同じ）
+data Tensor = Tensor NDArray (NDArray -> Grads)
+
+tvalue :: Tensor -> NDArray
+tvalue (Tensor v _) = v
+
+backprop :: Tensor -> NDArray -> Grads
+backprop (Tensor _ b) = b
 
 param :: String -> NDArray -> Tensor
 param name x = Tensor x (Map.singleton name)
@@ -67,11 +72,17 @@ matmul x w =
 -- ANCHOR_END: matmul
 
 -- ➕ Z + b, with b broadcast to every row. b's gradient adds up the rows.
--- Z + b（b は、どの行にもブロードキャスト）。b の傾きは、行を足したもの
+--    Only for Z of shape [n, c] and b of shape [c]: for other shapes,
+--    sumAxis 0 would send back a gradient of the wrong shape.
+-- Z + b（b は、どの行にもブロードキャスト）。b の傾きは、行を足したもの。
+-- Z が [n, c]、b が [c] のときだけ（ほかの形では、傾きの形がずれる）
 addBias :: Tensor -> Tensor -> Tensor
-addBias z b =
-  Tensor (tvalue z + tvalue b) $ \g ->
-    backprop z g `both` backprop b (Np.sumAxis 0 g)
+addBias z b = case (Np.shape (tvalue z), Np.shape (tvalue b)) of
+  ([_, c], [c']) | c == c' ->
+    Tensor (tvalue z + tvalue b) $ \g ->
+      backprop z g `both` backprop b (Np.sumAxis 0 g)
+  (sz, sb) -> error ("addBias: Z must be [n, c] and b [c]; got "
+                     <> show sz <> " and " <> show sb)
 
 -- 📈 relu: let the gradient through only where the value was > 0.
 -- 値が 0 より大きかったところだけ、傾きを通す
@@ -97,18 +108,38 @@ oneHot :: Int -> [Int] -> NDArray
 oneHot k labels =
   Np.array2 [ [ if j == c then 1 else 0 | j <- [0 .. k - 1] ] | c <- labels ]
 
+-- 📐 log (softmax x), without taking the log of a 0:
+--    (x - max) - log (sum (exp (x - max))) for each row.
+-- log (softmax x) を、0 の log を取らずに計算する
+logSoftmax :: NDArray -> NDArray
+logSoftmax x =
+  let n       = Np.nrows x
+      maxes   = Np.reshape [n, 1]
+                  (Np.array [ Np.maxAll (Np.row i x) | i <- [0 .. n - 1] ])
+      shifted = x - maxes
+  in shifted - log (Np.reshape [n, 1] (Np.sumAxis 1 (exp shifted)))
+
 -- 📉 Cross-entropy loss: how surprised we are by the right answers.
 --    The gradient has a famously simple form: (softmax - onehot) / n.
+--    One label per row, each from 0 to k - 1.
 -- 交差エントロピー損失：正解に、どれだけ驚いたか。
--- 傾きは、有名なほど単純な形：(softmax - onehot) / n
+-- 傾きは、有名なほど単純な形：(softmax - onehot) / n。
+-- ラベルは行ごとに1つ、0 から k - 1
 crossEntropy :: Tensor -> [Int] -> Tensor
-crossEntropy logits labels =
-  let p      = softmax (tvalue logits)
-      k      = Np.shape p !! 1
-      target = oneHot k labels
-      n      = fromIntegral (length labels)
-      loss   = negate (Np.sum (target * log p)) / Np.scalar n
-  in Tensor loss $ \g ->
-       backprop logits (g * (p - target) / Np.scalar n)
+crossEntropy logits labels
+  | length labels /= Np.nrows (tvalue logits) =
+      error ("crossEntropy: " <> show (Np.nrows (tvalue logits))
+             <> " rows but " <> show (length labels) <> " labels")
+  | any (\c -> c < 0 || c >= k) labels =
+      error ("crossEntropy: a label is not in 0 .. " <> show (k - 1))
+  | otherwise =
+      Tensor loss $ \g -> backprop logits (g * (p - target) / Np.scalar n)
+  where
+    k      = Np.shape (tvalue logits) !! 1
+    p      = softmax (tvalue logits)
+    target = oneHot k labels
+    n      = fromIntegral (length labels)
+    loss   = Np.sum (target * negate (logSoftmax (tvalue logits)))
+               / Np.scalar n
 -- ANCHOR_END: loss
 -- ANCHOR_END: all

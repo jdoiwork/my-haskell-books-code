@@ -71,9 +71,13 @@ sgdStep lr ps grads =
 -- 🏅 How many rows does the model get right?
 -- いくつの行を当てたか
 accuracy :: Params -> NDArray -> [Int] -> Double
-accuracy ps x labels =
-  let guesses = Np.argmaxAxis1 (tvalue (mlp ps x))
-      right   = length (filter id (zipWith (==) guesses labels))
-  in fromIntegral right / fromIntegral (length labels)
+accuracy ps x labels
+  | Np.nrows x /= length labels =
+      error ("accuracy: " <> show (Np.nrows x) <> " rows but "
+             <> show (length labels) <> " labels")
+  | otherwise =
+      let guesses = Np.argmaxAxis1 (tvalue (mlp ps x))
+          right   = length (filter id (zipWith (==) guesses labels))
+      in fromIntegral right / fromIntegral (length labels)
 -- ANCHOR_END: sgd
 -- ANCHOR_END: all
