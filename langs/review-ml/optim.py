@@ -1,7 +1,7 @@
-# The Python code of the Part VIII review: the digit network trained for
+# The Python code of the Part IX review: the digit network trained for
 # 100 steps with torch.optim's SGD, SGD with momentum, and Adam.
 # The data and the first weights are the same as the Haskell version.
-# 第8部のふりかえりの Python のコード：数字のネットワークを、
+# 第9部のふりかえりの Python のコード：数字のネットワークを、
 # torch.optim の SGD、Momentum 付きの SGD、Adam で 100 歩ずつ学ばせる。
 # データと最初の重みは、Haskell 版と同じ
 import math
@@ -48,12 +48,16 @@ for name in ["SGD", "Momentum", "Adam"]:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     # ANCHOR_END: optimizers
     losses = []
-    for _ in range(101):
+    for _ in range(100):
         loss = nn.functional.cross_entropy(model(X), Y)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         losses.append(loss.item())
+    # The loss after the 100th step (the model we test).
+    # 100 歩目のあとの損失（正解率を測るのと同じモデル）
+    with torch.no_grad():
+        losses.append(nn.functional.cross_entropy(model(X), Y).item())
     with torch.no_grad():
         guesses = model(torch.tensor(x_test)).argmax(dim=1)
         acc = (guesses == torch.tensor(y_test)).double().mean().item()

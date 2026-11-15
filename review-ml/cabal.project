@@ -1,5 +1,5 @@
 -- 「第9部のふりかえり」の総合トレーニングのコード（別のプロジェクト）。
--- 第9部の最後の段階の MiniTorch（ml/typed）を使う
+-- 「型で次元を守る」の章の段階の MiniTorch（ml/typed）を使う
 packages:
   .
   ../ml/typed

@@ -1,7 +1,8 @@
 -- ANCHOR: all
 -- | Train the digit network for 100 steps with SGD, momentum, and Adam.
 --   cabal run review-ml-optim
--- 数字のネットワークを、SGD・Momentum・Adam で 100 歩ずつ学ばせる
+-- 数字のネットワークを、SGD・Momentum・Adam で 100 歩ずつ学ばせる。
+-- 100 歩目の損失と正解率は、どちらも 100 歩学んだあとのもの
 module Main (main) where
 
 import Control.Monad (forM_)
@@ -22,7 +23,7 @@ main = do
         , ("Adam    ", adam defaultAdam { learningRate = 0.01 })
         ]
   forM_ runs $ \(name, opt) -> do
-    let (losses, final) = trainWith opt 101 start xTrain yTrain
+    let (losses, final) = trainWith opt 100 start xTrain yTrain
         at k = losses !! k
     printf "%s  loss %.4f %.4f %.4f %.4f %.4f  test %.3f\n"
       (name :: String) (at 0) (at 25) (at 50) (at 75) (at 100)

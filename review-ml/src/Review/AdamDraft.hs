@@ -27,7 +27,7 @@ adamDraft cfg = go Map.empty Map.empty
               p - Np.scalar (learningRate cfg) * m
                     / (sqrt v + Np.scalar (epsilon cfg))
             _ -> p
-      in  (Map.mapWithKey move ps, go ms' vs')
+      in  (Map.mapWithKey move ps, go (Map.union ms' ms) (Map.union vs' vs))
 -- ANCHOR_END: draft
 
 -- 📊 old * beta + new * (1 - beta); the first time, old is 0.
