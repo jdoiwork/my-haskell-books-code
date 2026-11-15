@@ -9,7 +9,9 @@
 #   Koka    koka でコンパイルして動かす
 #   Elm     elm make で JavaScript にして、node で動かす
 #   Scheme  Guile で動かす
-#   Octave  octave-cli で動かす（MATLAB の代わり。版は Debian のパッケージのまま）
+#   Octave  octave-cli で動かす（MATLAB の代わり。版は Debian のパッケージのまま）。
+#           BLAS は OpenBLAS（libopenblas0-pthread）。速さを比べる章では、参照実装の
+#           BLAS に取り替えても動かす（update-alternatives）
 #
 # The versions are in notes/tooling.md, too. Update both together.
 # 版は notes/tooling.md にも書いてある。変えるときは両方を直す
@@ -24,7 +26,7 @@ COPY --from=node:26-trixie /usr/local/lib/node_modules /usr/local/lib/node_modul
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH=/opt/java/openjdk/bin:/opt/kotlinc/bin:/opt/elm/node_modules/.bin:$PATH
-RUN apt-get update && apt-get install -y --no-install-recommends unzip guile-3.0 octave \
+RUN apt-get update && apt-get install -y --no-install-recommends unzip guile-3.0 octave libopenblas0-pthread libblas3 \
  && rm -rf /var/lib/apt/lists/*
 
 ARG GLEAM=1.19.2

@@ -166,18 +166,20 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 型検査器を作る | [`lam/types/`](lam/types/)、[`langs/interp-typechecker/`](langs/interp-typechecker/) |
 | 言語を仕上げる | [`lam/polish/`](lam/polish/)、[`lam/parser/`](lam/parser/)、[`langs/interp-polish/`](langs/interp-polish/) |
 | 文字列・タプル・リスト | [`lam/strings/`](lam/strings/)、[`lam/polish/`](lam/polish/)、[`langs/interp-strings/`](langs/interp-strings/) |
+| 型を自分で定義する：data と case | [`lam/data/`](lam/data/)、[`lam/strings/`](lam/strings/)、[`langs/interp-data/`](langs/interp-data/) |
 | 第8部のふりかえり | [`lam/polish/`](lam/polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第9部 総合演習3：Python の機械学習ライブラリを Haskell で作る
 
 | 章 | コード |
 |---|---|
-| NumPy 風の配列ライブラリを作る | [`ml/`](ml/)、[`ml/01-numpy/`](ml/01-numpy/)、[`langs/ml-numerics/`](langs/ml-numerics/) |
-| scikit-learn 風に回帰と分類を作る | [`ml/02-sklearn/`](ml/02-sklearn/)、[`langs/ml-regression/`](langs/ml-regression/) |
-| PyTorch の autograd 風に自動微分を作る | [`ml/03-autograd/`](ml/03-autograd/)、[`langs/ml-autodiff/`](langs/ml-autodiff/) |
-| PyTorch 風にニューラルネットワークを組む | [`ml/04-nn/`](ml/04-nn/)、[`ml/`](ml/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
-| 型で次元を守る | [`ml/05-typed/`](ml/05-typed/)、[`langs/ml-typed-tensors/`](langs/ml-typed-tensors/) |
-| 第9部のふりかえり | [`ml/05-typed/`](ml/05-typed/)、[`review-ml/`](review-ml/)、[`langs/review-ml/`](langs/review-ml/) |
+| NumPy 風の配列ライブラリを作る | [`ml/`](ml/)、[`ml/numpy/`](ml/numpy/)、[`langs/ml-numerics/`](langs/ml-numerics/) |
+| scikit-learn 風に回帰と分類を作る | [`ml/sklearn/`](ml/sklearn/)、[`langs/ml-regression/`](langs/ml-regression/) |
+| PyTorch の autograd 風に自動微分を作る | [`ml/autograd/`](ml/autograd/)、[`langs/ml-autodiff/`](langs/ml-autodiff/) |
+| PyTorch 風にニューラルネットワークを組む | [`ml/nn/`](ml/nn/)、[`ml/`](ml/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
+| 型で次元を守る | [`ml/typed/`](ml/typed/)、[`langs/ml-typed-tensors/`](langs/ml-typed-tensors/) |
+| 速さを比べる：MiniTorch・Haskell のライブラリ・Python・Julia・R | [`ml/bench/`](ml/bench/)、[`ml/nn/`](ml/nn/)、[`ml/hasktorch/`](ml/hasktorch/)、[`langs/ml-benchmarks/`](langs/ml-benchmarks/) |
+| 第9部のふりかえり | [`ml/typed/`](ml/typed/)、[`review-ml/`](review-ml/)、[`langs/review-ml/`](langs/review-ml/) |
 
 ### 第10部 総合演習4：型に厳しいインメモリデータベースを作る
 

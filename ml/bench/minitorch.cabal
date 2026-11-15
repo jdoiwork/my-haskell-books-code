@@ -1,0 +1,94 @@
+cabal-version: 3.0
+name:          minitorch
+version:       0.6.0.0
+build-type:    Simple
+
+-- 第9部 Python の機械学習ライブラリを Haskell で作る
+-- （6. 速さを比べる。nn を写して、BLAS に任せる行列の積と、比べっこの台を足した）
+
+-- ANCHOR: lib
+common shared
+  default-language: GHC2024
+  -- Every module with -O2, so that the hand-written loops are as fast
+  -- as GHC can make them (in nn, only the programs had -O2).
+  -- 手で書いたループも GHC の全力で速くするよう、どのモジュールも -O2
+  -- （nn では、プログラムだけが -O2 だった）
+  ghc-options:      -Wall -O2
+  build-depends:
+    , base             >=4.20 && <5
+    , vector           ^>=0.13
+    , containers       ^>=0.8
+    , bytestring       ^>=0.12
+
+library
+  import:           shared
+  exposed-modules:  MiniNumpy
+                    MiniSklearn.Datasets
+                    MiniSklearn.Linear
+                    MiniSklearn.Logistic
+                    Autograd
+                    Dual
+                    AutogradDemo
+                    MiniTorch.Random
+                    MiniTorch.Digits
+                    MiniTorch.Tensor
+                    MiniTorch.NN
+                    MiniTorch.Mnist
+                    MiniNumpy.Blas
+                    Bench.Timer
+                    Bench.Kernels
+                    BenchAnswers
+  hs-source-dirs:   src answers
+  -- ANCHOR: deps
+  build-depends:
+    , hmatrix          ^>=0.20
+    , massiv           ^>=1.0
+  -- ANCHOR_END: deps
+-- ANCHOR_END: lib
+
+-- ANCHOR: exe
+executable train-digits
+  import:           shared
+  main-is:          Train.hs
+  hs-source-dirs:   app
+  ghc-options:      -O2
+  build-depends:
+    , minitorch
+-- ANCHOR_END: exe
+
+-- ANCHOR: mnistexe
+executable train-mnist
+  import:           shared
+  main-is:          TrainMnist.hs
+  hs-source-dirs:   app
+  ghc-options:      -O2
+  build-depends:
+    , minitorch
+    , filepath         ^>=1.5
+-- ANCHOR_END: mnistexe
+
+-- ANCHOR: benchexe
+executable bench-ml
+  import:           shared
+  main-is:          Bench.hs
+  hs-source-dirs:   app
+  ghc-options:      -threaded -rtsopts
+  build-depends:
+    , minitorch
+    , massiv
+    , hmatrix
+-- ANCHOR_END: benchexe
+
+-- ANCHOR: test
+test-suite minitorch-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , minitorch
+    , bytestring
+    , massiv
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19
+-- ANCHOR_END: test
