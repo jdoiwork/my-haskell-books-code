@@ -169,6 +169,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 型を自分で定義する：data と case | [`lam/data/`](lam/data/)、[`lam/strings/`](lam/strings/)、[`langs/interp-data/`](langs/interp-data/) |
 | Map と JSON | [`lam/json/`](lam/json/)、[`lam/data/`](lam/data/)、[`langs/interp-map-json/`](langs/interp-map-json/) |
 | 入出力：IO 型と do | [`lam/io/`](lam/io/)、[`lam/json/`](lam/json/)、[`langs/interp-io/`](langs/interp-io/) |
+| 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/io/`](lam/io/)、[`langs/interp-format/`](langs/interp-format/) |
 | 第8部のふりかえり | [`lam/polish/`](lam/polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第9部 総合演習3：Python の機械学習ライブラリを Haskell で作る
