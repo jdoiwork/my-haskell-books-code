@@ -160,12 +160,13 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 
 | 章 | コード |
 |---|---|
-| 言語を設計する | [`lam/01-design/`](lam/01-design/)、[`langs/interp-design/`](langs/interp-design/) |
-| パーサーを書く | [`lam/02-parser/`](lam/02-parser/)、[`langs/interp-parser/`](langs/interp-parser/) |
-| 評価器と REPL | [`lam/03-eval/`](lam/03-eval/)、[`langs/interp-evaluator/`](langs/interp-evaluator/) |
-| 型検査器を作る | [`lam/04-types/`](lam/04-types/)、[`langs/interp-typechecker/`](langs/interp-typechecker/) |
-| 言語を仕上げる | [`lam/05-polish/`](lam/05-polish/)、[`lam/02-parser/`](lam/02-parser/)、[`langs/interp-polish/`](langs/interp-polish/) |
-| 第8部のふりかえり | [`lam/05-polish/`](lam/05-polish/)、[`review-interpreter/`](review-interpreter/) |
+| 言語を設計する | [`lam/design/`](lam/design/)、[`langs/interp-design/`](langs/interp-design/) |
+| パーサーを書く | [`lam/parser/`](lam/parser/)、[`langs/interp-parser/`](langs/interp-parser/) |
+| 評価器と REPL | [`lam/eval/`](lam/eval/)、[`langs/interp-evaluator/`](langs/interp-evaluator/) |
+| 型検査器を作る | [`lam/types/`](lam/types/)、[`langs/interp-typechecker/`](langs/interp-typechecker/) |
+| 言語を仕上げる | [`lam/polish/`](lam/polish/)、[`lam/parser/`](lam/parser/)、[`langs/interp-polish/`](langs/interp-polish/) |
+| 文字列・タプル・リスト | [`lam/strings/`](lam/strings/)、[`lam/polish/`](lam/polish/)、[`langs/interp-strings/`](langs/interp-strings/) |
+| 第8部のふりかえり | [`lam/polish/`](lam/polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第9部 総合演習3：Python の機械学習ライブラリを Haskell で作る
 

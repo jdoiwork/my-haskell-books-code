@@ -1,5 +1,5 @@
 -- 「第8部のふりかえり」の総合トレーニングのコード（別のプロジェクト）。
--- 第8部の最後の段階の Lam（lam/05-polish）を使う
+-- 第8部の最後の段階の Lam（lam/polish）を使う
 packages:
   .
-  ../lam/05-polish
+  ../lam/polish
