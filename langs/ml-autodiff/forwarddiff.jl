@@ -2,11 +2,11 @@
 # dual numbers, like Dual.hs.
 # 自動微分の章を Julia で：ForwardDiff は、Dual.hs と同じく、二重数で
 # 傾きを前から運ぶ
-using ForwardDiff
-
 # ANCHOR: forwarddiff
 # Julia: f has no types written, so it works for any kind of number
 # Julia：f には型を書いていないので、どんな種類の数でも使える
+using ForwardDiff
+
 f(x, y) = x * y + sin(x)
 
 println(ForwardDiff.derivative(x -> f(x, 3), 2.0))

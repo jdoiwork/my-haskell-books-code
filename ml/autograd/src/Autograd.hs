@@ -17,6 +17,7 @@ module Autograd
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Numeric (expm1, log1p)
 -- ANCHOR_END: head
 
 -- ANCHOR: value
@@ -30,13 +31,25 @@ type Grads = Map String Double
 -- 傾きを送り返す方法を覚えている値。
 -- backprop g：「d（出力）/ d（自分）が g なら、自分の材料になった
 -- パラメーターの傾きはこれ」
-data Value = Value
-  { value    :: Double
-  , backprop :: Double -> Grads
-  }
+--    The constructor and backprop stay inside this module, so that the
+--    value and the way back always belong together.
+-- コンストラクターと backprop は、このモジュールの中だけ。値と、送り返す
+-- 方法が、いつも組になっているように
+data Value = Value Double (Double -> Grads)
 
+-- The value, and the way back.
+-- 値と、送り返す方法
+value :: Value -> Double
+value (Value x _) = x
+
+backprop :: Value -> Double -> Grads
+backprop (Value _ b) = b
+
+-- Show like a constructor: Just (Value (-2.0)).
+-- コンストラクターのように見せる
 instance Show Value where
-  show v = "Value " <> show (value v)
+  showsPrec d v =
+    showParen (d > 10) (showString "Value " . showsPrec 11 (value v))
 
 -- 🌱 A parameter: a leaf with a name. Its own gradient is g.
 -- パラメーター：名前の付いた葉。自分の傾きは g そのもの
@@ -113,6 +126,15 @@ instance Floating Value where
   asinh = lift1 asinh (\x -> 1 / sqrt (x * x + 1))
   acosh = lift1 acosh (\x -> 1 / sqrt (x * x - 1))
   atanh = lift1 atanh (\x -> 1 / (1 - x * x))
+  -- d(a ** b) = b * a ** (b - 1) da + a ** b * log a db. Without it,
+  -- the default (exp (log a * b)) gives NaN for (-2) ** 2.
+  -- 書かないと、既定の式（exp (log a * b)）で、(-2) ** 2 が NaN になる
+  a ** b = Value (value a ** value b)
+                 (\g -> backprop a (g * value b * value a ** (value b - 1))
+                          `both` backprop b
+                                   (g * value a ** value b * log (value a)))
+  log1p = lift1 log1p (\x -> 1 / (1 + x))
+  expm1 = lift1 expm1 exp
 
 -- 📈 relu x = max 0 x: passes the gradient only where x > 0.
 -- x > 0 のところだけ、傾きを通す

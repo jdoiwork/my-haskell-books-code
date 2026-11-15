@@ -1,10 +1,10 @@
 # The Python code in the autograd chapter.
 # 自動微分の章の Python のコード
-import math
-
 # ANCHOR: micrograd
 # Python (a tiny autograd: each value keeps its grad and a _backward)
 # Python（小さな autograd：値ごとに grad と _backward を持つ）
+import math
+
 class Value:
     def __init__(self, data, parents=()):
         self.data = data

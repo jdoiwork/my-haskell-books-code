@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of the autograd chapter.
 -- 自動微分の章のトレーニングの解答。
 module Answers
@@ -9,6 +10,7 @@ module Answers
 
 import Autograd
 import Dual
+-- ANCHOR_END: head
 
 -- ANCHOR: sigmoid
 -- 〰️ sigmoid, written with exp: no new gradient rule is needed.

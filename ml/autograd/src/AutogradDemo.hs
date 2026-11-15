@@ -10,6 +10,7 @@ module AutogradDemo
 import Autograd
 import qualified MiniNumpy as Np
 import MiniNumpy (NDArray)
+import qualified MiniSklearn.Linear as Lin
 -- ANCHOR_END: head
 
 -- ANCHOR: f
@@ -26,8 +27,14 @@ f x y = x * y + sin x
 --    We only write the loss; backward finds d(loss)/dw and d(loss)/db.
 -- もう一度、線形回帰。ただし傾きは autograd が求める。
 -- 書くのは損失だけ。backward が d（損失）/dw と d（損失）/db を見つける
+--    One feature only: X is [n, 1] with n > 0 (checked like Lin.fit).
+-- 特徴は1つだけ：X は [n, 1]、n > 0（Lin.fit と同じく確かめる）
 fitWithAutograd :: Double -> Int -> NDArray -> NDArray -> (Double, Double)
-fitWithAutograd lr steps x y = go steps (0, 0)
+fitWithAutograd lr steps x y
+  | Lin.checkShapes "fitWithAutograd" (Lin.Options lr steps) x y /= 1 =
+      error "fitWithAutograd: one feature only (X must be [n, 1])"
+  | Np.nrows x == 0 = error "fitWithAutograd: no data"
+  | otherwise = go steps (0, 0)
   where
     pairs = zip (Np.toList x) (Np.toList y)
     n     = fromIntegral (length pairs)
@@ -38,7 +45,8 @@ fitWithAutograd lr steps x y = go steps (0, 0)
           loss  = sum [ (w * constant xi + b - constant yi) ^ (2 :: Int)
                       | (xi, yi) <- pairs ] / constant n
           grads = backward loss
-          -- MSE has a 2 in its gradient; halve it to match chapter 2.
+          -- MSE has a 2 in its gradient; halve it to match the previous
+          -- chapter.
           -- MSE の傾きには 2 が付くので、前の章に合わせて半分にする
           w1    = w0 - lr * grad "w" grads / 2
           b1    = b0 - lr * grad "b" grads / 2

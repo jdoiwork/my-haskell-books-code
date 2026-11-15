@@ -7,6 +7,8 @@ module Dual
   ( Dual (..)
   , derivative
   ) where
+
+import Numeric (expm1, log1p)
 -- ANCHOR_END: head
 
 -- ANCHOR: dual
@@ -44,6 +46,14 @@ instance Floating Dual where
   asinh (Dual a a') = Dual (asinh a) (a' / sqrt (a * a + 1))
   acosh (Dual a a') = Dual (acosh a) (a' / sqrt (a * a - 1))
   atanh (Dual a a') = Dual (atanh a) (a' / (1 - a * a))
+  -- The default ** would give NaN for (-2) ** 2 (see Autograd).
+  -- 既定の ** だと、(-2) ** 2 が NaN になる（Autograd と同じ）
+  Dual a a' ** Dual b b' =
+    Dual (a ** b)
+         (a' * b * a ** (b - 1)
+          + (if b' == 0 then 0 else b' * a ** b * log a))
+  log1p (Dual a a') = Dual (log1p a) (a' / (1 + a))
+  expm1 (Dual a a') = Dual (expm1 a) (a' * exp a)
 
 -- 📏 The derivative of f at x: start with dx/dx = 1.
 -- f の x での微分係数：dx/dx = 1 から始める
