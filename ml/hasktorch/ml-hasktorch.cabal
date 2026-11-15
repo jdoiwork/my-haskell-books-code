@@ -1,0 +1,11 @@
+cabal-version: 3.0
+name:          ml-hasktorch
+version:       0.1.0.0
+build-type:    Simple
+
+executable hasktorch-matmul
+  main-is:          Main.hs
+  hs-source-dirs:   app
+  build-depends:    base, hasktorch
+  ghc-options:      -Wall -dynamic
+  default-language: GHC2021

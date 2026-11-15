@@ -1,0 +1,11 @@
+-- hasktorch does not build with GHC 9.14 yet, so this project uses 9.10.3
+-- (like code/guildrel8). It is not in code/cabal.project.
+-- hasktorch はまだ GHC 9.14 で組めないので、このプロジェクトは 9.10.3 を使う
+-- （code/guildrel8 と同じ）。code/cabal.project には入れない
+--
+-- 2026-11-15: on macOS, libtorch-ffi does not link yet (notes/tooling.md,
+-- 「対応待ちのライブラリ」). check-code does not build this project.
+-- 2026-11-15：Mac では、まだ libtorch-ffi がリンクできない（notes/tooling.md の
+-- 「対応待ちのライブラリ」）。check-code では組まない
+packages: .
+with-compiler: ghc-9.10.3
