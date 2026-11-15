@@ -1,0 +1,12 @@
+-- cabal.project inside the Docker image (docker/Dockerfile). The image has
+-- only GHC 9.10.3, so no with-compiler. libtorch is the one inside the pip
+-- wheel of torch (TORCH_DIR in the Dockerfile).
+-- Docker のイメージの中の cabal.project。GHC は 9.10.3 だけなので、
+-- with-compiler は書かない。libtorch は、pip の torch の中のもの
+-- （Dockerfile の TORCH_DIR）
+packages: .
+
+package *
+  extra-include-dirs: /opt/py/lib/python3.11/site-packages/torch/include
+                      /opt/py/lib/python3.11/site-packages/torch/include/torch/csrc/api/include
+  extra-lib-dirs:     /opt/py/lib/python3.11/site-packages/torch/lib

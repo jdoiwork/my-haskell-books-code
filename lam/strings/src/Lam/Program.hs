@@ -65,6 +65,7 @@ define session x e =
     -- 「x の定義で：……」
     inDefinition msg = "in the definition of " <> x <> ": " <> msg
 
+-- ANCHOR: evaluate
 -- 🧮 Check the type of an expression, then compute it.
 -- 式の型を確かめ、それから計算する
 evaluate :: Session -> Expr -> Either Text Text
@@ -73,7 +74,8 @@ evaluate session e =
     Left err -> Left ("type error: " <> renderTypeError err)
     Right t  -> case eval (sessionValues session) e of
       Left err -> Left ("error: " <> renderError err)
-      Right v  -> Right (renderValue v <> " : " <> renderType t)
+      Right v  -> Right (renderValue v <> " : " <> renderScheme t)
+-- ANCHOR_END: evaluate
 -- ANCHOR_END: define
 
 -- ANCHOR: load

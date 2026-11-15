@@ -52,9 +52,7 @@ preludeSource = """
   let map f xs = foldr (\\x rest -> f x : rest) [] xs
   let filter p xs =
     foldr (\\x rest -> if p x then x : rest else rest) [] xs
-  let length xs = foldl (\\n x -> n + 1) 0 xs
   let sum xs = foldl (\\total x -> total + x) 0 xs
-  let append xs ys = foldr (\\x rest -> x : rest) ys xs
   let reverse xs = foldl (\\acc x -> x : acc) [] xs
   let range a b = if a > b then [] else a : range (a + 1) b
   """

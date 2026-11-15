@@ -38,10 +38,7 @@ builtins :: [Builtin]
 builtins =
   -- Strings
   -- 文字列
-  [ prim1 "stringLength" (tString ~> TInt) $ \v -> do
-      s <- string v
-      Right (VInt (fromIntegral (T.length s)))
-  , prim1 "toUpper" (tString ~> tString) (onString T.toUpper)
+  [ prim1 "toUpper" (tString ~> tString) (onString T.toUpper)
   , prim1 "toLower" (tString ~> tString) (onString T.toLower)
   , prim1 "chars" (tString ~> tList tString) $ \v -> do
       s <- string v
@@ -58,6 +55,14 @@ builtins =
   -- タプル
   , prim1 "fst" (tTuple [a, b] ~> a) (pairPart fst)
   , prim1 "snd" (tTuple [a, b] ~> b) (pairPart snd)
+
+  -- The length of a string or a list: HasLength a => a -> Int
+  -- 文字列やリストの長さ
+  , requiring [(HasLength, 0)] $ prim1 "length" (a ~> TInt) $ \v ->
+      case v of
+        VString s -> Right (VInt (fromIntegral (T.length s)))
+        VList xs  -> Right (VInt (fromIntegral (length xs)))
+        _         -> wrong "length"
 
   -- Lists
   -- リスト
@@ -101,6 +106,13 @@ prim2 n t f = Builtin n (closeOver t) (VPrim n 2 run [])
   where
     run [x, y] = f x y
     run _      = wrong n
+
+-- 🎓 The same row, but some type variables must be in a class.
+--    requiring [(HasLength, 0)] puts HasLength on t0 (that is, a).
+-- 同じ行だが、型変数にクラスの条件を付ける
+requiring :: [(Class, Int)] -> Builtin -> Builtin
+requiring cs b = case builtinType b of
+  Forall _ _ t -> b { builtinType = closeOverWith cs t }
 
 -- 🔍 Take the Haskell value out of a Lam value. The type checker has
 --    already made sure of the type, so `wrong` is never reached.

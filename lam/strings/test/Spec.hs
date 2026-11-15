@@ -87,7 +87,7 @@ main = hspec $ do
         `shouldBe` map Just
           [ "a -> a", "a -> b -> a", "(a -> b) -> (c -> a) -> c -> b"
           , "(a -> b -> c) -> b -> a -> c", "Bool -> Bool"
-          , "a -> a -> a", "Int -> Int -> Int" ]
+          , "Comparable a => a -> a -> a", "Int -> Int -> Int" ]
     -- ANCHOR_END: prelude
 
   -- 「REPL」
@@ -122,15 +122,15 @@ main = hspec $ do
       runLines
         [ "\"Hello, \" ++ \"Lam\""
         , "toUpper \"lam\""
-        , "stringLength \"ラムダ\""
+        , "length \"ラムダ\""
         , "\"say \\\"hi\\\"\\n\""
-        , "length \"abc\"" ]
+        , "\"a\" ++ 1" ]
         `shouldBe`
           [ "\"Hello, Lam\" : String"
           , "\"LAM\" : String"
           , "3 : Int"
           , "\"say \\\"hi\\\"\\n\" : String"
-          , "type error: the types do not fit: String where [a] is needed" ]
+          , "type error: the types do not fit: Int where String is needed" ]
     -- ANCHOR_END: stringExamples
 
   -- 「タプルとリスト」
@@ -144,6 +144,9 @@ main = hspec $ do
         , ":type []"
         , "1 : 2 : [3]"
         , "map (\\x -> x * x) (range 1 5)"
+        , "[1, 2] ++ [3]"
+        , "length [1, 2, 3]"
+        , "length 5"
         , "[1, true]"
         , "head []" ]
         `shouldBe`
@@ -152,21 +155,23 @@ main = hspec $ do
           , "[a]"
           , "[1, 2, 3] : [Int]"
           , "[1, 4, 9, 16, 25] : [Int]"
+          , "[1, 2, 3] : [Int]"
+          , "3 : Int"
+          , "type error: Int is not in the class HasLength"
           , "type error: the types do not fit: Bool where Int is needed"
           , "error: head: the list is empty" ]
     -- ANCHOR_END: collections
 
     -- ANCHOR: listPrelude
-    -- 「リストのプレリュードの関数に、型が付いている」
-    it "gives the list functions of the prelude their types" $
+    -- 「リストの関数に、型が付いている」
+    it "gives the list functions their types" $
       map (\n -> renderScheme <$> Map.lookup n (sessionTypes preludeSession))
-        ["foldr", "map", "filter", "length", "append", "range"]
+        ["foldr", "map", "filter", "length", "range"]
         `shouldBe` map Just
           [ "(a -> b -> b) -> b -> [a] -> b"
           , "(a -> b) -> [a] -> [b]"
           , "(a -> Bool) -> [a] -> [a]"
-          , "[a] -> Int"
-          , "[a] -> [a] -> [a]"
+          , "HasLength a => a -> Int"
           , "Int -> Int -> [Int]" ]
     -- ANCHOR_END: listPrelude
 
@@ -185,20 +190,24 @@ main = hspec $ do
   -- 「比べる」
   describe "comparing" $
     -- ANCHOR: compare
-    -- 「どんな型でも比べられる。ただし、関数は比べられない」
-    it "compares values of any type, but not functions" $
+    -- 「Comparable の型なら比べられる。関数は、動かす前に断る」
+    it "compares Comparable values, and refuses functions before running" $
       runLines
         [ "\"apple\" < \"banana\""
         , "[1, 2] < [1, 3]"
         , "(\"Lam\", 1) /= (\"Lam\", 2)"
         , "\"ab\" <= \"b\""
         , ":type \\x y -> x <= y"
-        , "(\\x -> x) == (\\x -> x)" ]
+        , "(\\x -> x) == (\\x -> x)"
+        , "[toUpper] == []"
+        , "max toUpper toLower" ]
         `shouldBe`
           [ "true : Bool", "true : Bool", "true : Bool"
           , "true : Bool"
-          , "a -> a -> Bool"
-          , "error: cannot compare a function: <function of x>" ]
+          , "Comparable a => a -> a -> Bool"
+          , "type error: a -> a is not in the class Comparable"
+          , "type error: String -> String is not in the class Comparable"
+          , "type error: String -> String is not in the class Comparable" ]
     -- ANCHOR_END: compare
 
   -- 「&& と ||」

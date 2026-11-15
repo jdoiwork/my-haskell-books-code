@@ -7,12 +7,15 @@
 module Lam.Types
   ( Type (..)
   , Scheme (..)
+  , Class (..)
+  , Needs
   , TypeEnv
   , TypeError (..)
   , tString
   , tList
   , tTuple
   , closeOver
+  , closeOverWith
   , inferType
   , inferDefinition
   , renderType
@@ -56,11 +59,32 @@ tTuple :: [Type] -> Type
 tTuple ts = TCon "Tuple" ts         -- (a, b)
 -- ANCHOR_END: tcon
 
+-- ANCHOR: class
+-- 🎓 The classes: what a type variable may be. The language decides
+--    them and their members; programs cannot add more.
+-- クラス：型変数がなれるもの。クラスもその仲間も言語が決めていて、
+-- プログラムからは増やせない
+data Class
+  = Comparable    -- == < ... : Int, Bool, String, lists and tuples of them
+  | Semigroup     -- ++       : String, [a]
+  | HasLength     -- length   : String, [a]
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
+-- 📋 For each type variable, the classes it must be in.
+--    {3 := {Comparable}} means "t3 must be comparable".
+-- 型変数ごとの、入っていなければならないクラス
+type Needs = Map Int (Set Class)
+-- ANCHOR_END: class
+
+-- ANCHOR: scheme-type
 -- 🧬 A type that works for ANY a, b, ...: forall a. a -> a
---    (the type of a let-defined name, like id).
--- どんな a、b でも使える型（let で決めた id のような名前の型）
-data Scheme = Forall [Int] Type
+--    (the type of a let-defined name, like id). Some of the variables
+--    may need classes: forall a. Comparable a => a -> a -> a.
+-- どんな a、b でも使える型（let で決めた id のような名前の型）。
+-- 型変数に、クラスの条件が付くこともある
+data Scheme = Forall [Int] Needs Type
   deriving (Eq, Show)
+-- ANCHOR_END: scheme-type
 
 -- 📒 The type of each name.
 -- それぞれの名前の型
@@ -72,6 +96,7 @@ data TypeError
   = Mismatch Type Type      -- found / needed
   | InfiniteType Int Type   -- a = a -> b
   | UnknownName Name
+  | NotInClass Class Type   -- a -> a is not Comparable
   deriving (Eq, Show)
 -- ANCHOR_END: types
 
@@ -93,7 +118,8 @@ applyT s t = case t of
 -- ANCHOR_END: applyT
 
 applyScheme :: Subst -> Scheme -> Scheme
-applyScheme s (Forall vs t) = Forall vs (applyT (foldr Map.delete s vs) t)
+applyScheme s (Forall vs needs t) =
+  Forall vs needs (applyT (foldr Map.delete s vs) t)
 
 applyEnv :: Subst -> TypeEnv -> TypeEnv
 applyEnv s = Map.map (applyScheme s)
@@ -161,70 +187,141 @@ ftv t = case t of
 
 -- ANCHOR: monad
 -- 🎟️ Inference needs fresh type variables (t0, t1, ...) and may fail.
---    Infer carries the next number along, like a ticket machine.
+--    Infer carries the next number along, like a ticket machine, and
+--    the classes each type variable must be in.
 -- 推論には、新しい型変数（t0、t1、...）が要り、失敗もする。
--- Infer は、次の番号を、番号札の機械のように持ち回る
-newtype Infer a = Infer (Int -> Either TypeError (a, Int))
+-- Infer は、次の番号を、番号札の機械のように持ち回る。
+-- 型変数ごとのクラスの条件も、一緒に持ち回る
+data InferState = InferState
+  { nextVar :: Int
+  , needs   :: Needs
+  }
+
+newtype Infer a = Infer (InferState -> Either TypeError (a, InferState))
 
 runInfer :: Infer a -> Either TypeError a
-runInfer (Infer f) = fst <$> f 0
+runInfer (Infer f) = fst <$> f (InferState 0 Map.empty)
 
 instance Functor Infer where
-  fmap g (Infer f) = Infer (\n -> fmap (\(a, n') -> (g a, n')) (f n))
+  fmap g (Infer f) = Infer (\st -> fmap (\(a, st') -> (g a, st')) (f st))
 
 instance Applicative Infer where
-  pure a = Infer (\n -> Right (a, n))
+  pure a = Infer (\st -> Right (a, st))
   mf <*> ma = do
     g <- mf
     g <$> ma
 
 instance Monad Infer where
-  Infer f >>= k = Infer $ \n -> case f n of
-    Left err      -> Left err
-    Right (a, n') -> let Infer g = k a in g n'
+  Infer f >>= k = Infer $ \st -> case f st of
+    Left err       -> Left err
+    Right (a, st') -> let Infer g = k a in g st'
 
 -- 🆕 A new type variable we have never used.
 -- まだ使っていない、新しい型変数
 fresh :: Infer Type
-fresh = Infer (\n -> Right (TVar n, n + 1))
+fresh = Infer $ \st ->
+  Right (TVar (nextVar st), st { nextVar = nextVar st + 1 })
 
 -- ❌ Stop with an error.
 -- エラーで止まる
 failWith :: TypeError -> Infer a
 failWith err = Infer (\_ -> Left err)
 
--- 🤝 unify, inside Infer.
+-- ANCHOR: liftUnify
+-- 🤝 unify, inside Infer. Then check the classes: when t3 must be
+--    Comparable and t3 turned out to be Int -> Int, that is an error.
+-- Infer の中の unify。そのあと、クラスの条件を確かめる
 liftUnify :: Type -> Type -> Infer Subst
-liftUnify a b = either failWith pure (unify a b)
+liftUnify a b = do
+  s <- either failWith pure (unify a b)
+  current <- currentNeeds
+  sequence_
+    [ require c t
+    | (n, t) <- Map.toList s
+    , c <- maybe [] Set.toList (Map.lookup n current) ]
+  pure s
+-- ANCHOR_END: liftUnify
 -- ANCHOR_END: monad
+
+-- ANCHOR: require
+-- 📋 The classes each type variable must be in, so far.
+-- ここまでにわかった、型変数ごとのクラスの条件
+currentNeeds :: Infer Needs
+currentNeeds = Infer (\st -> Right (needs st, st))
+
+-- 🎓 Type t must be in class c. A type variable just remembers it;
+--    [a] is Comparable when a is, so the condition moves inside.
+-- 型 t は、クラス c に入っていなければならない。型変数なら覚えておくだけ。
+-- [a] は a が Comparable なら Comparable なので、条件が中へ移る
+require :: Class -> Type -> Infer ()
+require c t = case t of
+  TVar n -> Infer $ \st ->
+    let more = Map.insertWith (<>) n (Set.singleton c) (needs st)
+    in Right ((), st { needs = more })
+  _ -> case members c t of
+    Just inside -> mapM_ (require c) inside
+    Nothing     -> failWith (NotInClass c t)
+
+-- 📖 The members of each class: Nothing if t is not one; otherwise
+--    the types inside that must be in the class too.
+-- クラスの仲間の表。仲間でなければ Nothing。仲間なら、
+-- 同じクラスに入っていなければならない、中の型
+members :: Class -> Type -> Maybe [Type]
+members c t = case (c, t) of
+  (Comparable, TInt)              -> Just []
+  (Comparable, TBool)             -> Just []
+  (Comparable, TCon "String" [])  -> Just []
+  (Comparable, TCon "List" [a])   -> Just [a]
+  (Comparable, TCon "Tuple" ts)   -> Just ts
+  (Semigroup,  TCon "String" [])  -> Just []
+  (Semigroup,  TCon "List" [_])   -> Just []
+  (HasLength,  TCon "String" [])  -> Just []
+  (HasLength,  TCon "List" [_])   -> Just []
+  _                               -> Nothing
+-- ANCHOR_END: require
 
 -- ANCHOR: scheme
 -- 🧬 forall a. a -> a  becomes  t7 -> t7  (new variables each use).
--- 使うたびに、新しい型変数にする
+--    The new variables get the same classes as the old ones.
+-- 使うたびに、新しい型変数にする。クラスの条件も、新しい型変数に写す
 instantiate :: Scheme -> Infer Type
-instantiate (Forall vs t) = do
+instantiate (Forall vs ns t) = do
   news <- mapM (const fresh) vs
+  sequence_
+    [ require c new
+    | (v, new) <- zip vs news
+    , c <- maybe [] Set.toList (Map.lookup v ns) ]
   pure (applyT (Map.fromList (zip vs news)) t)
 
 -- 🧬 t3 -> t3, where t3 is not used by the environment,
 --    becomes  forall a. a -> a.
 -- 環境が使っていない型変数を、「どんな型でもよい」にする
-generalize :: TypeEnv -> Type -> Scheme
-generalize env t =
+generalize :: TypeEnv -> Needs -> Type -> Scheme
+generalize env ns t =
   -- The variables the environment really uses: in a forall type,
   -- the variables under forall do not count.
   -- 環境が本当に使っている型変数。forall の型では、
   -- forall で縛られた型変数は数えない
   let envVars = Set.unions
         [ ftv ty `Set.difference` Set.fromList vs
-        | Forall vs ty <- Map.elems env ]
-  in Forall (Set.toList (ftv t `Set.difference` envVars)) t
+        | Forall vs _ ty <- Map.elems env ]
+      vs' = ftv t `Set.difference` envVars
+  -- The generalized variables keep their classes.
+  -- 「どんな型でもよい」にした型変数は、クラスの条件を持っていく
+  in Forall (Set.toList vs') (Map.restrictKeys ns vs') t
 
 -- ANCHOR: closeOver
 -- 🧬 Every type variable may be any type: for the builtins.
 -- どの型変数も「どんな型でもよい」にする（組み込みの関数の型に使う）
 closeOver :: Type -> Scheme
-closeOver t = Forall (Set.toList (ftv t)) t
+closeOver = closeOverWith []
+
+-- 🧬 The same, with classes: closeOverWith [(HasLength, 0)] (t0 -> Int)
+--    is  HasLength a => a -> Int.
+-- 同じだが、クラスの条件を付ける
+closeOverWith :: [(Class, Int)] -> Type -> Scheme
+closeOverWith cs t = Forall (Set.toList (ftv t))
+  (Map.fromListWith (<>) [ (n, Set.singleton c) | (c, n) <- cs ]) t
 -- ANCHOR_END: closeOver
 -- ANCHOR_END: scheme
 
@@ -249,7 +346,7 @@ infer env expr = case expr of
   -- x の型はまだわからないので、新しい t にしておく
   Lam x body -> do
     tx <- fresh
-    (s, tb) <- infer (Map.insert x (Forall [] tx) env) body
+    (s, tb) <- infer (Map.insert x (Forall [] Map.empty tx) env) body
     pure (s, TFun (applyT s tx) tb)
 
   -- f a : f must be a function from a's type to something new.
@@ -280,11 +377,12 @@ infer env expr = case expr of
   -- そのあと x を forall の型にして、本体でいろいろな型で使えるようにする
   Let x e body -> do
     tx <- fresh
-    (s1, te) <- infer (Map.insert x (Forall [] tx) env) e
+    (s1, te) <- infer (Map.insert x (Forall [] Map.empty tx) env) e
     s2 <- liftUnify (applyT s1 tx) te
     let s    = s2 `compose` s1
         env' = applyEnv s env
-        sc   = generalize env' (applyT s te)
+    ns <- currentNeeds
+    let sc = generalize env' ns (applyT s te)
     (s3, tb) <- infer (Map.insert x sc env') body
     pure (s3 `compose` s, tb)
 
@@ -333,20 +431,32 @@ infer env expr = case expr of
 -- ANCHOR_END: infer
 
 -- ANCHOR: opType
--- ➕ The types of the two sides, and of the answer.
---    The comparing operators work for any type a (both sides the same).
--- 両側の型と、答えの型。比べる演算子は、どんな型 a でも使える（両側は同じ型）
+-- ➕ The types of the two sides, and of the answer. Both sides of
+--    == and < are the same Comparable type; ++ joins two of the same
+--    Semigroup type.
+-- 両側の型と、答えの型。== や < の両側は、同じ Comparable の型。
+-- ++ は、同じ Semigroup の型を2つつなぐ
 opType :: Op -> Infer (Type, Type, Type)
 opType op = case op of
   _ | op `elem` [Add, Sub, Mul, Div] -> pure (TInt, TInt, TInt)
     | op `elem` [Eq, Ne, Lt, Le, Gt, Ge] -> do
-        a <- fresh
+        a <- freshIn Comparable
         pure (a, a, TBool)
-  Concat -> pure (tString, tString, tString)
+  Concat -> do
+    a <- freshIn Semigroup
+    pure (a, a, a)
   Cons   -> do
     a <- fresh
     pure (a, tList a, tList a)
   _      -> pure (TBool, TBool, TBool)          -- && ||
+
+-- 🆕 A new type variable that must be in class c.
+-- クラス c に入っていなければならない、新しい型変数
+freshIn :: Class -> Infer Type
+freshIn c = do
+  a <- fresh
+  require c a
+  pure a
 -- ANCHOR_END: opType
 
 -- ANCHOR: inferAll
@@ -374,29 +484,36 @@ unifyAll t ts = case ts of
 -- ANCHOR: run
 -- 🔍 The type of a whole expression.
 -- 式全体の型
-inferType :: TypeEnv -> Expr -> Either TypeError Type
+-- The answer is a Scheme, to show the classes: Comparable a => a -> Bool
+-- クラスの条件を見せるため、答えは Scheme
+inferType :: TypeEnv -> Expr -> Either TypeError Scheme
 inferType env e = runInfer $ do
   (s, t) <- infer env e
-  pure (applyT s t)
+  ns <- currentNeeds
+  pure (generalize (applyEnv s env) ns (applyT s t))
 
 -- 🔍 The type of a REPL definition  let x = e  (recursive, like let).
 -- REPL の定義 let x = e の型（let と同じく再帰する）
 inferDefinition :: TypeEnv -> Name -> Expr -> Either TypeError Scheme
 inferDefinition env x e = runInfer $ do
   tx <- fresh
-  (s1, te) <- infer (Map.insert x (Forall [] tx) env) e
+  (s1, te) <- infer (Map.insert x (Forall [] Map.empty tx) env) e
   s2 <- liftUnify (applyT s1 tx) te
   let s = s2 `compose` s1
-  pure (generalize (applyEnv s env) (applyT s te))
+  ns <- currentNeeds
+  pure (generalize (applyEnv s env) ns (applyT s te))
 -- ANCHOR_END: run
 
 -- ANCHOR: render
 -- 🖨️ Show a type, naming the variables a, b, c, ... in order.
 -- 型を見せる。型変数は、出てきた順に a、b、c、... と呼ぶ
 renderType :: Type -> Text
-renderType t =
-  let names = Map.fromList (zip (nub (order t)) letters)
-  in go names False t
+renderType t = renderWith (typeNames t) t
+
+-- 🏷️ The names a, b, c, ... of the type variables, in order.
+-- 型変数の名前 a、b、c、...（出てきた順）
+typeNames :: Type -> Map Int Text
+typeNames t = Map.fromList (zip (nub (order t)) letters)
   where
     order ty = case ty of
       TVar n    -> [n]
@@ -405,6 +522,10 @@ renderType t =
       _         -> []
     letters = [ T.singleton c | c <- ['a' .. 'z'] ]
               <> [ "t" <> T.pack (show i) | i <- [1 :: Int ..] ]
+
+renderWith :: Map Int Text -> Type -> Text
+renderWith names0 = go names0 False
+  where
     go names left ty = case ty of
       TInt     -> "Int"
       TBool    -> "Bool"
@@ -432,8 +553,22 @@ renderType t =
         | c `notElem` ["List", "Tuple"] -> "(" <> go names False ty <> ")"
       _ -> go names False ty
 
+-- ANCHOR: renderScheme
+-- 🖨️ A type with its classes first, like Haskell:
+--    Comparable a => a -> a -> a
+-- クラスの条件を前に付けた型（Haskell と同じ見せ方）
 renderScheme :: Scheme -> Text
-renderScheme (Forall _ t) = renderType t
+renderScheme (Forall _ ns t) =
+  let names = typeNames t
+      conds = [ T.pack (show c) <> " " <> name
+              | (n, name) <- Map.toList names
+              , c <- maybe [] Set.toList (Map.lookup n ns) ]
+      prefix = case conds of
+        []  -> ""
+        [c] -> c <> " => "
+        _   -> "(" <> T.intercalate ", " conds <> ") => "
+  in prefix <> renderWith names t
+-- ANCHOR_END: renderScheme
 
 -- 📣 A type error, as people read it.
 -- 人が読む型のエラー
@@ -448,5 +583,8 @@ renderTypeError err = case err of
                         <> " (is a function applied to itself?)"
   -- 「知らない名前です」
   UnknownName x    -> "unknown name: " <> x
+  -- 「a -> a は、Comparable のクラスに入っていません」
+  NotInClass c t   -> renderType t <> " is not in the class "
+                        <> T.pack (show c)
 -- ANCHOR_END: render
 -- ANCHOR_END: all

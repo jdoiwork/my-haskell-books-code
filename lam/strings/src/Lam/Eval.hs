@@ -163,7 +163,10 @@ binOp op lv rv = case (op, lv, rv) of
   (Div, VInt a, VInt b)
     | b == 0            -> Left DivideByZero
     | otherwise         -> Right (VInt (a `div` b))
+  -- ANCHOR: concat
   (Concat, VString a, VString b) -> Right (VString (a <> b))
+  (Concat, VList a,   VList b)   -> Right (VList (a <> b))
+  -- ANCHOR_END: concat
   (Cons, x, VList xs)            -> Right (VList (x : xs))
   _ | Just test <- comparison op -> do
         o <- compareValues lv rv

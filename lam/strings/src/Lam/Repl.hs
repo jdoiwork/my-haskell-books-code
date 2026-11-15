@@ -63,7 +63,7 @@ step session line =
     Right (ShowType e) ->
       case inferType (sessionTypes session) e of
         Left err -> (session, "type error: " <> renderTypeError err)
-        Right t  -> (session, renderType t)
+        Right t  -> (session, renderScheme t)
     Right (Evaluate e) -> (session, either id id (evaluate session e))
     Right (Define x e) -> case define session x e of
       Left err           -> (session, err)
