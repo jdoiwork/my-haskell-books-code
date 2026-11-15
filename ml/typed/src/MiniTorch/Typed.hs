@@ -36,9 +36,17 @@ import MiniNumpy (NDArray)
 -- r 行 c 列の行列。コンストラクターは隠してあり、下の関数だけが作れる
 newtype Matrix (r :: Nat) (c :: Nat) = Matrix NDArray
 
+-- 🔒 r and c are only labels (the array does not use them), so GHC would
+--    let coerce change them: Matrix 2 3 to Matrix 3 2. nominal forbids it.
+-- r と c は札にすぎない（配列は使わない）ので、そのままでは coerce で
+-- Matrix 2 3 を Matrix 3 2 に付け替えられる。nominal で、それを禁じる
+type role Matrix nominal nominal
+
 -- 📏 A vector with n numbers (for biases).
 -- n 個の数のベクトル（バイアス用）
 newtype Vector (n :: Nat) = Vector NDArray
+
+type role Vector nominal
 
 -- 📤 Take out the plain array.
 -- ふつうの配列を取り出す
@@ -59,9 +67,13 @@ instance Show (Vector n) where
 
 -- ANCHOR: natInt
 -- 🔢 Read a number written in a type, as an Int: natInt (Proxy @35) == 35.
--- 型に書いた数を、Int として読む
+--    A number too big for an Int stops, instead of wrapping around.
+-- 型に書いた数を、Int として読む。Int に入らない数は、一周せずに止める
 natInt :: KnownNat n => Proxy n -> Int
-natInt p = fromIntegral (natVal p)
+natInt p
+  | v <= toInteger (maxBound :: Int) = fromInteger v
+  | otherwise = error ("natInt: " <> show v <> " is too big for an Int")
+  where v = natVal p
 -- ANCHOR_END: natInt
 
 -- ANCHOR: gate
@@ -71,29 +83,42 @@ natInt p = fromIntegral (natVal p)
 fromNDArray :: forall r c. (KnownNat r, KnownNat c)
             => NDArray -> Either String (Matrix r c)
 fromNDArray a
-  | Np.shape a == wanted = Right (Matrix a)
-  | otherwise            =
+  | map toInteger (Np.shape a) == wanted = Right (Matrix a)
+  | otherwise                            =
       Left ("expected shape " <> show wanted
             <> ", got " <> show (Np.shape a))
   where
-    wanted = [natInt (Proxy @r), natInt (Proxy @c)]
+    -- Compared as Integer, so that a huge number in the type is not
+    -- read as a small one.
+    -- Integer のままくらべる（型の大きな数が、小さな数に読まれないように）
+    wanted = [natVal (Proxy @r), natVal (Proxy @c)]
 
 -- 🚪 The same gate for vectors.
 -- ベクトルの門番
 vectorFromNDArray :: forall n. KnownNat n
                   => NDArray -> Either String (Vector n)
 vectorFromNDArray a
-  | Np.shape a == wanted = Right (Vector a)
-  | otherwise            =
+  | map toInteger (Np.shape a) == wanted = Right (Vector a)
+  | otherwise                            =
       Left ("expected shape " <> show wanted
             <> ", got " <> show (Np.shape a))
   where
-    wanted = [natInt (Proxy @n)]
+    wanted = [natVal (Proxy @n)]
 
--- ✍️ From nested lists, through the gate.
--- 入れ子のリストから、門番を通して
-matrix :: (KnownNat r, KnownNat c) => [[Double]] -> Either String (Matrix r c)
-matrix rows = fromNDArray (Np.array2 rows)
+-- ✍️ From nested lists, through the gate. Rows of different lengths, and
+--    no rows at all ([] is 0 rows of c columns), are handled here too.
+-- 入れ子のリストから、門番を通して。長さのそろわない行と、行が1つも
+-- ない場合（[] は c 列の 0 行）も、ここで扱う
+matrix :: forall r c. (KnownNat r, KnownNat c)
+       => [[Double]] -> Either String (Matrix r c)
+matrix rows
+  | any ((/= width) . length) rows = Left "the rows have different lengths"
+  | otherwise =
+      fromNDArray (Np.reshape [length rows, width] (Np.array (concat rows)))
+  where
+    width = case rows of
+      (r : _) -> length r
+      []      -> natInt (Proxy @c)
 -- ANCHOR_END: gate
 
 -- ANCHOR: unsafe

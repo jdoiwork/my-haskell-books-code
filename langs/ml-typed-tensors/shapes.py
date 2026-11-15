@@ -2,12 +2,10 @@
 # in NumPy and PyTorch: they are found only when the code runs.
 # 「型で次元を守る」の章の形のまちがいを、NumPy と PyTorch で。
 # 見つかるのは、動かしたときだけ
-import numpy as np
-import torch
-from torch import nn
-
 # ANCHOR: numpy
 # Python (NumPy)
+import numpy as np
+
 net_weight = np.zeros((35, 32))
 x = np.zeros((4, 36))  # 36 columns by mistake / まちがえて 36 列
 
@@ -21,6 +19,9 @@ assert "mismatch in its core dimension 0" in numpy_message, numpy_message
 
 # ANCHOR: torch
 # Python (PyTorch)
+import torch
+from torch import nn
+
 # The second layer takes 16, but the first gives 32.
 # 1つ目の層は 32 個を出すのに、2つ目の層は 16 個を受け取る
 model = nn.Sequential(nn.Linear(35, 32), nn.ReLU(), nn.Linear(16, 10))

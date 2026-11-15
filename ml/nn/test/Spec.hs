@@ -75,7 +75,8 @@ main = hspec $ do
           twice v = crossEntropy (matmul (matmul x1 v) v) [0]
           bumped d = Np.reshape [2, 2]
                        (Np.array [ if j == 0 then e + d else e
-                                 | (j, e) <- zip [0 :: Int ..] (Np.toList w) ])
+                                 | (j, e) <- zip [0 :: Int ..] ws ])
+          ws       = Np.toList w
           lossAt d = Np.item (tvalue (twice (constant (bumped d))))
           gw      = backward (twice (param "w" w)) Map.! "w"
           auto    = take 1 (Np.toList gw)

@@ -8,6 +8,7 @@ module Main (main) where
 import Control.Monad (when)
 import Text.Printf (printf)
 
+import qualified MiniNumpy as Np
 import MiniTorch.Digits
 import MiniTorch.Typed
 import MiniTorch.TypedNN
@@ -40,9 +41,12 @@ train x labels = go (initMLP 7) 0
 -- 🏅 The share of rows the network gets right.
 -- 当てた行の割合
 accuracy :: DigitNet -> Matrix n 35 -> [Int] -> Double
-accuracy net x labels =
-  let right = length (filter id (zipWith (==) (predict net x) labels))
-  in  fromIntegral right / fromIntegral (length labels)
+accuracy net x labels
+  | Np.nrows (toNDArray x) /= length labels =
+      error "accuracy: the number of rows and of labels differ"
+  | otherwise =
+      let right = length (filter id (zipWith (==) (predict net x) labels))
+      in  fromIntegral right / fromIntegral (length labels)
 -- ANCHOR_END: accuracy
 
 -- ANCHOR: main
@@ -59,10 +63,10 @@ main = do
       case withRows @35 xTest (\x -> accuracy net x yTest) of
         Left err  -> putStrLn ("bad test data: " <> err)
         Right acc -> printf "test accuracy %.3f\n" acc
-      -- The gate stops data with the wrong number of columns.
-      -- 列の数がちがうデータは、門番が止める
-      let (wide, _) = makeDigits 3 0.1 4
-      case withRows @36 wide (const ()) of
+      -- The gate stops data with the wrong number of columns: 36, not 35.
+      -- 列の数がちがうデータ（35 ではなく 36 列）は、門番が止める
+      let wide = Np.zeros [4, 36]
+      case withRows @35 wide (const ()) of
         Left err -> putStrLn ("rejected: " <> err)
         Right () -> putStrLn "accepted (this should not happen)"
 -- ANCHOR_END: main

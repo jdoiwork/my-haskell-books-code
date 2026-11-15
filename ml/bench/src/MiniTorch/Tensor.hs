@@ -106,7 +106,8 @@ softmax x =
 -- 🎯 [3, 0] with 4 classes -> [[0,0,0,1], [1,0,0,0]]
 oneHot :: Int -> [Int] -> NDArray
 oneHot k labels =
-  Np.array2 [ [ if j == c then 1 else 0 | j <- [0 .. k - 1] ] | c <- labels ]
+  Np.reshape [length labels, k]
+    (Np.array [ if j == c then 1 else 0 | c <- labels, j <- [0 .. k - 1] ])
 
 -- 📐 log (softmax x), without taking the log of a 0:
 --    (x - max) - log (sum (exp (x - max))) for each row.

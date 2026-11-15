@@ -2,13 +2,14 @@
 # the names "batch" and "inputs" must agree, checked when the function runs.
 # Python の型ヒントに形を書く（jaxtyping と beartype）。
 # "batch" や "inputs" の名前がそろっているかを、関数を呼んだときに確かめる
+# ANCHOR: hints
+# Python (jaxtyping)
 import torch
 from beartype import beartype
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 
-# ANCHOR: hints
-# Python (jaxtyping)
+
 @jaxtyped(typechecker=beartype)
 def linear(
     x: Float[Tensor, "batch inputs"],

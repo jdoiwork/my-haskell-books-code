@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: head
 -- | Answers to the training of "Keeping dimensions in types".
 -- 「型で次元を守る」のトレーニングの解答
 module TypedAnswers
@@ -13,6 +14,7 @@ import GHC.TypeLits (KnownNat, type (+))
 import qualified MiniNumpy as Np
 import MiniTorch.Typed
 import MiniTorch.TypedNN
+-- ANCHOR_END: head
 
 -- ANCHOR: mlp3
 -- 🧠 Step 2: three layers. Each middle size appears in two layers.
