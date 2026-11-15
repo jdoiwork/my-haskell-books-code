@@ -79,6 +79,11 @@ main = hspec $ do
           , "if needs true or false, but got 1"
           , "not a function, cannot call: 3" ]
 
+    -- 「キーワードで始まる名前も読める（iffy、letter）」
+    it "reads names that start with a keyword" $
+      map run ["let iffy = 1 in iffy + 1", "let letter = 2 in letter * 3"]
+        `shouldBe` ["2", "6"]
+
     -- ANCHOR: property
     -- 「計算式は、Haskell と同じ答えになる」
     it "computes arithmetic like Haskell does" $

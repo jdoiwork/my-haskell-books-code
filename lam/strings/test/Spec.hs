@@ -262,6 +262,14 @@ main = hspec $ do
     -- 「Lam で書いた words」
     golden "words"
 
+  -- 「キーワードで始まる名前」
+  describe "names" $
+    -- 「キーワードで始まる名前も読める（iffy、letter）」
+    it "reads names that start with a keyword" $
+      runLines ["let iffy = 1", "iffy + 1", "let letter = \"a\"", "letter"]
+        `shouldBe`
+          ["iffy : Int", "2 : Int", "letter : String", "\"a\" : String"]
+
   -- 「複数行」
   describe "program" $
     -- ANCHOR: layout

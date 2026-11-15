@@ -96,6 +96,15 @@ main = hspec $ do
       parseExpr "-- the answer\n  6 * 7 -- is here"
         `shouldBe` Right (BinOp Mul (Lit (LInt 6)) (Lit (LInt 7)))
 
+    -- ANCHOR: keywordStart
+    -- 「キーワードで始まる名前も読める（iffy、letter）」
+    it "reads names that start with a keyword" $
+      map parseExpr ["iffy + 1", "let letter = 1 in letter"]
+        `shouldBe` map Right
+          [ BinOp Add (Var "iffy") (Lit (LInt 1))
+          , Let "letter" (Lit (LInt 1)) (Var "letter") ]
+    -- ANCHOR_END: keywordStart
+
   -- ANCHOR: roundtrip
   -- 「表示して読み直すと、元の木に戻る」
   describe "render and parse" $

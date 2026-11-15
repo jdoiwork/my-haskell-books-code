@@ -82,6 +82,17 @@ main = hspec $ do
             \the types do not fit: Int where Bool is needed"
           , "(a -> a) -> a -> a" ]
 
+  -- 「キーワードで始まる名前」
+  describe "names" $
+    -- 「キーワードで始まる名前も読める（iffy、letter）」
+    it "reads names that start with a keyword" $ do
+      let inputs = ["let iffy = 1", "iffy + 1", "let letter = true", "letter"]
+          go (s, outs) line =
+            let (s', out) = step s line in (s', outs <> [out])
+      snd (foldl go (preludeSession, []) inputs)
+        `shouldBe`
+          ["iffy : Int", "2 : Int", "letter : Bool", "true : Bool"]
+
   -- 「例のプログラム（ゴールデンテスト）」
   describe "examples" $
     mapM_ golden ["fib", "church", "broken", "answers"]

@@ -55,8 +55,13 @@ keywords = ["let", "in", "if", "then", "else", "true", "false"]
 
 -- 🔑 A keyword, not followed by more letters ("in" but not "inside").
 -- キーワード。後ろに文字が続かない（"in" だが "inside" ではない）
+--    try: if "if" is the start of "iffy", read nothing, so that the
+--    name iffy can be read next.
+-- try：「if」が「iffy」の頭なら、何も読まなかったことにする。
+-- そうすれば、次に名前の iffy を読める
 keyword :: Text -> Parser ()
-keyword w = lexeme (string w *> notFollowedBy (alphaNumChar <|> char '_'))
+keyword w =
+  lexeme (try (string w *> notFollowedBy (alphaNumChar <|> char '_')))
 
 -- 🏷️ A name: a small letter, then letters, digits, _ or '.
 -- 名前：小文字で始まり、文字・数字・_・' が続く

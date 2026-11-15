@@ -122,6 +122,11 @@ main = hspec $ do
           , "the types do not fit: Int where Bool is needed" ]
     -- ANCHOR_END: examples
 
+    -- 「キーワードで始まる名前も読める（iffy、letter）」
+    it "reads names that start with a keyword" $
+      map typeOf ["let iffy = 1 in iffy + 1", "let letter = true in letter"]
+        `shouldBe` ["Int", "Bool"]
+
   -- ANCHOR: property
   -- 「型の付いたプログラムは、まちがった動きをしない」
   describe "well-typed programs" $

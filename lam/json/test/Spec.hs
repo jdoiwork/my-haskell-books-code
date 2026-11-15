@@ -572,6 +572,17 @@ main = hspec $ do
              <> "\\\"tags\\\": [\\n    1\\n  ]\\n}\" : String")
     -- ANCHOR_END: answerPretty
 
+  -- 「キーワードで始まる名前」
+  describe "names" $
+    -- 「キーワードで始まる名前も読める（iffy、letter、cases、dataset）」
+    it "reads names that start with a keyword" $
+      runLines
+        [ "let iffy = 1", "iffy + 1", "let letter = \"a\"", "letter"
+        , "let cases = 2", "cases * 3", "let dataset = true", "dataset" ]
+        `shouldBe`
+          [ "iffy : Int", "2 : Int", "letter : String", "\"a\" : String"
+          , "cases : Int", "6 : Int", "dataset : Bool", "true : Bool" ]
+
   -- 「複数行」
   describe "program" $
     -- ANCHOR: layout
