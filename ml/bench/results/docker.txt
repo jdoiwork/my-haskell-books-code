@@ -1,0 +1,19 @@
+# 2026-11-15, Docker (Linux arm64 VM on the same Mac), other sessions stopped.
+# Octave: the same matmul.m, BLAS switched with update-alternatives.
+== Octave, OpenBLAS
+matmul   n=128   Octave *             0.12 ms
+matmul   n=256   Octave *             0.50 ms
+matmul   n=512   Octave *             3.13 ms
+matmul   n=1024  Octave *            16.64 ms
+== Octave, reference BLAS (Netlib)
+matmul   n=128   Octave *             0.79 ms
+matmul   n=256   Octave *             5.82 ms
+matmul   n=512   Octave *            44.85 ms
+matmul   n=1024  Octave *           338.79 ms
+== hasktorch and PyTorch, the same libtorch (code/ml/hasktorch/docker), one thread
+hasktorch n=256 median=0.85 ms
+hasktorch n=512 median=5.97 ms
+hasktorch n=1024 median=43.73 ms
+pytorch n=256 median=0.72 ms
+pytorch n=512 median=5.39 ms
+pytorch n=1024 median=42.03 ms

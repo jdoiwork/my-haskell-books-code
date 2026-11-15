@@ -1,0 +1,51 @@
+# 2026-11-15, Apple M2 Max, other sessions stopped. sh run-bench.sh
+== Haskell
+matmul   n=256   naive                  18.01 ms
+matmul   n=256   MiniNumpy              15.82 ms
+matmul   n=256   hmatrix                 0.51 ms
+matmul   n=256   hmatrix (no copy)       0.22 ms
+matmul   n=512   naive                 140.67 ms
+matmul   n=512   MiniNumpy             123.11 ms
+matmul   n=512   hmatrix                 2.30 ms
+matmul   n=512   hmatrix (no copy)       1.30 ms
+matmul   n=1024  MiniNumpy             982.56 ms
+matmul   n=1024  hmatrix                 8.64 ms
+matmul   n=1024  hmatrix (no copy)       5.96 ms
+softmax  n=1000  MiniNumpy              33.44 ms
+softmax  n=1000  vector                  8.60 ms
+softmax  n=1000  massiv Seq             17.23 ms
+softmax  n=1000  massiv Par              3.51 ms
+== Python
+matmul   n=256   Python naive       529.63 ms
+matmul   n=256   NumPy                0.11 ms
+matmul   n=256   PyTorch              0.14 ms
+matmul   n=256   JAX                  0.25 ms
+matmul   n=512   NumPy                0.49 ms
+matmul   n=512   PyTorch              0.49 ms
+matmul   n=512   JAX                  0.83 ms
+matmul   n=1024  NumPy                3.51 ms
+matmul   n=1024  PyTorch              3.52 ms
+matmul   n=1024  JAX                  6.03 ms
+softmax  n=1000  Python loops        77.26 ms
+softmax  n=1000  NumPy                3.58 ms
+softmax  n=1000  PyTorch              0.60 ms
+softmax  n=1000  JAX                  1.05 ms
+== Julia
+matmul   n=256   Julia naive         12.47 ms
+matmul   n=256   Julia BLAS           0.22 ms
+matmul   n=512   Julia naive        118.93 ms
+matmul   n=512   Julia BLAS           0.95 ms
+matmul   n=1024  Julia BLAS           6.74 ms
+softmax  n=1000  Julia loops          5.20 ms
+softmax  n=1000  Julia dots           5.07 ms
+== R
+matmul   n=256   R naive            704.22 ms
+matmul   n=256   R %*%                0.45 ms
+matmul   n=512   R %*%                2.16 ms
+matmul   n=1024  R %*%               10.42 ms
+softmax  n=1000  R                   15.49 ms
+== MNIST, one epoch / 1周
+MiniTorch (nn):    test accuracy 0.9102 (one epoch in 38.0 s)
+MiniTorch (bench): test accuracy 0.9102 (one epoch in 1.0 s)
+PyTorch:           test accuracy 0.9102 (one epoch in 0.3 s)
+JAX:               test accuracy 0.9102 (one epoch in 0.19 s, compile 0.09 s)

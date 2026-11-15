@@ -1,0 +1,14 @@
+# 2026-11-15. cabal run bench-ml -- answers / softmax +RTS -N<n>
+forgetful n=256   naive                   0.00 ms
+softmax  n=1000  vector                  7.70 ms
+softmax  n=1000  ST                     11.42 ms
+N=1
+softmax  n=1000  massiv Par             16.62 ms
+N=4
+softmax  n=1000  massiv Par              5.14 ms
+N=8
+softmax  n=1000  massiv Par              3.78 ms
+N=12
+softmax  n=1000  massiv Par              3.53 ms
+# the nested-parallel mistake (arr made with comp = A.Par), +RTS -N12
+softmax  n=1000  massiv Par            147.95 ms
