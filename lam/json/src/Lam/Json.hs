@@ -10,21 +10,28 @@ module Lam.Json
   , fromAeson
   , toAeson
   , fromScientific
+  , parseJson
   ) where
 
--- JSON itself
--- JSON そのもの
+import Control.Applicative ((<|>))
+
+-- JSON itself, and its parser
+-- JSON そのものと、そのパーサー
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.Parser (jsonLast)
 import Data.Aeson.Text (encodeToLazyText)
+import qualified Data.Attoparsec.ByteString.Char8 as P
 
 -- Exact decimal numbers, and the other containers
 -- ぴったりの小数と、ほかの入れ物
 import qualified Data.Map as Map
 import Data.Scientific
   (Scientific, base10Exponent, coefficient, normalize, scientific)
+import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 
@@ -40,7 +47,7 @@ jsonBuiltins :: [Builtin]
 jsonBuiltins =
   [ prim1 "Json.parse" (tString ~> tResult tString tJson) $ \v -> do
       text <- string v
-      Right $ case A.eitherDecodeStrictText text of
+      Right $ case parseJson text of
         Right j  -> con "Ok" [fromAeson j]
         Left msg -> con "Err" [VString (T.pack msg)]
   , prim1 "Json.show" (tJson ~> tString) $ \v -> do
@@ -51,6 +58,25 @@ jsonBuiltins =
     tJson = TCon "Json" []
     tResult e a = TCon "Result" [e, a]
 -- ANCHOR_END: table
+
+-- ANCHOR: parseJson
+-- 📖 Read JSON text. When an object has the same key twice, the LAST
+--    one wins, as in Lam's {"a": 1, "a": 2} (and Haskell's Map.fromList).
+--    aeson's eitherDecodeStrictText keeps the first one, so we use the
+--    parser jsonLast of attoparsec-aeson instead.
+-- JSON の文字列を読む。オブジェクトに同じキーが2つあれば、Lam の
+-- {"a": 1, "a": 2}（と Haskell の Map.fromList）と同じく、後のほうが
+-- 勝つ。aeson の eitherDecodeStrictText は最初を残すので、かわりに
+-- attoparsec-aeson のパーサー jsonLast を使う
+parseJson :: Text -> Either String A.Value
+parseJson text = P.parseOnly whole (TE.encodeUtf8 text)
+  where
+    -- The value, with spaces around it, and nothing after it.
+    -- 値と、まわりの空白。後ろには何もない
+    whole = P.skipSpace *> jsonLast <* P.skipSpace <* end
+    -- 「JSON の値の後ろに、よけいな文字があります」
+    end = P.endOfInput <|> fail "extra text after the JSON value"
+-- ANCHOR_END: parseJson
 
 -- ANCHOR: fromAeson
 -- 📥 aeson's value, as Lam's Json.

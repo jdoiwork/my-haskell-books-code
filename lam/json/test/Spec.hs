@@ -475,13 +475,25 @@ main = hspec $ do
         [ "Json.parse \"{\\\"name\\\": \\\"Lam\\\", "
             <> "\\\"tags\\\": [true, null]}\""
         , "Json.parse \"oops\""
+        , "Json.parse \"[1] x\""
         , ":type Json.parse" ]
         `shouldBe`
           [ "Ok (JObj {\"name\": JStr \"Lam\", "
               <> "\"tags\": JArr [JBool true, JNull]}) : Result String Json"
-          , "Err \"Unexpected \\\"oops\\\", expecting JSON value\""
+          , "Err \"Failed reading: not a valid json value\""
+              <> " : Result String Json"
+          , "Err \"Failed reading: extra text after the JSON value\""
               <> " : Result String Json"
           , "String -> Result String Json" ]
+
+    -- 「同じキーが2つあれば、後のほうが勝つ（Lam の { } と同じ）」
+    it "keeps the last of the same keys, like { } in Lam" $
+      runLines
+        [ "Json.parse \"{\\\"a\\\": 1, \\\"a\\\": 2}\""
+        , "{\"a\": JInt 1, \"a\": JInt 2}" ]
+        `shouldBe`
+          [ "Ok (JObj {\"a\": JInt 2}) : Result String Json"
+          , "{\"a\": JInt 2} : Map Json" ]
     -- ANCHOR_END: parseJson
 
     -- ANCHOR: numbers

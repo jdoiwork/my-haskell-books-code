@@ -1,1 +1,1 @@
-("{\"mug\":1,\"sticker\":6}", "bad JSON: Unexpected end-of-input, expecting , or }") : (String, String)
+("{\"mug\":1,\"sticker\":6}", "bad JSON: json list value > ',' or '}': not enough input") : (String, String)
