@@ -179,7 +179,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | PyTorch 風にニューラルネットワークを組む | [`ml/nn/`](ml/nn/)、[`ml/`](ml/)、[`langs/ml-neural-network/`](langs/ml-neural-network/) |
 | 型で次元を守る | [`ml/typed/`](ml/typed/)、[`langs/ml-typed-tensors/`](langs/ml-typed-tensors/) |
 | 速さを比べる：MiniTorch・Haskell のライブラリ・Python・Julia・R | [`ml/bench/`](ml/bench/)、[`ml/nn/`](ml/nn/)、[`ml/hasktorch/`](ml/hasktorch/)、[`langs/ml-benchmarks/`](langs/ml-benchmarks/) |
-| 第9部のふりかえり | [`ml/typed/`](ml/typed/)、[`review-ml/`](review-ml/)、[`langs/review-ml/`](langs/review-ml/) |
+| 第9部のふりかえり | [`ml/typed/`](ml/typed/)、[`ml/bench/`](ml/bench/)、[`review-ml/`](review-ml/)、[`langs/review-ml/`](langs/review-ml/) |
 
 ### 第10部 総合演習4：型に厳しいインメモリデータベースを作る
 
