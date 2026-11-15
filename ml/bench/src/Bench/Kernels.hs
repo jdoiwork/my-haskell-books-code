@@ -78,9 +78,9 @@ softmaxRowsNp x =
 
 -- ANCHOR: softmaxV
 -- ⚡ The same, one row at a time, straight on the vector. Inside a row,
---    VU.map fuses "subtract the max" and "exp" into one loop.
--- 同じ計算を、1行ずつ、Vector の上で。行の中では、VU.map が
--- 「最大値を引く」と「exp」を1つのループにまとめる（融合する）
+--    one VU.map subtracts the max and takes exp at once.
+-- 同じ計算を、1行ずつ、Vector の上で。行の中では、1つの VU.map で、
+-- 「最大値を引く」と「exp」をいっぺんにする
 softmaxRowsV :: NDArray -> NDArray
 softmaxRowsV x = case Np.shape x of
   [r, c] ->

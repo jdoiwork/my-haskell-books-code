@@ -39,7 +39,7 @@ timeForgetful f x = do
 -- ステップ2：行列×ベクトルも BLAS で（hmatrix の #>）
 dotMV :: NDArray -> NDArray -> NDArray
 dotMV a v = case (Np.shape a, Np.shape v) of
-  ([_, k], [k']) | k == k' ->
+  ([r, k], [k']) | k == k' && r > 0 && k > 0 ->
     let y = Blas.toMatrix a LA.#> VU.convert (Np.values v)
     in Np.fromVector [LA.size y] (VU.convert y)
   _ -> Blas.dot a v

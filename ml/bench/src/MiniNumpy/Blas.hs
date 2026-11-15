@@ -31,12 +31,16 @@ fromMatrix m =
 
 -- ANCHOR: dot
 -- ✖️ Like Np.dot, but a matrix times a matrix goes to BLAS.
---    Other shapes use Np.dot as before.
--- Np.dot と同じ。ただし、行列×行列だけは BLAS に任せる。
--- ほかの形は、これまでどおり Np.dot
+--    Other shapes, and matrices with a 0 in their shape (hmatrix's
+--    reshape cannot keep the number of rows of a 0-column matrix), use
+--    Np.dot as before.
+-- Np.dot と同じ。ただし、行列×行列だけは BLAS に任せる。ほかの形と、
+-- 形に 0 がある行列（列が 0 だと、hmatrix の reshape が行の数を失う）は、
+-- これまでどおり Np.dot
 dot :: NDArray -> NDArray -> NDArray
 dot a b = case (Np.shape a, Np.shape b) of
-  ([_, k], [k', _]) | k == k' -> fromMatrix (toMatrix a LA.<> toMatrix b)
-  _                           -> Np.dot a b
+  ([r, k], [k', c]) | k == k' && all (> 0) [r, k, c] ->
+    fromMatrix (toMatrix a LA.<> toMatrix b)
+  _ -> Np.dot a b
 -- ANCHOR_END: dot
 -- ANCHOR_END: all
