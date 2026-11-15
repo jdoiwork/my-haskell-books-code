@@ -6,7 +6,8 @@
 -- 依頼の掲示板の API のテスト。メモリー上の本物の SQLite で
 module Main (main) where
 
-import Database.SQLite.Simple (open)
+import Control.Concurrent.MVar (newMVar)
+import Database.SQLite.Simple  (withConnection)
 import Test.Hspec
 import Test.Hspec.Wai
 import Test.Hspec.Wai.JSON    (json)
@@ -15,7 +16,7 @@ import Board.Api   (app)
 import Board.Store (migrate)
 
 main :: IO ()
-main = hspec $ with freshApp $ do
+main = hspec $ around withFreshApp $ do
   describe "POST /quests" $ do
     -- 「貼り出すと 201 と、番号の付いた依頼が返る」
     it "posts a quest with 201" $
@@ -26,7 +27,10 @@ main = hspec $ with freshApp $ do
     -- 「改行の入った題名は、門で断る」
     it "turns away a title with a newline" $
       postJson "/quests" [json|{title: "a\nb", reward: 100}|]
-        `shouldRespondWith` 400
+        `shouldRespondWith`
+          [json|{message:
+                   "Error in $.title: the title has a control character"}|]
+            { matchStatus = 400 }
     -- 「報酬が 0 以下なら断る」
     it "turns away a reward of 0" $
       postJson "/quests" [json|{title: "Free work", reward: 0}|]
@@ -56,11 +60,14 @@ main = hspec $ with freshApp $ do
         `shouldRespondWith` 404
   where
     -- A new in-memory database for each test.
-    -- テストごとに、新しいメモリー上のデータベース
-    freshApp = do
-      conn <- open ":memory:"
-      migrate conn
-      pure (app conn)
+    -- withConnection closes it when the test ends, even when it fails.
+    -- テストごとに、新しいメモリー上のデータベース。
+    -- テストが終われば（失敗しても）withConnection が閉じる
+    withFreshApp test =
+      withConnection ":memory:" $ \conn -> do
+        migrate conn
+        box <- newMVar conn
+        test ((), app box)
     slime = [json|{title: "Slay the slime", reward: 100}|]
     postJson path body =
       request "POST" path [("Content-Type", "application/json")] body

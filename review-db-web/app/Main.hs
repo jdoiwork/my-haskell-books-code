@@ -3,6 +3,7 @@
 -- 依頼の掲示板のサーバーを、board.db を使って 8080 番で立ち上げる
 module Main (main) where
 
+import Control.Concurrent.MVar  (newMVar)
 import Database.SQLite.Simple   (withConnection)
 import Network.Wai.Handler.Warp (run)
 
@@ -13,7 +14,8 @@ main :: IO ()
 main =
   withConnection "board.db" $ \conn -> do
     migrate conn
+    box <- newMVar conn
     -- 「http://localhost:8080 で待っています」
     putStrLn "Listening on http://localhost:8080"
-    run 8080 (app conn)
+    run 8080 (app box)
 -- ANCHOR_END: all

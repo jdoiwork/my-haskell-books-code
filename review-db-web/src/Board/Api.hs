@@ -8,11 +8,13 @@
 -- 依頼の掲示板を、JSON の API に
 module Board.Api (BoardApi, app) where
 
-import Control.Monad.IO.Class (liftIO)
-import Data.Aeson             (FromJSON, ToJSON, encode, object, (.=))
-import Data.Text              (Text)
-import Database.SQLite.Simple (Connection)
-import GHC.Generics           (Generic)
+import Control.Concurrent.MVar (MVar, withMVar)
+import Control.Monad.IO.Class  (liftIO)
+import Data.Aeson              (FromJSON, ToJSON, encode, object, (.=))
+import Data.Text               (Text)
+import Data.Text               qualified as T
+import Database.SQLite.Simple  (Connection)
+import GHC.Generics            (Generic)
 import Servant
 
 import Board.Store
@@ -46,18 +48,23 @@ type BoardApi =
 
 -- ANCHOR: server
 -- 🏰 The handlers, in the same order as the API type.
--- API の型と同じ順のハンドラー
-server :: Connection -> Server BoardApi
-server conn = listAll :<|> post :<|> takeOne
+--    The connection is in an MVar: one request at a time uses it.
+-- API の型と同じ順のハンドラー。
+-- 接続は MVar に入れ、1度に1つの要求だけが使う
+server :: MVar Connection -> Server BoardApi
+server box = listAll :<|> post :<|> takeOne
   where
-    listAll = liftIO (listQuests conn)
+    withConn :: (Connection -> IO a) -> Handler a
+    withConn action = liftIO (withMVar box action)
+
+    listAll = withConn listQuests
 
     post (NewQuest t gold)
       | gold <= 0 = failWith err400 "the reward must be positive"
-      | otherwise = liftIO (postQuest conn t gold)
+      | otherwise = withConn (\conn -> postQuest conn t gold)
 
     takeOne qid (TakeRequest who) = do
-      result <- liftIO (takeQuest conn qid who)
+      result <- withConn (\conn -> takeQuest conn qid who)
       case result of
         Right q           -> pure q
         Left NoSuchQuest  -> failWith err404 "no such quest"
@@ -66,13 +73,31 @@ server conn = listAll :<|> post :<|> takeOne
 -- 🚫 Stop with an HTTP error, and a JSON body {"message": "..."}.
 -- HTTP のエラーで止める。中身は JSON の {"message": "..."}
 failWith :: ServerError -> Text -> Handler a
-failWith err message =
-  throwError err
+failWith err message = throwError (jsonError err message)
+
+jsonError :: ServerError -> Text -> ServerError
+jsonError err message =
+  err
     { errBody    = encode (object ["message" .= message])
     , errHeaders = [("Content-Type", "application/json")]
     }
 
-app :: Connection -> Application
-app conn = serve (Proxy @BoardApi) (server conn)
+-- 📮 When servant itself turns a request away (a broken JSON, a title
+--    that fails the gatekeeper, a path that is not there), answer in
+--    the same JSON too.
+-- servant 自身が断るとき（壊れた JSON、門番に断られた題名、ない道）も、
+-- 同じ JSON で答える
+jsonFormatters :: ErrorFormatters
+jsonFormatters =
+  defaultErrorFormatters
+    { bodyParserErrorFormatter = \_ _ e -> jsonError err400 (T.pack e)
+    , urlParseErrorFormatter   = \_ _ e -> jsonError err400 (T.pack e)
+    , notFoundErrorFormatter   = \_     -> jsonError err404 "no such path"
+    }
+
+app :: MVar Connection -> Application
+app box =
+  serveWithContext (Proxy @BoardApi) (jsonFormatters :. EmptyContext)
+    (server box)
 -- ANCHOR_END: server
 -- ANCHOR_END: all
