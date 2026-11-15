@@ -422,7 +422,9 @@ main = hspec $ do
         , ":type {}"
         , "{\"a\": 1} < {\"a\": 2}"
         , "{\"a\": toUpper} == {}"
-        , "Map.insertWith (\\a b -> a + b) \"the\" 1 {\"the\": 2}" ]
+        , "Map.insertWith (\\a b -> a + b) \"the\" 1 {\"the\": 2}"
+        , "let name = \"TS\" in {name: 1, [name]: 2}"
+        , "{[1]: 2}" ]
         `shouldBe`
           [ "scores : Map Int"
           , "{\"Python\": 82, \"TS\": 75} : Map Int"
@@ -432,7 +434,9 @@ main = hspec $ do
           , "Map a"
           , "true : Bool"
           , "type error: String -> String is not in the class Comparable"
-          , "{\"the\": 3} : Map Int" ]
+          , "{\"the\": 3} : Map Int"
+          , "{\"TS\": 2, \"name\": 1} : Map Int"
+          , "type error: the types do not fit: Int where String is needed" ]
     -- ANCHOR_END: maps
 
     -- ANCHOR: mapLikeHaskell
@@ -459,6 +463,9 @@ main = hspec $ do
       fmap render (parseExpr "{name: 1, if: 2, \"two words\": 3}")
         `shouldBe` Right
           "Map.fromList [(\"name\", 1), (\"if\", 2), (\"two words\", 3)]"
+      -- 「[ ] で包んだキーは、式の値（変数 name の中身）」
+      fmap render (parseExpr "{[name]: 1, [toUpper k]: 2}")
+        `shouldBe` Right "Map.fromList [(name, 1), (toUpper k, 2)]"
     -- ANCHOR_END: qualified
 
   -- 「JSON」

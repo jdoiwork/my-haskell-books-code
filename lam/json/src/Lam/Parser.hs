@@ -163,17 +163,23 @@ atom = choice
 --    A key is a string written as it is, like JSON. When it looks like
 --    a name, the quotes may be left out, like JavaScript:
 --    {name: "Lam"} is {"name": "Lam"} (name is NOT a variable here).
+--    To use the value of an expression as the key, put it in [ ]:
+--    {[name]: "Lam"} uses the string in the variable name.
 -- Map.fromList の糖衣構文。キーは、JSON と同じく、そのまま書いた文字列。
 -- 名前の形なら、JavaScript と同じく " を省ける。{name: "Lam"} は
--- {"name": "Lam"} のこと（ここの name は変数ではない）
+-- {"name": "Lam"} のこと（ここの name は変数ではない）。式の値をキーに
+-- するときは、[ ] で包む。{[name]: "Lam"} は、変数 name の文字列を使う
 mapLiteral :: Parser Expr
 mapLiteral = do
   entries <- between (symbol "{") (symbol "}") (entry `sepBy` symbol ",")
   pure (App (Var "Map.fromList")
-            (List [ Tuple [Lit (LString k), v] | (k, v) <- entries ]))
+            (List [ Tuple [k, v] | (k, v) <- entries ]))
   where
     entry = do
-      k <- stringLiteral <|> bareKey
+      k <- choice
+        [ Lit . LString <$> stringLiteral
+        , Lit . LString <$> bareKey
+        , between (symbol "[") (symbol "]") expr ]
       _ <- symbol ":"
       v <- expr
       pure (k, v)
