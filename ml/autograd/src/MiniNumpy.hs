@@ -110,18 +110,29 @@ zeros, ones :: [Int] -> NDArray
 zeros s = full s 0
 ones s  = full s 1
 
+-- A shape may not have a negative dimension (like NumPy's ValueError).
+-- 形に、負の次元は使えない（NumPy の ValueError と同じ）
 full :: [Int] -> Double -> NDArray
-full s x = NDArray s (VU.replicate (product s) x)
+full s x
+  | any (< 0) s = error ("negative dimensions are not allowed: " <> show s)
+  | otherwise   = NDArray s (VU.replicate (product s) x)
 
--- 🏭 Np.arange 5  ->  [0, 1, 2, 3, 4]
+-- 🏭 Np.arange 5  ->  [0, 1, 2, 3, 4]   (Np.arange (-1) is empty)
+-- Np.arange (-1) は空の配列
 arange :: Int -> NDArray
-arange n = NDArray [n] (VU.generate n fromIntegral)
+arange n = let m = max 0 n in NDArray [m] (VU.generate m fromIntegral)
 
 -- 🏭 Np.linspace 0 1 5  ->  [0, 0.25, 0.5, 0.75, 1]
+--    One point is just the start: Np.linspace 0 1 1  ->  [0]
+-- 1点なら、始めの数だけ
 linspace :: Double -> Double -> Int -> NDArray
-linspace a b n =
-  let step = (b - a) / fromIntegral (n - 1)
-  in NDArray [n] (VU.generate n (\i -> a + fromIntegral i * step))
+linspace a b n
+  | n < 0     = error ("linspace: the number of points is negative: "
+                       <> show n)
+  | n == 1    = NDArray [1] (VU.singleton a)
+  | otherwise =
+      let step = (b - a) / fromIntegral (n - 1)
+      in NDArray [n] (VU.generate n (\i -> a + fromIntegral i * step))
 -- ANCHOR_END: make
 
 -- ANCHOR: reshape
@@ -131,6 +142,7 @@ linspace a b n =
 -- （NumPy の ValueError と同じ）
 reshape :: [Int] -> NDArray -> NDArray
 reshape s a
+  | any (< 0) s = error ("negative dimensions are not allowed: " <> show s)
   | product s == size a = NDArray s (arrValues a)
   | otherwise = error ("cannot reshape array of size " <> show (size a)
                        <> " into shape " <> show s)
@@ -146,11 +158,16 @@ transpose a = case arrShape a of
 -- ANCHOR_END: reshape
 
 -- ANCHOR: at
--- 🔍 a[i, j]: the number at an index.
--- 添え字の場所の数
+-- 🔍 a[i, j]: the number at an index. Each index must be inside its
+--    dimension (no negative indices like NumPy's a[-1]).
+-- 添え字の場所の数。どの添え字も、その次元の中でなければならない
+-- （NumPy の a[-1] のような負の添え字は使えない）
 at :: NDArray -> [Int] -> Double
 at a idx
   | length idx /= ndim a = error "at: wrong number of indices"
+  | or (zipWith (\i d -> i < 0 || i >= d) idx (arrShape a)) =
+      error ("index " <> show idx <> " is out of bounds for shape "
+             <> show (arrShape a))
   | otherwise = arrValues a VU.! offset (arrShape a) idx
 
 -- The place in the row of values: [i, j] in shape [r, c] is i * c + j.
@@ -167,8 +184,12 @@ strides s = drop 1 (scanr (*) 1 s)
 -- 2次元の配列の1行
 row :: Int -> NDArray -> NDArray
 row i a = case arrShape a of
-  [_, c] -> NDArray [c] (VU.slice (i * c) c (arrValues a))
-  _      -> error "row: only for 2-D arrays"
+  [r, c]
+    | 0 <= i && i < r -> NDArray [c] (VU.slice (i * c) c (arrValues a))
+    | otherwise       -> error ("row: index " <> show i
+                                <> " is out of bounds for " <> show r
+                                <> " rows")
+  _ -> error "row: only for 2-D arrays"
 -- ANCHOR_END: at
 
 -- ANCHOR: broadcast
@@ -259,6 +280,16 @@ instance Floating NDArray where
   asinh = map asinh
   acosh = map acosh
   atanh = map atanh
+  -- These have default definitions in the class (x ** y = exp (log x * y),
+  -- tanh x = sinh x / cosh x, ...). On whole arrays the defaults give NaN
+  -- for [-2] ** 2 or tanh 1000, so we write them number by number too.
+  -- クラスには既定の式がある（x ** y = exp (log x * y) など）。
+  -- 配列まるごとでは、[-2] ** 2 や tanh 1000 が NaN になるので、
+  -- これも数ごとに書く
+  (**)    = zipBroadcast (**)
+  logBase = zipBroadcast logBase
+  tan     = map tan
+  tanh    = map tanh
 
 -- 🔧 Use a function on every number (like np.vectorize).
 -- すべての数に関数を使う
@@ -333,14 +364,14 @@ instance Show NDArray where
     s  -> "array(" <> go s (toList a) <> ")"
     where
       go [_] xs      = "[" <> intercalate ", " (Prelude.map showNum xs) <> "]"
-      go (_ : ds) xs =
-        let chunk = product ds
-            parts = Prelude.map (go ds) (chunksOf chunk xs)
+      -- d pieces, even when they are empty (shape [3, 0] is [[], [], []]).
+      -- 空でも d 個に分ける（形 [3, 0] は [[], [], []]）
+      go (d : ds) xs =
+        let parts = Prelude.map (go ds) (take d (chunksOf (product ds) xs))
         in "[" <> intercalate ", " parts <> "]"
       go [] _ = ""
-      chunksOf k xs = case splitAt k xs of
-        (front, [])   -> [front]
-        (front, rest) -> front : chunksOf k rest
+      chunksOf k xs = let (front, rest) = splitAt k xs
+                      in front : chunksOf k rest
 
 -- 1.0 -> "1.", 0.5 -> "0.5" (like NumPy).
 showNum :: Double -> String

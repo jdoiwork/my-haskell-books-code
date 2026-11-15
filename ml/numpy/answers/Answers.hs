@@ -22,15 +22,17 @@ eye n = Np.array2 [ [ if i == j then 1 else 0 | j <- [1 .. n] ]
 
 -- ANCHOR: clip
 -- ✂️ Np.clip lo hi a: numbers below lo become lo, above hi become hi.
--- lo より小さい数は lo に、hi より大きい数は hi にする
+--    If lo > hi, every number becomes hi (the same as np.clip).
+-- lo より小さい数は lo に、hi より大きい数は hi にする。
+-- lo が hi より大きければ、全部 hi になる（np.clip と同じ）
 clip :: Double -> Double -> NDArray -> NDArray
-clip lo hi = Np.map (max lo . min hi)
+clip lo hi = Np.map (min hi . max lo)
 -- ANCHOR_END: clip
 
 -- ANCHOR: softmax
 -- 🌡️ Softmax of each row: exp(x - max) / sum(exp(x - max)).
---    Every row becomes positive numbers that add up to 1.
--- 行ごとの softmax：どの行も、足すと 1 になる正の数になる
+--    Every row becomes numbers from 0 to 1 that add up to 1.
+-- 行ごとの softmax：どの行も、足すと 1 になる、0 から 1 の数になる
 softmaxRows :: NDArray -> NDArray
 softmaxRows x =
   let rows    = Np.nrows x
