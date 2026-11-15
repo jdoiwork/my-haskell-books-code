@@ -104,8 +104,8 @@ array xs = NDArray [length xs] (VU.fromList xs)
 -- 🏭 An array from a shape and an unboxed vector (for big data).
 -- 形と Unboxed の Vector から配列を作る（大きなデータ用）
 fromVector :: [Int] -> VU.Vector Double -> NDArray
-fromVector sh values
-  | product sh == VU.length values = NDArray sh values
+fromVector sh vs
+  | product sh == VU.length vs = NDArray sh vs
   | otherwise = error "fromVector: the shape does not fit the values"
 -- ANCHOR_END: fromVector
 
