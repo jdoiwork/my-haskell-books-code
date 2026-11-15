@@ -5,24 +5,11 @@
 import shutil
 import subprocess
 
-import pytest
-
-
-def docker_running():
-    if shutil.which("docker") is None:
-        return False
-    result = subprocess.run(["docker", "info"], capture_output=True)
-    return result.returncode == 0
-
-
-pytestmark = pytest.mark.skipif(not docker_running(),
-                                reason="Docker is not running")
-
-
 # ANCHOR: fixture
 # Python (psycopg and testcontainers with pytest)
 # Python（pytest で psycopg と testcontainers）
 import psycopg
+import pytest
 from testcontainers.community.postgres import PostgresContainer
 
 
@@ -59,3 +46,14 @@ def test_rejects_the_same_name_twice(conn):
     with pytest.raises(psycopg.errors.UniqueViolation):
         conn.execute(insert, ("Lambda", "Mage", 3))
 # ANCHOR_END: fixture
+
+
+def docker_running():
+    if shutil.which("docker") is None:
+        return False
+    result = subprocess.run(["docker", "info"], capture_output=True)
+    return result.returncode == 0
+
+
+pytestmark = pytest.mark.skipif(not docker_running(),
+                                reason="Docker is not running")
