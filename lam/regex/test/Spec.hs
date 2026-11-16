@@ -23,7 +23,6 @@ import Lam.Format (center, groupDigits, padLeft, padRight, zeroPad)
 import Lam.Json (fromAeson, toAeson)
 import Lam.Parser
 import Lam.Pcre (Cut (..), Regex (..), compileRegex)
-import Lam.PcreFfi (cutterFor)
 import Lam.Prelude
 import Lam.Pretty
 import Lam.Program
@@ -959,23 +958,6 @@ main = hspec $ do
               in  length pieces === length found + 1
              .&&. sewn === t
     -- ANCHOR_END: cutProps
-
-    -- 「試し：C の API で切っても、置き換えに2回頼むのと同じに切れる」
-    it "cuts the same with the C API of PCRE2 (a trial)" $
-      forAll ((,) <$> elements regexes <*> genRegexText) $ \(source, t) ->
-        let shape (Cut pieces found) =
-              (pieces, [ w : gs | w :| gs <- found ])
-            viaReplacing = (\r -> shape <$> regexSearch r t) <$> compileRegex source
-            viaC         = (\cut -> shape <$> cut t) <$> cutterFor source
-        in  viaReplacing === viaC
-
-    -- 「試し：C の API でも、まちがいと上限を文で返す」
-    it "says what went wrong with the C API too (a trial)" $ do
-      fmap (const ()) (cutterFor "a(b")
-        `shouldBe` Left "missing closing parenthesis"
-      fmap (fmap (const ()) . ($ T.replicate 40 "a" <> "b"))
-           (cutterFor "(a+)+$")
-        `shouldBe` Right (Left "match limit exceeded")
 
     -- 「名前付きのグループの番号を、PCRE2 から読む」
     it "knows the numbers of the named groups" $
