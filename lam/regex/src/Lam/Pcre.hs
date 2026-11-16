@@ -21,7 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Regex.Pcre2
-  ( Option (SubGlobal, SubReplacementOnly, SubUnsetEmpty)
+  ( Option (SubGlobal, SubReplacementOnly, SubUnsetEmpty, Ucp)
   , SomePcre2Exception, predictCapturesInfo, subOpt )
 -- ANCHOR_END: head
 
@@ -60,11 +60,18 @@ data Cut = Cut [Text] [NonEmpty Text]
 -- 使っても安全：同じパターンなら、いつも同じ答えで、外の何にも触れない
 compileRegex :: Text -> Either Text Regex
 compileRegex source = unsafePerformIO $ do
-  info <- try (predictCapturesInfo mempty source)
+  info <- try (predictCapturesInfo unicode source)
   pure $ case info of
     Left err         -> Left (firstLine err)
     Right (groups, names) ->
       Right (Regex source names (cutAt source groups))
+
+-- 🌏 \w, \d, \s and \b go by Unicode, as in Python: \w+ finds "小さな"
+--    too, not only "Lam". (PCRE2 alone looks at ASCII only.)
+-- \w・\d・\s・\b を Unicode で決める（Python と同じ）。\w+ は "Lam" だけ
+-- でなく "小さな" も見つける（PCRE2 の既定は ASCII だけ）
+unicode :: Option
+unicode = Ucp
 -- ANCHOR_END: compile
 
 -- ANCHOR: cutAt
@@ -107,8 +114,8 @@ cutAt source groups = \subject -> unsafePerformIO $ do
           -- すべてのグループ。使われなかったものは ""
           wanted = T.intercalate g [ "${" <> T.pack (show i) <> "}"
                                    | i <- [0 .. groups] ] <> e
-          pieces  = subOpt SubGlobal source p
-          matches = subOpt (SubGlobal <> SubReplacementOnly
+          pieces  = subOpt (unicode <> SubGlobal) source p
+          matches = subOpt (unicode <> SubGlobal <> SubReplacementOnly
                               <> SubUnsetEmpty) source wanted
       in \subject ->
            ( T.splitOn p (pieces subject)

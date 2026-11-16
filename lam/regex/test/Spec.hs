@@ -881,6 +881,8 @@ main = hspec $ do
         , "Regex.split re\"x\" \"\""
         , "map Match.text (Regex.findAll re\"a*\" \"baaac\")"
         , "Regex.find re\"(?<=x)é\" \"éaxé\""
+        , "map Match.text (Regex.findAll re\"\\w+\" \"Lam は 小さな language\")"
+        , "map Match.text (Regex.findAll re\"\\d+\" \"a１２b34\")"
         , "let m = fromMaybe (Match \"\" 0 [] {}) (Regex.find date \"2026-11-16\")"
         , "(Match.group 2 m, Match.group 4 m, Match.named \"year\" m)" ]
         `shouldBe`
@@ -899,6 +901,8 @@ main = hspec $ do
           , "[\"\"] : [String]"
           , "[\"\", \"aaa\", \"\", \"\"] : [String]"
           , "Just (Match \"\233\" 3 [] {}) : Maybe Match"
+          , "[\"Lam\", \"は\", \"小さな\", \"language\"] : [String]"
+          , "[\"１２\", \"34\"] : [String]"
           , "m : Match"
           , "(Just \"11\", Nothing, Just \"2026\") : \
             \(Maybe String, Maybe String, Maybe String)" ]
