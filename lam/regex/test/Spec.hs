@@ -958,6 +958,25 @@ main = hspec $ do
           , "5 : Int" ]
     -- ANCHOR_END: perlValues
 
+    -- ANCHOR: perlDelimiters
+    -- 「/ のかわりに ! # % でもはさめる。( や { は、いままでどおり」
+    it "takes ! # and % in place of /" $
+      runLines
+        [ "m!/usr/bin!"
+        , "s#/usr/local#/opt#g \"/usr/local/bin:/usr/local/lib\""
+        , "s!a!\\!!g \"banana\""
+        , "s%(\\d+)%<{1}>%g \"a1b22\""
+        , "let m x = x"
+        , "(m(1), m[2], m{a: 3})" ]
+        `shouldBe`
+          [ "re\"/usr/bin\" : Regex"
+          , "\"/opt/bin:/opt/lib\" : String"
+          , "\"b!n!n!\" : String"
+          , "\"a<1>b<22>\" : String"
+          , "m : a -> a"
+          , "(1, [2], {\"a\": 3}) : (Int, [Int], Map Int)" ]
+    -- ANCHOR_END: perlDelimiters
+
     -- ANCHOR: perlErrors
     -- 「ないグループ、知らないフラグ、コンパイルできない正規表現は、
     --   動かす前にパーサーが見つける」

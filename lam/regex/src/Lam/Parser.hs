@@ -614,28 +614,40 @@ regexLiteral = (<?> "a regex") $ lexeme $ do
 --    left out). As in re"...", a \ is kept; \/ is the letter /.
 --    It is a regex only when / comes right after m and a second /
 --    closes it on the same line: m / 2 and m/2 are still divisions.
+--    Instead of /, the pattern may be put between ! # or %, letters
+--    that mean nothing else in Lam: m!/usr/bin! needs no \/.
+--    (Not ( [ { < , or |: m(x), m[1], m{a: 1}, m<2 mean something.)
 -- m/…/ のあとにフラグ。re"…" と同じく \ はそのまま（\/ は / の文字）。
 -- m のすぐ後ろに / があり、同じ行にもう1つ / があるときだけ正規表現。
--- m / 2 や m/2 は、いままでどおり割り算
+-- m / 2 や m/2 は、いままでどおり割り算。/ のかわりに、Lam でほかの
+-- 意味のない ! # % でもはさめる（m!/usr/bin! なら \/ が要らない）。
+-- ( [ { < , | は使わない：m(x)・m[1]・m{a: 1}・m<2 には意味がある
 matchRegex :: Parser Expr
 matchRegex = (<?> "a regex") $ lexeme $ do
   (start, body) <- try $ do
-    _ <- string "m/"
-    (,) <$> getOffset <*> slashed
+    _ <- char 'm'
+    d <- oneOf delimiters
+    (,) <$> getOffset <*> upTo d
   flags <- regexFlags "imsx"
   regex <- compiledAt start (withFlags flags body)
   pure (regexValue regex)
 
--- The text up to the next /. A \ keeps the letter after it.
--- 次の / までの文字。\ は、後ろの1文字と一緒に残す
-slashed :: Parser Text
-slashed = T.concat <$> manyTill piece (char '/')
+-- The letters that may stand where / does.
+-- / のかわりに使える文字
+delimiters :: String
+delimiters = "/!#%"
+
+-- The text up to the next d (/ or another delimiter). A \ keeps the
+-- letter after it.
+-- 次の d（/ か、ほかの区切り）までの文字。\ は、後ろの1文字と一緒に残す
+upTo :: Char -> Parser Text
+upTo d = T.concat <$> manyTill piece (char d)
   where
     piece = choice
       [ do _ <- char '\\'
            c <- anySingleBut '\n'
            pure (T.pack ['\\', c])
-      , T.singleton <$> noneOf ['/', '\n'] ]
+      , T.singleton <$> noneOf [d, '\n'] ]
 
 -- 🚩 The flags after the last /. A letter that is not a flag is an
 --    error (m/x/q), not the start of a name.
@@ -684,17 +696,20 @@ regexValue regex = App (Var "$regex") (Lit (LString (regexSource regex)))
 --    (or replaceFirstWith) and a function. The groups are known here,
 --    so a group that is not in the regex is an error of the parser.
 --    {{ and }} are the letters { and }; \/ is /, \n a new line.
+--    ! # or % may stand for the three /, as in m: s#/usr#/opt#.
 -- s/パターン/置き換え/フラグ は String -> String の関数。置き換えの中の
 -- {last} は last という名前のグループ、{1} は1番のグループ（f"…" と同じ
 -- 書き方）。そのときは replaceWith と関数に開く。グループはここでわかる
--- ので、正規表現にないグループはパーサーのエラーになる
+-- ので、正規表現にないグループはパーサーのエラーになる。
+-- m と同じく、3つの / のかわりに ! # % も使える（s#/usr#/opt#）
 substRegex :: Parser Expr
 substRegex = (<?> "a substitution") $ lexeme $ do
   (start, body, pieces) <- try $ do
-    _ <- string "s/"
+    _ <- char 's'
+    d <- oneOf delimiters
     o <- getOffset
-    b <- slashed
-    ps <- manyTill replacementPiece (char '/')
+    b <- upTo d
+    ps <- manyTill (replacementPiece d) (char d)
     pure (o, b, ps)
   flags <- regexFlags "gimsx"
   regex <- compiledAt start (withFlags (filter (/= 'g') flags) body)
@@ -714,9 +729,10 @@ substRegex = (<?> "a substitution") $ lexeme $ do
     isLeftPiece = either (const True) (const False)
 
 -- One letter of the replacement, or a group {name} with where it is.
--- 置き換えの1文字か、グループ {name}（と、その場所）
-replacementPiece :: Parser (Either Char (Int, Text))
-replacementPiece = choice
+-- d is the delimiter: \/ (or \!) is the letter itself.
+-- 置き換えの1文字か、グループ {name}（と、その場所）。d は区切りの文字
+replacementPiece :: Char -> Parser (Either Char (Int, Text))
+replacementPiece d = choice
   [ Left '{' <$ try (string "{{")
   , Left '}' <$ try (string "}}")
   , do _ <- char '{'
@@ -725,11 +741,12 @@ replacementPiece = choice
        _ <- char '}'
        pure (Right (o, ref))
   , char '\\' *> choice
-      [ Left '/'  <$ char '/'
+      [ Left d    <$ char d
+      , Left '/'  <$ char '/'
       , Left '\\' <$ char '\\'
       , Left '\n' <$ char 'n'
       , Left '\t' <$ char 't' ]
-  , Left <$> noneOf ['/', '\n'] ]
+  , Left <$> noneOf [d, '\n'] ]
 
 -- {1} must be a group of the regex (0 is the whole), and {last} one of
 -- its names.
