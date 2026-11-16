@@ -29,6 +29,9 @@ library
                     Lam.Io
                     Lam.Format
                     Lam.Pcre
+                    -- A trial: the same cutting, with the C API of PCRE2
+                    -- 試し：同じ切り方を、PCRE2 の C の API で
+                    Lam.PcreFfi
                     Lam.Regex
                     Lam.World
                     Lam.Prelude
@@ -53,6 +56,10 @@ library
     -- 探すのを一度に最後までやり、そこで起きたまちがいを受け止めるため
     , deepseq            ^>=1.5
   -- ANCHOR_END: deps
+  -- For the trial with the C API (Lam.PcreFfi)
+  -- C の API で試す版（Lam.PcreFfi）のため
+  build-depends:
+    , bytestring         ^>=0.12
 -- ANCHOR_END: lib
 
 -- ANCHOR: exe
