@@ -1,0 +1,10 @@
+-- The scores of the quiz in the workshop, as (name, score) pairs.
+-- 工房のクイズの点数。（名前, 点数）の組のリスト
+let scores = [("Python", 82), ("TS", 75), ("Rust", 91), ("Go", 68)]
+
+-- Who passed (75 or more), and one line for each.
+-- 合格した人（75 点以上）と、1人1行の文
+let passed = filter (\p -> snd p >= 75) scores
+let line p = fst p ++ ": " ++ showInt (snd p)
+
+join ", " (map line passed)
