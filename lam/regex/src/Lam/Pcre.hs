@@ -26,16 +26,17 @@ import Text.Regex.Pcre2
 -- ANCHOR_END: head
 
 -- ANCHOR: pattern
--- 🧩 A compiled pattern: the pattern as it was written, the names of
---    its groups ((?<year>...) is group 1, named "year"), and the
---    search. The search keeps PCRE2's compiled code inside it, so it
+-- 🧩 A compiled pattern: the pattern as it was written, how many
+--    groups it has, the names of its groups ((?<year>...) is group 1,
+--    named "year"), and the search. The search keeps PCRE2's compiled code inside it, so it
 --    is compiled once, however many texts we search.
--- コンパイルしたパターン：書いたとおりのパターン、グループの名前
--- （(?<year>...) は1番のグループで、名前は year）、探す関数。
+-- コンパイルしたパターン：書いたとおりのパターン、グループの数、
+-- グループの名前（(?<year>...) は1番のグループで、名前は year）、探す関数。
 -- 探す関数は、PCRE2 がコンパイルしたものを中に持っているので、
 -- 何回探しても、コンパイルは1回だけ
 data Regex = Regex
   { regexSource :: Text
+  , regexGroups :: Int
   , regexNames  :: [(Text, Int)]
   , regexSearch :: Text -> Either Text Cut
   }
@@ -64,7 +65,7 @@ compileRegex source = unsafePerformIO $ do
   pure $ case info of
     Left err         -> Left (firstLine err)
     Right (groups, names) ->
-      Right (Regex source names (cutAt source groups))
+      Right (Regex source groups names (cutAt source groups))
 
 -- 🌏 \w, \d, \s and \b go by Unicode, as in Python: \w+ finds "小さな"
 --    too, not only "Lam". (PCRE2 alone looks at ASCII only.)

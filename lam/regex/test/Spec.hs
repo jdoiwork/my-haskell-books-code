@@ -876,14 +876,15 @@ main = hspec $ do
         , "Regex.replace re\"\\d+\" \"#\" \"a1b22c\""
         , "Regex.replaceAll re\"\\d+\" \"#\" \"a1b22c\""
         , "Regex.replaceAll re\"\\d+\" \"$1\" \"a1b\""
-        , "Regex.replaceWith re\"\\d+\" (\\m -> f\"<{Match.text m}>\") \"a1b\""
+        , "Regex.replaceWith re\"\\d+\" (\\m -> f\"<{Match.text m}>\") \"a1\""
         , "Regex.split re\",\\s*\" \"a, b,c\""
         , "Regex.split re\"x\" \"\""
         , "map Match.text (Regex.findAll re\"a*\" \"baaac\")"
         , "Regex.find re\"(?<=x)é\" \"éaxé\""
-        , "map Match.text (Regex.findAll re\"\\w+\" \"Lam は 小さな language\")"
+        , "map Match.text (Regex.findAll re\"\\w+\" \"Lam は 小さな\")"
         , "map Match.text (Regex.findAll re\"\\d+\" \"a１２b34\")"
-        , "let m = fromMaybe (Match \"\" 0 [] {}) (Regex.find date \"2026-11-16\")"
+        , "let m = fromMaybe (Match \"\" 0 [] {}) "
+            <> "(Regex.find date \"2026-11-16\")"
         , "(Match.group 2 m, Match.group 4 m, Match.named \"year\" m)" ]
         `shouldBe`
           [ "date : Regex"
@@ -896,17 +897,81 @@ main = hspec $ do
           , "\"a#b22c\" : String"
           , "\"a#b#c\" : String"
           , "\"a$1b\" : String"
-          , "\"a<1>b\" : String"
+          , "\"a<1>\" : String"
           , "[\"a\", \"b\", \"c\"] : [String]"
           , "[\"\"] : [String]"
           , "[\"\", \"aaa\", \"\", \"\"] : [String]"
           , "Just (Match \"\233\" 3 [] {}) : Maybe Match"
-          , "[\"Lam\", \"は\", \"小さな\", \"language\"] : [String]"
+          , "[\"Lam\", \"は\", \"小さな\"] : [String]"
           , "[\"１２\", \"34\"] : [String]"
           , "m : Match"
           , "(Just \"11\", Nothing, Just \"2026\") : \
             \(Maybe String, Maybe String, Maybe String)" ]
     -- ANCHOR_END: regexValues
+
+    -- ANCHOR: perlSugar
+    -- 「m/…/ は re"…" に、s/…/…/ は置き換えの関数に、=~ は matches に開く」
+    it "opens m/…/, s/…/…/ and =~ like Perl" $
+      map (fmap render . parseExpr)
+        [ "m/\\d+/i"
+        , "s/\\d+/#/g"
+        , "s/\\d+/#/"
+        , "s/(?<y>\\d+)-(\\d+)/{2}.{y}/g"
+        , "line =~ m/ERROR/"
+        , "m/2"
+        , "s/2/1" ]
+        `shouldBe` map Right
+          [ "re\"(?i)\\d+\""
+          , "Regex.replaceAll re\"\\d+\" \"#\""
+          , "Regex.replace re\"\\d+\" \"#\""
+          , "Regex.replaceWith re\"(?<y>\\d+)-(\\d+)\" \
+            \(\\$m -> $group \"2\" $m ++ \".\" ++ $group \"y\" $m)"
+          , "Regex.matches re\"ERROR\" line"
+          , "m / 2"
+          , "s / 2 / 1" ]
+    -- ANCHOR_END: perlSugar
+
+    -- ANCHOR: perlValues
+    -- 「Perl 風の書き方で、探して置き換える」
+    it "finds and replaces in the style of Perl" $
+      runLines
+        [ "Regex.find m/lam/i \"I LOVE LAM\""
+        , "let hide = s/\\d{2,4}-\\d{2,4}-(?<last>\\d{4})/***-****-{last}/g"
+        , "hide \"call 080-9876-5432 or 03-1234-5678\""
+        , "s/(\\d+)-(\\d+)/{2}-{1}/ \"11-22 33-44\""
+        , "s/(\\d+)/{{{1}}}/g \"a1b2\""
+        , "map s/\\s+/ /g [\"a  b\", \"c   d\"]"
+        , "(\"ERROR here\" =~ m/^ERROR/, \"ok\" =~ m/^ERROR/)"
+        , "Regex.matches m/a\\/b/ \"a/b\""
+        , "let half m = m/2"
+        , "half 10" ]
+        `shouldBe`
+          [ "Just (Match \"LAM\" 7 [] {}) : Maybe Match"
+          , "hide : String -> String"
+          , "\"call ***-****-5432 or ***-****-5678\" : String"
+          , "\"22-11 33-44\" : String"
+          , "\"a{1}b{2}\" : String"
+          , "[\"a b\", \"c d\"] : [String]"
+          , "(true, false) : (Bool, Bool)"
+          , "true : Bool"
+          , "half : Int -> Int"
+          , "5 : Int" ]
+    -- ANCHOR_END: perlValues
+
+    -- ANCHOR: perlErrors
+    -- 「ないグループ、知らないフラグ、コンパイルできない正規表現は、
+    --   動かす前にパーサーが見つける」
+    it "finds a missing group, an unknown flag and a bad regex first" $
+      runLines ["s/(?<y>\\d+)/{yy}/ \"1\"", "s/x/y/q \"x\"", "m/a(b/"]
+        `shouldBe`
+          [ "<repl>:1:14:\n  |\n1 | s/(?<y>\\d+)/{yy}/ \"1\"\n\
+            \  |              ^\n\
+            \this regex has no group yy\n"
+          , "<repl>:1:7:\n  |\n1 | s/x/y/q \"x\"\n  |       ^\n\
+            \unknown flag 'q' (use gimsx)\n"
+          , "<repl>:1:3:\n  |\n1 | m/a(b/\n  |   ^\n\
+            \this regex does not compile: missing closing parenthesis\n" ]
+    -- ANCHOR_END: perlErrors
 
     -- ANCHOR: regexCompile
     -- 「動かしてから作る正規表現は、Result で返る」

@@ -99,6 +99,36 @@ regexBuiltins =
         news <- traverse (\m -> apply f m >>= string) (matchesOf p cut)
         Right (VString (stitch pieces news))
 
+  -- The same, but only the first match (what s/.../.../ opens into,
+  -- without g, when its replacement has a group in it).
+  -- 同じだが、最初に見つかったところだけ（g のない s/…/…/ で、置き換えに
+  -- グループがあるとき、これに開く）
+  , prim3 "Regex.replaceFirstWith"
+      (tRegex ~> (tMatch ~> tString) ~> tString ~> tString) $
+      \r f s -> do
+        (p, cut@(Cut pieces found)) <- searchCut "Regex.replaceFirstWith" r s
+        news <- case matchesOf p cut of
+          m : _ -> (: map whole (drop 1 found)) <$> (apply f m >>= string)
+          []    -> Right []
+        Right (VString (stitch pieces news))
+
+  -- What {last} and {1} in s/.../.../ open into:  $group "last" m.
+  -- A group that took no part is "".
+  -- s/…/…/ の {last} や {1} が開いてできる呼び出し
+  , prim2 "$group" (tString ~> tMatch ~> tString) $ \k m -> do
+      key <- string k
+      case m of
+        VCon "Match" _ [VString w, _, VList groups, VMap names] ->
+          Right $ case T.unpack key of
+            ds | not (null ds), all (`elem` ['0' .. '9']) ds ->
+              let n = read ds :: Int
+              in if n == 0 then VString w
+                 else case drop (n - 1) groups of
+                        g : _ -> g
+                        []    -> VString ""
+            _ -> Map.findWithDefault (VString "") key names
+        _ -> Left (BuiltinFailed "$group" "got a value of the wrong type")
+
   -- Cut a string at every match:  Regex.split re", *" "a, b,c".
   -- 見つかったところで切る
   , prim2 "Regex.split" (tRegex ~> tString ~> tList tString) $ \r s -> do

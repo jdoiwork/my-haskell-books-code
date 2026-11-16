@@ -19,6 +19,8 @@ module Lam.Parser
   , doBlock
   , formatString
   , regexLiteral
+  , matchRegex
+  , substRegex
     -- For the training: a field of your own, and the parts of one.
     -- トレーニングのため：自分のフィールドと、その部品
   , formatStringWith
@@ -45,6 +47,7 @@ module Lam.Parser
 
 import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
 import Control.Monad.Reader (Reader, ask, local, runReader)
+import Data.Char (isAlphaNum, isDigit)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -53,7 +56,7 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
-import Lam.Pcre (compileRegex)
+import Lam.Pcre (Regex (..), compileRegex)
 import Lam.Syntax
 
 -- ANCHOR: lexer
@@ -193,6 +196,8 @@ atom = choice
   , Lit . LString <$> stringLiteral
   , formatString
   , regexLiteral
+  , matchRegex
+  , substRegex
   , Var <$> name
   , Var <$> qualifiedName
   , Var <$> conName
@@ -303,7 +308,10 @@ operatorsWith cons =
   , InfixR (BinOp Concat <$ op "++") : cons
   , [ InfixN (BinOp Eq <$ op "=="), InfixN (BinOp Ne <$ op "/=")
     , InfixN (BinOp Lt <$ op "<" ), InfixN (BinOp Le <$ op "<=")
-    , InfixN (BinOp Gt <$ op ">" ), InfixN (BinOp Ge <$ op ">=") ]
+    , InfixN (BinOp Gt <$ op ">" ), InfixN (BinOp Ge <$ op ">=")
+    -- line =~ m/ERROR/  is  Regex.matches m/ERROR/ line (as in Perl)
+    -- 「合うか」の演算子（Perl と同じ）
+    , InfixN (matchesOp <$ op "=~") ]
   , [ InfixR (BinOp And <$ op "&&") ]
   , [ InfixR (BinOp Or  <$ op "||") ]
   ]
@@ -316,7 +324,14 @@ op s = lexeme (try (continuing *> string s
                       <* notFollowedBy (oneOf opLetters)))
          <?> "an operator"
   where
-    opLetters = "+-*/=<>:&|" :: String
+    opLetters = "+-*/=<>:&|~" :: String
+
+-- ANCHOR: matchesOp
+-- 🐪 a =~ r  is sugar for  Regex.matches r a.
+-- a =~ r は Regex.matches r a の糖衣構文
+matchesOp :: Expr -> Expr -> Expr
+matchesOp text regex = call "Regex.matches" [regex, text]
+-- ANCHOR_END: matchesOp
 
 -- 🧮 Calls and operators together.
 -- 関数の呼び出しと、演算子
@@ -591,6 +606,143 @@ regexLiteral = (<?> "a regex") $ lexeme $ do
            pure (T.pack ['\\', c])
       , T.singleton <$> noneOf ['"', '\n'] ]
 -- ANCHOR_END: regexLiteral
+
+-- ANCHOR: matchRegex
+-- 🐪 m/\d+/i  is  re"(?i)\d+": the regex between the two /, and then
+--    the flags (i: ignore case, m: ^ and $ at each line, s: . takes a
+--    line break too, x: spaces and # comments in the pattern are
+--    left out). As in re"...", a \ is kept; \/ is the letter /.
+--    It is a regex only when / comes right after m and a second /
+--    closes it on the same line: m / 2 and m/2 are still divisions.
+-- m/…/ のあとにフラグ。re"…" と同じく \ はそのまま（\/ は / の文字）。
+-- m のすぐ後ろに / があり、同じ行にもう1つ / があるときだけ正規表現。
+-- m / 2 や m/2 は、いままでどおり割り算
+matchRegex :: Parser Expr
+matchRegex = (<?> "a regex") $ lexeme $ do
+  (start, body) <- try $ do
+    _ <- string "m/"
+    (,) <$> getOffset <*> slashed
+  flags <- regexFlags "imsx"
+  regex <- compiledAt start (withFlags flags body)
+  pure (regexValue regex)
+
+-- The text up to the next /. A \ keeps the letter after it.
+-- 次の / までの文字。\ は、後ろの1文字と一緒に残す
+slashed :: Parser Text
+slashed = T.concat <$> manyTill piece (char '/')
+  where
+    piece = choice
+      [ do _ <- char '\\'
+           c <- anySingleBut '\n'
+           pure (T.pack ['\\', c])
+      , T.singleton <$> noneOf ['/', '\n'] ]
+
+-- 🚩 The flags after the last /. A letter that is not a flag is an
+--    error (m/x/q), not the start of a name.
+-- 最後の / のあとのフラグ。フラグでない文字はエラー
+regexFlags :: String -> Parser String
+regexFlags allowed = do
+  flags <- many (oneOf allowed)
+  o <- getOffset
+  bad <- optional (lookAhead alphaNumChar)
+  case bad of
+    Nothing -> pure flags
+    Just c  -> do
+      setOffset o
+      -- 「知らないフラグです」
+      fail ("unknown flag " <> show c <> " (use " <> allowed <> ")")
+
+-- (?i) and so on, in front of the pattern.
+-- (?i) などを、パターンの前に付ける
+withFlags :: String -> Text -> Text
+withFlags flags body
+  | null flags = body
+  | otherwise  = "(?" <> T.pack flags <> ")" <> body
+
+-- Compile the pattern here, so that a mistake is found before the
+-- program runs; the error points at the start of the pattern.
+-- ここでコンパイルしてみる。まちがいは、パターンの頭を指すエラーに
+compiledAt :: Int -> Text -> Parser Regex
+compiledAt start source = case compileRegex source of
+  Right regex -> pure regex
+  Left msg    -> do
+    setOffset start
+    fail (T.unpack ("this regex does not compile: " <> msg))
+
+-- The regex as an expression:  $regex "...".
+-- 式としての正規表現
+regexValue :: Regex -> Expr
+regexValue regex = App (Var "$regex") (Lit (LString (regexSource regex)))
+-- ANCHOR_END: matchRegex
+
+-- ANCHOR: substRegex
+-- 🐪 s/pattern/replacement/flags is a function String -> String:
+--      s/\d+/#/g    is  Regex.replaceAll re"\d+" "#"
+--      s/\d+/#/     is  Regex.replace re"\d+" "#"   (only the first)
+--    In the replacement, {last} is the group named last, and {1} the
+--    group 1, as in f"...": with them, it opens into Regex.replaceWith
+--    (or replaceFirstWith) and a function. The groups are known here,
+--    so a group that is not in the regex is an error of the parser.
+--    {{ and }} are the letters { and }; \/ is /, \n a new line.
+-- s/パターン/置き換え/フラグ は String -> String の関数。置き換えの中の
+-- {last} は last という名前のグループ、{1} は1番のグループ（f"…" と同じ
+-- 書き方）。そのときは replaceWith と関数に開く。グループはここでわかる
+-- ので、正規表現にないグループはパーサーのエラーになる
+substRegex :: Parser Expr
+substRegex = (<?> "a substitution") $ lexeme $ do
+  (start, body, pieces) <- try $ do
+    _ <- string "s/"
+    o <- getOffset
+    b <- slashed
+    ps <- manyTill replacementPiece (char '/')
+    pure (o, b, ps)
+  flags <- regexFlags "gimsx"
+  regex <- compiledAt start (withFlags (filter (/= 'g') flags) body)
+  mapM_ (checkGroup regex) [ (o, ref) | Right (o, ref) <- pieces ]
+  let global = 'g' `elem` flags
+      plain  = T.pack [ c | Left c <- pieces ]
+      found  = Var "$m"
+      piece  = either Left (\(_, ref) ->
+                 Right (call "$group" [Lit (LString ref), found]))
+  pure $ if all isLeftPiece pieces
+    then call (if global then "Regex.replaceAll" else "Regex.replace")
+              [regexValue regex, Lit (LString plain)]
+    else call (if global then "Regex.replaceWith"
+                         else "Regex.replaceFirstWith")
+              [regexValue regex, Lam "$m" (joinPieces (map piece pieces))]
+  where
+    isLeftPiece = either (const True) (const False)
+
+-- One letter of the replacement, or a group {name} with where it is.
+-- 置き換えの1文字か、グループ {name}（と、その場所）
+replacementPiece :: Parser (Either Char (Int, Text))
+replacementPiece = choice
+  [ Left '{' <$ try (string "{{")
+  , Left '}' <$ try (string "}}")
+  , do _ <- char '{'
+       o <- getOffset
+       ref <- takeWhile1P (Just "a group") (\c -> isAlphaNum c || c == '_')
+       _ <- char '}'
+       pure (Right (o, ref))
+  , char '\\' *> choice
+      [ Left '/'  <$ char '/'
+      , Left '\\' <$ char '\\'
+      , Left '\n' <$ char 'n'
+      , Left '\t' <$ char 't' ]
+  , Left <$> noneOf ['/', '\n'] ]
+
+-- {1} must be a group of the regex (0 is the whole), and {last} one of
+-- its names.
+-- {1} は正規表現のグループ（0 は全体）、{last} はその名前のどれか
+checkGroup :: Regex -> (Int, Text) -> Parser ()
+checkGroup regex (o, ref)
+  | T.all isDigit ref, read (T.unpack ref) <= regexGroups regex = pure ()
+  | ref `elem` map fst (regexNames regex) = pure ()
+  | otherwise = do
+      setOffset o
+      -- 「この正規表現に、そのグループはありません」
+      fail (T.unpack ("this regex has no group " <> ref))
+-- ANCHOR_END: substRegex
 
 -- ANCHOR: formatString
 -- 🪄 f"Hello, {name}! You are {age:>3}."  is sugar for
