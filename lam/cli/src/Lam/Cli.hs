@@ -266,21 +266,20 @@ metavar = T.toUpper . T.replace "-" "_" . kebab
 -- ANCHOR_END: names
 
 -- ANCHOR: about
--- 💬 The comment lines right above a line (the line of main's
---    annotation): what --help says about the program.
--- ある行（main の注釈の行）のすぐ上のコメントの行：--help が
--- プログラムについて言うこと
+-- 💬 The lines of help (---) among the comments right above a line
+--    (the line of main's annotation): what --help says about the
+--    program. The other comments there (-- ANCHOR: main, the Japanese
+--    line) are skipped, but do not end the comments.
+-- ある行（main の注釈の行）のすぐ上のコメントのうち、ヘルプの行（---）：
+-- --help がプログラムについて言うこと。そこのほかのコメント（-- ANCHOR:
+-- main や日本語の行）は飛ばすが、コメントの続きとして数える
 aboutAbove :: Text -> Int -> [Text]
 aboutAbove source line =
-  filter (not . isMark) $ map (T.strip . T.drop 2)
-    (reverse (takeWhile isComment (reverse (take (line - 1) ls))))
+  [ h | Just h <- map helpLine
+          (reverse (takeWhile isComment (reverse (take (line - 1) ls)))) ]
   where
     ls = map T.strip (T.lines source)
     isComment l = "--" `T.isPrefixOf` l
-    -- The marks of the book's code (ANCHOR: main) are not words for
-    -- the reader of --help.
-    -- 本のコードの印（ANCHOR: main）は、--help を読む人への言葉ではない
-    isMark l = any (`T.isPrefixOf` l) ["ANCHOR: ", "ANCHOR_END: "]
 -- ANCHOR_END: about
 
 -- ANCHOR: outcome

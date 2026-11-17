@@ -1,17 +1,22 @@
 -- ANCHOR: all
 type alias Bill =
-  { -- The total of the bill
+  { --- The total of the bill
+    -- お会計の合計
     total : Float
-    -- How many people pay
+    --- How many people pay
+    -- 払う人数
   , people : Int = 2
-    -- The tip (0.1 is 10%)
+    --- The tip (0.1 is 10%)
+    -- チップ（0.1 で 10%）
   , tip : Float = 0.1
-    -- Who paid it (to pay back)
+    --- Who paid it (to pay back)
+    -- 立て替えた人（返すため）
   , payer : Maybe String
   , alias p = people
   }
 
--- Split a bill among some people, with a tip.
+--- Split a bill among some people, with a tip.
+-- チップ込みで、お会計を割り勘にする
 main : Bill -> IO ()
 main bill = do
   let each = bill.total * (1 + bill.tip) / toFloat bill.people

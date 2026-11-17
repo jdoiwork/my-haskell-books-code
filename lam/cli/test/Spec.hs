@@ -2898,15 +2898,17 @@ main = hspec $ do
     -- ANCHOR_END: cliKebab
 
     -- ANCHOR: cliParse
-    -- 「レコードの型は、コメント・既定値・短い名前を持つ」
+    -- 「レコードの型は、ヘルプの行（---）・既定値・短い名前を持つ」
     it "keeps the comments, the defaults and the short names" $
       fmap (\(AliasDecl _ _ te) -> te)
         (runLamParser aliasDecl "" (T.unlines
           [ "type alias O ="
-          , "  { -- Who"
+          , "  { --- Who"
+          , "    -- だれ"
           , "    name : String"
-          , "    -- How many"
-          , "    -- (at least 1)"
+          , "    --- How many"
+          , "    --- (at least 1)"
+          , "    ----------"
           , "  , count : Int = 1"
           , "  , alias n = count"
           , "  , tags : [String] = []"
@@ -2919,6 +2921,14 @@ main = hspec $ do
               (Just (DefaultList [])) [] [] ]
           Nothing)
     -- ANCHOR_END: cliParse
+
+    -- ANCHOR: cliHelpLine
+    -- 「ヘルプになるのは --- の行だけ。-- と ---- はならない」
+    it "takes only --- lines as help" $
+      map helpLine
+        ["--- Who to greet", "  ---", "-- あいさつする相手", "----", "x"]
+        `shouldBe` [Just "Who to greet", Just "", Nothing, Nothing, Nothing]
+    -- ANCHOR_END: cliHelpLine
 
     -- ANCHOR: cliProps
     -- 「--count n で、n 回あいさつする」

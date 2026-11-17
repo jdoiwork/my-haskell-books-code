@@ -28,6 +28,7 @@ module Lam.Syntax
   , stripLocations
   , freeVars
   , patternVars
+  , helpLine
   ) where
 
 import Data.Set (Set)
@@ -193,6 +194,22 @@ data Default
   | DefaultList [Literal]
   deriving (Eq, Show)
 -- ANCHOR_END: fieldType
+
+-- ANCHOR: helpLine
+-- 💬 A line of help: a comment that starts with ---, like /// in Rust.
+--    A plain -- comment is not help (so the Japanese line under the
+--    English one stays out of --help), and ---- is a ruled line.
+--      "--- Who to greet"  is  Just "Who to greet"
+--      "---"               is  Just ""   (a break between paragraphs)
+--      "-- あいさつする相手"  is  Nothing
+-- ヘルプの行：--- で始まるコメント（Rust の /// と同じ）。ふつうの --
+-- のコメントはヘルプではない（英語の下の日本語の行は --help に出ない）。
+-- ---- は罫線
+helpLine :: Text -> Maybe Text
+helpLine line = case T.stripPrefix "---" (T.strip line) of
+  Just rest | not ("-" `T.isPrefixOf` rest) -> Just (T.strip rest)
+  _                                         -> Nothing
+-- ANCHOR_END: helpLine
 
 -- 📇 A plain field, with no comments, default or short names.
 -- コメントも既定値も短い名前もない、ただのフィールド

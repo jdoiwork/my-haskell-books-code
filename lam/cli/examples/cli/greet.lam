@@ -1,15 +1,19 @@
 -- ANCHOR: all
 type alias Options =
-  { -- Who to greet
+  { --- Who to greet
+    -- あいさつする相手
     name : String
-    -- How many times
+    --- How many times
+    -- 何回
   , count : Int = 1
-    -- Shout it
+    --- Shout it
+    -- 大声で
   , loud : Bool
   , alias n = count
   }
 
--- Greet someone, as many times as you like.
+--- Greet someone, as many times as you like.
+-- だれかに、好きな回数だけあいさつする
 main : Options -> IO ()
 main opts = do
   let line = f"Hello, {opts.name}!"

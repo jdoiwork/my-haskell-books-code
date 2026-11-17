@@ -1,10 +1,13 @@
 -- ANCHOR: all
 type alias Count =
-  { -- The files to count
+  { --- The files to count
+    -- 数えるファイル
     files : [String]
-    -- Count the lines only
+    --- Count the lines only
+    -- 行だけを数える
   , lines : Bool
-    -- Count the words only
+    --- Count the words only
+    -- 語だけを数える
   , words : Bool
   , alias l = lines
   , alias w = words
@@ -18,7 +21,8 @@ counts opts text =
   else if opts.words then [length (words text)]
   else [length (lines text), length (words text)]
 
--- Count the lines and the words of files, like wc.
+--- Count the lines and the words of files, like wc.
+-- wc のように、ファイルの行と語を数える
 main : Count -> IO ()
 main opts = forEach opts.files (\file -> do
   found <- readFile file

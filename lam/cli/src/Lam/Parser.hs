@@ -1017,12 +1017,12 @@ defaultValue =
 equalsSign :: Parser ()
 equalsSign = () <$ lexeme (string "=" <* notFollowedBy (char '='))
 
--- 💬 The comment lines in a text, without their "--".
--- 文字の中のコメントの行（-- を取ったもの）
+-- 💬 The lines of help in a text (--- Who to greet), without "---".
+--    Ordinary -- comments are left out (see helpLine).
+-- 文字の中のヘルプの行（--- を取ったもの）。ふつうの -- のコメントは外す
 commentsIn :: Text -> [Text]
 commentsIn text =
-  [ T.strip (T.drop 2 l)
-  | l <- map T.strip (T.lines text), "--" `T.isPrefixOf` l ]
+  [ h | Just h <- map helpLine (T.lines text), not (T.null h) ]
 -- ANCHOR_END: defaultValue
 -- ANCHOR_END: recordType
 
