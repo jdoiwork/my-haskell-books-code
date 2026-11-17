@@ -1,17 +1,19 @@
 # Run the one-liners of Perl, Ruby, awk and Python in run/, each block
 # in a fresh copy of the example files of Lam's one-liner chapter, and
 # compare with what Lam gives (code/lam/oneliner/examples/oneliner/<name>.out).
-# Perl 5.44 runs in Docker (the official image perl:5.44-slim); without
-# Docker, Perl is skipped with a message.
+# Perl 5.44 and jq 1.8.2 run in Docker (the official images); without
+# Docker, they are skipped with a message.
 # run/ の Perl・Ruby・awk・Python のワンライナーを、ブロックごとに、Lam の
 # ワンライナーの章の例のファイルの新しい写しの中で動かし、Lam の答え
 # （<名前>.out）とくらべる。Perl 5.44 は Docker の中で（公式のイメージ）
-import os, re, shutil, subprocess, sys, tempfile
+import os, re, shlex, shutil, subprocess, sys, tempfile
 
 here = os.path.dirname(os.path.abspath(__file__))
 lam = os.path.join(here, "../../lam/oneliner/examples/oneliner")
-data = ["app.log", "notes.txt", "sales.csv", "scores.txt", "fruits.txt"]
+data = ["app.log", "notes.txt", "sales.csv", "scores.txt", "fruits.txt",
+        "shop.json", "events.jsonl"]
 perl_image = "perl:5.44-slim"
+jq_image = "ghcr.io/jqlang/jq:1.8.2"
 
 # Where the others print a little differently from Lam.
 # ほかの言語の出し方が、Lam と少しちがうところ
@@ -48,6 +50,15 @@ def expected(lang, name):
 
 
 def run(lang, command, work):
+    if lang == "jq":
+        # The image has only jq: give it the words after "jq".
+        # イメージには jq しかないので、"jq" の後ろの語を渡す
+        line = [l for l in command.splitlines() if not l.startswith("#")]
+        words = shlex.split(" ".join(line))[1:]
+        return subprocess.run(
+            ["docker", "run", "--rm", "--network", "none",
+             "-v", work + ":/w", "-w", "/w", jq_image] + words,
+            capture_output=True, text=True)
     if lang == "perl":
         return subprocess.run(
             ["docker", "run", "--rm", "--network", "none",
@@ -62,11 +73,12 @@ def run(lang, command, work):
 
 docker = subprocess.run(["docker", "info"], capture_output=True).returncode == 0
 if docker:
-    subprocess.run(["docker", "pull", "-q", perl_image],
-                   capture_output=True, check=True)
-for lang in ["perl", "ruby", "awk", "python"]:
-    if lang == "perl" and not docker:
-        print("skip perl (no Docker)")
+    for image in [perl_image, jq_image]:
+        subprocess.run(["docker", "pull", "-q", image],
+                       capture_output=True, check=True)
+for lang in ["perl", "ruby", "awk", "python", "jq"]:
+    if lang in ("perl", "jq") and not docker:
+        print("skip", lang, "(no Docker)")
         continue
     for name, command in blocks(os.path.join(here, "run", lang + ".sh")):
         work = tempfile.mkdtemp()

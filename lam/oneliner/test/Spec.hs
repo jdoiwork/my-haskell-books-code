@@ -24,7 +24,7 @@ import System.Timeout (timeout)
 
 import Lam.Builtins (preludeConstructors)
 import Lam.Format (center, groupDigits, padLeft, padRight, zeroPad)
-import Lam.Json (fromAeson, toAeson)
+import Lam.Json (fromAeson, parseJson, toAeson)
 import Lam.Parser
 import Lam.Pcre (Cut (..), Regex (..), compileRegex)
 import Lam.Prelude
@@ -2032,6 +2032,50 @@ main = hspec $ do
       property $ forAll (listOf genLine) $ \ls ->
         printed "toUpper" ls === T.concat [ T.toUpper l <> "\n" | l <- ls ]
     -- ANCHOR_END: byTypeTest
+
+    -- ANCHOR: jsonTest
+    -- 「--json と --jsonl と --path を読み、一緒に使えないものは止める」
+    it "reads --json, --jsonl and --path" $ do
+      let one args = fmap snd (readCommand args)
+      one ["--json", "--path=orders.0", "-pe", "x"] `shouldBe` Right
+        (RunOneLiner noOneLiner { oneProgram = ["x"], oneMode = Printing
+                                , oneInput = WholeJson
+                                , onePath = ["orders", "0"] } [])
+      map (either Left (const (Right ())) . readCommand)
+        [ ["--path=a", "-ne", "x"], ["--json", "--jsonl", "-ne", "x"]
+        , ["--path=a..b", "--json", "-ne", "x"]
+        , ["--json", "-ane", "x"], ["--json", "-i", "-pe", "x", "f"] ]
+        `shouldBe`
+          map Left
+            [ "--path goes with --json or --jsonl"
+            , "--json and --jsonl cannot go together"
+            , "--path needs keys: --path=orders.items"
+            , "-a and -F go with text, not with --json or --jsonl"
+            , "-i goes with text or --jsonl, without --path" ]
+    -- 「配列を --json で読んでも、1行ずつ --jsonl で読んでも、同じ答え」
+    it "gives the same for an array with --json and for --jsonl" $
+      property $ forAll (listOf (chooseInteger (-50, 50))) $ \ns ->
+        let objects = [ "{\"n\": " <> T.pack (show n) <> "}" | n <- ns ]
+            array   = "[" <> T.intercalate ", " objects <> "]"
+            run input text = outputOf $ snd $ runFake
+              emptyWorld { worldFiles = Map.fromList [("in", text)] } $
+              runOneLiner fakeWorld noFiles preludeSession
+                noOneLiner { oneProgram = ["Json.get \"n\" json"]
+                           , oneMode = Printing, oneInput = input
+                           , onePath = [] } ["in"]
+        in run WholeJson array === run JsonLines (T.unlines objects)
+    -- 「--path は、キーと配列の番号でたどる。ないキーは Left」
+    it "walks down a JSON with --path" $ do
+      let j = either (error . T.unpack) id $ do
+            v <- either (Left . T.pack) Right
+                   (parseJson "{\"a\": [{\"b\": 7}, 8]}")
+            Right (fromAeson v)
+          shown = either id renderValue
+      map (\p -> shown (selectPath p j))
+        [["a", "0", "b"], ["a", "1"], ["a", "2"], ["a", "x"], ["c"]
+        , ["a", "99999999999999999999"]]
+        `shouldBe` ["JInt 7", "JInt 8", "2", "x", "c", "99999999999999999999"]
+    -- ANCHOR_END: jsonTest
 
     -- ANCHOR: inPlaceTest
     -- 「-i.bak は、元の中身を残してから書き換える。

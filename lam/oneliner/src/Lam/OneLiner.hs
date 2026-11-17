@@ -10,11 +10,15 @@
 module Lam.OneLiner
   ( Mode (..)
   , Split (..)
+  , Input (..)
   , OneLiner (..)
   , noOneLiner
   , Command (..)
   , readCommand
   , wrapLine
+  , wrapWith
+  , recordName
+  , selectPath
   , Job (..)
   , prepare
   , runOneLiner
@@ -24,13 +28,17 @@ module Lam.OneLiner
 import Control.Monad (foldM, forM_, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
-import Data.Char (isAlpha)
+import Data.Aeson.Text (encodeToLazyText)
+import Data.Char (isAlpha, isDigit)
+import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 
 import Lam.Eval
 import Lam.Guard (Options, readOptions)
 import Lam.Io (Handler, Stop (..), ioOf, runAction)
+import Lam.Json (fromAeson, parseJson, toAeson)
 import Lam.Module (Files, runProgramWith)
 import Lam.Parser (parseLam)
 import Lam.Pcre (compileRegex)
@@ -54,6 +62,16 @@ data Mode = Once | EachLine | Printing
 data Split = NoSplit | ByWords | ByRegex Text
   deriving (Eq, Show)
 
+-- ANCHOR: input
+-- 📥 What one piece of the input is: a line of text, or JSON. --json
+--    reads the whole input as one JSON, --jsonl one JSON on each line
+--    (JSON Lines).
+-- 入力の1つ分：テキストの1行か、JSON か。--json は入力全体を1つの
+-- JSON として、--jsonl は1行に1つの JSON（JSON Lines）として読む
+data Input = TextLines | WholeJson | JsonLines
+  deriving (Eq, Show)
+-- ANCHOR_END: input
+
 -- 📋 Everything the one-liner flags said.
 -- ワンライナーのフラグが言ったこと全部
 data OneLiner = OneLiner
@@ -63,11 +81,14 @@ data OneLiner = OneLiner
   , oneInPlace :: Maybe Text  -- -i: Just "" (no backup) or Just ".bak"
   , oneBegin   :: Maybe Text  -- --begin: the first acc
   , oneEnd     :: Maybe Text  -- --end: what to do with the last acc
+  , oneInput   :: Input       -- --json, --jsonl
+  , onePath    :: [Text]      -- --path=orders.items: ["orders", "items"]
   }
   deriving (Eq, Show)
 
 noOneLiner :: OneLiner
-noOneLiner = OneLiner [] Once NoSplit Nothing Nothing Nothing
+noOneLiner =
+  OneLiner [] Once NoSplit Nothing Nothing Nothing TextLines []
 
 -- 🧭 What lam was asked to do.
 -- lam が頼まれたこと
@@ -97,9 +118,26 @@ readCommand = go [] noOneLiner
       "--end"   : x : rest -> go guards one { oneEnd = Just (T.pack x) } rest
       [flag] | flag `elem` ["--begin", "--end"] ->
         Left (flag <> " needs a Lam expression after it")
+      -- ANCHOR: jsonFlags
+      -- --json and --jsonl mean -n, as -a does.
+      -- -a と同じく、--json と --jsonl は -n も意味する
+      "--json"  : rest -> reading WholeJson rest
+      "--jsonl" : rest -> reading JsonLines rest
+      flag : rest | Just keys <- T.stripPrefix "--path=" (T.pack flag) ->
+        if T.null keys || any T.null (T.splitOn "." keys)
+          then Left "--path needs keys: --path=orders.items"
+          else go guards one { onePath = T.splitOn "." keys } rest
+      -- ANCHOR_END: jsonFlags
       flag@('-' : '-' : _) : rest -> go (guards <> [flag]) one rest
       ('-' : c : cs) : rest | isAlpha c -> short guards one (c : cs) rest
       _ -> finish guards one args
+
+      where
+        reading input rest
+          | oneInput one /= TextLines && oneInput one /= input =
+              Left "--json and --jsonl cannot go together"
+          | otherwise =
+              go guards (atLeast EachLine one) { oneInput = input } rest
 
     -- One word of short flags, one letter at a time.
     -- 短いフラグの1語を、1文字ずつ
@@ -157,6 +195,15 @@ checked one rest
       Left "--end needs --begin (the first acc)"
   | ByRegex p <- oneSplit one, Left msg <- compileRegex p =
       Left ("-F: " <> T.unpack msg)
+  -- ANCHOR: jsonChecks
+  | oneInput one == TextLines, not (null (onePath one)) =
+      Left "--path goes with --json or --jsonl"
+  | oneInput one /= TextLines, oneSplit one /= NoSplit =
+      Left "-a and -F go with text, not with --json or --jsonl"
+  | Just _ <- oneInPlace one
+  , oneInput one == WholeJson || not (null (onePath one)) =
+      Left "-i goes with text or --jsonl, without --path"
+  -- ANCHOR_END: jsonChecks
   | folding   = Right one { oneMode = max EachLine (oneMode one) }
   | otherwise = Right one
   where
@@ -192,7 +239,13 @@ showValueOnly handle session e =
 -- 1行ごとに、プログラムがもらう名前。-F, なら words の代わりに
 -- Regex.split で切る
 wrapLine :: Split -> Expr -> Expr
-wrapLine split body = Lam "line" $ case split of
+wrapLine = wrapWith "line"
+
+-- ANCHOR: wrapWith
+-- 🍬 The same with another name: json, for --json and --jsonl.
+-- 同じことを、別の名前で。--json と --jsonl なら json
+wrapWith :: Name -> Split -> Expr -> Expr
+wrapWith name split body = Lam name $ case split of
   NoSplit -> body
   _       ->
     Let "fields" (cut split)
@@ -202,6 +255,14 @@ wrapLine split body = Lam "line" $ case split of
       ByRegex p -> call "Regex.split"
                      [App (Var "$regex") (Lit (LString p)), Var "line"]
       _         -> App (Var "words") (Var "line")
+
+-- 🏷️ The name a piece of the input gets.
+-- 入力の1つ分がもらう名前
+recordName :: Input -> Name
+recordName input = case input of
+  TextLines -> "line"
+  _         -> "json"
+-- ANCHOR_END: wrapWith
 
 call :: Name -> [Expr] -> Expr
 call f = foldl App (Var f)
@@ -227,10 +288,11 @@ prepare session one = do
   let folding = oneBegin one /= Nothing
       -- With --begin, the acc comes before the line.
       -- --begin があれば、行の前に acc が来る
-      wrap e | folding   = Lam "acc" (wrapLine (oneSplit one) e)
-             | otherwise = wrapLine (oneSplit one) e
+      name = recordName (oneInput one)
+      wrap e | folding   = Lam "acc" (wrapWith name (oneSplit one) e)
+             | otherwise = wrapWith name (oneSplit one) e
       arity = if folding then 2 else 1
-  step <- byType arity wrap body (Var "line")
+  step <- byType arity wrap body (Var name)
   begin <- traverse (parseLam "--begin") (oneBegin one)
   end <- case oneEnd one of
     Nothing -> Right Nothing
@@ -268,9 +330,9 @@ prepare session one = do
     checkShape step begin end = case (begin, oneMode one) of
       (Nothing, Printing) -> do
         t <- after 1 <$> typeOf step
-        unless' (t == tString || isVar t) $
-          "-e: type error: -p needs a String for each line, but this gives "
-            <> render t <> " (for an IO, use -n)"
+        unless' (t == tString || t == tJson || isVar t) $
+          "-e: type error: -p needs a String (or a Json) for each line, \
+          \but this gives " <> render t <> " (for an IO, use -n)"
       (Nothing, _) -> do
         t <- after 1 <$> typeOf step
         unless' (isIO t || isVar t) $
@@ -281,7 +343,7 @@ prepare session one = do
         -- back the type of the first acc. Then end must take it.
         -- step が、初めの acc と同じ型を返すことを、if の2つの枝で確かめる
         let acc = If (Lit (LBool True)) first
-                    (call "$step" [first, Lit (LString "")])
+                    (call "$step" [first, sample])
             whole = Let "$step" step $ case end of
               Just e  -> App e acc
               Nothing -> App (Var "pure") acc
@@ -296,6 +358,13 @@ prepare session one = do
     -- ANCHOR: shapeHelpers
     -- The type after n arguments:  after 1 (String -> IO ())  is  IO ().
     -- 引数を n 個渡したあとの型
+    -- A piece of the input, only to fit the types: "" or JNull.
+    -- 型を合わせるためだけの、入力の1つ分
+    sample = case oneInput one of
+      TextLines -> Lit (LString "")
+      _         -> Var "JNull"
+    tJson = TCon "Json" []
+
     after n t = case (n :: Int, t) of
       (0, _)          -> t
       (_, TFun _ res) -> after (n - 1) res
@@ -344,12 +413,13 @@ doIO handle v = do
 
 -- ANCHOR: runOneLiner
 -- ANCHOR: runOneLinerTop
--- 🏃 Run a one-liner. The lines come from the files (each read with
+-- 🏃 Run a one-liner. The input comes from the files (each read with
 --    readFile, so --allow-read guards them), or from the standard input
---    (getLine, one at a time) when there are no files.
--- ワンライナーを動かす。行は、ファイル（readFile で読むので、
--- --allow-read が見張る）から、ファイルがなければ標準入力（getLine で
--- 1行ずつ）から
+--    when there are no files: getLine, one line at a time, or
+--    getContents, all at once, for --json.
+-- ワンライナーを動かす。入力は、ファイル（readFile で読むので、
+-- --allow-read が見張る）から、ファイルがなければ標準入力から（getLine で
+-- 1行ずつ。--json なら getContents でまとめて）
 runOneLiner
   :: Monad m => Handler m -> Files m -> Session -> OneLiner -> [String]
   -> m Ending
@@ -362,32 +432,49 @@ runOneLiner handle files session one args
   where
     go job = do
       let acc0 = maybe (VTuple []) id (jobBegin job)
-      accN <- case (args, oneInPlace one) of
-        ([], _)       -> fromStdin job acc0
-        (_, Just ext) -> foldM (editFile job ext) acc0 (map T.pack args)
-        (_, Nothing)  -> foldM (readEach job) acc0 (map T.pack args)
+      accN <- case (args, oneInput one, oneInPlace one) of
+        ([], WholeJson, _) -> do
+          text <- lift (handle GetContents)
+          case text of
+            VString t -> feed job acc0 "<stdin>" t
+            _         -> pure acc0
+        ([], _, _)         -> fromStdin job acc0 1
+        (_, _, Just ext)   -> foldM (editFile job ext) acc0 (map T.pack args)
+        (_, _, Nothing)    -> foldM (readEach job) acc0 (map T.pack args)
       forM_ (jobEnd job) $ \end -> orFail (apply end accN) >>= doIO handle
 
     -- The standard input, one line at a time, to the end.
     -- 標準入力を、1行ずつ、最後まで
-    fromStdin job acc = do
+    fromStdin job acc n = do
       next <- lift (handle GetLine)
       case next of
         VCon "Just" _ [VString l] -> do
-          (acc', out) <- stepLine job acc l
-          forM_ out (\o -> lift (handle (PutStr (o <> "\n"))))
-          fromStdin job acc'
+          pieces <- piecesOf ("<stdin>:" <> number n) l
+          acc' <- foldM (stepAndShow job) acc pieces
+          fromStdin job acc' (n + 1 :: Int)
         _ -> pure acc
 
     -- Each file, as if its lines came one after another.
     -- ファイルを順に。行が続けて来たのと同じ
     readEach job acc file = do
       text <- readText file
-      foldM (\a l -> do
-               (a', out) <- stepLine job a l
-               forM_ out (\o -> lift (handle (PutStr (o <> "\n"))))
-               pure a')
-            acc (T.lines text)
+      feed job acc file text
+
+    -- All the pieces of a text: its lines, or its JSON.
+    -- 文字列の中の、入力の1つ分を全部：行か、JSON か
+    feed job acc name text = case oneInput one of
+      WholeJson -> piecesOf name text >>= foldM (stepAndShow job) acc
+      _ -> foldM (\a (n, l) -> do
+                    pieces <- piecesOf (name <> ":" <> number n) l
+                    foldM (stepAndShow job) a pieces)
+                 acc (zip [1 :: Int ..] (T.lines text))
+
+    stepAndShow job a piece = do
+      (a', out) <- stepLine job a piece
+      forM_ out (\o -> lift (handle (PutStr (o <> "\n"))))
+      pure a'
+
+    number = T.pack . show
 
     ending r = case r of
       Right ()            -> Finished ""
@@ -408,6 +495,31 @@ runOneLiner handle files session one args
 
     -- ANCHOR_END: runOneLinerTop
 
+    -- ANCHOR: piecesOf
+    -- 🧩 The pieces of the input in one text (a line, or all of --json):
+    --    the line itself, or its JSON, at --path. When --json (or a
+    --    --path) points at an array, each item is one piece. A line of
+    --    --jsonl with only spaces is skipped.
+    -- 文字列1つ（行か、--json なら全体）の中の、入力の1つ分：行そのもの
+    -- か、その JSON の --path の所。--json（か --path）の指す先が配列なら、
+    -- 要素の1つずつが1つ分。--jsonl の空白だけの行は飛ばす
+    piecesOf place text = case oneInput one of
+      TextLines -> pure [VString text]
+      JsonLines | T.null (T.strip text) -> pure []
+      _ -> case parseJson text of
+        Left msg -> throwE (HaltError
+          ("error: " <> place <> ": not JSON: " <> T.pack msg))
+        Right j -> case selectPath (onePath one) (fromAeson j) of
+          Left key -> throwE (HaltError
+            ("error: " <> place <> ": --path="
+               <> T.intercalate "." (onePath one) <> ": no " <> key))
+          Right v
+            | spread, VCon "JArr" _ [VList xs] <- v -> pure xs
+            | otherwise                              -> pure [v]
+      where
+        spread = oneInput one == WholeJson || not (null (onePath one))
+    -- ANCHOR_END: piecesOf
+
     -- ANCHOR: editFile
     -- -i: the new lines go back into the file, not to the screen. With
     --     a backup name (-i.bak), the old text is written there first.
@@ -415,36 +527,62 @@ runOneLiner handle files session one args
     -- 元の中身をそこへ書く
     editFile job ext acc file = do
       text <- readText file
-      (acc', outs) <- foldM (\(a, os) l -> do
-                               (a', out) <- stepLine job a l
-                               pure (a', os <> maybe [] pure out))
-                            (acc, []) (T.lines text)
+      (acc', outs) <- foldM (\(a, os) (n, l) -> do
+                               pieces <- piecesOf
+                                 (file <> ":" <> number n) l
+                               foldM (\(b, ps) piece -> do
+                                        (b', out) <- stepLine job b piece
+                                        pure (b', ps <> maybe [] pure out))
+                                     (a, os) pieces)
+                            (acc, []) (zip [1 :: Int ..] (T.lines text))
       when (not (T.null ext)) $ writeText (file <> ext) text
       writeText file (T.unlines outs)
       pure acc'
     -- ANCHOR_END: editFile
 
     -- ANCHOR: stepLine
-    -- One line: -p gives the text to print, -n does an IO, and with
-    -- --begin, the step gives the next acc.
-    -- 1行：-p は出す文字をくれ、-n は IO をやり、--begin があれば
-    -- 次の acc をくれる
-    stepLine job acc l = case (jobBegin job, oneMode one) of
+    -- One piece: -p gives the text to print (a Json is printed as one
+    -- line of JSON), -n does an IO, and with --begin, the step gives
+    -- the next acc.
+    -- 1つ分：-p は出す文字をくれ（Json なら1行の JSON にして出す）、
+    -- -n は IO をやり、--begin があれば次の acc をくれる
+    stepLine job acc piece = case (jobBegin job, oneMode one) of
       (Just _, _) -> do
         f <- orFail (apply (jobStep job) acc)
-        acc' <- orFail (apply f (VString l))
+        acc' <- orFail (apply f piece)
         pure (acc', Nothing)
       (Nothing, Printing) -> do
-        out <- orFail (apply (jobStep job) (VString l))
+        out <- orFail (apply (jobStep job) piece)
         case out of
           VString o -> pure (acc, Just o)
-          _ -> throwE (HaltError "error: -p: a line became something else")
+          json -> do
+            j <- orFail (toAeson json)
+            pure (acc, Just (TL.toStrict (encodeToLazyText j)))
       (Nothing, _) -> do
-        io <- orFail (apply (jobStep job) (VString l))
+        io <- orFail (apply (jobStep job) piece)
         _ <- doIO handle io
         pure (acc, Nothing)
     -- ANCHOR_END: stepLine
 -- ANCHOR_END: runOneLiner
+
+-- ANCHOR: selectPath
+-- 🧭 Walk down a JSON by keys: a key of an object, or the number of
+--    an item of an array (from 0). Left is the key that is not there.
+-- キーをたどって JSON を下りる：オブジェクトのキーか、配列の番号
+-- （0 から）。Left は、なかったキー
+selectPath :: [Text] -> Value -> Either Text Value
+selectPath keys v = case keys of
+  [] -> Right v
+  k : rest -> case v of
+    VCon "JObj" _ [VMap m] | Just x <- Map.lookup k m -> selectPath rest x
+    VCon "JArr" _ [VList xs]
+      -- Read as Integer: a long number must not wrap around.
+      -- Integer で読む。長い数が、ひと回りしないように
+      | not (T.null k), T.all isDigit k
+      , i <- read (T.unpack k) :: Integer, i < toInteger (length xs) ->
+          selectPath rest (xs !! fromInteger i)
+    _ -> Left k
+-- ANCHOR_END: selectPath
 
 -- ANCHOR: runProgramOnce
 -- 1️⃣ lam -e '...' without -n or -p: the text is a whole program, as
