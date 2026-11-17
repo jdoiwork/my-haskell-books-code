@@ -1693,10 +1693,10 @@ main = hspec $ do
         (\w -> w { worldWeb = Map.map (const (200, next)) (worldWeb w) })
         "examples/outside/weather"
       T.lines out `shouldContain`
-        [ "2026-11-20  rain  30%  max  15.3  min   7.1  rain 4 -> 30"
+        [ "2026-11-20  rain  30%  max  15.3  min   7.1  rain 4% -> 30%"
         , "2026-11-21  rain   2%  max  14.6  min   4.5  max 13.1 -> 14.6" ]
       T.lines out `shouldContain`
-        [ "2026-11-24  rain   1%  max  12.4  min     3  new" ]
+        [ "2026-11-24  rain   1%  max  12.4  min   3.0  new" ]
       -- 11-18 has no max (null) in the next forecast: the old 20.4 is
       -- kept, and it is not a change.
       -- 次の予報には 11-18 の最高がない（null）：前の 20.4 を残し、
@@ -1754,6 +1754,30 @@ main = hspec $ do
         , "Err \"object value: not enough input\"" ]
     -- ANCHOR_END: readers
 
+
+    -- ANCHOR: fixedTest
+    -- 「Json.fixed：小数点以下を n けたに。四捨五入は 0 から遠いほうへ」
+    it "writes a number with n digits after the point" $ do
+      runLines
+        [ "Json.fixed 1 (JInt 3)", "Json.fixed 1 (Json.mkDec 1275 2)"
+        , "Json.fixed 1 (Json.mkDec (0 - 1275) 2)"
+        , "Json.fixed 2 (Json.mkDec 5 1)", "Json.fixed 1 JNull" ]
+        `shouldBe`
+          [ "\"3.0\" : String", "\"12.8\" : String", "\"-12.8\" : String"
+          , "\"0.50\" : String", "\"null\" : String" ]
+    it "rounds as Haskell does with Rational, half away from zero" $
+      property $ forAll (chooseInteger (-10000000, 10000000)) $ \c ->
+        forAll (chooseInteger (-3, 6)) $ \d ->
+          forAll (chooseInteger (0, 4)) $ \n ->
+            -- Lam has no negative literals: -5 is written (0 - 5).
+            -- Lam に負の数のリテラルはないので、-5 は (0 - 5) と書く
+            let lit k
+                  | k < 0     = "(0 - " <> T.pack (show (negate k)) <> ")"
+                  | otherwise = T.pack (show k)
+            in runLines [ "Json.fixed " <> lit n <> " (Json.mkDec " <> lit c
+                            <> " " <> lit d <> ")" ]
+                 === [ "\"" <> fixedOf n c d <> "\" : String" ]
+    -- ANCHOR_END: fixedTest
 
     -- ANCHOR: cellsTest
     -- 「整数・短い小数・文字列・null は、貯めて読むと元のまま」
@@ -1904,6 +1928,21 @@ genCell = oneof
   where
     paren n = if n < 0 then "(" <> T.pack (show n) <> ")" else T.pack (show n)
 -- ANCHOR_END: scriptIO
+
+-- ANCHOR: fixedOf
+-- 🔢 The answer of Json.fixed, from Rational: c / 10^d with n digits,
+--    rounded half away from zero. Made without Lam, to compare.
+-- Json.fixed の答えを Rational で。Lam を使わずに作って、くらべる
+fixedOf :: Integer -> Integer -> Integer -> Text
+fixedOf n c d =
+  let r = fromInteger c / 10 ^^ d :: Rational
+      q = floor (abs r * 10 ^ n + 1 / 2) :: Integer
+      v = if r < 0 then negate q else q
+      (whole, frac) = abs v `divMod` (10 ^ n)
+      sign = if v < 0 then "-" else ""
+      fracText = T.justifyRight (fromInteger n) '0' (T.pack (show frac))
+  in sign <> T.pack (show whole) <> (if n == 0 then "" else "." <> fracText)
+-- ANCHOR_END: fixedOf
 
 -- ANCHOR: genWords
 -- 🎲 Lines of words: a few words (so that some come again), with

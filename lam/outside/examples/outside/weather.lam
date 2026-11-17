@@ -50,28 +50,32 @@ let weekOf doc = Maybe.do
 -- ANCHOR_END: read
 
 -- ANCHOR: save
--- 📝 What changed since the last run: "new", "max 14.2 -> 15.1", or "".
+-- 🌡️ A number for the table: "-" when there is none. A temperature
+--    has one digit after the point (Json.fixed): 3.0, not 3.
+-- 表に出す数：ないときは "-"。気温は小数点以下1けた（Json.fixed）：
+-- 3 ではなく 3.0
+let cell j = case j of | JNull -> "-" | _ -> Json.show j
+let temp j = case j of | JNull -> "-" | _ -> Json.fixed 1 j
+let percent j = case j of | JNull -> "-" | _ -> Json.show j ++ "%"
+let columnText name row = cell (fromMaybe JNull (Sql.column name row))
+
+-- 📝 What changed since the last run: "new", "max 13.1 -> 14.6", or "".
 --    No number now (JNull) is not a change: the old one is kept.
 -- 前に動かしたときから変わったこと。いま数がない（JNull）のは変化では
 -- ない：前の数を残す
-let diff label column row now =
+let diff label shown column row now =
   case Sql.column column row of
     | Just before ->
         if before == now || now == JNull then []
-        else [f"{label} {Json.show before} -> {Json.show now}"]
+        else [f"{label} {shown before} -> {shown now}"]
     | Nothing -> []
 let changes old pop tmax tmin =
   case old of
     | Ok (row : _) ->
-        join ", " (diff "rain" "pop" row pop ++ diff "max" "tmax" row tmax
-                     ++ diff "min" "tmin" row tmin)
+        join ", " (diff "rain" percent "pop" row pop
+                     ++ diff "max" temp "tmax" row tmax
+                     ++ diff "min" temp "tmin" row tmin)
     | _ -> "new"
-
--- 🌡️ A number for the table: "-" when there is none.
--- 表に出す数：ないときは "-"
-let cell j = case j of | JNull -> "-" | _ -> Json.show j
-let percent j = case j of | JNull -> "-" | _ -> Json.show j ++ "%"
-let columnText name row = cell (fromMaybe JNull (Sql.column name row))
 
 -- 💾 Save one day of a place (insert it, or update it), and give a
 --    line to show.
@@ -99,8 +103,8 @@ let save db place day =
                 | _ -> now
         let line =
               f"{d}  rain {percent (held "pop" pop):>4}  "
-                ++ f"max {cell (held "tmax" tmax):>5}  "
-                ++ f"min {cell (held "tmin" tmin):>5}"
+                ++ f"max {temp (held "tmax" tmax):>5}  "
+                ++ f"min {temp (held "tmin" tmin):>5}"
         let changed = changes old pop tmax tmin
         pure (case saved of
           | Err e -> f"{line}  error: {e}"
@@ -150,7 +154,8 @@ let main args =
                     case kept of
                       | Ok [row] ->
                           putStrLn (f"kept {columnText "n" row} days, "
-                            ++ f"the hottest {columnText "hottest" row}")
+                            ++ f"the hottest {temp (fromMaybe JNull
+                                (Sql.column "hottest" row))}")
                       | _ -> pure ()
 -- ANCHOR_END: main
 -- ANCHOR_END: all

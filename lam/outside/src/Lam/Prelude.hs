@@ -247,7 +247,7 @@ jsonSource = """
   module Json exposing
     ( Json (JNull, JBool, JInt, JStr, JArr, JObj)
     , parse, show, get, at, int, string, bool, array
-    , mkDec, decimal )
+    , mkDec, decimal, fixed )
 
   -- JSON, as a data type. A number with a fraction is JDec:
   -- JDec 1999 2 is 1999 divided by 10 to the 2, that is 19.99.
@@ -295,6 +295,34 @@ jsonSource = """
   -- 小数の2つの数。整数（JInt）は小数ではないので Nothing
   let decimal j = case j of | JDec c d -> Just (c, d) | _ -> Nothing
   -- ANCHOR_END: mkDec
+  -- ANCHOR: fixed
+  -- c / k, rounded half away from 0:  halfAway 1275 10 is 128
+  -- c を k で割って、四捨五入（0 から遠いほうへ）
+  let halfAway c k =
+    let q = (abs c * 2 + k) / (k * 2) in
+    if c < 0 then 0 - q else q
+  -- v is the number times 10 to the n: scaled 1 30 is "3.0"
+  -- v は、数を 10 の n 乗倍したもの
+  let scaled n v =
+    let whole = abs v / pow 10 n in
+    let sign = if v < 0 then "-" else "" in
+    if n == 0 then sign ++ showInt whole
+    else sign ++ showInt whole ++ "." ++ zeroPad n (mod (abs v) (pow 10 n))
+  -- A number with n digits after the point, rounded half away from 0:
+  -- fixed 1 (JInt 3) is "3.0", fixed 1 (mkDec 1275 2) is "12.8".
+  -- Not a number: as show writes it.
+  -- 小数点以下を n けたにした数。四捨五入（0 から遠いほうへ）：
+  -- fixed 1 (JInt 3) は "3.0"、fixed 1 (mkDec 1275 2) は "12.8"。
+  -- 数でなければ、show と同じ
+  let fixed n j =
+    let digits = max n 0 in
+    case j of
+      | JInt i -> scaled digits (i * pow 10 digits)
+      | JDec c d ->
+          if d <= digits then scaled digits (c * pow 10 (digits - d))
+          else scaled digits (halfAway c (pow 10 (d - digits)))
+      | _ -> show j
+  -- ANCHOR_END: fixed
   """
 -- ANCHOR_END: json
 
