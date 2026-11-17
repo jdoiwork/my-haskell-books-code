@@ -179,8 +179,8 @@ data Outside = Outside
   { outsideManager   :: IORef (Maybe Manager)
   , outsideDatabases :: Databases
   -- ANCHOR: outsideRandom
-  -- The dice: from --seed=42 if it is given, or else from the system.
-  -- さいころ：--seed=42 があればそこから、なければシステムから
+  -- The dice: from --seed=618 if it is given, or else from the system.
+  -- さいころ：--seed=618 があればそこから、なければシステムから
   , outsideRandom    :: IORef StdGen
   -- ANCHOR_END: outsideRandom
   }
@@ -327,7 +327,7 @@ emptyWorld = FakeWorld
   , worldWeb = Map.empty, worldSent = []
   , worldDirs = Set.empty, worldTimes = Map.empty
   , worldCommands = Map.empty, worldClock = fakeClock, worldZone = 540
-  , worldRandom = mkStdGen 42 }
+  , worldRandom = mkStdGen 618 }
 
 -- ⏰ The fake clock: 2026-11-17 12:00 in Tokyo (03:00 in UTC).
 -- 偽物の時計：東京の 2026-11-17 12:00（UTC の 03:00）

@@ -303,7 +303,7 @@ data Options = Options
   , tracing     :: Bool
   , dryRunning  :: Bool
   -- ANCHOR: seedField
-  , randomSeed  :: Maybe Int     -- --seed=42: the same dice every time
+  , randomSeed  :: Maybe Int     -- --seed=618: the same dice every time
   -- ANCHOR_END: seedField
   }
   deriving (Eq, Show)
