@@ -183,6 +183,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 小数を足す：Elm 風の number | [`lam/records/`](lam/records/)、[`lam/float/`](lam/float/)、[`langs/interp-float/`](langs/interp-float/) |
 | CLI を手軽に作る：型から作る Typer 風のオプション | [`lam/cli/`](lam/cli/)、[`lam/float/`](lam/float/)、[`langs/interp-cli/`](langs/interp-cli/)、[`langs/cargo/`](langs/cargo/) |
 | 並行に動かす：まとめて待つ | [`lam/concurrency/`](lam/concurrency/)、[`lam/cli/`](lam/cli/)、[`langs/interp-concurrency/`](langs/interp-concurrency/) |
+| 仕事どうしで話す：チャネルとメッセージ | [`lam/channels/`](lam/channels/)、[`lam/concurrency/`](lam/concurrency/)、[`langs/interp-channels/`](langs/interp-channels/) |
 | 第8部のふりかえり | [`lam/polish/`](lam/polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第9部 総合演習3：Python の機械学習ライブラリを Haskell で作る

@@ -1,0 +1,2 @@
+8 words
+(sneaky: examples/guard/secret.txt: needs --allow-read=examples/guard/secret.txt)

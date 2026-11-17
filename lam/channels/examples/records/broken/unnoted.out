@@ -1,0 +1,1 @@
+examples/records/broken/unnoted.lam:7:24: in the definition of main: type error: Int is not in the class Semigroup

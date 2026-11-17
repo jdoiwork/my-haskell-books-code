@@ -1,0 +1,45 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 👷 Three workers share the names through one channel, and send their
+--    answers through another: a pipeline of names, workers, and the
+--    screen.
+--      lam pool.lam
+-- 3人の働き手が、1本のチャネルから名前を分け合い、答えを別の1本で送る：
+-- 名前 → 働き手 → 画面のパイプライン
+import Dex (fetch, line)
+
+names = [ "bulbasaur", "charmander", "squirtle", "pikachu", "eevee"
+        , "snorlax", "nosuchmon" ]
+
+-- ANCHOR: worker
+-- 👷 Take the next name, look it up, send the answer, and again,
+--    until the names are closed.
+-- 次の名前を取り、引いて、答えを送る。名前が閉じるまで、くり返す
+worker : Chan String -> Chan String -> Int -> IO ()
+worker names results id =
+  Chan.forEach names (\n -> do
+    r <- fetch n
+    Chan.send results (case r of
+      | Ok m -> f"worker {id}: {line m}"
+      | Err e -> f"worker {id}: {e}"))
+-- ANCHOR_END: worker
+
+-- ANCHOR: main
+main = do
+  todo <- Chan.new 0
+  results <- Chan.new 0
+  -- Stage 1: put the names in, then close.
+  -- 1段目：名前を入れて、閉じる
+  _ <- spawn (do
+    forEach names (Chan.send todo)
+    Chan.close todo)
+  -- Stage 2: three workers. When all are done, close the results.
+  -- 2段目：働き手が3人。全員が終わったら、答えを閉じる
+  _ <- spawn (do
+    _ <- IO.all (map (worker todo results) [1, 2, 3])
+    Chan.close results)
+  -- Stage 3: show the answers as they come.
+  -- 3段目：届いた答えから見せる
+  Chan.forEach results putStrLn
+-- ANCHOR_END: main
+-- ANCHOR_END: all

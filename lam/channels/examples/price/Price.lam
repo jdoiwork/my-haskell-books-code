@@ -1,0 +1,17 @@
+-- ANCHOR: all
+-- 💴 Price: an amount in yen, never below 0. The constructor Price is
+--    hidden, so the only way to make one is fromYen, which checks.
+-- Price：円の金額。0 より小さくならない。構成子 Price は隠すので、
+-- 作れるのは、確かめてくれる fromYen だけ
+module Price exposing (Price, fromYen, yen, add, show)
+
+data Price = Price Int
+
+-- A price, if the amount is 0 or more.
+-- 0 以上なら、値段
+let fromYen n = if n < 0 then Nothing else Just (Price n)
+
+let yen p = case p of | Price n -> n
+let add a b = Price (yen a + yen b)
+let show p = f"{yen p:,} yen"
+-- ANCHOR_END: all

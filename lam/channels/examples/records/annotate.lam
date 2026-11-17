@@ -1,0 +1,41 @@
+-- ✍️ Type annotations on the lines above the definitions. A definition
+--    at the top of a file needs no let any more.
+-- 定義の上の行に、型の注釈。ファイルのいちばん外の定義には、もう let
+-- は要らない
+--   lam examples/records/annotate.lam
+
+-- ANCHOR: add
+-- ➕ Two Ints in, one Int out.
+-- Int を2つ受け取り、Int を1つ返す
+add : Int -> Int -> Int
+add x y = x + y
+-- ANCHOR_END: add
+
+-- ANCHOR: classes
+-- 🏆 Any type that can be compared: the class goes in front, as in
+--    the REPL.
+-- 比べられる型なら何でも。クラスは、REPL の表示と同じく前に書く
+largest : Comparable a => [a] -> Maybe a
+largest xs = maximum xs
+
+-- 📣 Any type that can go into f"...".
+-- f"..." に入れられる型なら何でも
+shout : Showable a => a -> String
+shout x = toUpper f"{x}!"
+-- ANCHOR_END: classes
+
+-- ANCHOR: swap
+-- 🔄 a and b may be any types, and may differ.
+-- a と b は、どんな型でもよく、ちがっていてもよい
+swap : (a, b) -> (b, a)
+swap p = case p of | (x, y) -> (y, x)
+-- ANCHOR_END: swap
+
+-- ANCHOR: main
+main : IO ()
+main = do
+  putStrLn (show (add 1 2))
+  putStrLn (show (largest ["Rust", "Lam", "Python"]))
+  putStrLn (shout "hello")
+  putStrLn (show (swap ("Lam", 20)))
+-- ANCHOR_END: main

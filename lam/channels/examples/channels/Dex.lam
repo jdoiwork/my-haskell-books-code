@@ -1,0 +1,42 @@
+-- ANCHOR: all
+-- 📖 A small picture book of PokeAPI: the number and the Japanese name
+--    of a Pokémon, from its English name. One request for each.
+-- PokeAPI の小さな図鑑：英語の名前から、ポケモンの番号と日本語の名前を。
+-- 1匹に1回の頼みごと
+module Dex exposing (Mon, fetch, line)
+
+-- ANCHOR: mon
+-- 🏷️ What we keep of one Pokémon.
+-- 1匹について持っておくもの
+type alias Mon = { id : Int, name : String, ja : String }
+-- ANCHOR_END: mon
+
+api = "https://pokeapi.co/api/v2/pokemon-species/"
+
+-- 🗾 The name in Japanese, from the list of names in many languages.
+-- いろいろな言語の名前の一覧から、日本語の名前を
+japaneseName : Json -> Maybe String
+japaneseName species = Maybe.do
+  names <- Maybe.andThen Json.array (Json.get "names" species)
+  ja <- find (\n -> Json.at ["language", "name"] n == Just (JStr "ja")) names
+  Maybe.andThen Json.string (Json.get "name" ja)
+
+-- ANCHOR: fetch
+-- 🌐 Ask PokeAPI about one Pokémon. An Err says why not.
+-- PokeAPI に1匹のことを聞く。だめなら Err にわけ
+fetch : String -> IO (Result String Mon)
+fetch name = do
+  answer <- Http.get (api ++ name)
+  pure (case answer of
+    | Err e -> Err f"{name}: {e}"
+    | Ok doc -> case (Maybe.andThen Json.int (Json.get "id" doc),
+                      japaneseName doc) of
+        | (Just id, Just ja) -> Ok { id = id, name = name, ja = ja }
+        | _ -> Err f"{name}: the answer has another shape")
+-- ANCHOR_END: fetch
+
+-- 📝 One line for the screen:  #25    ピカチュウ (pikachu)
+-- 画面に出す1行
+line : Mon -> String
+line m = f"#{m.id:<4} {m.ja} ({m.name})"
+-- ANCHOR_END: all

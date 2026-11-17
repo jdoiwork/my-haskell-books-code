@@ -1,0 +1,37 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🙋 Step 1: Actor.call with a time limit. Nothing if no answer comes
+--    in time.
+--      lam within.lam
+-- ステップ1：制限時間つきの Actor.call。間に合わなければ Nothing
+-- ANCHOR: callWithin
+callWithin : Int -> Pid msg -> (Pid r -> msg) -> IO (Maybe r)
+callWithin ms pid ask = do
+  me <- Actor.new
+  Actor.send pid (ask me)
+  receive me
+    | answer -> pure (Just answer)
+    after ms -> pure Nothing
+-- ANCHOR_END: callWithin
+
+-- 🐢 Answers the question after ms.
+-- ms ミリ秒たってから、問いに答える
+data Question = Question (Pid String)
+
+slowpoke : Int -> Pid Question -> IO ()
+slowpoke ms me =
+  receive me
+    | Question from -> do
+        sleep ms
+        -- 「はい、どうぞ」
+        Actor.send from "here you are"
+        slowpoke ms me
+
+main = do
+  quick <- Actor.spawn (slowpoke 100)
+  slow <- Actor.spawn (slowpoke 900)
+  a <- callWithin 500 quick Question
+  b <- callWithin 500 slow Question
+  putStrLn f"quick: {a ?: "no answer"}"
+  putStrLn f"slow: {b ?: "no answer"}"
+-- ANCHOR_END: all

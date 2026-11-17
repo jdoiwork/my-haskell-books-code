@@ -1,0 +1,45 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🧮 A counter as an actor: only the actor holds the total, and the
+--    others ask it with messages.
+--      lam counter.lam
+-- アクターのカウンター：合計を持つのはアクターだけ。ほかの仕事は、
+-- メッセージで頼む
+-- ANCHOR: msg
+-- 📨 What the counter understands. Get carries where to send the
+--    answer: a mailbox that takes an Int.
+-- カウンターがわかるメッセージ。Get は答えの送り先を運ぶ：Int を受け取る
+-- 受け箱
+data Msg = Add Int | Get (Pid Int)
+-- ANCHOR_END: msg
+
+-- ANCHOR: counter
+-- 🧮 Wait for a message, do it, and wait again with the new total.
+-- メッセージを待ち、やって、新しい合計で、また待つ
+counter : Int -> Pid Msg -> IO ()
+counter total me =
+  receive me
+    | Add n -> counter (total + n) me
+    | Get from -> do
+        Actor.send from total
+        counter total me
+-- ANCHOR_END: counter
+
+-- ANCHOR: main
+main = do
+  c <- Actor.spawn (counter 0)
+  -- Three jobs add at once. Nobody else touches the total.
+  -- 3つの仕事が同時に足す。合計に触れるのは、カウンターだけ
+  _ <- IO.all (map (\n -> Actor.send c (Add n)) [3, 4, 5])
+  -- Ask, and wait for the answer in a mailbox of our own.
+  -- 頼んで、自分の受け箱で答えを待つ
+  me <- Actor.new
+  Actor.send c (Get me)
+  receive me
+    | total -> putStrLn f"total: {total}"
+  -- The same, in one line.
+  -- 同じことを1行で
+  total <- Actor.call c Get
+  putStrLn f"total again: {total}"
+-- ANCHOR_END: main
+-- ANCHOR_END: all

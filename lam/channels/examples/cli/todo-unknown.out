@@ -1,0 +1,4 @@
+error: unknown command remove
+Usage: todo.lam COMMAND [ARGS]...
+Try "todo.lam --help" for help.
+[exit 2]

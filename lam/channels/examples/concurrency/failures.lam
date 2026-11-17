@@ -1,0 +1,42 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 💥 One of the names is wrong. Three ways to take it.
+--      lam failures.lam
+-- 名前が1つまちがっている。受け止め方は3つ
+import Dex (Mon, fetch, line)
+
+names = ["pikachu", "nosuchmon", "eevee", "snorlax"]
+jobs = map fetch names
+
+-- ANCHOR: allOk
+-- 1. All or nothing: the first Err stops the others.
+-- 1. 全部か、なしか：最初の Err で、ほかを取り消す
+allOrNothing = do
+  r <- IO.allOk jobs
+  case r of
+    | Ok mons -> forEach mons (\m -> putStrLn (line m))
+    | Err e -> putStrLn f"stopped: {e}"
+-- ANCHOR_END: allOk
+
+-- ANCHOR: oks
+-- 2. Only the good ones: wait for all, and drop the Errs.
+-- 2. うまくいったものだけ：全部待って、Err は捨てる
+goodOnes = do
+  mons <- IO.oks jobs
+  putStrLn f"got {length mons}: {join ", " (map (\m -> m.ja) mons)}"
+-- ANCHOR_END: oks
+
+-- ANCHOR: settle
+-- 3. Two piles: wait for all, and see both.
+-- 3. 2つの山：全部待って、両方を見る
+twoPiles = do
+  piles <- IO.settle jobs
+  putStrLn f"ok: {length piles.oks}, failed: {length piles.errs}"
+  forEach piles.errs (\e -> putStrLn f"  {e}")
+-- ANCHOR_END: settle
+
+main = do
+  allOrNothing
+  goodOnes
+  twoPiles
+-- ANCHOR_END: all

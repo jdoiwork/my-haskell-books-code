@@ -1,0 +1,4 @@
+stopped: nosuchmon: status 404: {"status":404,"message":"Not Found"}
+got 3: ピカチュウ, イーブイ, カビゴン
+ok: 3, failed: 1
+  nosuchmon: status 404: {"status":404,"message":"Not Found"}

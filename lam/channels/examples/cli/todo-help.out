@@ -1,0 +1,11 @@
+Usage: todo.lam COMMAND [ARGS]...
+
+  Keep a small list of things to do, in todo.txt.
+
+Commands:
+  add   Add a thing to do
+  list  Show the things to do
+  done  Mark a thing as done
+
+Options:
+  --help  Show this message and exit

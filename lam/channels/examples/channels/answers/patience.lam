@@ -1,0 +1,27 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- ⏳ Step 2: receive from a channel, but wait ms at most. The value
+--    that comes late is not lost: the next receive gets it.
+--      lam patience.lam
+-- ステップ2：チャネルから受け取る。ただし、待つのは ms まで。遅れて来た
+-- 値はなくならない：次の受け取りが受け取る
+-- ANCHOR: recvWithin
+-- Nothing: no time left. Just Nothing: closed. Just (Just x): x.
+-- Nothing：時間切れ。Just Nothing：閉じた。Just (Just x)：x
+recvWithin : Int -> Chan a -> IO (Maybe (Maybe a))
+recvWithin ms c = IO.timeout ms (Chan.recv c)
+-- ANCHOR_END: recvWithin
+
+main = do
+  c <- Chan.new 0
+  _ <- spawn (do
+    sleep 300
+    Chan.send c "late letter"
+    Chan.close c)
+  first <- recvWithin 100 c
+  putStrLn f"after 0.1 s: {display first}"
+  second <- recvWithin 500 c
+  putStrLn f"after 0.5 s more: {display second}"
+  third <- recvWithin 500 c
+  putStrLn f"then: {display third}"
+-- ANCHOR_END: all

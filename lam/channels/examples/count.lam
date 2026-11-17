@@ -1,0 +1,15 @@
+-- Step 1 of the training: count the words with a Map.
+-- トレーニングのステップ1：Map で単語を数える
+
+-- Each word, and how many times it is in the list.
+-- 単語ごとに、リストに何回あるか
+let count ws = foldl (\m w -> Map.insertWith (\a b -> a + b) w 1 m) {} ws
+
+-- The pair (word, count) with the largest count.
+-- 数のいちばん大きな（単語, 数）の組
+let best m =
+  foldl (\b kv -> if snd kv > snd b then kv else b) ("", 0) (Map.toList m)
+
+let ws = ["the", "cat", "and", "the", "hat", "and", "the", "bat"]
+
+(count ws, best (count ws))

@@ -1,0 +1,14 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🛟 The same averager, under a supervisor: it starts again after a
+--    crash, on the same mailbox.
+--      lam supervise.lam
+-- 同じ平均のアクターを、監督役の下で：落ちても、同じ受け箱で始め直す
+import Average (averager, ask)
+
+main = do
+  avg <- Actor.supervise 3 averager
+  ask avg [1, 2, 3]
+  ask avg []
+  ask avg [4, 6]
+-- ANCHOR_END: all

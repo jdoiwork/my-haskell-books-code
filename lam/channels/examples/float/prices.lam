@@ -1,0 +1,30 @@
+-- 🧾 Prices from JSON, added up as Floats.
+-- JSON の値段を、Float で足す
+--   lam examples/float/prices.lam
+
+-- ANCHOR: prices
+pricesText : String
+pricesText =
+  "[{\"item\": \"tea\", \"price\": 0.1}, "
+    ++ "{\"item\": \"cake\", \"price\": 0.2}]"
+
+-- 🔢 The price of one item, as a Float (0 if it has none).
+-- 品物1つの値段を Float で（なければ 0）
+priceOf : Json -> Float
+priceOf j = Maybe.andThen Json.toFloat (Json.get "price" j) ?: 0
+-- ANCHOR_END: prices
+
+-- ANCHOR: main
+main : IO ()
+main =
+  case Json.parse pricesText of
+    | Err e -> putStrLn e
+    | Ok j -> do
+        let total = sum (map priceOf (Json.array j ?: []))
+        -- 「Float で足すと、2進数の小数のずれが見える」
+        putStrLn f"total {total}"
+        -- 「書式で丸めれば、見た目はそろう」
+        putStrLn f"total {total:.2}"
+        -- 「JSON に書き戻すと、ずれもそのまま」
+        putStrLn (Json.show (JObj {"total": Json.fromFloat total}))
+-- ANCHOR_END: main
