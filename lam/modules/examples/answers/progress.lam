@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- 📊 How far the chapters are, with Percent.fromInt.
+-- 章の進み具合を、Percent.fromInt で
+import Percent
+
+let report name n =
+  case Percent.fromInt n of
+    | Just p -> putStrLn f"{name:<8}{Percent.bar p} {Percent.toInt p}%"
+    | Nothing -> putStrLn f"{name:<8}not a percent: {n}"
+
+let main = do
+  report "strings" 100
+  report "modules" 70
+  report "oops" 120
+  case (Percent.fromInt 60, Percent.fromInt 70) of
+    | (Just a, Just b) ->
+        putStrLn f"60 + 70 = {Percent.toInt (Percent.add a b)}%"
+    | _ -> pure ()
+-- ANCHOR_END: all

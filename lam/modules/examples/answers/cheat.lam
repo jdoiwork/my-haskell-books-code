@@ -1,0 +1,7 @@
+-- ANCHOR: all
+-- 🚫 Percent 120 cannot be written: the constructor is hidden.
+-- 構成子は隠れているので、Percent 120 とは書けない
+import Percent exposing (Percent)
+
+let main = putStrLn (Percent.bar (Percent.Percent 120))
+-- ANCHOR_END: all
