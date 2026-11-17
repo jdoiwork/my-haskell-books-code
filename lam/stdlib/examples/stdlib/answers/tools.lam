@@ -1,0 +1,12 @@
+-- 🧰 Try the tools of the training.
+-- トレーニングの道具を試す
+--   lam examples/stdlib/answers/tools.lam
+import Extra (chunksOf, groupBy, wordWrap)
+
+let main = do
+  print (chunksOf 2 [1, 2, 3, 4, 5])
+  print (chunksOf 3 "abcdefg")
+  print (groupBy (take 1) ["apple", "banana", "avocado"])
+  forEach
+    (wordWrap 20 "Lam is a small language that grows a little every day")
+    (\line -> putStrLn f"|{line:<20}|")

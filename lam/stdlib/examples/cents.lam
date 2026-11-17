@@ -1,0 +1,30 @@
+-- Step 2 of the training: add up prices exactly, in cents.
+-- トレーニングのステップ2：値段を、セントでぴったり足す
+
+-- A price in cents: 19.99 is 1999. More than 2 places is not a price.
+-- 値段をセントで。19.99 は 1999。小数が3桁以上なら、値段ではない
+-- (JDec is hidden by the module Json: Json.decimal looks inside.)
+-- （JDec はモジュール Json が隠しているので、中は Json.decimal で見る）
+let cents j =
+  case (j, Json.decimal j) of
+    | (JInt n, _) -> Just (n * 100)
+    | (_, Just (c, d)) if d >= 0 && d <= 2 -> Just (c * pow 10 (2 - d))
+    | _ -> Nothing
+
+-- The sum of all the prices; Nothing if one of them is not a price.
+-- 値段を全部足す。1つでも値段でないものがあれば Nothing
+let total js =
+  foldr
+    (\j acc ->
+      case (cents j, acc) of
+        | (Just a, Just b) -> Just (a + b)
+        | _ -> Nothing)
+    (Just 0)
+    js
+
+let totalOf text =
+  case Json.parse text of
+    | Ok (JArr js) -> total js
+    | _ -> Nothing
+
+[totalOf "[0.1, 0.2]", totalOf "[19.99, 0.01, 5]", totalOf "[0.001]"]

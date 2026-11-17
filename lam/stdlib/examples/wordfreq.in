@@ -1,0 +1,6 @@
+Haskell is a purely functional programming language. In Haskell, functions
+are values, and the type checker is your pair programmer. The type of a
+function tells you what the function can do, and what it cannot do.
+Once you get used to the type system, you will find that many bugs are
+caught before the program ever runs. The ideas you learn in Haskell will
+follow you to Rust, TypeScript, Kotlin, Swift, and Python.

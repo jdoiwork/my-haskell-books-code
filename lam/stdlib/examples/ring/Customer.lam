@@ -1,0 +1,8 @@
+-- ANCHOR: all
+module Customer exposing (greeting, firstOrder)
+
+import Order
+
+let greeting who = f"dear {who}"
+let firstOrder who = Order.Order who 1
+-- ANCHOR_END: all

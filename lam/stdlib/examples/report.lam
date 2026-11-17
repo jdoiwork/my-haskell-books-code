@@ -1,0 +1,43 @@
+-- Read the orders from a file, and write the report to another file.
+-- 注文をファイルから読み、報告を別のファイルに書く
+
+-- A field of an object, turned into a Lam value (Nothing if it is not there).
+-- オブジェクトの項目を、Lam の値にする（なければ Nothing）
+let field name convert j = Maybe.andThen convert (Json.get name j)
+
+-- One order: the item and how many. Nothing if the JSON has another shape.
+-- 注文1つ：品物といくつか。JSON の形がちがえば Nothing
+let order j =
+  case (field "item" Json.string j, field "count" Json.int j) of
+    | (Just item, Just n) -> Just (item, n)
+    | _ -> Nothing
+
+-- Add up the counts of each item in a Map.
+-- 品物ごとの数を、Map に足していく
+let tally js =
+  foldl
+    (\totals j ->
+      case order j of
+        | Just (item, n) -> Map.insertWith (\a b -> a + b) item n totals
+        | Nothing -> totals)
+    {}
+    js
+
+-- The report as JSON text, or why it cannot be made.
+-- 報告の JSON の文字列。作れなければ、その理由
+let report doc =
+  case Json.array doc of
+    -- 「注文のリストではありません」
+    | Nothing -> Err "not a list of orders"
+    | Just js -> Ok (Json.show (JObj (Map.map JInt (tally js))))
+
+let main = do
+  input <- readFile "examples/orders.json"
+  case Result.andThen report (Result.andThen Json.parse input) of
+    | Err why -> putStrLn ("error: " ++ why)
+    | Ok text -> do
+        written <- writeFile "report.json" text
+        case written of
+          | Err why -> putStrLn ("error: " ++ why)
+          -- 「report.json に書きました」
+          | Ok _ -> putStrLn ("wrote report.json: " ++ text)

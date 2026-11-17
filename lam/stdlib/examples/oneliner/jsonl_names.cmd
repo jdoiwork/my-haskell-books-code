@@ -1,0 +1,1 @@
+--jsonl --path=user.name -pe 'id' examples/oneliner/events.jsonl
