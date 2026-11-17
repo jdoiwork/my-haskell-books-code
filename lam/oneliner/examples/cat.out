@@ -1,0 +1,7 @@
+[
+  {"item": "sticker", "count": 4},
+  {"item": "mug", "count": 1},
+  {"item": "sticker", "count": 2}
+]
+cat: nope.txt: no such file
+[exit 1]

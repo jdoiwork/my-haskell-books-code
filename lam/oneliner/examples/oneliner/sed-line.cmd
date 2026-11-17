@@ -1,0 +1,1 @@
+-pe 's/colour/color/g line' examples/oneliner/notes.txt

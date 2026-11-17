@@ -1,0 +1,20 @@
+-- Step 3 of the training: words, written in Lam.
+-- トレーニングのステップ3：Lam で書いた words
+
+-- Add a word to the front, unless it is empty.
+-- 空でなければ、単語を前に足す
+let addWord w ws = if w == "" then ws else w : ws
+
+-- Read the letters from the right, carrying
+-- (the word being read, the words found so far).
+-- 文字を右から読む。持ち回るのは（読みかけの単語, 見つけた単語）
+let step c acc =
+  if c == " "
+    then ("", addWord (fst acc) (snd acc))
+    else (c ++ fst acc, snd acc)
+
+let words s =
+  let found = foldr step ("", []) (chars s)
+  in addWord (fst found) (snd found)
+
+words "  hello  lam  "

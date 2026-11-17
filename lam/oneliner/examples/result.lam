@@ -1,0 +1,24 @@
+-- Step 2 of the training: map and andThen for Result.
+-- トレーニングのステップ2：Result の map と andThen
+
+-- Change the value inside Ok. An Err stays as it is.
+-- Ok の中の値を変える。Err はそのまま
+let mapResult f r =
+  case r of
+    | Ok a -> Ok (f a)
+    | Err e -> Err e
+
+-- Go on with the value inside Ok, to a step that may fail too.
+-- Ok の中の値で、失敗するかもしれない次の計算に進む
+let andThen f r =
+  case r of
+    | Ok a -> f a
+    | Err e -> Err e
+
+let safeDiv a b = if b == 0 then Err "divided by zero" else Ok (a / b)
+let half n = if even n then Ok (n / 2) else Err (showInt n ++ " is odd")
+
+[ mapResult (\x -> x + 1) (safeDiv 10 2)
+  , andThen half (safeDiv 10 0)
+  , andThen half (safeDiv 30 2)
+  , andThen half (safeDiv 40 2) ]

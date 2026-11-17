@@ -1,0 +1,2 @@
+-e: type error: -p needs a String for each line, but this gives IO () (for an IO, use -n)
+[exit 1]
