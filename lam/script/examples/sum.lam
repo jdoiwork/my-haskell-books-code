@@ -1,0 +1,19 @@
+-- ➕ Add up the numbers in the arguments.
+--      lam sum.lam 1 2 3        gives 6
+--    Something that is not a number: exit code 2.
+-- 引数の数を足す。数でないものがあれば、終了コード 2 で終わる
+
+-- 🔢 A number, or Nothing.
+-- 数か、Nothing
+let readInt text =
+  case Parser.run Parser.int text of
+    | Ok n -> Just n
+    | Err _ -> Nothing
+
+let main args =
+  case find (\a -> readInt a == Nothing) args of
+    | Just bad -> do
+        ePutStrLn f"sum: not a number: {bad}"
+        exit 2
+    | Nothing ->
+        putStrLn (showInt (sum (map (\a -> fromMaybe 0 (readInt a)) args)))

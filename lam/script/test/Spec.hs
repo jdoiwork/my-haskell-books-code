@@ -290,7 +290,7 @@ main = hspec $ do
       [ "fib", "church", "broken", "answers", "strings", "words", "shapes"
       , "result", "tree", "orders", "count", "cents", "hello", "report"
       , "receipt", "shoplog", "pair", "csv", "calc", "menu"
-      , "wordfreq", "greet", "average" ]
+      , "wordfreq", "greet", "average", "echo", "shout", "sum", "wc" ]
   -- ANCHOR_END: examples
 
   -- 「data と case」
