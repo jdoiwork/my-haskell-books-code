@@ -1,0 +1,43 @@
+-- 👥 Count the commits of each person, with git log. Run it in a
+--    git repository.
+-- git log で、人ごとのコミットを数える。git のリポジトリーで動かす
+--   lam --allow-run=git authors.lam
+
+-- ANCHOR: author
+-- 🧑 One person, and how many commits they made.
+-- 1人と、その人のコミットの数
+type alias Author = { name : String, commits : Int }
+-- ANCHOR_END: author
+
+-- ANCHOR: ranking
+-- 🏆 The names, counted, with the most first (the same count: by name).
+-- 名前を数え、多い順に（同じ数なら名前の順）
+ranking : [String] -> [Author]
+ranking names =
+  names
+    |> foldl add Map.empty
+    |> Map.toList
+    |> map toAuthor
+    |> sortOn (\a -> (0 - a.commits, a.name))
+  where
+    add counts n = Map.insertWith (\a b -> a + b) n 1 counts
+    toAuthor p = case p of | (name, n) -> { name = name, commits = n }
+-- ANCHOR_END: ranking
+
+-- ANCHOR: main
+main : IO ()
+main = do
+  -- One line for each commit: the name of its author.
+  -- コミットごとに1行：書いた人の名前
+  outcome <- Process.run "git" ["log", "--format=%an"]
+  case outcome of
+    | Succeeded { stdout } ->
+        forEach (ranking (lines stdout)) (\a ->
+          putStrLn f"{a.commits:>4}  {a.name}")
+    | Failed { code, stderr } -> do
+        ePutStr f"git log ended with {code}: {stderr}"
+        exit 1
+    | CannotStart why -> do
+        ePutStrLn why
+        exit 1
+-- ANCHOR_END: main

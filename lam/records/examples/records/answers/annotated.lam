@@ -1,0 +1,26 @@
+-- ✍️ Step 1: the most general annotations.
+-- ステップ1：いちばん広い型の注釈
+--   lam examples/records/answers/annotated.lam
+
+-- ANCHOR: annotated
+-- Is x between lo and hi (both ends in)?
+-- x は lo と hi のあいだか（両端を含む）
+between : Comparable a => a -> a -> a -> Bool
+between lo hi x = lo <= x && x <= hi
+
+-- The older of two: any records with an age that can be compared.
+-- 年上のほう：比べられる age を持つレコードなら何でも
+older : Comparable a => { r | age : a } -> { r | age : a } -> { r | age : a }
+older a b = if a.age >= b.age then a else b
+
+-- The same record with a new name (of the same type as the old one).
+-- 名前だけ新しくした、同じレコード（新しい名前は、古いものと同じ型）
+rename : a -> { r | name : a } -> { r | name : a }
+rename n r = { r | name = n }
+-- ANCHOR_END: annotated
+
+main : IO ()
+main = do
+  putStrLn (show (between 1 10 7, between "a" "m" "z"))
+  putStrLn (show (older { name = "Lam", age = 3 } { name = "Elm", age = 14 }))
+  putStrLn (show (rename "Lam 2" { name = "Lam", age = 3 }))

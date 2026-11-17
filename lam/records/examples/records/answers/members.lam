@@ -1,0 +1,30 @@
+-- 📥 Step 4: JSON Lines from the keyboard, read into records.
+-- ステップ4：キーボードから JSON Lines を読み、レコードにする
+--   lam examples/records/answers/members.lam < examples/records/answers/members.in
+
+-- ANCHOR: toMember
+type alias Member = { name : String, lang : String, days : Int }
+
+-- A field of an object, read by one of Json.string, Json.int, ...
+-- オブジェクトのフィールドを、Json.string や Json.int などで読む
+fieldOf : (Json -> Maybe a) -> String -> Json -> Maybe a
+fieldOf read key j = Maybe.andThen read (Json.get key j)
+
+toMember : Json -> Maybe Member
+toMember j = Maybe.do
+  name <- fieldOf Json.string "name" j
+  lang <- fieldOf Json.string "lang" j
+  days <- fieldOf Json.int "days" j
+  Just { name = name, lang = lang, days = days }
+-- ANCHOR_END: toMember
+
+-- ANCHOR: main
+main : IO ()
+main = do
+  text <- getContents
+  forEach (lines text) (\l ->
+    case Result.map toMember (Json.parse l) of
+      | Ok (Just m) -> putStrLn f"{m.name} ({m.lang}), day {m.days}"
+      | Ok Nothing -> ePutStrLn f"not a member: {l}"
+      | Err e -> ePutStrLn e)
+-- ANCHOR_END: main

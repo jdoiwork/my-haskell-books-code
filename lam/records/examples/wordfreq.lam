@@ -1,0 +1,65 @@
+#!/usr/bin/env lam
+-- 🚀 wordfreq in Lam: show the 10 most frequent words of a text.
+--      lam wordfreq.lam sample.txt     (a file)
+--      lam wordfreq.lam < sample.txt   (the standard input)
+-- Lam で書いた wordfreq：文字列の中で、よく出てくる単語のトップ10を表示する
+
+-- ANCHOR: split
+-- ✂️ Split text into lowercase words. Anything that is not a letter
+--    separates words: "Hello, world!" gives ["hello", "world"].
+-- 文字列を、小文字の単語に分ける。文字でないものは、単語の区切り
+let splitIntoWords text =
+  text
+    |> toLower
+    |> Regex.findAll re"\p{L}+"
+    |> map Match.text
+-- ANCHOR_END: split
+
+-- ANCHOR: count
+-- 🔢 Count how many times each word appears: {"a": 2, "b": 1}
+-- 単語ごとの出現回数を数える
+let countWords ws =
+  foldl (\counts w -> Map.insertWith (\new old -> new + old) w 1 counts)
+        Map.empty
+        ws
+
+-- 🏆 Take the n most frequent words. sortOn keeps the order of the
+--    words with the same count (the order of the Map: a to z).
+-- 出現回数の多い順に n 個取り出す。
+-- 同じ回数の単語は、Map の順（a から z）のまま
+let topN n counts =
+  Map.toList counts
+    |> sortOn (\pair -> 0 - snd pair)
+    |> take n
+-- ANCHOR_END: count
+
+-- ANCHOR: print
+-- 🖨️ A word (padded to 12 letters) and its count: "the         6"
+-- 単語（12文字の幅に左寄せ）と出現回数
+let printEntry pair = putStrLn f"{fst pair:<12}{snd pair}"
+-- ANCHOR_END: print
+
+-- ANCHOR: input
+-- 📥 The text: the file in the arguments, or the standard input.
+-- 文字列：引数のファイルか、標準入力
+let readInput args =
+  case args of
+    | [] -> getContents |> IO.andThen (\text -> pure (Ok text))
+    | [file] -> readFile file
+    | _ -> pure (Err "give one file, or none to read the standard input")
+-- ANCHOR_END: input
+
+-- ANCHOR: main
+-- 🚪 The arguments come to main (see the chapter).
+-- 引数は main に来る（本文を参照）
+let main args = do
+  input <- readInput args
+  case input of
+    | Err message -> do
+        -- 「wordfreq：（わけ）」を標準エラーに出し、終了コード 1 で終わる
+        ePutStrLn f"wordfreq: {message}"
+        exit 1
+    | Ok text -> do
+        let ranking = text |> splitIntoWords |> countWords |> topN 10
+        forEach ranking printEntry
+-- ANCHOR_END: main

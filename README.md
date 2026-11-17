@@ -179,6 +179,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | ワンライナーで動かす：Perl のように | [`lam/oneliner/`](lam/oneliner/)、[`lam/guard/`](lam/guard/)、[`langs/interp-oneliner/`](langs/interp-oneliner/) |
 | 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/oneliner/`](lam/oneliner/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |
 | ファイルとコマンドと時計：スクリプトの道具 | [`lam/files/`](lam/files/)、[`lam/stdlib/`](lam/stdlib/)、[`langs/interp-files/`](langs/interp-files/) |
+| 型を書く：型の注釈とレコード | [`lam/files/`](lam/files/)、[`lam/records/`](lam/records/)、[`langs/interp-records/`](langs/interp-records/) |
 | 第8部のふりかえり | [`lam/polish/`](lam/polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第9部 総合演習3：Python の機械学習ライブラリを Haskell で作る

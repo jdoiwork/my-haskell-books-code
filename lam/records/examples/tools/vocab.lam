@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- 📖 vocab: how many different words a text has, and how many of them
+--    come only once.  LAM_PATH=../wordfreq lam vocab.lam < sample.txt
+-- vocab：文字列に、ちがう単語がいくつあり、1回しか出ないものがいくつか
+
+-- ANCHOR: import
+-- Words.lam is not next to this file: LAM_PATH tells where it is.
+-- splitIntoWords and countWords can be used without Words. in front.
+-- Words.lam は、このファイルの隣にはない。場所は LAM_PATH で教える。
+-- splitIntoWords と countWords は、Words. を付けずに使える
+import Words (splitIntoWords, countWords)
+-- ANCHOR_END: import
+
+let main = do
+  text <- getContents
+  let counts = text |> splitIntoWords |> countWords
+  let once = Map.values counts |> filter (\n -> n == 1) |> length
+  putStrLn f"{Map.size counts} different words, {once} only once"
+-- ANCHOR_END: all

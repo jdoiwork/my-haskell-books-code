@@ -1,0 +1,36 @@
+-- 🧹 Clean up the sign-up sheet of the quiz, read from the keyboard:
+--    trim the spaces, cut at ",", skip the comments and the empty lines.
+-- クイズ大会の申しこみ表を、キーボードから読んで、きれいにする：
+-- 空白を落とし、「,」で切る。コメントと空の行は飛ばす
+--   lam examples/stdlib/signup.lam < examples/stdlib/signup.in
+
+-- ANCHOR: cells
+-- ✂️ One row of the sheet:  " TS , ts@lam.test,TypeScript"  gives
+--    ["TS", "ts@lam.test", "TypeScript"].
+-- 表の1行を、切って、それぞれのまわりの空白を落とす
+let cells line = line |> String.split "," |> map String.trim
+
+-- 🙈 A comment (# ...) or an empty line is not a row.
+-- コメント（# ...）と空の行は、行ではない
+let isRow line =
+  let text = String.trim line in
+  not (String.isEmpty text || String.startsWith "#" text)
+-- ANCHOR_END: cells
+
+-- ANCHOR: mail
+-- 📮 "ruby-at-lam.test" is written to hide the @: put it back.
+-- 「@」を隠して書いた「-at-」を、@ に戻す
+let fixMail mail = String.replace "-at-" "@" mail
+-- ANCHOR_END: mail
+
+-- ANCHOR: main
+let main = do
+  text <- getContents
+  let rows = text |> lines |> filter isRow |> map cells
+  forEach rows (\row ->
+    case row of
+      | [name, mail, language] ->
+          putStrLn f"{name:<8}{fixMail mail:<18}{language}"
+      -- 「壊れた行」と、標準エラーに出す
+      | _ -> ePutStrLn f"a broken row: {join " | " row}")
+-- ANCHOR_END: main

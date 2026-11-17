@@ -1,0 +1,1 @@
+examples/records/answers/describe-broken.lam:5:1: in the definition of describe: type error: the annotation of describe must say Showable a (the definition needs it)

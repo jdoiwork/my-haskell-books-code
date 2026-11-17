@@ -1,0 +1,10 @@
+-- 🐛 Step 2: an annotation without the class (the question).
+-- ステップ2：クラスのない注釈（問題）
+
+-- ANCHOR: broken
+describe : a -> String
+describe x = f"<{x}>"
+-- ANCHOR_END: broken
+
+main : IO ()
+main = putStrLn (describe [1, 2, 3])
