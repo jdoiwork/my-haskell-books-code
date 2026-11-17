@@ -1,0 +1,30 @@
+-- ANCHOR: all
+type alias Count =
+  { -- The files to count
+    files : [String]
+    -- Count the lines only
+  , lines : Bool
+    -- Count the words only
+  , words : Bool
+  , alias l = lines
+  , alias w = words
+  }
+
+-- 🔢 The numbers to show for one text, as the flags ask.
+-- 1つの文字に見せる数。フラグの言うとおりに
+counts : Count -> String -> [Int]
+counts opts text =
+  if opts.lines then [length (lines text)]
+  else if opts.words then [length (words text)]
+  else [length (lines text), length (words text)]
+
+-- Count the lines and the words of files, like wc.
+main : Count -> IO ()
+main opts = forEach opts.files (\file -> do
+  found <- readFile file
+  case found of
+    | Ok text -> do
+        let shown = join " " (map show (counts opts text))
+        putStrLn f"{shown} {file}"
+    | Err why -> ePutStrLn why)
+-- ANCHOR_END: all

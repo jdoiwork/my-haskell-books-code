@@ -1,0 +1,94 @@
+#!/usr/bin/env lam
+-- 📜 Made with lam --print-script: the same as this one-liner:
+-- --print-script で作った、このワンライナーと同じ動きのスクリプト：
+--   lam --json --path=orders -p -e 'Json.get "user" json |> fromMaybe JNull'
+-- Run it:  lam this.lam [files...]   (no files: the standard input)
+-- 動かし方：lam このファイル.lam [ファイル…]（なければ標準入力）
+
+-- 🔁 The program of -e, for one json.
+-- -e のプログラム。json を1つ受け取る
+let step json =
+  Json.get "user" json |> fromMaybe JNull
+
+-- 🧭 Walk down by keys (a number is the place in an array).
+-- キーをたどって下りる（数なら配列の何番目か）
+let index k xs =
+  case toInt k of
+    | Just i ->
+        if i < 0 || showInt i /= k then Nothing
+        else (case drop i xs of
+                | x : _ -> Just x
+                | [] -> Nothing)
+    | Nothing -> Nothing
+
+let pick keys j =
+  case keys of
+    | [] -> Ok j
+    | k : rest ->
+        let found =
+          case j of
+            | JObj m -> Map.lookup k m
+            | JArr xs -> index k xs
+            | _ -> Nothing
+        in
+        case found of
+          | Just x -> pick rest x
+          | Nothing -> Err k
+
+-- 🧩 The JSON in a text, at --path=orders. An array gives its items.
+-- 文字列の中の JSON。配列なら、要素の1つずつ
+let piecesOf place text =
+  case Json.parse text of
+    | Err e -> Err f"{place}: not JSON: {e}"
+    | Ok j ->
+        pick ["orders"] j
+          |> Result.mapError (\k -> f"{place}: --path=orders: no {k}")
+          |> Result.map (\v -> (case v of | JArr xs -> xs | _ -> [v]))
+
+-- 👣 One piece: give the acc for the next one.
+-- 1つ分をやって、次の1つ分のための acc を返す
+let visit acc piece = do
+  putStrLn (Json.show (step piece))
+  pure acc
+
+let visitAll acc pieces =
+  case pieces of
+    | [] -> pure acc
+    | piece : rest -> do
+        next <- visit acc piece
+        visitAll next rest
+
+-- 🛑 Stop with a message, and the exit code 1.
+-- わけを言って、終了コード 1 で止まる
+let stop message = do
+  ePutStrLn f"error: {message}"
+  exit 1
+
+let orStop result =
+  case result of
+    | Ok x -> pure x
+    | Err message -> stop message
+
+-- 📥 The standard input, all at once.
+-- 標準入力を、まとめて
+let fromStdin acc = do
+  text <- getContents
+  pieces <- orStop (piecesOf "<stdin>" text)
+  visitAll acc pieces
+
+-- 📂 The files, one after another.
+-- ファイルを、順に
+let fromFiles acc files =
+  case files of
+    | [] -> pure acc
+    | file : rest -> do
+        read <- readFile file
+        text <- orStop read
+        pieces <- orStop (piecesOf file text)
+        acc2 <- visitAll acc pieces
+        fromFiles acc2 rest
+
+-- 🚪 The files, or the standard input when there are none.
+-- ファイル、なければ標準入力
+let main files =
+  if null files then fromStdin () else fromFiles () files

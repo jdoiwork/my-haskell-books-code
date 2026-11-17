@@ -1,0 +1,22 @@
+-- ANCHOR: all
+type alias Bill =
+  { -- The total of the bill
+    total : Float
+    -- How many people pay
+  , people : Int = 2
+    -- The tip (0.1 is 10%)
+  , tip : Float = 0.1
+    -- Who paid it (to pay back)
+  , payer : Maybe String
+  , alias p = people
+  }
+
+-- Split a bill among some people, with a tip.
+main : Bill -> IO ()
+main bill = do
+  let each = bill.total * (1 + bill.tip) / toFloat bill.people
+  putStrLn f"each pays {each:.2}"
+  case bill.payer of
+    | Just name -> putStrLn f"pay it back to {name}"
+    | Nothing -> pure ()
+-- ANCHOR_END: all

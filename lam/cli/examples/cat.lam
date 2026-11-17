@@ -1,0 +1,37 @@
+#!/usr/bin/env lam
+-- Step 1 of the training: cat in Lam.
+--   lam cat.lam a.txt b.txt   shows the files, one after another.
+--   lam cat.lam               shows the standard input.
+--   A file that cannot be read is told on the standard error, the
+--   rest are still shown, and the exit code is 1 at the end.
+-- トレーニングのステップ1：Lam で書いた cat。読めないファイルは
+-- 標準エラーに書き、残りは見せ、最後に終了コード 1 で終わる
+
+-- 📄 Show one file. The answer: did it go well?
+-- ファイルを1つ見せる。答えは、うまくいったか
+let showFile file = do
+  result <- readFile file
+  case result of
+    | Ok text -> do
+        putStr text
+        pure true
+    | Err message -> do
+        ePutStrLn f"cat: {message}"
+        pure false
+
+-- 📚 Show every file, and tell whether all went well.
+-- 全部のファイルを見せ、全部うまくいったかを答える
+let showAll files =
+  case files of
+    | [] -> pure true
+    | file : rest -> do
+        ok <- showFile file
+        okRest <- showAll rest
+        pure (ok && okRest)
+
+let main args =
+  case args of
+    | [] -> getContents |> IO.andThen putStr
+    | _ -> do
+        ok <- showAll args
+        if ok then pure () else exit 1

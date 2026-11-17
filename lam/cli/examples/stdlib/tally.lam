@@ -1,0 +1,48 @@
+-- 🗳️ The votes for "the language I want to try next", for two days,
+--    read from the keyboard. A line is a vote, "-Rust" takes one
+--    back, and a line "--" starts the next day.
+-- 「次に試したい言語」の投票を、2日ぶん、キーボードから読む。1行が
+-- 1票。「-Rust」は1票取り消す。「--」の行から次の日
+--   lam examples/stdlib/tally.lam < examples/stdlib/tally.in
+
+-- ANCHOR: vote
+-- 🗳️ Add one vote, or take one back. Map.update gives f the count
+--    (Nothing when there is none yet); f giving Nothing deletes it.
+-- 1票足すか、取り消す。Map.update は f に今の数（まだなければ
+-- Nothing）を渡す。f が Nothing を返せば消す
+let vote counts line =
+  if String.startsWith "-" line then
+    Map.update (drop 1 line)
+      (\n -> case n of
+         | Just k -> if k > 1 then Just (k - 1) else Nothing
+         | Nothing -> Nothing)
+      counts
+  else
+    Map.update line (\n -> Just (fromMaybe 0 n + 1)) counts
+-- ANCHOR_END: vote
+
+let tally day = foldl vote Map.empty (String.cleanLines day)
+
+-- ANCHOR: show
+-- 🖨️ "Haskell 3, Lam 3": Map.foldWithKey goes through the keys in
+--    order, with each value.
+-- キーの順に、値と一緒にたどる
+let showCounts counts =
+  Map.foldWithKey (\k n acc -> f"{k} {n}" : acc) [] counts |> join ", "
+-- ANCHOR_END: show
+
+-- ANCHOR: main
+let main = do
+  text <- getContents
+  let days = text |> String.split "\n--\n" |> map tally
+  forEach (indexed days) (\d ->
+    case d of
+      | (i, counts) -> putStrLn f"day {i + 1}: {showCounts counts}")
+  -- Add the days up: a language on both days gets the sum.
+  -- 日ごとの数を足し合わせる。両方の日にある言語は、数を足す
+  let total = foldl (Map.unionWith (\a b -> a + b)) Map.empty days
+  putStrLn f"both days: {showCounts total}"
+  -- Only those with 2 votes or more.
+  -- 2票以上のものだけ
+  putStrLn f"popular: {showCounts (Map.filter (\n -> n >= 2) total)}"
+-- ANCHOR_END: main

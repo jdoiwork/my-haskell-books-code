@@ -1,0 +1,11 @@
+Usage: greet-doc.lam [OPTIONS] NAME COUNT
+
+  Greet someone, as many times as you like.
+
+Arguments:
+  NAME   Who to greet  [required]
+  COUNT  How many times  [required]
+
+Options:
+  --loud  Shout it
+  --help  Show this message and exit

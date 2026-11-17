@@ -1,0 +1,11 @@
+Usage: answer-count.lam [OPTIONS] FILES...
+
+  Count the lines and the words of files, like wc.
+
+Arguments:
+  FILES...  The files to count
+
+Options:
+  -l, --lines  Count the lines only
+  -w, --words  Count the words only
+  --help       Show this message and exit

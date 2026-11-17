@@ -1,0 +1,7 @@
+-- 🐛 The same mistake, with an annotation: the error comes out at the
+--    ++ itself.
+-- 同じまちがいに、注釈を付けた。エラーは ++ そのものに出る
+add : Int -> Int -> Int
+add x y = x ++ y
+
+main = putStrLn (show (add 1 2))

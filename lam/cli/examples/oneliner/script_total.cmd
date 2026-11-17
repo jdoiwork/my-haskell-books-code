@@ -1,0 +1,1 @@
+--print-script -an --begin 0 -e 'acc + toIntOr 0 (field 2)' --end print
