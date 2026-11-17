@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultiWayIf #-}
 -- ANCHOR: all
 -- | Turn an AST back into Lam source code, with as few
 --   parentheses as possible.
@@ -227,25 +228,27 @@ showFloat x
       let (ds, n) = floatToDigits 10 x
           digits  = T.pack (concatMap show ds)
           k       = length ds
-      in if k <= n && n <= 21
+          -- for 1.25e-7 and 1e+21: the digits after the first, and
+          -- the power of 10 after the e
+          -- 1.25e-7 や 1e+21 のため：2けた目からの数字と、e のあとの
+          -- 10 の何乗か
+          rest    = if k == 1 then "" else "." <> T.drop 1 digits
+          e       = n - 1
+          sign    = if e < 0 then "-" else "+"
+      in if
            -- 1200: the digits, then zeros
            -- 数字のあとに 0 を並べる
-           then digits <> T.replicate (n - k) "0"
-         else if 0 < n && n <= 21
+           | k <= n && n <= 21 -> digits <> T.replicate (n - k) "0"
            -- 12.5: the point inside the digits
            -- 数字の途中に小数点
-           then T.take n digits <> "." <> T.drop n digits
-         else if -6 < n && n <= 0
+           | 0 < n && n <= 21  -> T.take n digits <> "." <> T.drop n digits
            -- 0.0125: "0." and zeros before the digits
            -- 「0.」と 0 のあとに数字
-           then "0." <> T.replicate (negate n) "0" <> digits
-         else
+           | -6 < n && n <= 0  -> "0." <> T.replicate (negate n) "0" <> digits
            -- 1.25e-7, 1e+21: one digit before the point
            -- 小数点の前に1けた
-           let e    = n - 1
-               rest = if k == 1 then "" else "." <> T.drop 1 digits
-               sign = if e < 0 then "-" else "+"
-           in T.take 1 digits <> rest <> "e" <> sign <> T.pack (show (abs e))
+           | otherwise         ->
+               T.take 1 digits <> rest <> "e" <> sign <> T.pack (show (abs e))
 -- ANCHOR_END: showFloat
 
 -- ANCHOR: floatLiteral
