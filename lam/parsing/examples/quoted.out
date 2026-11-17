@@ -1,0 +1,8 @@
+"plain"          -> s="plain"
+"say \"hi\""     -> s="say \"hi\""
+"a\tb\\c"        -> s="a\tb\\c"
+1:8:
+  |
+1 | "bad \q"
+  |        ^
+there is no escape \q

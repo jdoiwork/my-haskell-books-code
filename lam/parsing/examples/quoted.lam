@@ -1,0 +1,35 @@
+-- Step 2 of the training: read a string in quotes, with escapes:
+-- \" is a quote, \\ is a backslash, \n is a new line, \t is a tab.
+-- Any other letter after \ is an error.
+-- トレーニングのステップ2：エスケープのある、引用符の中の文字列を読む。
+-- \" は引用符、\\ は \、\n は改行、\t はタブ。\ のあとが、ほかの文字なら
+-- エラー
+
+-- \ and one letter. The letter decides what to give, or to fail.
+-- \ と1文字。その文字で、何を返すか（失敗するか）を決める
+let escaped = Parser.do
+  _ <- Parser.string "\\"
+  c <- Parser.satisfy (\_ -> true)
+  if c == "\"" || c == "\\" then Parser.pure c
+  else if c == "n" then Parser.pure "\n"
+  else if c == "t" then Parser.pure "\t"
+  else Parser.fail f"there is no escape \\{c}"
+
+let stringLiteral = Parser.do
+  _ <- Parser.string "\""
+  parts <- Parser.many (Parser.oneOf
+    [ escaped
+    , Parser.satisfy (\c -> c /= "\"" && c /= "\\") ])
+  _ <- Parser.label "a closing quote" (Parser.string "\"")
+  Parser.pure (join "" parts)
+
+let main =
+  forEach
+    [ "\"plain\""
+    , "\"say \\\"hi\\\"\""
+    , "\"a\\tb\\\\c\""
+    , "\"bad \\q\"" ]
+    (\text ->
+       case Parser.run stringLiteral text of
+         | Ok s -> putStrLn f"{text:<16} -> {s=}"
+         | Err e -> putStrLn e)

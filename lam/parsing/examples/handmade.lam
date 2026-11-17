@@ -1,0 +1,68 @@
+-- Step 4 of the training: parsers made of Lam functions, without the
+-- builtin Parser. A parser takes the letters, and gives Nothing, or
+-- what it read and the letters that are left.
+-- トレーニングのステップ4：組み込みの Parser を使わず、Lam の関数で
+-- パーサーを作る。パーサーは文字のリストを受け取り、Nothing か、
+-- 読んだものと残りの文字を返す
+--   P a  is  [String] -> Maybe (a, [String])
+
+-- ANCHOR: basics
+-- Give x, and read nothing.
+-- 何も読まずに x を返す
+let P.pure x = \cs -> Just (x, cs)
+
+-- Read with p, then with the parser that f makes from what p gave.
+-- Function first, like Parser.andThen, so that P.do works, too.
+-- p で読み、p がくれた値から f が作ったパーサーで、続きを読む。
+-- Parser.andThen と同じく関数が先なので、P.do も使える
+let P.andThen f p = \cs ->
+  case p cs of
+    | Nothing -> Nothing
+    | Just (x, rest) -> f x rest
+
+-- One letter that the test says yes to.
+-- テストが true と言う1文字
+let P.satisfy test = \cs ->
+  case cs of
+    | c : rest if test c -> Just (c, rest)
+    | _ -> Nothing
+
+-- p, or else q (from the same place).
+-- p。だめなら、同じ場所から q
+let P.or p q = \cs ->
+  case p cs of
+    | Nothing -> q cs
+    | found -> found
+-- ANCHOR_END: basics
+
+-- ANCHOR: more
+-- p as many times as it fits.
+-- 合うかぎり、何度でも p
+let P.many p = P.or
+  (P.do
+     x <- p
+     xs <- P.many p
+     P.pure (x : xs))
+  (P.pure [])
+
+-- Read the whole string.
+-- 文字列の全体を読む
+let P.run p s =
+  case p (chars s) of
+    | Just (x, []) -> Just x
+    | _ -> Nothing
+-- ANCHOR_END: more
+
+-- ANCHOR: use
+let digit = P.satisfy (\c -> c >= "0" && c <= "9")
+
+-- 12-345: two groups of digits, and a - between them.
+-- 2つの数字の並びと、その間の -
+let code = P.do
+  a <- P.many digit
+  _ <- P.satisfy (\c -> c == "-")
+  b <- P.many digit
+  P.pure (join "" a, join "" b)
+
+(P.run code "12-345", P.run code "12+345")
+-- ANCHOR_END: use
