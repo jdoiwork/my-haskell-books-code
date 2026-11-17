@@ -1687,20 +1687,23 @@ main = hspec $ do
     -- 「次の日に動かすと、表が育ち、変わったところを知らせる」
     it "keeps the days, and tells what changed on the next run" $ do
       dbs  <- memoryDatabases
-      next <- Utf8.readFile "examples/outside/web/jma-next.json"
+      next <- Utf8.readFile "examples/outside/web/tokyo-next.json"
       _ <- runExampleWith dbs id "examples/outside/weather"
       (out, _) <- runExampleWith dbs
         (\w -> w { worldWeb = Map.map (const (200, next)) (worldWeb w) })
         "examples/outside/weather"
       T.lines out `shouldContain`
-        [ "2026-11-21  rain  20%  max  15  min   6  max 14 -> 15" ]
+        [ "2026-11-20  rain  30%  max  15.3  min   7.1  rain 4 -> 30"
+        , "2026-11-21  rain   2%  max  14.6  min   4.5  max 13.1 -> 14.6" ]
       T.lines out `shouldContain`
-        [ "2026-11-25  rain  30%  max  17  min   6  new" ]
-      -- 11-19 has no max in the next forecast: the old 19 is kept.
-      -- 次の予報には 11-19 の最高がない：前の 19 を残す
+        [ "2026-11-24  rain   1%  max  12.4  min     3  new" ]
+      -- 11-18 has no max (null) in the next forecast: the old 20.4 is
+      -- kept, and it is not a change.
+      -- 次の予報には 11-18 の最高がない（null）：前の 20.4 を残し、
+      -- 変化とは言わない
       T.lines out `shouldContain`
-        [ "2026-11-19  rain    -  max   -  min   -" ]
-      last (T.lines out) `shouldBe` "kept 8 days, the hottest 19"
+        [ "2026-11-18  rain 100%  max  20.4  min   9.5" ]
+      last (T.lines out) `shouldBe` "kept 8 days, the hottest 20.4"
     -- ANCHOR_END: weatherTwice
 
     -- ANCHOR: dexTwice

@@ -1,45 +1,30 @@
 #!/usr/bin/env lam
 -- ANCHOR: all
--- 🌦️ Tokyo's weekly forecast from the Japan Meteorological Agency,
---    kept in SQLite. Run it every day: the table grows, and a day that
---    is forecast again shows what changed.
---      lam weather.lam
--- 気象庁の、東京の週間天気予報を SQLite に貯める。毎日動かすと表が育ち、
+-- 🌦️ The forecast for the week from Open-Meteo, kept in SQLite. Run it
+--    every day: the table grows, and a day that is forecast again shows
+--    what changed.
+--      lam weather.lam                (Tokyo)
+--      lam weather.lam 34.69 135.50   (latitude and longitude: Osaka)
+-- Open-Meteo の1週間の予報を SQLite に貯める。毎日動かすと表が育ち、
 -- 予報が変わった日は、何が変わったかを見せる
+--   Weather data by Open-Meteo.com (https://open-meteo.com/), CC BY 4.0
 
 -- ANCHOR: settings
--- The JSON that the forecast page of the JMA reads (Tokyo is 130000).
--- 気象庁の天気予報のページが読む JSON（東京都は 130000）
-let url = "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json"
+-- 🔗 The URL of the forecast: the place, and the three numbers we want.
+-- 予報の URL：場所と、ほしい3つの数
+let urlFor lat lon =
+  "https://api.open-meteo.com/v1/forecast"
+    ++ f"?latitude={lat}&longitude={lon}"
+    ++ "&daily=temperature_2m_max,temperature_2m_min,"
+    ++ "precipitation_probability_max&timezone=auto"
 let dbFile = "weather.db"
 -- ANCHOR_END: settings
 
 -- ANCHOR: read
--- 🔢 The n-th of a list (0 is the first).
--- リストの n 番目（0 が先頭）
-let nth n xs = case drop n xs of | x : _ -> Just x | [] -> Nothing
-
--- 📅 "2026-11-18T00:00:00+09:00" -> "2026-11-18"
-let dayOf time = join "" (take 10 (chars time))
-
--- 🔢 "19" -> JInt 19. The JMA writes "" for a number it does not give.
--- 気象庁は、出さない数を "" と書く
-let number text =
-  case Parser.run Parser.int text of
-    | Ok n -> JInt n
-    | Err _ -> JNull
-
 -- 📋 A JSON array of strings, as a list of strings.
 -- 文字列の JSON の配列を、文字列のリストに
 let texts j =
   Maybe.map (map (\x -> fromMaybe "" (Json.string x))) (Json.array j)
-
--- 🗺️ The first area of a time series, and a list in it.
--- 時系列の最初の地域と、その中のリスト
-let firstArea series =
-  Maybe.andThen (nth 0) (Maybe.andThen Json.array (Json.get "areas" series))
-let listIn name series =
-  Maybe.andThen texts (Maybe.andThen (Json.get name) (firstArea series))
 
 -- 🤐 Four lists, as one list of fours.
 -- 4つのリストを、4つ組のリストに
@@ -49,25 +34,23 @@ let zip4 ws xs ys zs =
         (w, x, y, z) : zip4 ws2 xs2 ys2 zs2
     | _ -> []
 
--- 📦 The days of the weekly forecast: (day, rain %, max, min).
+-- 📦 The days of the forecast: (day, rain %, max, min). The numbers
+--    stay Json (JInt, JDec, or JNull), to go into SQLite as they are.
 --    Nothing if the JSON has another shape.
--- 週間予報の日々：（日、降水確率、最高、最低）。形がちがえば Nothing
+-- 予報の日々：（日、降水確率、最高、最低）。数は Json のまま
+-- （JInt・JDec・JNull）で、そのまま SQLite に入れる。形がちがえば Nothing
 let weekOf doc = Maybe.do
-  parts <- Json.array doc
-  week <- nth 1 parts
-  series <- Maybe.andThen Json.array (Json.get "timeSeries" week)
-  sky <- nth 0 series
-  temps <- nth 1 series
-  times <- Maybe.andThen texts (Json.get "timeDefines" sky)
-  pops <- listIn "pops" sky
-  maxs <- listIn "tempsMax" temps
-  mins <- listIn "tempsMin" temps
-  Just (zip4 (map dayOf times) (map number pops)
-             (map number maxs) (map number mins))
+  daily <- Json.get "daily" doc
+  days <- Maybe.andThen texts (Json.get "time" daily)
+  pops <- Maybe.andThen Json.array
+            (Json.get "precipitation_probability_max" daily)
+  maxs <- Maybe.andThen Json.array (Json.get "temperature_2m_max" daily)
+  mins <- Maybe.andThen Json.array (Json.get "temperature_2m_min" daily)
+  Just (zip4 days pops maxs mins)
 -- ANCHOR_END: read
 
 -- ANCHOR: save
--- 📝 What changed since the last run: "new", "max 14 -> 15", or "".
+-- 📝 What changed since the last run: "new", "max 14.2 -> 15.1", or "".
 --    No number now (JNull) is not a change: the old one is kept.
 -- 前に動かしたときから変わったこと。いま数がない（JNull）のは変化では
 -- ない：前の数を残す
@@ -84,28 +67,40 @@ let changes old pop tmax tmin =
                      ++ diff "min" "tmin" row tmin)
     | _ -> "new"
 
--- 🌡️ A number for the table: "-" when the JMA does not give it.
--- 表に出す数：気象庁が出さないときは "-"
+-- 🌡️ A number for the table: "-" when there is none.
+-- 表に出す数：ないときは "-"
 let cell j = case j of | JNull -> "-" | _ -> Json.show j
 let percent j = case j of | JNull -> "-" | _ -> Json.show j ++ "%"
 let columnText name row = cell (fromMaybe JNull (Sql.column name row))
 
--- 💾 Save one day (insert it, or update it), and give a line to show.
--- 1日分を貯め（足すか、書き換える）、見せる1行を返す
-let save db day =
+-- 💾 Save one day of a place (insert it, or update it), and give a
+--    line to show.
+-- 1か所の1日分を貯め（足すか、書き換える）、見せる1行を返す
+let save db place day =
   case day of
     | (d, pop, tmax, tmin) -> do
-        old <- Sql.query db "SELECT * FROM weather WHERE day = ?" [JStr d]
+        old <- Sql.query db
+          "SELECT * FROM weather WHERE place = ? AND day = ?"
+          [JStr place, JStr d]
         saved <- Sql.exec db
-          ("INSERT INTO weather (day, pop, tmax, tmin) VALUES (?, ?, ?, ?)"
-            ++ " ON CONFLICT (day) DO UPDATE SET"
+          ("INSERT INTO weather (place, day, pop, tmax, tmin)"
+            ++ " VALUES (?, ?, ?, ?, ?)"
+            ++ " ON CONFLICT (place, day) DO UPDATE SET"
             ++ " pop = coalesce(excluded.pop, pop),"
             ++ " tmax = coalesce(excluded.tmax, tmax),"
             ++ " tmin = coalesce(excluded.tmin, tmin)")
-          [JStr d, pop, tmax, tmin]
+          [JStr place, JStr d, pop, tmax, tmin]
+        -- Show what the table holds: the old number when none came.
+        -- 表が持つ数を見せる：来なかったら前の数
+        let held name now =
+              case (now, old) of
+                | (JNull, Ok (row : _)) ->
+                    fromMaybe JNull (Sql.column name row)
+                | _ -> now
         let line =
-              f"{d}  rain {percent pop:>4}  "
-                ++ f"max {cell tmax:>3}  min {cell tmin:>3}"
+              f"{d}  rain {percent (held "pop" pop):>4}  "
+                ++ f"max {cell (held "tmax" tmax):>5}  "
+                ++ f"min {cell (held "tmin" tmin):>5}"
         let changed = changes old pop tmax tmin
         pure (case saved of
           | Err e -> f"{line}  error: {e}"
@@ -120,29 +115,42 @@ let stop message = do
   exit 1
 
 let schema =
-  "CREATE TABLE IF NOT EXISTS weather"
-    ++ " (day TEXT PRIMARY KEY, pop INTEGER, tmax INTEGER, tmin INTEGER)"
+  "CREATE TABLE IF NOT EXISTS weather (place TEXT, day TEXT,"
+    ++ " pop INTEGER, tmax REAL, tmin REAL, PRIMARY KEY (place, day))"
 
-let main = do
-  answer <- Http.get url
-  opened <- Sql.open dbFile
-  case (answer, opened) of
-    | (Err e, _) -> stop e
-    | (_, Err e) -> stop e
-    | (Ok doc, Ok db) ->
-        case weekOf doc of
-          | Nothing -> stop "the forecast has another shape"
-          | Just days -> do
-              _ <- Sql.exec db schema []
-              forEach days (\day -> bind (save db day) putStrLn)
-              -- The table keeps the days that are past, too.
-              -- 表には、過ぎた日も残っている
-              kept <- Sql.query db
-                "SELECT count(*) AS n, max(tmax) AS hottest FROM weather" []
-              case kept of
-                | Ok [row] ->
-                    putStrLn (f"kept {columnText "n" row} days, "
-                                ++ f"the hottest {columnText "hottest" row}")
-                | _ -> pure ()
+-- 📍 The place: Tokyo, or the latitude and the longitude given.
+-- 場所：東京か、渡された緯度と経度
+let placeOf args =
+  case args of
+    | [] -> Just ("35.68", "139.76")
+    | [lat, lon] -> Just (lat, lon)
+    | _ -> Nothing
+
+let main args =
+  case placeOf args of
+    | Nothing -> stop "give a latitude and a longitude, or nothing for Tokyo"
+    | Just (lat, lon) -> do
+        let place = f"{lat},{lon}"
+        answer <- Http.get (urlFor lat lon)
+        opened <- Sql.open dbFile
+        case (answer, opened) of
+          | (Err e, _) -> stop e
+          | (_, Err e) -> stop e
+          | (Ok doc, Ok db) ->
+              case weekOf doc of
+                | Nothing -> stop "the forecast has another shape"
+                | Just days -> do
+                    _ <- Sql.exec db schema []
+                    forEach days (\day -> bind (save db place day) putStrLn)
+                    -- The table keeps the days that are past, too.
+                    -- 表には、過ぎた日も残っている
+                    kept <- Sql.query db
+                      ("SELECT count(*) AS n, max(tmax) AS hottest"
+                         ++ " FROM weather WHERE place = ?") [JStr place]
+                    case kept of
+                      | Ok [row] ->
+                          putStrLn (f"kept {columnText "n" row} days, "
+                            ++ f"the hottest {columnText "hottest" row}")
+                      | _ -> pure ()
 -- ANCHOR_END: main
 -- ANCHOR_END: all
