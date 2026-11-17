@@ -1,0 +1,33 @@
+-- 👥 Count the commits of each person, with git log. Run it in a
+--    git repository.
+-- git log で、人ごとのコミットを数える。git のリポジトリーで動かす
+--   lam --allow-run=git authors.lam
+
+-- ANCHOR: ranking
+-- 🏆 The names, counted, with the most first (the same count: by name).
+-- 名前を数え、多い順に（同じ数なら名前の順）
+let ranking names =
+  let add counts n = Map.insertWith (\a b -> a + b) n 1 counts in
+  names
+    |> foldl add Map.empty
+    |> Map.toList
+    |> sortOn (\p -> case p of | (name, n) -> (0 - n, name))
+-- ANCHOR_END: ranking
+
+-- ANCHOR: main
+let main = do
+  -- One line for each commit: the name of its author.
+  -- コミットごとに1行：書いた人の名前
+  outcome <- Process.run "git" ["log", "--format=%an"]
+  case outcome of
+    | Succeeded out _ ->
+        forEach (ranking (lines out)) (\p ->
+          case p of
+            | (name, n) -> putStrLn f"{n:>4}  {name}")
+    | Failed code _ err -> do
+        ePutStr f"git log ended with {code}: {err}"
+        exit 1
+    | CannotStart why -> do
+        ePutStrLn why
+        exit 1
+-- ANCHOR_END: main

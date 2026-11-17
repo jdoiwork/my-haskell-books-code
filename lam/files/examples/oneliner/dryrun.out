@@ -1,0 +1,1 @@
+dry-run: writeFile "examples/oneliner/notes.txt" (40 letters)

@@ -1,0 +1,40 @@
+-- The shapes on the workshop's new sign, and the biggest of them.
+-- 工房の新しい看板の図形と、そのうちいちばん大きなもの
+data Shape
+  = Circle Int
+  | Rect Int Int
+  | Triangle Int Int
+
+-- The area (pi is 3, to stay with whole numbers).
+-- 面積（整数のままにするため、円周率は 3）
+let area s =
+  case s of
+    | Circle r -> 3 * r * r
+    | Rect w h -> w * h
+    | Triangle b h -> b * h / 2
+
+-- A name for each shape. A Rect with the same sides is a square.
+-- 図形の名前。辺が同じ Rect は正方形
+let name s =
+  case s of
+    | Circle _ -> "circle"
+    | Rect w h if w == h -> "square"
+    | Rect _ _ -> "rect"
+    | Triangle _ _ -> "triangle"
+
+-- The biggest shape: Nothing when there are none.
+-- いちばん大きな図形。1つもなければ Nothing
+let biggest shapes =
+  case shapes of
+    | [] -> Nothing
+    | s : rest ->
+      Just (foldl (\best t -> if area t > area best then t else best) s rest)
+
+let report found =
+  case found of
+    | Nothing -> "no shapes"
+    | Just s -> name s ++ ": " ++ showInt (area s)
+
+let sign = [Rect 3 3, Circle 2, Triangle 4 5, Rect 2 5]
+
+(report (biggest sign), report (biggest []))

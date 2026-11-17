@@ -1,0 +1,1 @@
+-pe 'f"{length (words line):>2} {line}"' examples/oneliner/notes.txt

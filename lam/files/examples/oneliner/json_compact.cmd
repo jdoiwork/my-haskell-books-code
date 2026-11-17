@@ -1,0 +1,1 @@
+--json -pe 'Json.show' examples/oneliner/shop.json

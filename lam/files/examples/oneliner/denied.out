@@ -1,0 +1,2 @@
+error: examples/oneliner/notes.txt: needs --allow-write=examples/oneliner/notes.txt
+[exit 1]

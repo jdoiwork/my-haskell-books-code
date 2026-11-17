@@ -1,0 +1,35 @@
+-- 📷 Step 2: put the photos in a folder for each month they were
+--    taken (changed), like photos/2026-10/a.jpg. Look first with
+--    --dry-run.
+-- ステップ2：写真を、撮った（変えた）月ごとのフォルダーに分ける
+--   lam --dry-run photos.lam photos
+
+-- ANCHOR: monthOf
+-- 📅 "2026-10": the first 7 letters of the day, here.
+-- ここでの日付の、はじめの7文字
+let monthOf zone info = take 7 (Time.toDate zone (File.modified info))
+-- ANCHOR_END: monthOf
+
+-- 🚚 Move one photo into the folder of its month.
+-- 写真を1枚、その月のフォルダーへ動かす
+let moveOne zone dir path = do
+  found <- File.info path
+  case found of
+    | Err e -> ePutStrLn e
+    | Ok info -> do
+        let folder = Path.join dir (monthOf zone info)
+        let target = Path.join folder (Path.basename path)
+        _ <- File.makeDir folder
+        moved <- File.rename path target
+        case moved of
+          | Ok _ -> putStrLn f"{path} -> {target}"
+          | Err e -> ePutStrLn e
+
+let main = do
+  args <- getArgs
+  let dir = case args of | d : _ -> d | [] -> "photos"
+  zone <- Time.here
+  found <- File.glob (Path.join dir "*.jpg")
+  case found of
+    | Ok paths -> forEach paths (moveOne zone dir)
+    | Err e -> ePutStrLn e

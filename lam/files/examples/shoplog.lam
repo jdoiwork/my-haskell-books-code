@@ -1,0 +1,67 @@
+-- The log of the shop, read from the keyboard: count the lines of each
+-- day and each level, and show the errors, with the phone numbers
+-- hidden.
+-- お店のログを、キーボードから読む。日ごと・種類ごとに行を数え、
+-- エラーの行を、電話番号を伏せて見せる
+--   lam examples/shoplog.lam < examples/shoplog.in
+
+-- ANCHOR: regexes
+-- A line of the log:  2026-11-16 09:15:40 ERROR order 1043 ...
+-- ログの1行
+let entry =
+  re"^(?<date>\d{4}-\d\d-\d\d) [\d:]+ (?<level>[A-Z]+) +(?<text>.*)$"
+
+-- A phone number: 2 to 4 digits, 2 to 4 digits, then 4 digits.
+-- 電話番号：2〜4桁、2〜4桁、4桁
+let phone = re"\d{2,4}-\d{2,4}-(?<last>\d{4})"
+-- ANCHOR_END: regexes
+
+-- ANCHOR: hide
+-- 090-1234-5678 becomes ***-****-5678: only the last 4 digits stay.
+-- 下の4桁だけを残して、伏せる
+let hide text =
+  Regex.replaceWith phone
+    (\m -> f"***-****-{fromMaybe "" (Match.named "last" m)}")
+    text
+-- ANCHOR_END: hide
+
+-- Every line until the end of the input.
+-- 入力の終わりまでの、すべての行
+let readLines = do
+  line <- getLine
+  case line of
+    | Nothing -> pure []
+    | Just s -> do
+        rest <- readLines
+        pure (s : rest)
+
+-- The named group, or "" (the regex always has it).
+-- 名前付きのグループ。なければ ""（この正規表現には、いつもある）
+let part name m = fromMaybe "" (Match.named name m)
+
+-- ANCHOR: count
+-- How many lines for each "date level":  {"2026-11-16 ERROR": 1, ...}
+-- 「日付 種類」ごとの行の数
+let count matches =
+  foldl
+    (\counts m ->
+       Map.insertWith (\a b -> a + b) f"{part "date" m} {part "level" m}"
+         1 counts)
+    {} matches
+-- ANCHOR_END: count
+
+let main = do
+  lines <- readLines
+  -- The lines that are log lines, as matches.
+  -- ログの行だけを、見つけたものとして
+  let entries = foldr
+        (\l rest -> case Regex.find entry l of
+           | Just m -> m : rest
+           | Nothing -> rest)
+        [] lines
+  putStrLn f"{length entries} of {length lines} lines are log lines"
+  forEach (Map.toList (count entries)) (\kv ->
+    putStrLn f"  {fst kv:<17}{snd kv:>2}")
+  putStrLn "errors:"
+  forEach (filter (\m -> part "level" m == "ERROR") entries) (\m ->
+    putStrLn f"  {part "date" m} {hide (part "text" m)}")

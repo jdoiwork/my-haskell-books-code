@@ -1,0 +1,33 @@
+-- 👯 Step 3: find the files with the same contents, in a folder and
+--    the folders inside it (the ** of File.glob).
+-- ステップ3：中身が同じファイルを、フォルダーとその中のフォルダーから
+-- 探す（File.glob の **）
+--   lam dupes.lam notes
+
+-- 📖 A file and its contents ([] for a folder, or one that cannot be
+--    read).
+-- ファイルとその中身（フォルダーや読めないものは []）
+let contentsOf path = do
+  folder <- File.isDir path
+  if folder then pure [] else do
+    text <- readFile path
+    pure (case text of
+      | Ok t -> [(t, path)]
+      | Err _ -> [])
+
+let main = do
+  args <- getArgs
+  let dir = case args of | d : _ -> d | [] -> "."
+  found <- File.glob (Path.join dir "**/*")
+  case found of
+    | Err e -> ePutStrLn e
+    | Ok paths -> do
+        pairs <- IO.mapM contentsOf paths
+        -- The paths for each contents.
+        -- 中身ごとの道
+        let groups = foldl
+              (\m p -> case p of
+                 | (t, path) -> Map.insertWith (\a b -> b ++ a) t [path] m)
+              Map.empty (concat pairs)
+        forEach (filter (\g -> length g > 1) (Map.values groups)) (\g ->
+          putStrLn (join " = " g))
