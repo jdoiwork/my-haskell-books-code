@@ -1,0 +1,47 @@
+#!/usr/bin/env lam
+-- Step 2 of the training: head with options.
+--   lam head.lam -n 3 file.txt    the first 3 lines of the file
+--   lam head.lam file.txt         the first 10 lines
+--   lam head.lam --help           how to use it (exit code 0)
+--   A wrong option is told on the standard error, with exit code 2.
+-- トレーニングのステップ2：オプションのある head。まちがったオプションは
+-- 標準エラーに書き、終了コード 2 で終わる
+
+-- 「使い方：head [-n 行の数] ファイル」
+let usage = "usage: head [-n LINES] FILE"
+
+-- 🧭 What the arguments ask for.
+-- 引数が頼んでいること
+data Command = Help | Show Int String | Wrong String
+
+-- 🔢 A count of lines: a number of 0 or more.
+-- 行の数：0 以上の数
+let readCount text =
+  case Parser.run Parser.int text of
+    | Ok n if n >= 0 -> Just n
+    | _ -> Nothing
+
+let command args =
+  case args of
+    | ["--help"] -> Help
+    | ["-n", count, file] ->
+        (case readCount count of
+          | Just n -> Show n file
+          | Nothing -> Wrong f"not a count of lines: {count}")
+    | [file] -> Show 10 file
+    | _ -> Wrong "give one file"
+
+let main args =
+  case command args of
+    | Help -> putStrLn usage
+    | Wrong message -> do
+        ePutStrLn f"head: {message}"
+        ePutStrLn usage
+        exit 2
+    | Show n file -> do
+        result <- readFile file
+        case result of
+          | Err message -> do
+              ePutStrLn f"head: {message}"
+              exit 1
+          | Ok text -> forEach (text |> lines |> take n) putStrLn

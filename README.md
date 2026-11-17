@@ -174,6 +174,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 文字列を読み解く：パーサーを組み合わせる | [`lam/parsing/`](lam/parsing/)、[`lam/regex/`](lam/regex/)、[`langs/interp-parsing/`](langs/interp-parsing/)、[`langs/cargo/`](langs/cargo/) |
 | スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-script/`](langs/interp-script/) |
 | ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/script/`](lam/script/)、[`langs/interp-modules/`](langs/interp-modules/) |
+| 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/modules/`](lam/modules/)、[`langs/interp-outside/`](langs/interp-outside/) |
 | 第8部のふりかえり | [`lam/polish/`](lam/polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第9部 総合演習3：Python の機械学習ライブラリを Haskell で作る

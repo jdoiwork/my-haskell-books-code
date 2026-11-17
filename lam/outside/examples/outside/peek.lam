@@ -1,0 +1,24 @@
+-- ANCHOR: all
+-- 🔐 Knock on each door of the outside world, and show the answer.
+--      lam --allow-read examples/outside/peek.lam
+-- 外の世界の扉を1つずつたたいて、答えを見せる
+
+-- 📣 "readFile: ok", or the reason of the Err
+-- 「ok」か、Err のわけ
+let tell name result =
+  case result of
+    | Ok _ -> putStrLn f"{name}: ok"
+    | Err e -> putStrLn f"{name}: {e}"
+
+let main = do
+  file <- readFile "examples/orders.json"
+  tell "readFile" file
+  saved <- writeFile "peek.txt" "hello"
+  tell "writeFile" saved
+  web <- Http.get "https://pokeapi.co/api/v2/pokemon/pikachu"
+  tell "Http.get" web
+  db <- Sql.open "peek.db"
+  tell "Sql.open" db
+  memory <- Sql.open ":memory:"
+  tell "Sql.open :memory:" memory
+-- ANCHOR_END: all

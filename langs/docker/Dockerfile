@@ -9,6 +9,8 @@
 #   Koka    koka でコンパイルして動かす
 #   Elm     elm make で JavaScript にして、node で動かす
 #   Scheme  Guile で動かす
+#   Deno    deno check で型を調べてから、deno run で動かす（権限のフラグを見せるため。
+#           フラグは付けない）
 #   Octave  octave-cli で動かす（MATLAB の代わり。版は Debian のパッケージのまま）。
 #           BLAS は OpenBLAS（libopenblas0-pthread）。速さを比べる章では、参照実装の
 #           BLAS に取り替えても動かす（update-alternatives）
@@ -23,6 +25,10 @@ ARG TARGETARCH
 COPY --from=eclipse-temurin:25-jdk /opt/java/openjdk /opt/java/openjdk
 COPY --from=node:26-trixie /usr/local/bin/node /usr/local/bin/node
 COPY --from=node:26-trixie /usr/local/lib/node_modules /usr/local/lib/node_modules
+# Deno, from its official image (only the binary).
+# Deno は、公式のイメージから（実行ファイルだけ）
+ARG DENO=2.9.8
+COPY --from=denoland/deno:bin-2.9.8 /deno /usr/local/bin/deno
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 ENV JAVA_HOME=/opt/java/openjdk
 ENV PATH=/opt/java/openjdk/bin:/opt/kotlinc/bin:/opt/elm/node_modules/.bin:$PATH
