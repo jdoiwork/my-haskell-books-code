@@ -48,7 +48,7 @@ main = do
       --   [--begin 式 --end 式] -e 'プログラム' [ファイル…]」
       TIO.hPutStrLn stderr "       lam [-n|-p] [-a] [-F regex] [-i[.bak]] \
         \[--begin expr] [--end expr] [--json|--jsonl] [--path=keys] \
-        \[--script] -e 'program' [files...]"
+        \[--print-script] -e 'program' [files...]"
       exitWith (ExitFailure 2)
     Right (opts, command) -> withOutside $ \outside -> do
       -- The real world, with the guards of the flags around it.
@@ -64,8 +64,8 @@ main = do
         -- ワンライナー：後ろの語は、読むファイル（-n・-p）か、
         -- プログラムの引数（-e だけのとき）
         RunOneLiner one rest
-          -- --script: show the script, and run nothing.
-          -- --script：スクリプトを見せるだけで、動かさない
+          -- --print-script: show the script, and run nothing.
+          -- --print-script：スクリプトを見せるだけで、動かさない
           | oneScript one ->
               runScriptFlag handle preludeSession one >>= finish
           | otherwise -> withArgs rest $ do

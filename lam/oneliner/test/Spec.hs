@@ -2079,7 +2079,8 @@ main = hspec $ do
     -- ANCHOR_END: jsonTest
 
     -- ANCHOR: scriptTest
-    -- 「--script が作ったスクリプトは、どの例でも、ワンライナーと同じ答え」
+    -- 「--print-script が作ったスクリプトは、どの例でも、
+    --   ワンライナーと同じ答え」
     it "makes scripts that do what the one-liners do" $ do
       names <- listDirectory "examples/oneliner"
       checked <- fmap concat $ mapM (\n -> do

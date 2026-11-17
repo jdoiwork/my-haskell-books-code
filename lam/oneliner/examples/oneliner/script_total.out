@@ -1,6 +1,6 @@
 #!/usr/bin/env lam
--- 📜 The same as this one-liner (made with lam --script):
--- このワンライナーと同じ動きのスクリプト（lam --script で作った）：
+-- 📜 Made with lam --print-script: the same as this one-liner:
+-- --print-script で作った、このワンライナーと同じ動きのスクリプト：
 --   lam -a -n --begin '0' -e 'acc + toIntOr 0 (field 2)' --end 'print'
 -- Run it:  lam this.lam [files...]   (no files: the standard input)
 -- 動かし方：lam このファイル.lam [ファイル…]（なければ標準入力）

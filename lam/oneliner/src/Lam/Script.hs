@@ -1,10 +1,11 @@
 -- ANCHOR: all
 -- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
--- | lam --script: write a Lam script that does what a one-liner does,
+-- | lam --print-script: write a Lam script that does what a one-liner does,
 --   to read it, keep it, or grow it. Like Perl's -MO=Deparse, which
 --   shows the loop that -n and -p wrap around a program.
--- lam --script：ワンライナーと同じことをする Lam のスクリプトを書き出す。
+-- lam --print-script：ワンライナーと同じことをする Lam のスクリプトを
+-- 書き出す。
 -- 読むため、とっておくため、育てるため。Perl の -MO=Deparse が、-n・-p
 -- がプログラムのまわりに作るループを見せるのと同じ考え方
 module Lam.Script
@@ -45,7 +46,7 @@ shapeOf :: Session -> OneLiner -> Either Text Shape
 shapeOf session one = do
   -- 「-e だけなら、プログラムがもうスクリプト」
   if oneMode one == Once
-    then Left "--script goes with -n or -p (with -e alone, the program \
+    then Left "--print-script goes with -n or -p (with -e alone, the program \
               \is a script already)"
     else Right ()
   _ <- prepare session one     -- the same checks and errors
@@ -149,8 +150,8 @@ scriptOf session one = do
 
     header =
       [ "#!/usr/bin/env lam"
-      , "-- 📜 The same as this one-liner (made with lam --script):"
-      , "-- このワンライナーと同じ動きのスクリプト（lam --script で作った）："
+      , "-- 📜 Made with lam --print-script: the same as this one-liner:"
+      , "-- --print-script で作った、このワンライナーと同じ動きのスクリプト："
       , "--   " <> commandLine one
       , "-- Run it:  lam this.lam [files...]   (no files: the standard input)"
       , "-- 動かし方：lam このファイル.lam [ファイル…]（なければ標準入力）"
@@ -402,7 +403,7 @@ scriptOf session one = do
 -- ANCHOR_END: scriptOf
 
 -- ANCHOR: runScriptFlag
--- 🖨️ lam --script: show the script, and run nothing.
+-- 🖨️ lam --print-script: show the script, and run nothing.
 -- スクリプトを見せるだけで、何も動かさない
 runScriptFlag :: Monad m => Handler m -> Session -> OneLiner -> m Ending
 runScriptFlag handle session one = case scriptOf session one of

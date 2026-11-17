@@ -83,7 +83,8 @@ data OneLiner = OneLiner
   , oneEnd     :: Maybe Text  -- --end: what to do with the last acc
   , oneInput   :: Input       -- --json, --jsonl
   , onePath    :: [Text]      -- --path=orders.items: ["orders", "items"]
-  , oneScript  :: Bool        -- --script: show the same script, run nothing
+  -- --print-script: show the same script, and run nothing
+  , oneScript  :: Bool
   }
   deriving (Eq, Show)
 
@@ -120,7 +121,7 @@ readCommand = go [] noOneLiner
       [flag] | flag `elem` ["--begin", "--end"] ->
         Left (flag <> " needs a Lam expression after it")
       -- ANCHOR: scriptFlag
-      "--script" : rest -> go guards one { oneScript = True } rest
+      "--print-script" : rest -> go guards one { oneScript = True } rest
       -- ANCHOR_END: scriptFlag
       -- ANCHOR: jsonFlags
       -- --json and --jsonl mean -n, as -a does.
@@ -190,7 +191,7 @@ checked one rest
   | null (oneProgram one) =
       Left "-n, -p, -a, -F, -i, --begin and --end need -e 'program'"
   | oneScript one, oneMode one == Once, not folding =
-      Left "--script goes with -n or -p (with -e alone, the program \
+      Left "--print-script goes with -n or -p (with -e alone, the program \
            \is a script already)"
   | Just _ <- oneInPlace one, oneMode one /= Printing =
       Left "-i needs -p (each line becomes what the program gives)"
