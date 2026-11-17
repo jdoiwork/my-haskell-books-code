@@ -1,0 +1,18 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🐇 Six Pokémon at once: ask all, then wait for all.
+--      lam all.lam
+-- 6匹をまとめて：全部に頼んでから、全部を待つ
+import Dex (Mon, fetch, line)
+
+names = ["bulbasaur", "charmander", "squirtle", "pikachu", "eevee", "snorlax"]
+
+-- ANCHOR: main
+main = do
+  done <- IO.timed (IO.all (map fetch names))
+  forEach done.value (\r -> case r of
+    | Ok m -> putStrLn (line m)
+    | Err e -> ePutStrLn e)
+  putStrLn f"took {done.seconds:.2} s"
+-- ANCHOR_END: main
+-- ANCHOR_END: all

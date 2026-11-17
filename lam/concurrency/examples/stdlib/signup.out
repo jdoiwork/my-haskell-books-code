@@ -1,0 +1,5 @@
+Python  python@lam.test   Python
+TS      ts@lam.test       TypeScript
+Rust    rust@lam.test     Rust
+Ruby    ruby@lam.test     Ruby
+a broken row: Erlang | erlang@lam.test

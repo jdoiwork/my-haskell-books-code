@@ -1,0 +1,7 @@
+-- 🐛 A mistake in add (++ joins strings, not numbers). With no
+--    annotation, the error comes out where add is used.
+-- add のまちがい（++ は文字列をつなぐもので、数は足さない）。注釈が
+-- なければ、エラーは add を使った所に出る
+add x y = x ++ y
+
+main = putStrLn (show (add 1 2))

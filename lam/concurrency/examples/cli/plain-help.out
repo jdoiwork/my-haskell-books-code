@@ -1,0 +1,9 @@
+Usage: greet-plain.lam [OPTIONS] NAME COUNT
+
+Arguments:
+  NAME   [required]
+  COUNT  [required]
+
+Options:
+  --loud
+  --help  Show this message and exit

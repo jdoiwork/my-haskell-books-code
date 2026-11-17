@@ -1,0 +1,4 @@
+error: COUNT needs a whole number, not "two"
+Usage: greet-plain.lam [OPTIONS] NAME COUNT
+Try "greet-plain.lam --help" for help.
+[exit 2]

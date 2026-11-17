@@ -1,0 +1,18 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🐢 Six Pokémon, one by one: each waits for the one before it.
+--      lam one-by-one.lam
+-- 6匹を1匹ずつ：どれも、前の1匹を待ってから
+import Dex (Mon, fetch, line)
+
+names = ["bulbasaur", "charmander", "squirtle", "pikachu", "eevee", "snorlax"]
+
+-- ANCHOR: main
+main = do
+  done <- IO.timed (IO.mapM fetch names)
+  forEach done.value (\r -> case r of
+    | Ok m -> putStrLn (line m)
+    | Err e -> ePutStrLn e)
+  putStrLn f"took {done.seconds:.2} s"
+-- ANCHOR_END: main
+-- ANCHOR_END: all

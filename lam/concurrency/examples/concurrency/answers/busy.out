@@ -1,0 +1,2 @@
+race: failed: status 503: {"error":"busy"}
+firstOk: 0.23 from https://c.mirror.test/release.json

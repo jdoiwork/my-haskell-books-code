@@ -1,0 +1,47 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🪞 Step 2: a mirror that says "busy" at once wins the race. Take the
+--    first Ok instead: IO.allOk, with Ok and Err turned around.
+--      lam busy.lam
+-- ステップ2：すぐに「混んでいます」と答えるミラーが、競走に勝ってしまう。
+-- 代わりに最初の Ok を取る：Ok と Err を入れ替えた IO.allOk で
+mirrors =
+  [ "https://a.mirror.test/release.json"
+  , "https://b.mirror.test/release.json"
+  , "https://c.mirror.test/release.json" ]
+
+ask url = do
+  r <- Http.get url
+  pure (Result.map (\doc ->
+    (url, fromMaybe "?" (Maybe.andThen Json.string (Json.get "version" doc))))
+    r)
+
+-- ANCHOR: firstOk
+-- 🔄 Ok becomes Err, and Err becomes Ok.
+-- Ok を Err に、Err を Ok に
+swap : Result e a -> Result a e
+swap r =
+  case r of
+    | Ok x -> Err x
+    | Err e -> Ok e
+
+-- 🥇 The first Ok (the others are stopped), or every Err. allOk stops
+--    at the first Err: after the swap, that is the first Ok.
+-- 最初の Ok（ほかは取り消す）か、全部の Err。allOk は最初の Err で
+-- 止まる。入れ替えたあとなら、それは最初の Ok
+firstOk : [IO (Result e a)] -> IO (Result [e] a)
+firstOk ios = do
+  r <- IO.allOk (map (\io -> bind io (\x -> pure (swap x))) ios)
+  pure (swap r)
+-- ANCHOR_END: firstOk
+
+main = do
+  raced <- IO.race (map ask mirrors)
+  case raced of
+    | Ok (url, v) -> putStrLn f"race: {v} from {url}"
+    | Err e -> putStrLn f"race: failed: {e}"
+  first <- firstOk (map ask mirrors)
+  case first of
+    | Ok (url, v) -> putStrLn f"firstOk: {v} from {url}"
+    | Err es -> putStrLn f"firstOk: all failed: {join "; " es}"
+-- ANCHOR_END: all

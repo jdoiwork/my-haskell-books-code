@@ -1,0 +1,7 @@
+-- This program has a mistake on purpose.
+-- このプログラムには、わざとまちがいがある
+let double x = x * 2
+let shout b = if b then 1 else 0
+let oops = double (shout 1)
+
+oops

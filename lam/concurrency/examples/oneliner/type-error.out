@@ -1,0 +1,2 @@
+-e:1:16: type error: Int is not in the class Semigroup
+[exit 1]

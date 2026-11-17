@@ -1,0 +1,31 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🏁 A race, and a time limit.
+--      lam race.lam
+-- 競走と、制限時間
+import Dex (Mon, fetch, line)
+
+-- ANCHOR: race
+-- The first to end wins; the other is stopped.
+-- 先に終わったほうが勝ち。もう片方は取り消す
+runner name ms = do
+  sleep ms
+  pure name
+
+-- ANCHOR_END: race
+main = do
+  -- ANCHOR: raceMain
+  winner <- IO.race [runner "tortoise" 900, runner "hare" 300]
+  putStrLn f"winner: {winner}"
+  -- ANCHOR_END: raceMain
+  -- ANCHOR: timeout
+  -- Wait at most 0.5 s for each.
+  -- それぞれ、多くて 0.5 秒だけ待つ
+  forEach ["pikachu", "snorlax"] (\name -> do
+    r <- IO.timeout 500 (fetch name)
+    case r of
+      | Just (Ok m) -> putStrLn (line m)
+      | Just (Err e) -> putStrLn e
+      | Nothing -> putStrLn f"{name}: no answer in 0.5 s")
+  -- ANCHOR_END: timeout
+-- ANCHOR_END: all

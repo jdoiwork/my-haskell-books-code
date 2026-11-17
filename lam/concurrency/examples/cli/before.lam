@@ -1,0 +1,34 @@
+-- ANCHOR: all
+-- 📥 Read the arguments by hand: a name, --count n, and --loud.
+-- 引数を手で読む：名前、--count n、--loud
+--   ("", 1, false) is (name, count, loud) before any word is read.
+--   どの語も読む前の (名前, 回数, 大声)
+number : String -> String -> Result String Int
+number option word = case toInt word of
+  | Just n -> Ok n
+  | Nothing -> Err f"{option} needs a whole number, not {word}"
+
+type alias Got = (String, Int, Bool)
+
+readArgs : [String] -> Got -> Result String Got
+readArgs args got = case (args, got) of
+  | ([], (name, count, loud)) ->
+      if name == "" then Err "missing the name" else Ok got
+  | ("--count" : n : rest, (name, _, loud)) ->
+      Result.andThen (\c -> readArgs rest (name, c, loud))
+        (number "--count" n)
+  | ("--loud" : rest, (name, count, _)) -> readArgs rest (name, count, true)
+  | (word : rest, (_, count, loud)) ->
+      if String.startsWith "-" word then Err f"unknown option {word}"
+      else readArgs rest (word, count, loud)
+
+main : [String] -> IO ()
+main args = case readArgs args ("", 1, false) of
+  | Err why -> do
+      ePutStrLn why
+      exit 2
+  | Ok (name, count, loud) -> do
+      let line = f"Hello, {name}!"
+      forEach (range 1 count) (\_ ->
+        putStrLn (if loud then toUpper line else line))
+-- ANCHOR_END: all

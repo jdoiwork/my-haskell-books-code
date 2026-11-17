@@ -1,0 +1,3 @@
+https://a.mirror.test/release.json 503 web/busy.json 100
+https://b.mirror.test/release.json 200 web/release.json 400
+https://c.mirror.test/release.json 200 web/release.json 300

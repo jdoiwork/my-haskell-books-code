@@ -1,0 +1,15 @@
+-- 📣 echo in Lam: show the arguments, one per line, with their numbers.
+--      lam echo.lam "Hello, Lam" again
+-- Lam で書いた echo：引数を、番号を付けて1行ずつ見せる
+
+let showAll i args =
+  case args of
+    | [] -> pure ()
+    | arg : rest -> do
+        putStrLn f"{i}: {arg}"
+        showAll (i + 1) rest
+
+let main = do
+  args <- getArgs
+  putStrLn f"{length args} arguments"
+  showAll 1 args

@@ -1,0 +1,59 @@
+-- 🧹 Remove the .log files in a folder that are some days old or more
+--    (7 if not given). Look first with --dry-run: it only tells.
+-- フォルダーの .log ファイルのうち、何日か（なければ7日）以上たった
+-- ものを消す。先に --dry-run で見る：知らせるだけで、消さない
+--   lam --dry-run cleanup.lam logs 7
+--   lam --allow-read=logs --allow-write=logs cleanup.lam logs 7
+
+-- ANCHOR: oldFile
+-- 📄 A file: where it is, how many whole days old, and its size.
+-- ファイル：道、まる何日たったか、大きさ
+type alias LogFile = { path : String, days : Int, bytes : Int }
+-- ANCHOR_END: oldFile
+
+-- ANCHOR: describe
+-- 📋 A file, with how many whole days old it is and its size.
+--    A file that cannot be read gives [] (it is left alone).
+-- ファイルと、まる何日たったか、大きさ。読めないファイルは []
+-- （手を出さない）
+describe : Time -> String -> IO [LogFile]
+describe now path = do
+  found <- File.info path
+  pure (case found of
+    | Ok info ->
+        [{ path = path
+         , days = Time.diffDays now info.modified
+         , bytes = info.size }]
+    | Err _ -> [])
+-- ANCHOR_END: describe
+
+-- ANCHOR: removeOne
+-- 🗑️ Remove one file, and say so.
+-- 1つ消して、そう知らせる
+removeOne : LogFile -> IO ()
+removeOne file = do
+  done <- File.remove file.path
+  case done of
+    | Ok _ ->
+        putStrLn f"removed {file.path} ({file.days} days, {file.bytes} bytes)"
+    | Err e -> ePutStrLn e
+-- ANCHOR_END: removeOne
+
+-- ANCHOR: main
+main : [String] -> IO ()
+main args = do
+  now <- Time.now
+  found <- File.glob (Path.join dir "*.log")
+  case found of
+    | Err e -> do
+        ePutStrLn e
+        exit 1
+    | Ok paths -> do
+        rows <- IO.mapM (describe now) paths
+        let old = filter (\f -> f.days >= days) (concat rows)
+        forEach old removeOne
+        putStrLn f"{length old} of {length paths} files: {days} days or more"
+  where
+    dir = case args of | d : _ -> d | [] -> "logs"
+    days = case drop 1 args of | n : _ -> toIntOr 7 n | [] -> 7
+-- ANCHOR_END: main

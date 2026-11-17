@@ -1,0 +1,7 @@
+-- ANCHOR: all
+main : { name : String, count : Int, loud : Bool } -> IO ()
+main opts = do
+  let line = f"Hello, {opts.name}!"
+  forEach (range 1 opts.count) (\_ ->
+    putStrLn (if opts.loud then toUpper line else line))
+-- ANCHOR_END: all

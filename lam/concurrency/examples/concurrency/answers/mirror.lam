@@ -1,0 +1,25 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🪞 Step 1: ask three mirrors at once, and take the first answer.
+--      lam mirror.lam
+-- ステップ1：3つのミラーに同時に聞き、最初の答えを取る
+mirrors =
+  [ "https://a.mirror.test/release.json"
+  , "https://b.mirror.test/release.json"
+  , "https://c.mirror.test/release.json" ]
+
+-- 🌐 The version from one mirror, and which mirror it was.
+-- 1つのミラーからの版と、どのミラーだったか
+ask url = do
+  r <- Http.get url
+  pure (Result.map (\doc ->
+    (url, fromMaybe "?" (Maybe.andThen Json.string (Json.get "version" doc))))
+    r)
+
+main = do
+  done <- IO.timed (IO.race (map ask mirrors))
+  case done.value of
+    | Ok (url, version) -> putStrLn f"{version} from {url}"
+    | Err e -> putStrLn f"failed: {e}"
+  putStrLn f"took {done.seconds:.1} s"
+-- ANCHOR_END: all
