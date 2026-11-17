@@ -2854,6 +2854,18 @@ main = hspec $ do
           , "next : Number a => a -> a", "true : Bool", "3 : Float" ]
     -- ANCHOR_END: floatRepl
 
+    -- ANCHOR: orElseErrors
+    -- 「?: の左が Maybe でも Result でもなければ、そう教える」
+    it "says what ?: needs on its left" $
+      runLines ["3 ?: 0", "\"a\" ?: \"b\"", "round 2.5 ?: 0"]
+        `shouldBe`
+          [ "type error: ?: needs a Maybe or a Result on its left, but got \
+            \a number (only a Maybe or a Result can be missing its value)"
+          , "type error: ?: needs a Maybe or a Result on its left, but got \
+            \String (only a Maybe or a Result can be missing its value)"
+          , "3 : Int" ]
+    -- ANCHOR_END: orElseErrors
+
     -- ANCHOR: floatJsonProp
     -- 「Json.fromFloat を Json.toFloat で戻すと、同じ Float」
     it "turns a Float into JSON and back" $

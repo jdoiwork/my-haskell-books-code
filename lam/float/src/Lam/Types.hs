@@ -170,6 +170,11 @@ data TypeError
   | InfiniteType Int Type   -- a = a -> b
   | UnknownName Name
   | NotInClass Class Type   -- a -> a is not Comparable
+  -- ANCHOR: orElseNeedsType
+  -- 3 ?: 0: the left of ?: is not a Maybe or a Result.
+  -- ?: の左が Maybe でも Result でもない
+  | OrElseNeeds Type
+  -- ANCHOR_END: orElseNeedsType
   -- ANCHOR: dataErrors
   -- Handler is not Comparable: its constructor Button holds Int -> Int.
   --    (The same for Showable.)
@@ -906,6 +911,13 @@ infer env expr = case expr of
     (left, right, result) <- opType op
     (s1, tl) <- infer env l
     (s2, tr) <- infer (applyEnv s1 env) r
+    -- ANCHOR: orElseLeft
+    -- The left of ?: must hold a value that may be missing. Say so
+    -- before unify, which would make  3 ?: 0  a list in the end.
+    -- ?: の左は、ないかもしれない値を持つもの。unify の前に確かめる
+    -- （unify に任せると、3 ?: 0 は最後にリストにされてしまう）
+    when (op == OrElse) $ checkFallible (applyT s2 tl)
+    -- ANCHOR_END: orElseLeft
     s3 <- liftUnify (applyT s2 tl) (applyT (s2 `compose` s1) left)
     let s123 = s3 `compose` s2 `compose` s1
     s4 <- liftUnify (applyT s3 tr) (applyT s123 right)
@@ -1103,6 +1115,22 @@ opType op = case op of
     a <- fresh
     pure (a, tList a, tList a)
   _      -> pure (TBool, TBool, TBool)          -- && ||
+
+-- ANCHOR: checkFallible
+-- 🛟 Is t the type of a Maybe or a Result (or not known yet)? A
+--    number, a string, a list, a function, ... is never one.
+-- t は Maybe か Result の型か（まだわからなくてもよい）。数、文字列、
+-- リスト、関数などは、決してそうならない
+checkFallible :: Type -> Infer ()
+checkFallible t = case t of
+  TCon "Maybe" _  -> pure ()
+  TCon "Result" _ -> pure ()
+  TApp _ _        -> pure ()
+  TVar n -> do
+    cs <- Map.findWithDefault Set.empty n <$> currentNeeds
+    when (Number `Set.member` cs) $ failWith (OrElseNeeds t)
+  _ -> failWith (OrElseNeeds t)
+-- ANCHOR_END: checkFallible
 
 -- 🆕 A new type variable that must be in class c.
 -- クラス c に入っていなければならない、新しい型変数
@@ -1431,6 +1459,15 @@ renderTypeError err = case err of
       <> " is not in the class Number): x -1 gives -1 to x (write"
       <> " x - 1), and -f x is (-f) x (write -(f x))"
   -- ANCHOR_END: numberCalled
+  -- ANCHOR: renderOrElse
+  -- 「?: の左には Maybe か Result が要りますが、数が来ました」
+  OrElseNeeds t ->
+    "?: needs a Maybe or a Result on its left, but got "
+      <> (case t of
+            TVar _ -> "a number"
+            _      -> renderType t)
+      <> " (only a Maybe or a Result can be missing its value)"
+  -- ANCHOR_END: renderOrElse
   -- 「a -> a は、Comparable のクラスに入っていません」
   NotInClass c t   -> renderType t <> " is not in the class "
                         <> T.pack (show c)
