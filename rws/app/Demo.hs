@@ -26,7 +26,7 @@ main :: IO ()
 main = do
   -- 1. State with let: a plain pair comes back
   -- 1. State を let で：ふつうの組が返ってくる
-  let (winner, arena) = runState fight (start 42)
+  let (winner, arena) = runState fight (start 618)
   putStrLn ("Winner: " ++ winner)
   putStrLn ("Turns: " ++ show (turns arena))
 
