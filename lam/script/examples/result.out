@@ -1,0 +1,1 @@
+[Ok 6, Err "divided by zero", Err "15 is odd", Ok 10] : [Result String Int]
