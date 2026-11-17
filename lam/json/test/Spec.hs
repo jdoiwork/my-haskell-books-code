@@ -582,6 +582,17 @@ main = hspec $ do
           , "Just (JInt 1) : Maybe Json" ]
     -- ANCHOR_END: jsonTools
 
+    -- 「bind は値が先、andThen は関数が先。中身は同じ」
+    it "has bind with the value first, and andThen with the function first" $
+      runLines
+        [ "let down n = if n > 0 then Just (n - 1) else Nothing"
+        , "Maybe.bind (Just 3) down"
+        , "Maybe.andThen down (Just 3)"
+        , "Maybe.bind (Just 0) down" ]
+        `shouldBe`
+          [ "down : Int -> Maybe Int"
+          , "Just 2 : Maybe Int", "Just 2 : Maybe Int", "Nothing : Maybe Int" ]
+
   -- 「トレーニングの解答」
   describe "answers" $ do
     -- 「Map で単語を数える」「値段をセントで足す」

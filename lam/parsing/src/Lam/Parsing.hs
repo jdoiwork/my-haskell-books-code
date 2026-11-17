@@ -83,15 +83,17 @@ parsingBuiltins =
         call f x
 
   -- Read with p, then let f choose the next parser from what p gave.
-  -- The function comes first, as in Maybe.andThen.
+  -- Parser.bind takes the parser first (like >>= of Haskell), and
+  -- Parser.andThen takes the function first (like Maybe.andThen).
   -- p で読み、p がくれた値から、次のパーサーを f に選ばせる。
-  -- Maybe.andThen と同じく、関数が先
+  -- Parser.bind はパーサーが先（Haskell の >>= と同じ）、
+  -- Parser.andThen は関数が先（Maybe.andThen と同じ）
+  , prim2 "Parser.bind"
+      (tParser a ~> (a ~> tParser b) ~> tParser b) $ \p f ->
+      Right (VParser (chain p f))
   , prim2 "Parser.andThen"
       ((a ~> tParser b) ~> tParser a ~> tParser b) $ \f p ->
-      Right $ VParser $ do
-        x    <- parserOf p
-        next <- call f x
-        parserOf next
+      Right (VParser (chain p f))
   -- ANCHOR_END: chain
 
   -- ANCHOR: choose
@@ -199,6 +201,16 @@ parserOfE v = case v of
 -- 読んでいる途中で Lam の関数を呼ぶ。失敗したら、読むのを止める
 call :: Value -> Value -> LamParser
 call f x = either stop pure (apply f x)
+
+-- ANCHOR: chainHelper
+-- Read with the parser p, then with the parser that f gives.
+-- パーサー p で読み、続きを f がくれたパーサーで読む
+chain :: Value -> Value -> LamParser
+chain p f = do
+  x    <- parserOf p
+  next <- call f x
+  parserOf next
+-- ANCHOR_END: chainHelper
 
 -- 🛑 Stop the whole run with an error of the program.
 -- プログラムのまちがいで、読むのを丸ごと止める

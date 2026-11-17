@@ -609,6 +609,28 @@ main = hspec $ do
           , "Just (JInt 1) : Maybe Json" ]
     -- ANCHOR_END: jsonTools
 
+    -- 「bind は値が先、andThen は関数が先。中身は同じ」
+    it "has bind with the value first, and andThen with the function first" $
+      runLines
+        [ "let down n = if n > 0 then Just (n - 1) else Nothing"
+        , "Maybe.bind (Just 3) down"
+        , "Maybe.andThen down (Just 3)"
+        , "Maybe.bind (Just 0) down" ]
+        `shouldBe`
+          [ "down : Int -> Maybe Int"
+          , "Just 2 : Maybe Int", "Just 2 : Maybe Int", "Nothing : Maybe Int" ]
+    -- 「Result と IO にも、値が先の bind と関数が先の andThen がある」
+    it "has bind and andThen for Result and IO, too" $
+      runLines
+        [ ":type Result.bind", ":type Result.andThen", ":type IO.andThen"
+        , "Result.bind (Ok 1) (\\n -> Ok (n + 1))"
+        , "IO.andThen (\\x -> pure (x + 1)) (pure 1)" ]
+        `shouldBe`
+          [ "Result a b -> (b -> Result a c) -> Result a c"
+          , "(a -> Result b c) -> Result b a -> Result b c"
+          , "(a -> IO b) -> IO a -> IO b"
+          , "Ok 2 : Result a Int", "2 : Int" ]
+
   -- 「入出力」
   describe "IO" $ do
     -- ANCHOR: doSugar
@@ -1055,22 +1077,32 @@ main = hspec $ do
   -- 「パーサー」
   describe "parsers" $ do
     -- ANCHOR: parserSugar
-    -- 「Parser.do は Parser.andThen に開く。関数が先」
-    it "opens Parser.do into Parser.andThen, with the function first" $
+    -- 「Parser.do は Parser.bind に開く。値が先」
+    it "opens Parser.do into Parser.bind, with the value first" $
       fmap render (parseExpr "Parser.do\n  x <- p\n  _ <- q\n  Parser.pure x")
         `shouldBe` Right
-          "Parser.andThen (\\x -> Parser.andThen (\\_ -> Parser.pure x) q) p"
-    -- 「Maybe.do も Result.do も同じ形。ただの do は bind のまま」
-    it "opens any Name.do the same way, and keeps do for IO" $
+          "Parser.bind p (\\x -> Parser.bind q (\\_ -> Parser.pure x))"
+    -- 「Maybe.do も同じ形。ただの do は、名前のない bind に開く」
+    it "opens any Name.do the same way, and do into plain bind" $
       map (fmap render . parseExpr)
         [ "Maybe.do\n  x <- m\n  Just x", "do\n  x <- m\n  pure x" ]
         `shouldBe` map Right
-          [ "Maybe.andThen (\\x -> Just x) m", "bind m (\\x -> pure x)" ]
+          [ "Maybe.bind m (\\x -> Just x)", "bind m (\\x -> pure x)" ]
     -- 「Parser.do は名前ではない」
     it "does not read Parser.do as a name" $
       runLines ["let Parser.do = 1"]
         `shouldSatisfy` all ("cannot end a name" `T.isInfixOf`)
     -- ANCHOR_END: parserSugar
+    -- 「Parser.bind はパーサーが先、Parser.andThen は関数が先」
+    it "has Parser.bind with the parser first, and Parser.andThen" $
+      runLines
+        [ ":type Parser.bind", ":type Parser.andThen"
+        , "Parser.run (Parser.bind Parser.int (\\n -> Parser.pure (n + 1))) \"41\""
+        , "Parser.run (Parser.andThen (\\n -> Parser.pure (n + 1)) Parser.int) \"41\"" ]
+        `shouldBe`
+          [ "Parser a -> (a -> Parser b) -> Parser b"
+          , "(a -> Parser b) -> Parser a -> Parser b"
+          , "Ok 42 : Result String Int", "Ok 42 : Result String Int" ]
 
     -- ANCHOR: parserValues
     -- 「小さなパーサーと、その組み合わせ」

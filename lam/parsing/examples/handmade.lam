@@ -12,10 +12,10 @@
 let P.pure x = \cs -> Just (x, cs)
 
 -- Read with p, then with the parser that f makes from what p gave.
--- Function first, like Parser.andThen, so that P.do works, too.
+-- The parser first, like Parser.bind: P.do opens into P.bind.
 -- p で読み、p がくれた値から f が作ったパーサーで、続きを読む。
--- Parser.andThen と同じく関数が先なので、P.do も使える
-let P.andThen f p = \cs ->
+-- Parser.bind と同じくパーサーが先。P.do は P.bind に開く
+let P.bind p f = \cs ->
   case p cs of
     | Nothing -> Nothing
     | Just (x, rest) -> f x rest

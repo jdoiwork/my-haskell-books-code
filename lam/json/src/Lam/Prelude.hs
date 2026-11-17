@@ -85,10 +85,15 @@ preludeSource = """
     case m of
       | Nothing -> Nothing
       | Just x -> Just (f x)
-  let Maybe.andThen f m =
+  -- bind takes the value first (like >>= of Haskell); andThen is
+  -- the same with the function first (like Elm).
+  -- bind は値が先（Haskell の >>= と同じ）。andThen は、同じものの
+  -- 関数が先の形（Elm と同じ）
+  let Maybe.bind m f =
     case m of
       | Nothing -> Nothing
       | Just x -> f x
+  let Maybe.andThen f m = Maybe.bind m f
   -- ANCHOR_END: maybeMore
 
   -- ANCHOR: insertWith

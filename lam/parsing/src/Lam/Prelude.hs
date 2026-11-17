@@ -90,10 +90,15 @@ preludeSource = """
     case m of
       | Nothing -> Nothing
       | Just x -> Just (f x)
-  let Maybe.andThen f m =
+  -- bind takes the value first (like >>= of Haskell); andThen is
+  -- the same with the function first (like Elm).
+  -- bind は値が先（Haskell の >>= と同じ）。andThen は、同じものの
+  -- 関数が先の形（Elm と同じ）
+  let Maybe.bind m f =
     case m of
       | Nothing -> Nothing
       | Just x -> f x
+  let Maybe.andThen f m = Maybe.bind m f
   -- ANCHOR_END: maybeMore
 
   -- ANCHOR: resultMore
@@ -103,11 +108,18 @@ preludeSource = """
     case r of
       | Ok x -> Ok (f x)
       | Err e -> Err e
-  let Result.andThen f r =
+  let Result.bind r f =
     case r of
       | Ok x -> f x
       | Err e -> Err e
+  let Result.andThen f r = Result.bind r f
   -- ANCHOR_END: resultMore
+
+  -- ANCHOR: ioAndThen
+  -- bind for IO, with the function first, like Result.andThen.
+  -- IO の bind の、関数が先の形。Result.andThen と同じ
+  let IO.andThen f m = bind m f
+  -- ANCHOR_END: ioAndThen
 
   -- ANCHOR: forEach
   -- Do an action for each item of a list, in order

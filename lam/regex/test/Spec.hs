@@ -609,6 +609,28 @@ main = hspec $ do
           , "Just (JInt 1) : Maybe Json" ]
     -- ANCHOR_END: jsonTools
 
+    -- 「bind は値が先、andThen は関数が先。中身は同じ」
+    it "has bind with the value first, and andThen with the function first" $
+      runLines
+        [ "let down n = if n > 0 then Just (n - 1) else Nothing"
+        , "Maybe.bind (Just 3) down"
+        , "Maybe.andThen down (Just 3)"
+        , "Maybe.bind (Just 0) down" ]
+        `shouldBe`
+          [ "down : Int -> Maybe Int"
+          , "Just 2 : Maybe Int", "Just 2 : Maybe Int", "Nothing : Maybe Int" ]
+    -- 「Result と IO にも、値が先の bind と関数が先の andThen がある」
+    it "has bind and andThen for Result and IO, too" $
+      runLines
+        [ ":type Result.bind", ":type Result.andThen", ":type IO.andThen"
+        , "Result.bind (Ok 1) (\\n -> Ok (n + 1))"
+        , "IO.andThen (\\x -> pure (x + 1)) (pure 1)" ]
+        `shouldBe`
+          [ "Result a b -> (b -> Result a c) -> Result a c"
+          , "(a -> Result b c) -> Result b a -> Result b c"
+          , "(a -> IO b) -> IO a -> IO b"
+          , "Ok 2 : Result a Int", "2 : Int" ]
+
   -- 「入出力」
   describe "IO" $ do
     -- ANCHOR: doSugar

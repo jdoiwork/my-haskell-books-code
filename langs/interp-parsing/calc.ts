@@ -29,9 +29,9 @@ const oneOf = <T>(...ps: Parser<T>[]): Parser<T> => (text, pos) => {
   return null;
 };
 
-// Read with p, then with the parser that f makes: Parser.andThen.
-// p で読み、f が作るパーサーで続きを読む（Parser.andThen）
-const andThen = <A, B>(p: Parser<A>, f: (a: A) => Parser<B>): Parser<B> =>
+// Read with p, then with the parser that f makes: Parser.bind.
+// p で読み、f が作るパーサーで続きを読む（Parser.bind）
+const bind = <A, B>(p: Parser<A>, f: (a: A) => Parser<B>): Parser<B> =>
   (text, pos) => {
     const found = p(text, pos);
     return found ? f(found[0])(text, found[1]) : null;
@@ -57,11 +57,11 @@ const ops: Record<string, Op> = {
 // item (operator item)*, joined from the left.
 // item のあとに「演算子 item」が続く。左からまとめる
 const chain = (item: Parser<number>, op: Parser<string>): Parser<number> =>
-  andThen(item, (first) => (text, pos) => {
+  bind(item, (first) => (text, pos) => {
     let value = first;
     for (;;) {
-      const next = andThen(op, (o) =>
-        andThen(item, (x) => pure(ops[o](value, x))))(text, pos);
+      const next = bind(op, (o) =>
+        bind(item, (x) => pure(ops[o](value, x))))(text, pos);
       if (!next) return [value, pos];
       [value, pos] = next;
     }
@@ -72,7 +72,7 @@ const chain = (item: Parser<number>, op: Parser<string>): Parser<number> =>
 const between = <T>(
   open: Parser<string>, p: Parser<T>, close: Parser<string>,
 ): Parser<T> =>
-  andThen(open, () => andThen(p, (x) => andThen(close, () => pure(x))));
+  bind(open, () => bind(p, (x) => bind(close, () => pure(x))));
 
 // expr is used before it is made, so it is wrapped in lazy.
 // expr は、できる前に使うので、lazy で包む

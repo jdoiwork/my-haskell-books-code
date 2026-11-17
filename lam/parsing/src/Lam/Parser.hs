@@ -478,25 +478,22 @@ doLine = choice
 --      x <- e; rest    is    bind e (\x -> rest)
 --      e; rest         is    bind e (\_ -> rest)
 --      let x = e; rest is    let x = e in rest
---    With Parser.do, the lines are joined with Parser.andThen, which
---    takes the function first (like Maybe.andThen):
---      x <- e; rest    is    Parser.andThen (\x -> rest) e
+--    With Parser.do, the lines are joined with Parser.bind:
+--      x <- e; rest    is    Parser.bind e (\x -> rest)
 --    The evaluator and the type checker never see do.
 -- do は糖衣構文：bind と関数に開く。Parser.do なら、行を
--- Parser.andThen でつなぐ（Maybe.andThen と同じく、関数が先）。
--- 評価器も型検査器も、do を知らない
+-- Parser.bind でつなぐ。評価器も型検査器も、do を知らない
 desugarDo :: Maybe Name -> [DoLine] -> Either String Expr
 desugarDo which ls = case ls of
   [DoExpr e]       -> Right e
-  DoExpr e : rest  -> andThen e "_" <$> desugarDo which rest
-  DoBind x e : rest -> andThen e x <$> desugarDo which rest
+  DoExpr e : rest  -> bindTo e "_" <$> desugarDo which rest
+  DoBind x e : rest -> bindTo e x <$> desugarDo which rest
   DoLet x e : rest -> Let x e <$> desugarDo which rest
   -- 「do の最後の行は、式でなければなりません」
   _ -> Left "the last line of do must be an expression"
   where
-    andThen e x body = case which of
-      Nothing -> App (App (Var "bind") e) (Lam x body)
-      Just q  -> App (App (Var (q <> ".andThen")) (Lam x body)) e
+    bindTo e x body = App (App (Var bind) e) (Lam x body)
+    bind = maybe "bind" (<> ".bind") which
 -- ANCHOR_END: desugarDo
 
 -- ANCHOR: guards
