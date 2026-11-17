@@ -24,7 +24,14 @@ differs = {
     # awk keeps the first of each line, in order; Lam sorts (Map.keys).
     # awk は、最初に出てきた順に残す。Lam は並べる
     ("awk", "unique"): "pear\napple\nfig\n",
+    # Perl shows the loop; "-e syntax OK" goes to the standard error.
+    # Perl はループを見せる。"-e syntax OK" は標準エラーへ
+    ("perl", "deparse"): "LINE: while (defined($_ = readline ARGV)) {\n"
+                         "    print $_ if /ERROR/;\n}\n",
 }
+# The blocks that write to the standard error on purpose.
+# わざと標準エラーに書くブロック
+talks = {("perl", "deparse")}
 
 
 def blocks(path):
@@ -88,7 +95,8 @@ for lang in ["perl", "ruby", "awk", "python", "jq"]:
             done = run(lang, command, work)
             want_out, want_files = expected(lang, name)
             assert done.returncode == 0, (lang, name, done.stderr)
-            assert done.stderr == "", (lang, name, done.stderr)
+            if (lang, name) not in talks:
+                assert done.stderr == "", (lang, name, done.stderr)
             assert done.stdout == want_out, (lang, name, done.stdout)
             for f, text in want_files.items():
                 got = open(os.path.join(work, f)).read()

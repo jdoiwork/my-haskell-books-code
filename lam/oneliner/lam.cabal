@@ -36,6 +36,7 @@ library
                     Lam.Sqlite
                     Lam.Guard
                     Lam.OneLiner
+                    Lam.Script
                     Lam.World
                     Lam.Prelude
                     Lam.Repl

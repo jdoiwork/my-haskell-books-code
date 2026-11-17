@@ -33,6 +33,7 @@ import Lam.Program
 import Lam.Module
 import Lam.Answers (eachNumbered, paragraphs)
 import Lam.OneLiner
+import Lam.Script (runScriptFlag, scriptOf)
 import Lam.Repl
 import Lam.Syntax
 import Lam.Types
@@ -2077,6 +2078,30 @@ main = hspec $ do
         `shouldBe` ["JInt 7", "JInt 8", "2", "x", "c", "99999999999999999999"]
     -- ANCHOR_END: jsonTest
 
+    -- ANCHOR: scriptTest
+    -- 「--script が作ったスクリプトは、どの例でも、ワンライナーと同じ答え」
+    it "makes scripts that do what the one-liners do" $ do
+      names <- listDirectory "examples/oneliner"
+      checked <- fmap concat $ mapM (\n -> do
+        let base = "examples/oneliner" </> dropExtension n
+        (opts, one, rest, world) <- exampleWorld base
+        case scriptOf preludeSession one of
+          Left _ -> pure []        -- a type error: no script to make
+          Right script -> do
+            dbs  <- memoryDatabases
+            let handle = guarded opts (fakeWorldIO dbs)
+            (e1, w1) <- runFakeIO world
+              (runOneLiner handle (fakeFiles world) preludeSession one rest)
+            dbs2 <- memoryDatabases
+            (e2, w2) <- runFakeIO world
+              (runProgram (guarded opts (fakeWorldIO dbs2))
+                 (fakeFiles world) preludeSession "script.lam" script)
+            (n, shownRun world e2 w2) `shouldBe` (n, shownRun world e1 w1)
+            pure [n])
+        [ n | n <- names, takeExtension n == ".cmd" ]
+      length checked `shouldSatisfy` (>= 25)
+    -- ANCHOR_END: scriptTest
+
     -- ANCHOR: inPlaceTest
     -- 「-i.bak は、元の中身を残してから書き換える。
     --   --dry-run なら何も書かない」
@@ -2283,6 +2308,20 @@ fixedOf n c d =
 -- （本物で作る make-oneliner-out.sh と同じ見せ方）
 runOneLinerExample :: FilePath -> IO Text
 runOneLinerExample base = do
+  (opts, one, rest, world) <- exampleWorld base
+  dbs <- memoryDatabases
+  (ending, after) <- runFakeIO world
+    (if oneScript one
+       then runScriptFlag (guarded opts (fakeWorldIO dbs)) preludeSession one
+       else runOneLiner (guarded opts (fakeWorldIO dbs)) (fakeFiles world)
+              preludeSession one rest)
+  pure (shownRun world ending after)
+
+-- 🎭 The flags, the one-liner, the words after it, and the fake world
+--    of an example.
+-- 例のフラグ・ワンライナー・後ろの語・偽物の世界
+exampleWorld :: FilePath -> IO (Options, OneLiner, [String], FakeWorld)
+exampleWorld base = do
   cmd   <- Utf8.readFile (base <> ".cmd")
   there <- doesFileExist (base <> ".in")
   input <- if there then T.lines <$> Utf8.readFile (base <> ".in")
@@ -2296,23 +2335,26 @@ runOneLinerExample base = do
   (one, rest) <- case command of
     RunOneLiner one rest -> pure (one, rest)
     other                -> fail ("not a one-liner: " <> show other)
-  dbs <- memoryDatabases
-  let world = emptyWorld { worldInput = input
-                         , worldArgs  = map T.pack rest
-                         , worldFiles = Map.fromList files }
-  (ending, after) <- runFakeIO world
-    (runOneLiner (guarded opts (fakeWorldIO dbs)) (fakeFiles world)
-       preludeSession one rest)
-  let shown = case ending of
-        Finished ""  -> ""
-        Finished out -> out <> "\n"
-        Errored err  -> err <> "\n[exit 1]\n"
-        ExitedWith 0 -> ""
-        ExitedWith n -> "[exit " <> T.pack (show n) <> "]\n"
-      changed = [ "== " <> f <> " ==\n" <> t
-                | (f, t) <- Map.toList (worldFiles after)
-                , Map.lookup f (worldFiles world) /= Just t ]
-  pure (outputOf after <> errorsOf after <> shown <> T.concat changed)
+  pure (opts, one, rest, emptyWorld { worldInput = input
+                                    , worldArgs  = map T.pack rest
+                                    , worldFiles = Map.fromList files })
+
+-- 🖥️ How a run looks: the standard output, the standard error, how it
+--    ended, and each file that it changed or made.
+-- 動かした様子：標準出力・標準エラー・終わり方・変えたか作ったファイル
+shownRun :: FakeWorld -> Ending -> FakeWorld -> Text
+shownRun world ending after =
+  outputOf after <> errorsOf after <> shown <> T.concat changed
+  where
+    shown = case ending of
+      Finished ""  -> ""
+      Finished out -> out <> "\n"
+      Errored err  -> err <> "\n[exit 1]\n"
+      ExitedWith 0 -> ""
+      ExitedWith n -> "[exit " <> T.pack (show n) <> "]\n"
+    changed = [ "== " <> f <> " ==\n" <> t
+              | (f, t) <- Map.toList (worldFiles after)
+              , Map.lookup f (worldFiles world) /= Just t ]
 
 -- ✂️ The words of a command line: spaces cut, '...' keeps them.
 -- コマンドの行の語：空白で切る。'...' の中は切らない

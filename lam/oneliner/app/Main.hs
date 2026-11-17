@@ -25,7 +25,8 @@ import System.IO (stderr)
 import Lam.Guard (guarded)
 import Lam.Io (Handler)
 import Lam.Module (importAt, loadProgram, runProgram)
-import Lam.OneLiner (Command (..), readCommand, runOneLiner)
+import Lam.OneLiner (Command (..), OneLiner (..), readCommand, runOneLiner)
+import Lam.Script (runScriptFlag)
 import Lam.Prelude (preludeSession)
 import Lam.Program (Ending (..), Session)
 import Lam.Repl (Input (..), endingText, parseInput, step)
@@ -46,7 +47,8 @@ main = do
       -- 「ワンライナー：lam [-n|-p] [-a] [-F 区切り] [-i[.bak]]
       --   [--begin 式 --end 式] -e 'プログラム' [ファイル…]」
       TIO.hPutStrLn stderr "       lam [-n|-p] [-a] [-F regex] [-i[.bak]] \
-        \[--begin expr] [--end expr] -e 'program' [files...]"
+        \[--begin expr] [--end expr] [--json|--jsonl] [--path=keys] \
+        \[--script] -e 'program' [files...]"
       exitWith (ExitFailure 2)
     Right (opts, command) -> withOutside $ \outside -> do
       -- The real world, with the guards of the flags around it.
@@ -61,9 +63,14 @@ main = do
         -- -p), or the arguments of the program (-e alone).
         -- ワンライナー：後ろの語は、読むファイル（-n・-p）か、
         -- プログラムの引数（-e だけのとき）
-        RunOneLiner one rest -> withArgs rest $ do
-          files <- realFiles
-          runOneLiner handle files preludeSession one rest >>= finish
+        RunOneLiner one rest
+          -- --script: show the script, and run nothing.
+          -- --script：スクリプトを見せるだけで、動かさない
+          | oneScript one ->
+              runScriptFlag handle preludeSession one >>= finish
+          | otherwise -> withArgs rest $ do
+              files <- realFiles
+              runOneLiner handle files preludeSession one rest >>= finish
         -- ANCHOR_END: mainOneLiner
         Repl -> do
           -- 「Lam の REPL です。:help で使い方、:quit で終わります」

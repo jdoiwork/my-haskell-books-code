@@ -54,4 +54,10 @@ perl -lne '$seen{$_} = 1; END { print for sort keys %seen }' fruits.txt
 # その場で書き換え、元は .bak に
 perl -i.bak -pe 's/colour/color/g' notes.txt
 # ANCHOR_END: inplace
+
+# ANCHOR: deparse
+# show the loop that -n wraps around the program (B::Deparse)
+# -n がプログラムのまわりに作るループを見せる（B::Deparse）
+perl -MO=Deparse -ne 'print if /ERROR/'
+# ANCHOR_END: deparse
 # ANCHOR_END: book
