@@ -1,0 +1,13 @@
+-- 🌡️ Step 2: a table from -40 C to 40 C, in whole Fahrenheit.
+-- ステップ2：-40 C から 40 C までの表。華氏は整数に丸める
+--   lam examples/float/answers/units.lam
+
+fahrenheit : Float -> Float
+fahrenheit c = c * 9 / 5 + 32
+
+-- ANCHOR: table
+main : IO ()
+main =
+  forEach (map (\i -> i * 10) (range -4 4)) (\c ->
+    putStrLn f"{c:>4} C = {round (fahrenheit (toFloat c)) ?: 0:>4} F")
+-- ANCHOR_END: table

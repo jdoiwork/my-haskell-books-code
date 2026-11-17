@@ -1,0 +1,1 @@
+-n --begin 0 -e 'acc + 1' --end print examples/oneliner/app.log

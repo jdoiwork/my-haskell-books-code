@@ -1,0 +1,4 @@
+-- 🐛 maximum compares the items, but the annotation does not say so.
+-- maximum は要素を比べるのに、注釈がそう言っていない
+largest : [a] -> Maybe a
+largest xs = maximum xs

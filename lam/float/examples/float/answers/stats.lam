@@ -1,0 +1,22 @@
+-- 📈 Step 1: the mean and the standard deviation of the scores.
+-- ステップ1：点数の平均と標準偏差
+--   lam examples/float/answers/stats.lam
+
+scores : [Float]
+scores = [82, 75, 91, 64]
+
+-- ANCHOR: mean
+mean : [Float] -> Float
+mean xs = sum xs / toFloat (length xs)
+
+-- 📏 How far the scores are from the mean, on the whole: the square
+--    root of the mean of the squares of the differences.
+-- 点数が平均からどれくらい離れているか：差の2乗の平均の平方根
+stddev : [Float] -> Float
+stddev xs = sqrt (mean (map (\x -> (x - m) * (x - m)) xs))
+  where
+    m = mean xs
+-- ANCHOR_END: mean
+
+main : IO ()
+main = putStrLn f"mean {mean scores:.2}, standard deviation {stddev scores:.2}"

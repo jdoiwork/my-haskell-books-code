@@ -1,0 +1,21 @@
+-- 🛟 Step 3: an average that never fails, and numbers from text.
+-- ステップ3：失敗しない平均と、文字から読む数
+--   lam examples/float/answers/safe.lam
+
+-- ANCHOR: safe
+-- Nothing for an empty list: /? gives Nothing for 0.
+-- 空のリストなら Nothing。/? は 0 で割ると Nothing
+average : [Int] -> Maybe Float
+average xs = toFloat (sum xs) /? toFloat (length xs)
+
+-- A line of text to a number: String.toFloat, or else 0.
+-- 1行の文字を数に。読めなければ 0
+readOr0 : String -> Float
+readOr0 s = String.toFloat s ?: 0
+-- ANCHOR_END: safe
+
+main : IO ()
+main = do
+  putStrLn f"{average [82, 75, 91, 64] ?: 0:.1}"
+  putStrLn f"{average [] ?: 0:.1}"
+  putStrLn (show (map readOr0 ["1.5", " 2 ", "two", "-0.25"]))

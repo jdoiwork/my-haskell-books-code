@@ -1,0 +1,42 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🚀 wordfreq in Lam, in two files: the tools are in Words.lam.
+--      lam wordfreq.lam sample.txt     (a file)
+--      lam wordfreq.lam < sample.txt   (the standard input)
+-- Lam で書いた wordfreq を、2つのファイルで。道具は Words.lam に
+
+-- ANCHOR: import
+-- Words.lam, next to this file. Its names come with Words. in front.
+-- このファイルの隣の Words.lam。名前の前には Words. が付く
+import Words
+-- ANCHOR_END: import
+
+-- 🖨️ A word (padded to 12 letters) and its count: "the         6"
+-- 単語（12文字の幅に左寄せ）と出現回数
+let printEntry pair = putStrLn f"{fst pair:<12}{snd pair}"
+
+-- 📥 The text: the file in the arguments, or the standard input.
+-- 文字列：引数のファイルか、標準入力
+let readInput args =
+  case args of
+    | [] -> getContents |> IO.andThen (\text -> pure (Ok text))
+    | [file] -> readFile file
+    | _ -> pure (Err "give one file, or none to read the standard input")
+
+-- ANCHOR: main
+let main args = do
+  input <- readInput args
+  case input of
+    | Err message -> do
+        -- 「wordfreq：（わけ）」を標準エラーに出し、終了コード 1 で終わる
+        ePutStrLn f"wordfreq: {message}"
+        exit 1
+    | Ok text -> do
+        let ranking =
+              text
+                |> Words.splitIntoWords
+                |> Words.countWords
+                |> Words.topN 10
+        forEach ranking printEntry
+-- ANCHOR_END: main
+-- ANCHOR_END: all

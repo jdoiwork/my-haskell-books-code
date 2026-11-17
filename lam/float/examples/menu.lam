@@ -1,0 +1,77 @@
+-- The menu of the shop, read from the keyboard: groups in { }, which
+-- may hold more groups, and items with a name in quotes and a price.
+-- Show it with the total of each group.
+-- お店のメニューを、キーボードから読む。{ } のグループは、中にまた
+-- グループを持てる。品物は、引用符の中の名前と値段。グループごとの
+-- 合計を付けて見せる
+--   lam examples/menu.lam < examples/menu.in
+
+-- ANCHOR: tree
+-- A menu: an item with its price, or a group of more menus.
+-- メニュー：値段の付いた品物か、メニューを集めたグループ
+data Menu = Item String Int | Group String [Menu]
+-- ANCHOR_END: tree
+
+-- ANCHOR: parser
+-- A name in quotes:  "T-shirt, large"  (no "" inside, to keep it short).
+-- 引用符の中の名前（短くするため、中の "" はなし）
+let name = Parser.token (Parser.do
+  _ <- Parser.string "\""
+  letters <- Parser.many (Parser.satisfy (\c -> c /= "\"" && c /= "\n"))
+  _ <- Parser.label "a closing quote" (Parser.string "\"")
+  Parser.pure (join "" letters))
+
+-- item "mug" 1200
+let item = Parser.do
+  _ <- Parser.symbol "item"
+  n <- Parser.label "the name of the item" name
+  price <- Parser.label "a price" (Parser.token Parser.int)
+  Parser.pure (Item n price)
+
+-- group "stickers" { ... }: a group holds menus, so it points at itself.
+-- グループはメニューを持つので、自分を指す
+let menu = Parser.oneOf
+  [ item
+  , Parser.do
+      _ <- Parser.symbol "group"
+      n <- Parser.label "the name of the group" name
+      inside <- Parser.between "{" "}"
+        (Parser.many (Parser.lazy (\_ -> menu)))
+      Parser.pure (Group n inside) ]
+-- ANCHOR_END: parser
+
+-- ANCHOR: show
+-- The price of a menu: a group costs what its menus cost.
+-- メニューの値段。グループは、中のメニューの合計
+let price m =
+  case m of
+    | Item _ p -> p
+    | Group _ ms -> sum (map price ms)
+
+-- One line for each item and group, pushed right by its depth.
+-- 品物とグループを1行ずつ。深さの分だけ右へずらす
+let render depth m =
+  let indent = join "" (map (\_ -> "  ") (range 1 depth)) in
+  let line n = f"{indent ++ n:<24}{price m:>6}" in
+  case m of
+    | Item n _ -> [line n]
+    | Group n ms ->
+        line n : foldr (\x rest -> render (depth + 1) x ++ rest) [] ms
+-- ANCHOR_END: show
+
+-- Every line until the end of the input.
+-- 入力の終わりまでの、すべての行
+let readLines = do
+  line <- getLine
+  case line of
+    | Nothing -> pure []
+    | Just s -> do
+        rest <- readLines
+        pure (s : rest)
+
+let main = do
+  lines <- readLines
+  let text = join "\n" lines
+  case Parser.run (Parser.andThen (\_ -> menu) Parser.spaces) text of
+    | Ok m -> forEach (render 0 m) putStrLn
+    | Err e -> putStrLn e
