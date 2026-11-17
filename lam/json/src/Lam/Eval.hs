@@ -185,11 +185,16 @@ match p v = case (p, v) of
   _                           -> Nothing
 
 -- 🧩 Every pattern fits its value, side by side (and as many of each).
--- パターンが、並んだ値にそれぞれ合う（数も同じ）
+--    Walk the two lists together, and stop when one ends first: the
+--    pattern [] must not count the whole list (foldl would be slow).
+-- パターンが、並んだ値にそれぞれ合う（数も同じ）。2つのリストを一緒に
+-- たどり、片方が先に尽きたら合わない。[] のパターンで、リストの全部を
+-- 数えないため（数えると foldl が遅くなる）
 matchAll :: [Pattern] -> [Value] -> Maybe [(Name, Value)]
-matchAll ps vs
-  | length ps == length vs = concat <$> sequence (zipWith match ps vs)
-  | otherwise              = Nothing
+matchAll ps vs = case (ps, vs) of
+  ([], [])           -> Just []
+  (p : ps', v : vs') -> (<>) <$> match p v <*> matchAll ps' vs'
+  _                  -> Nothing
 -- ANCHOR_END: match
 
 -- ANCHOR: apply
