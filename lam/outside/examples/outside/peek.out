@@ -1,5 +1,0 @@
-readFile: ok
-writeFile: peek.txt: needs --allow-write
-Http.get: https://pokeapi.co/api/v2/pokemon/pikachu: needs --allow-net
-Sql.open: peek.db: needs --allow-write
-Sql.open :memory:: ok

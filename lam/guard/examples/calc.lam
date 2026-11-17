@@ -1,0 +1,66 @@
+-- A calculator that knows parentheses: read the text into a tree, then
+-- compute the tree.
+-- かっこのわかる電卓：文字列を木に読んでから、木を計算する
+--   lam examples/calc.lam
+
+-- ANCHOR: tree
+-- The tree of a calculation:  1 + 2 * 3  is  Op "+" (Num 1) (Op "*" ...)
+-- 計算の木
+data Calc = Num Int | Op String Calc Calc
+-- ANCHOR_END: tree
+
+-- ANCHOR: chain
+-- item, then (operator item) as many times as it comes, joined from the
+-- left:  1 - 2 - 3  is  (1 - 2) - 3.
+-- item のあとに「演算子 item」が何回でも続く。左からまとめる
+let chain item operator = Parser.do
+  first <- item
+  rest <- Parser.many (Parser.do
+    o <- operator
+    x <- item
+    Parser.pure (o, x))
+  Parser.pure (foldl (\left pair -> Op (fst pair) left (snd pair)) first rest)
+-- ANCHOR_END: chain
+
+-- ANCHOR: expr
+-- An expression: terms joined by + and -. A term: factors joined by *
+-- and /. A factor: a number, or an expression in ( ). The expression
+-- points at itself, so it is wrapped in Parser.lazy.
+-- 式は、項を + と - でつないだもの。項は、因子を * と / でつないだもの。
+-- 因子は、数か、( ) の中の式。式は自分を指すので、Parser.lazy で包む
+let expr =
+  let number = Parser.map Num (Parser.token Parser.int) in
+  let factor = Parser.oneOf
+        [ number
+        , Parser.between "(" ")" (Parser.lazy (\_ -> expr)) ] in
+  let term = chain factor
+        (Parser.oneOf [Parser.symbol "*", Parser.symbol "/"]) in
+  chain term (Parser.oneOf [Parser.symbol "+", Parser.symbol "-"])
+-- ANCHOR_END: expr
+
+-- ANCHOR: compute
+-- Compute the tree.
+-- 木を計算する
+let compute c =
+  case c of
+    | Num n -> n
+    | Op "+" a b -> compute a + compute b
+    | Op "-" a b -> compute a - compute b
+    | Op "*" a b -> compute a * compute b
+    | Op _ a b -> compute a / compute b
+
+-- Read the whole text (spaces at the start, too), and compute it.
+-- 文字列の全体を読んで（頭の空白も）、計算する
+let calc text =
+  Result.map compute
+    (Parser.run (Parser.andThen (\_ -> expr) Parser.spaces) text)
+-- ANCHOR_END: compute
+
+let main = do
+  forEach ["1 + 2 * 3", "(1 + 2) * 3", " (1 + (2 * 3)) * 4 ", "10 - 4 - 3"]
+    (\text -> case calc text of
+       | Ok n -> putStrLn f"{text:<20} = {n}"
+       | Err e -> putStrLn e)
+  case calc "(1 + 2" of
+    | Ok n -> putStrLn f"{n}"
+    | Err e -> putStrLn e

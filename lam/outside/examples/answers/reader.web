@@ -1,0 +1,2 @@
+https://pokeapi.co/api/v2/pokemon/pikachu 200 ../outside/web/pikachu.json
+https://pokeapi.co/api/v2/pokemon/nosuchmon 404 ../outside/web/not-found.json

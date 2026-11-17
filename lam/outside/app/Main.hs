@@ -1,11 +1,8 @@
 -- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
--- | lam: the REPL, or run a file.
---     lam [flags]  /  lam [flags] program.lam args...
---   The flags (--allow-net, --trace, ...) come before the file.
--- lam：REPL、またはファイルを動かす。フラグ（--allow-net、--trace など）
--- はファイルより前に。ファイルの後ろは、スクリプトの引数
+-- | lam: the REPL, or run a file.  lam  /  lam program.lam args...
+-- lam：REPL、またはファイルを動かす。ファイルの後ろは、スクリプトの引数
 module Main (main) where
 
 import Control.Exception (NonTermination (..), evaluate, try)
@@ -19,37 +16,30 @@ import System.Environment (getArgs, withArgs)
 import System.Exit (ExitCode (..), exitWith)
 import System.IO (stderr)
 
-import Lam.Guard (guarded, readOptions)
-import Lam.Io (Handler)
 import Lam.Module (importAt, loadProgram, runProgram)
 import Lam.Prelude (preludeSession)
 import Lam.Program (Ending (..), Session)
 import Lam.Repl (Input (..), endingText, parseInput, step)
 import qualified Lam.Program as Program
+import Lam.Io (Handler)
 import Lam.World (realFiles, realWorld, withOutside)
 
 main :: IO ()
 main = do
   args <- getArgs
-  case readOptions args of
-    Left err -> do
-      -- 「使い方：lam [フラグ] [ファイル 引数…]」
-      TIO.hPutStrLn stderr (T.pack err)
-      TIO.hPutStrLn stderr "usage: lam [--allow-net] [--allow-read] \
-        \[--allow-write] [--deny-all] [--trace] [--dry-run] [file args...]"
-      exitWith (ExitFailure 2)
-    Right (opts, rest) -> withOutside $ \outside -> do
-      -- The real world, with the guards of the flags around it.
-      -- 本物の世界に、フラグの見張りをかぶせる
-      let handle = guarded opts (realWorld outside)
-      case rest of
-        -- The rest is for the script: its getArgs sees only them.
-        -- 残りはスクリプトのもの。スクリプトの getArgs には、これだけが見える
-        file : scriptArgs -> withArgs scriptArgs (runFile handle file)
-        []                -> do
-          -- 「Lam の REPL です。:help で使い方、:quit で終わります」
-          putStrLn "Lam REPL. Type :help for help, :quit to quit."
-          runInputT defaultSettings (loop handle preludeSession)
+  case args of
+    -- The rest is for the script: its getArgs sees only them.
+    -- 残りはスクリプトのもの。スクリプトの getArgs には、これだけが見える
+    -- The real world keeps the HTTP manager and the open databases
+    -- while the program runs, and closes the databases at the end.
+    -- 本物の世界は、動かすあいだ HTTP のマネージャーと開いた
+    -- データベースを持ち、終わるときにデータベースを閉じる
+    file : rest -> withOutside $ \outside ->
+      withArgs rest (runFile (realWorld outside) file)
+    []          -> withOutside $ \outside -> do
+      -- 「Lam の REPL です。:help で使い方、:quit で終わります」
+      putStrLn "Lam REPL. Type :help for help, :quit to quit."
+      runInputT defaultSettings (loop (realWorld outside) preludeSession)
 -- ANCHOR_END: head
 
 

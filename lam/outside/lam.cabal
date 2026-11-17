@@ -34,14 +34,10 @@ library
                     Lam.Parsing
                     Lam.Outside
                     Lam.Sqlite
-                    Lam.Guard
                     Lam.World
                     Lam.Prelude
                     Lam.Repl
-                    -- The answers of the training
-                    -- トレーニングの解答
-                    Lam.Answers
-  hs-source-dirs:   src answers
+  hs-source-dirs:   src
   -- ANCHOR: deps
   build-depends:
     , megaparsec         ^>=9.8

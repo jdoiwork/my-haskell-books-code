@@ -31,15 +31,12 @@ import Lam.Prelude
 import Lam.Pretty
 import Lam.Program
 import Lam.Module
-import Lam.Answers (allowEnv, allowHosts, hostOf, readNetFlag)
 import Lam.Repl
 import Lam.Syntax
 import Lam.Types
 import Lam.World
-import Lam.Guard
 import Lam.Sqlite
 import Lam.Eval (Cell (..), OpenMode (..), Request (..), Value (..), renderValue)
-import qualified Data.Set as Set
 import Data.Maybe (fromMaybe)
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.IO (hClose, openTempFile)
@@ -99,11 +96,10 @@ runExample base = do
 
 -- 🎭 The same, with databases given (to run twice on the same ones),
 --    and a change to the world before the run. The answer has the
---    world after. <base>.web is the fake web (URL, status, file), and
---    <base>.flags the flags (--allow-net, ...).
+--    world after. <base>.web is the fake web (URL, status, file).
 -- 同じだが、データベースを渡し（同じもので2回動かすため）、動かす前に
 -- 世界を変えられる。答えには、あとの世界も入る。<base>.web は偽物の
--- Web（URL・状態コード・ファイル）、<base>.flags はフラグ
+-- Web（URL・状態コード・ファイル）
 runExampleWith
   :: Databases -> (FakeWorld -> FakeWorld) -> FilePath
   -> IO (Text, FakeWorld)
@@ -113,10 +109,8 @@ runExampleWith dbs change base = do
   args   <- linesOf (base <> ".args")
   env    <- linesOf (base <> ".env")
   web    <- linesOf (base <> ".web") >>= mapM page
-  flags  <- linesOf (base <> ".flags")
   orders <- Utf8.readFile "examples/orders.json"
   modules <- lamFiles "examples"
-  opts <- either fail (pure . fst) (readOptions (map T.unpack flags))
   let world = change emptyWorld
         { worldInput = input
         , worldArgs  = args
@@ -126,7 +120,7 @@ runExampleWith dbs change base = do
             Map.fromList (("examples/orders.json", orders) : modules)
         , worldWeb   = Map.fromList web }
   (result, world') <-
-    runFakeIO world (runProgram (guarded opts (fakeWorldIO dbs))
+    runFakeIO world (runProgram (fakeWorldIO dbs)
                        (fakeFiles world) preludeSession
                        (base <> ".lam") source)
   let shown = case result of
@@ -351,7 +345,7 @@ main = hspec $ do
       , "result", "tree", "orders", "count", "cents", "hello", "report"
       , "receipt", "shoplog", "pair", "csv", "calc", "menu"
       , "wordfreq", "greet", "average", "echo", "shout", "sum", "wc"
-      , "outside/weather", "outside/dex", "outside/peek" ]
+      , "outside/weather", "outside/dex" ]
   -- ANCHOR_END: examples
 
   -- 「モジュール」
@@ -606,6 +600,7 @@ main = hspec $ do
           , "in the data type List: type error: List is a builtin type" ]
     -- ANCHOR_END: dataErrors
 
+
     -- ANCHOR: guards
     -- 「ガードが偽なら、次の枝へ進む」
     it "goes on to the next branch when a guard is false" $
@@ -618,19 +613,6 @@ main = hspec $ do
           [ "size : Int -> String"
           , "[\"zero\", \"small\", \"big\"] : [String]"
           , "10 : Int" ]
-    it "traces every request, even one that is not allowed" $ do
-      dbs <- memoryDatabases
-      let opts = defaultOptions { permissions = Only Set.empty
-                                , tracing = True }
-      (_, after) <- scriptIO dbs opts emptyWorld $ T.unlines
-        [ "let main = do"
-        , "  a <- readFile \"メモ.txt\""
-        , "  b <- Http.get \"https://x.test/\""
-        , "  putStrLn (show (a, b))" ]
-      errorsOf after `shouldBe` T.unlines
-        [ "trace: readFile \"メモ.txt\""
-        , "trace: Http.send \"GET\" \"https://x.test/\"" ]
-      worldSent after `shouldBe` []
     -- ANCHOR_END: guards
 
     -- ANCHOR: guardSugar
@@ -1747,7 +1729,7 @@ main = hspec $ do
             [ ("https://x.test/ok",  (200, "{\"n\": 1}"))
             , ("https://x.test/bad", (200, "{\"n\": "))
             , ("https://x.test/404", (404, "{\"error\": \"no\"}")) ] }
-      (ending, after) <- scriptIO dbs defaultOptions world $ T.unlines
+      (ending, after) <- scriptIO dbs world $ T.unlines
         [ "let main = do"
         , "  a <- Http.get \"https://x.test/ok\""
         , "  b <- Http.get \"https://x.test/bad\""
@@ -1769,78 +1751,6 @@ main = hspec $ do
         , "Err \"object value: not enough input\"" ]
     -- ANCHOR_END: readers
 
-    -- ANCHOR: guards
-    -- 「権限がなければ、ハンドラーに頼まずに Err で答える」
-    it "asks the handler only when every permission is given" $
-      property $ forAll (sublistOf [Net, Read, Write]) $ \given ->
-        forAll (elements sampleRequests) $ \request ->
-          let asked = snd (runState
-                (allowOnly (Only (Set.fromList given)) counting request) 0)
-              counting _ = modify (+ (1 :: Int)) >> pure (VTuple [])
-          in asked == (if all (`elem` given) (needs request) then 1 else 0)
-    it "reads the flags before the file, and leaves the rest" $ do
-      readOptions [] `shouldBe` Right (defaultOptions, [])
-      readOptions ["--allow-net", "--trace", "a.lam", "--allow-read"]
-        `shouldBe` Right
-          ( defaultOptions { permissions = Only (Set.fromList [Net])
-                           , tracing = True }
-          , ["a.lam", "--allow-read"] )
-      fmap (permissions . fst) (readOptions ["--deny-all"])
-        `shouldBe` Right (Only Set.empty)
-      fmap (permissions . fst) (readOptions ["--allow-read", "--deny-all"])
-        `shouldBe` Right (Only (Set.fromList [Read]))
-      readOptions ["--alow-net", "a.lam"] `shouldSatisfy` isLeft
-    it "traces every request, even one that is not allowed" $ do
-      dbs <- memoryDatabases
-      let opts = defaultOptions { permissions = Only Set.empty
-                                , tracing = True }
-      (_, after) <- scriptIO dbs opts emptyWorld $ T.unlines
-        [ "let main = do"
-        , "  a <- readFile \"メモ.txt\""
-        , "  b <- Http.get \"https://x.test/\""
-        , "  putStrLn (show (a, b))" ]
-      errorsOf after `shouldBe` T.unlines
-        [ "trace: readFile \"メモ.txt\""
-        , "trace: Http.send \"GET\" \"https://x.test/\"" ]
-      worldSent after `shouldBe` []
-    -- ANCHOR_END: guards
-
-    -- ANCHOR: dryRunTest
-    -- 「--dry-run は、書かずに、何を書くはずだったかを知らせる」
-    it "does not write with --dry-run, but tells what it would do" $ do
-      dbs <- memoryDatabases
-      let world = emptyWorld
-            { worldWeb = Map.fromList [("https://x.test/n", (200, "{}"))] }
-          opts = defaultOptions { dryRunning = True }
-      _ <- scriptIO dbs defaultOptions world $ T.unlines
-        [ "let main = do"
-        , "  opened <- Sql.open \"d.db\""
-        , "  case opened of"
-        , "    | Ok db -> do"
-        , "        _ <- Sql.exec db \"CREATE TABLE t (x)\" []"
-        , "        pure ()"
-        , "    | Err e -> putStrLn e" ]
-      (_, after) <- scriptIO dbs opts world $ T.unlines
-        [ "let main = do"
-        , "  w <- writeFile \"out.txt\" \"hi\""
-        , "  p <- Http.post \"https://x.test/n\" JNull"
-        , "  opened <- Sql.open \"d.db\""
-        , "  case opened of"
-        , "    | Ok db -> do"
-        , "        n <- Sql.exec db \"INSERT INTO t VALUES (1)\" []"
-        , "        rows <- Sql.query db \"SELECT * FROM t\" []"
-        , "        putStrLn (show (w, p, n, rows))"
-        , "    | Err e -> putStrLn e" ]
-      worldFiles after `shouldBe` Map.empty
-      worldSent after `shouldBe` []
-      outputOf after `shouldBe`
-        ("(Ok (), Err \"dry run: POST https://x.test/n was not sent\", "
-           <> "Ok 0, Ok [])\n")
-      errorsOf after `shouldBe` T.unlines
-        [ "dry-run: writeFile \"out.txt\" (2 letters)"
-        , "dry-run: POST https://x.test/n"
-        , "dry-run: Sql.exec \"INSERT INTO t VALUES (1)\"" ]
-    -- ANCHOR_END: dryRunTest
 
     -- ANCHOR: cellsTest
     -- 「整数・短い小数・文字列・null は、貯めて読むと元のまま」
@@ -1855,7 +1765,7 @@ main = hspec $ do
         pure (renderValue rows === "Ok [{\"x\": " <> shown <> "}]")
     it "says no to an integer SQLite cannot keep, and to an array" $ do
       dbs <- memoryDatabases
-      (ending, after) <- scriptIO dbs defaultOptions emptyWorld $ T.unlines
+      (ending, after) <- scriptIO dbs emptyWorld $ T.unlines
         [ "let big = 9223372036854775807"
         , "let main = do"
         , "  opened <- Sql.open \":memory:\""
@@ -1904,45 +1814,21 @@ main = hspec $ do
 
   -- 「トレーニングの解答」
   describe "answers of the outside" $ do
+    golden "answers/reader"
     golden "answers/transaction"
-    -- ANCHOR: answerEnv
-    -- 「--allow-env がなければ、環境変数はないように見える」
-    it "hides the environment without --allow-env" $ do
-      let world =
-            emptyWorld { worldEnv = Map.fromList [("HOME", "/home/lam")] }
-          source = T.unlines
-            [ "let main = do"
-            , "  h <- lookupEnv \"HOME\""
-            , "  e <- getEnvironment"
-            , "  putStrLn (show (h, Map.size e))" ]
-          out allowed = outputOf (snd (runFake world (runProgram
-            (allowEnv allowed fakeWorld) noFiles preludeSession "env.lam"
-            source)))
-      out True  `shouldBe` "(Just \"/home/lam\", 1)\n"
-      out False `shouldBe` "(Nothing, 0)\n"
-    -- ANCHOR_END: answerEnv
-    -- ANCHOR: answerHosts
-    -- 「--allow-net=ホスト：一覧のホストにだけ出られる」
-    it "lets HTTP out only to the hosts in --allow-net=" $ do
-      readNetFlag "--allow-net=pokeapi.co,www.jma.go.jp"
-        `shouldBe` Just ["pokeapi.co", "www.jma.go.jp"]
-      readNetFlag "--allow-read" `shouldBe` Nothing
-      hostOf "https://pokeapi.co/api/v2/pokemon/mew"
-        `shouldBe` Just "pokeapi.co"
-      -- The host is pokeapi.co.evil.test, not pokeapi.co.
-      -- ホストは pokeapi.co.evil.test で、pokeapi.co ではない
-      hostOf "https://pokeapi.co.evil.test/x"
-        `shouldBe` Just "pokeapi.co.evil.test"
-      let send url = HttpSend "GET" url [] ""
-          ask url = runFake emptyWorld
-            (allowHosts ["pokeapi.co"] fakeWorld (send url))
-      worldSent (snd (ask "https://pokeapi.co/api/v2/pokemon/mew"))
-        `shouldBe` ["GET https://pokeapi.co/api/v2/pokemon/mew"]
-      renderValue (fst (ask "https://pokeapi.co.evil.test/x"))
-        `shouldBe` ("Err \"https://pokeapi.co.evil.test/x: needs "
-                      <> "--allow-net=pokeapi.co.evil.test\"")
-      worldSent (snd (ask "https://pokeapi.co.evil.test/x")) `shouldBe` []
-    -- ANCHOR_END: answerHosts
+    -- ANCHOR: answerSummary
+    -- 「weather.lam が貯めた表を、同じデータベースでまとめる」
+    it "sums up what weather.lam kept" $ do
+      dbs <- memoryDatabases
+      _ <- runExampleWith dbs id "examples/outside/weather"
+      (out, _) <- runExampleWith dbs id "examples/answers/summary"
+      expected <- Utf8.readFile "examples/answers/summary.out"
+      out `shouldBe` expected
+      -- Without weather.lam first, there is no table to sum up.
+      -- weather.lam を先に動かさないと、まとめる表がない
+      alone <- runExample "examples/answers/summary"
+      alone `shouldSatisfy` ("summary: " `T.isPrefixOf`)
+    -- ANCHOR_END: answerSummary
 
   -- 「複数行」
   describe "program" $
@@ -1989,25 +1875,13 @@ script world source =
 -- ANCHOR_END: script
 
 -- ANCHOR: scriptIO
--- 🎭 Run a script in the fake world with databases (and the guards).
--- データベースのある偽物の世界で、スクリプトを動かす（見張りつき）
-scriptIO
-  :: Databases -> Options -> FakeWorld -> Text -> IO (Ending, FakeWorld)
-scriptIO dbs opts world source =
+-- 🎭 Run a script in the fake world with databases.
+-- データベースのある偽物の世界で、スクリプトを動かす
+scriptIO :: Databases -> FakeWorld -> Text -> IO (Ending, FakeWorld)
+scriptIO dbs world source =
   runFakeIO world
-    (runProgram (guarded opts (fakeWorldIO dbs)) (fakeFiles world)
+    (runProgram (fakeWorldIO dbs) (fakeFiles world)
        preludeSession "script.lam" source)
-
--- 📨 Requests of every kind, for the property of allowOnly.
--- いろいろな頼みごと（allowOnly の性質のため）
-sampleRequests :: [Request]
-sampleRequests =
-  [ PutStr "hi", GetLine, ReadFile "a.txt", WriteFile "a.txt" "x"
-  , GetArgs, LookupEnv "HOME", HttpSend "GET" "https://x.test/" [] ""
-  , HttpSend "POST" "https://x.test/" [] "{}"
-  , SqlOpen "a.db" ReadWrite, SqlOpen "a.db" ReadOnly
-  , SqlOpen ":memory:" ReadWrite, SqlQuery 1 "SELECT 1" []
-  , SqlExec 1 "DELETE FROM t" [], SqlClose 1 ]
 
 -- 🎲 A cell, and how Lam shows it when it comes back. A decimal has
 --    at most 9 digits, and does not end in 0 (17.40 comes back 17.4).
@@ -2017,7 +1891,7 @@ genCell :: Gen (Cell, Text)
 genCell = oneof
   [ pure (CNull, "JNull")
   , (\i -> (CInt i, "JInt " <> paren i))
-      <$> chooseInteger (-2 ^ 63, 2 ^ 63 - 1)
+      <$> chooseInteger (-(2 ^ (63 :: Int)), 2 ^ (63 :: Int) - 1)
   , do d <- chooseInt (1, 4)
        c <- chooseInteger (-999999999, 999999999)
               `suchThat` (\c -> c `mod` 10 /= 0)

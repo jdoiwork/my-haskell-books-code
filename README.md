@@ -175,6 +175,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-script/`](langs/interp-script/) |
 | ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/script/`](lam/script/)、[`langs/interp-modules/`](langs/interp-modules/) |
 | 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/modules/`](lam/modules/)、[`langs/interp-outside/`](langs/interp-outside/) |
+| 鍵をかける：権限のフラグと見張り | [`lam/guard/`](lam/guard/)、[`lam/outside/`](lam/outside/)、[`langs/interp-guard/`](langs/interp-guard/) |
 | 第8部のふりかえり | [`lam/polish/`](lam/polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第9部 総合演習3：Python の機械学習ライブラリを Haskell で作る
