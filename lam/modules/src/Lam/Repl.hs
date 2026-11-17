@@ -151,7 +151,7 @@ helpText = T.intercalate "\n"
   , "x |> f                 f x  (text |> words |> length)"
   , ":type expr             show the type of an expression"
   , ":load file.lam         load the definitions in a file"
-  , "import M as N exposing (x)   use a module (M.lam, or a standard one)"
+  , "import M as N (x)      use a module (M.lam, or a standard one)"
   , ":browse M              list what the module M shows"
   , ":env                   list the names you can use"
   , ":quit                  quit" ]

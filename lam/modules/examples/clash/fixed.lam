@@ -1,7 +1,7 @@
 -- ANCHOR: all
 -- ✅ Take only mean without the name in front; sum stays Stats.sum.
 -- 名前を付けずに使うのは mean だけ。sum は Stats.sum のまま
-import Stats exposing (mean)
+import Stats (mean)
 
 let main = putStrLn f"{Stats.sum [1, 2, 3]} {mean [1, 2, 3]}"
 -- ANCHOR_END: all

@@ -1,8 +1,10 @@
 # ANCHOR: all
 # Python: receipt.py, next to price.py
 # Python：receipt.py（price.py の隣）
-import price as p             # p.from_yen  (like  import Price as P)
-from price import show        # show        (like  exposing (show))
+# The two lines together are Lam's  import Price as P (show).
+# 2行で、Lam の  import Price as P (show)  と同じ
+import price as p             # p.from_yen, p.show
+from price import show        # show
 
 prices = [p.from_yen(1200), p.from_yen(350), p.from_yen(-5)]
 for m in prices:

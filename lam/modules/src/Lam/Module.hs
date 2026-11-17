@@ -2,9 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | Modules: a file shows some names (module ... exposing), and other
---   files import them (import ... as ... exposing).
+--   files import them (import ... as ... (names)).
 -- モジュール：ファイルが名前のいくつかを見せ（module ... exposing）、
--- ほかのファイルがそれを import する（import ... as ... exposing）。
+-- ほかのファイルがそれを import する（import ... as ... (名前)）。
 module Lam.Module
   ( Files (..)
   , noFiles
@@ -103,13 +103,13 @@ makeModule standard file (Header loc m exposing) builtin decls inside = do
 -- ANCHOR: importInto
 -- 📥 Import a module into a session. Every name it shows comes with
 --    the module's name (or the name after as) in front:  Json.get,
---    J.get. The names in exposing come without it, too:  get.
+--    J.get. The names in the list come without it, too:  get.
 -- モジュールを、セッションに import する。見せる名前は、どれも前に
--- モジュールの名前（as があれば、その名前）が付く。exposing に書いた
+-- モジュールの名前（as があれば、その名前）が付く。かっこの一覧に書いた
 -- 名前は、付けずにも使える
 importInto :: Session -> Import -> Module -> Either Text Session
 importInto session imp m = do
-  bare <- case importExposing imp of
+  bare <- case importList imp of
     Nothing                 -> Right []
     Just ExposeAll          -> Right (Map.keys exports)
     Just (ExposeSome items) -> concat <$> traverse pick items
@@ -162,8 +162,8 @@ importInto session imp m = do
     }
   where
     exports = moduleExports m
-    -- The names one item of exposing takes, without the module's name.
-    -- exposing の1つが、名前を付けずに持ってくる名前
+    -- The names one item of the list takes, without the module's name.
+    -- 一覧の1つが、名前を付けずに持ってくる名前
     pick item = case item of
       ExposeValue x
         | Map.member x exports -> Right [x]

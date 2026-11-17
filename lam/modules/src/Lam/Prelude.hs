@@ -48,19 +48,19 @@ standardSources =
 -- ANCHOR: defaultImports
 -- 📥 What every file has before its first line. A file writes its own
 --    import only for another name (as) or more names without the
---    module (exposing).
+--    module (the list in parentheses).
 -- どのファイルにも、1行目の前にあるもの。自分で import を書くのは、
--- 別の名前（as）や、モジュールの名前なしで使う名前（exposing）が
+-- 別の名前（as）や、モジュールの名前なしで使う名前（かっこの一覧）が
 -- ほしいときだけ
 defaultImports :: Text
 defaultImports = """
-  import Prelude exposing (..)
-  import Maybe exposing (Maybe (..))
-  import Result exposing (Result (..))
+  import Prelude (..)
+  import Maybe (Maybe (..))
+  import Result (Result (..))
   import IO
   import Map
-  import Json exposing (Json (..))
-  import Match exposing (Match (..))
+  import Json (Json (..))
+  import Match (Match (..))
   import Regex
   import Parser
   """

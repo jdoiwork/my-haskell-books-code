@@ -1087,17 +1087,20 @@ moduleHeader = do
   keyword "exposing"
   Header loc m <$> exposingList
 
--- 📥 import Shapes,  import Shapes as S,  import Shapes exposing (area)
---    (as and exposing can be used together, in this order).
--- import の1行（as と exposing は、この順に両方書いてもよい）
+-- 📥 import Shapes,  import Shapes as S,  import Shapes (area),
+--    import Shapes as S (area). The list is the same as Haskell's, with
+--    no word in front. It must be on the same line (or to the right of
+--    column 1): a ( at column 1 starts the expression at the end.
+-- import の1行。一覧は Haskell と同じく、前に言葉を付けない。同じ行に
+-- （か、1桁目より右に）書く。1桁目の ( は、最後の式の始まり
 importLine :: Parser Import
 importLine = do
   loc <- here
   keyword "import"
   m <- conName
   alias' <- optional (keyword "as" *> conName)
-  shown  <- optional (keyword "exposing" *> exposingList)
-  pure (Import loc m alias' shown)
+  names  <- optional (continuing *> exposingList)
+  pure (Import loc m alias' names)
 
 -- 👀 (..)  or  (area, square, Shape, Shape (..), Json (JInt, JStr))
 -- 見せるものの一覧

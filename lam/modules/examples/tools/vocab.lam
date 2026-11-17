@@ -8,7 +8,7 @@
 -- splitIntoWords and countWords can be used without Words. in front.
 -- Words.lam は、このファイルの隣にはない。場所は LAM_PATH で教える。
 -- splitIntoWords と countWords は、Words. を付けずに使える
-import Words exposing (splitIntoWords, countWords)
+import Words (splitIntoWords, countWords)
 -- ANCHOR_END: import
 
 let main = do

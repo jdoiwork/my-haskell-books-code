@@ -336,7 +336,7 @@ main = hspec $ do
         (runLamParser program "m.lam" (T.unlines
           [ "module Shapes exposing (Shape (..), area, Json (JInt, JStr))"
           , "import Json"
-          , "import Json as J exposing (get)" ]))
+          , "import Json as J (get)" ]))
         `shouldBe` Right
           ( Just (Header (Loc "m.lam" 1 1) "Shapes" (ExposeSome
               [ ExposeType "Shape" AllConstructors, ExposeValue "area"
@@ -348,7 +348,7 @@ main = hspec $ do
 
     -- ANCHOR: importNames
     -- 「import した名前の付き方：前にモジュールの名前、as なら別名だけ、
-    --   exposing なら名前なしでも」
+    --   かっこの一覧なら名前なしでも」
     it "names what it imports: with the module, the alias, or bare" $ do
       withShapes "import Shapes\nShapes.area (Shapes.square 3)"
         `shouldBe` Finished "9 : Int"
@@ -359,10 +359,17 @@ main = hspec $ do
       withShapes "import Shapes as S\nShapes.area (S.Circle 2)"
         `shouldBe` Errored
           "main.lam:2:1: type error: unknown name: Shapes.area"
-      withShapes "import Shapes exposing (area, Shape (..))\narea (Rect 2 5)"
+      withShapes "import Shapes (area, Shape (..))\narea (Rect 2 5)"
         `shouldBe` Finished "10 : Int"
-      withShapes "import Shapes exposing (area)\nsquare 3"
+      withShapes "import Shapes (area)\nsquare 3"
         `shouldBe` Errored "main.lam:2:1: type error: unknown name: square"
+      withShapes (T.unlines [ "import Shapes as S (area)"
+                            , "(area (S.Circle 1), S.area (S.square 2))" ])
+        `shouldBe` Finished "(3, 4) : (Int, Int)"
+      -- A ( at column 1 is the expression at the end, not the list.
+      -- 1桁目の ( は、一覧ではなく、最後の式
+      withShapes "import Shapes\n(Shapes.area (Shapes.square 2), 1)"
+        `shouldBe` Finished "(4, 1) : (Int, Int)"
     -- ANCHOR_END: importNames
 
     -- ANCHOR: hiding
@@ -370,7 +377,7 @@ main = hspec $ do
     it "keeps the names a module does not expose" $ do
       withShapes "import Shapes\nShapes.secret"
         `shouldBe` Errored "type error: unknown name: Shapes.secret"
-      withShapes "import Shapes exposing (secret)\n1"
+      withShapes "import Shapes (secret)\n1"
         `shouldBe` Errored
           "main.lam:1:1: error: the module Shapes does not expose secret"
       -- A constructor hidden by Json: written bare or with Json.
@@ -468,7 +475,7 @@ main = hspec $ do
           a = box "A" "1"
           b = box "B" "2"
           go src = fst (runModules [("A.lam", a), ("B.lam", b)] src)
-      go "import A exposing (size)\nimport B exposing (size)\n1"
+      go "import A (size)\nimport B (size)\n1"
         `shouldBe` Errored
           "main.lam:2:1: error: the name size comes from both A and B"
       go "import A\nimport B\n1" `shouldBe` Errored

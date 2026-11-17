@@ -172,20 +172,20 @@ data Program = Program
 data Header = Header Loc Name Exposing
   deriving (Eq, Show)
 
--- 📥 import Shapes as S exposing (area)
+-- 📥 import Shapes as S (area)
 -- import の1行
 data Import = Import
   { importLoc      :: Loc
   , importName     :: Name            -- Shapes
   , importAlias    :: Maybe Name      -- as S
-  , importExposing :: Maybe Exposing  -- exposing (area)
+  , importList     :: Maybe Exposing  -- (area)
   }
   deriving (Eq, Show)
 
--- 👀 What a module shows (or an import takes without its name):
---    (..) for everything, or a list.
--- モジュールが見せるもの（import なら、名前を付けずに使うもの）。
--- (..) で全部か、一覧
+-- 👀 What a module shows (or what an import also takes without the
+--    module's name): (..) for everything, or a list.
+-- モジュールが見せるもの（import なら、モジュールの名前を付けずにも
+-- 使うもの）。(..) で全部か、一覧
 data Exposing
   = ExposeAll                 -- (..)
   | ExposeSome [Exposed]      -- (area, Shape (..))

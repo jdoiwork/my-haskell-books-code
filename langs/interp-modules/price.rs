@@ -23,8 +23,10 @@ mod price {
     }
 }
 
-use price as p;          // p::from_yen   (like  import Price as P)
-use price::show;         // show          (like  exposing (show))
+// The two lines together are Lam's  import Price as P (show).
+// 2行で、Lam の  import Price as P (show)  と同じ
+use price as p;          // p::from_yen, p::show
+use price::show;         // show
 
 fn main() {
     let prices = [p::from_yen(1200), p::from_yen(350), p::from_yen(-5)];
