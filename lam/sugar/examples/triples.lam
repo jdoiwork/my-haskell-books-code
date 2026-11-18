@@ -1,0 +1,15 @@
+-- Training step 1: Pythagorean triples with c up to 20.
+-- トレーニングのステップ1：c が20までのピタゴラス数
+let triples n =
+  [ (a, b, c)
+  | c <- range 1 n
+  , b <- range 1 c
+  , a <- range 1 b
+  , let s = a * a + b * b
+  , s == c * c ]
+
+-- The multiplication table: one line of text for each row.
+-- 九九の表：1つの段を、1行の文字列にする
+let row i = join " " [showInt (i * j) | j <- range 1 9]
+
+(triples 20, map row [2, 9])

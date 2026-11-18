@@ -1,0 +1,642 @@
+-- ANCHOR: head
+{-# LANGUAGE OverloadedStrings #-}
+module Main (main) where
+
+import qualified Data.Map as Map
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.IO.Utf8 as Utf8
+import Test.Hspec
+import Test.QuickCheck
+import Text.Megaparsec (eof, parse)
+
+import Lam.Answers
+import Lam.Parser
+import Lam.Prelude
+import Lam.Pretty
+import Lam.Program
+import Lam.Repl
+import Lam.Syntax
+import Lam.Types
+-- ANCHOR_END: head
+
+-- ANCHOR: run
+-- 🔁 Type the lines into a REPL with the prelude, one by one.
+-- プレリュード入りの REPL に、1行ずつ打ちこむ
+runLines :: [Text] -> [Text]
+runLines inputs = snd (foldl go (preludeSession, []) inputs)
+  where
+    go (s, outs) line =
+      let (s', out) = step s line in (s', outs <> [out])
+-- ANCHOR_END: run
+
+-- ANCHOR: genText
+-- 🎲 Any text, made often of the letters that need care:
+--    " \ new line, tab, and letters outside ASCII.
+-- どんな文字列でも。ただし、気をつけたい文字を多めに混ぜる
+genText :: Gen Text
+genText = T.pack <$> listOf (frequency
+  [ (3, elements "\"\\\n\t")
+  , (3, elements "ab λラ")
+  , (1, arbitrary) ])
+-- ANCHOR_END: genText
+
+-- ANCHOR: golden
+-- 📜 Run an example program, as `lam file.lam` would show it.
+-- 例のプログラムを、lam file.lam と同じように動かす
+runExample :: FilePath -> IO Text
+runExample file = do
+  source <- Utf8.readFile file
+  pure $ case loadProgram preludeSession file source of
+    Right (_, Just out) -> out <> "\n"
+    Right (_, Nothing)  -> ""
+    Left err            -> err <> "\n"
+
+-- 🥇 Golden test: the output must be the same as the .out file.
+-- ゴールデンテスト：出力が .out ファイルと同じであること
+golden :: String -> Spec
+golden base =
+  it ("examples/" <> base <> ".lam") $ do
+    actual   <- runExample ("examples/" <> base <> ".lam")
+    expected <- Utf8.readFile ("examples/" <> base <> ".out")
+    actual `shouldBe` expected
+-- ANCHOR_END: golden
+
+main :: IO ()
+main = hspec $ do
+  -- 「糖衣構文」
+  describe "sugar" $
+    -- ANCHOR: sugar
+    -- 「引数がいくつもあっても、木は1引数の関数の重なり」
+    it "turns many arguments into one-argument functions" $
+      map (fmap render . parseExpr)
+        [ "\\x y -> x + y"
+        , "let add x y = x + y in add 1 2" ]
+        `shouldBe` map Right
+          [ "\\x -> \\y -> x + y"
+          , "let add = \\x -> \\y -> x + y in add 1 2" ]
+    -- ANCHOR_END: sugar
+
+  -- 「プレリュード」
+  describe "prelude" $
+    -- ANCHOR: prelude
+    -- 「プレリュードの関数に、型が付いている」
+    it "gives the prelude functions their types" $
+      map (\n -> renderScheme <$> Map.lookup n (sessionTypes preludeSession))
+        ["id", "const", "compose", "flip", "not", "max", "gcd"]
+        `shouldBe` map Just
+          [ "a -> a", "a -> b -> a", "(a -> b) -> (c -> a) -> c -> b"
+          , "(a -> b -> c) -> b -> a -> c", "Bool -> Bool"
+          , "Comparable a => a -> a -> a", "Int -> Int -> Int" ]
+    -- ANCHOR_END: prelude
+
+  -- 「REPL」
+  describe "step" $
+    it "uses the prelude, and says which definition went wrong" $ do
+      let inputs =
+            [ "gcd 84 36", "compose not even 7"
+            , "let add x y = x + y", "add 1 2"
+            , "let bad = not 1", ":type twice twice" ]
+          go (s, outs) line =
+            let (s', out) = step s line in (s', outs <> [out])
+      snd (foldl go (preludeSession, []) inputs)
+        `shouldBe`
+          [ "12 : Int", "true : Bool"
+          , "add : Int -> Int -> Int", "3 : Int"
+          , "in the definition of bad: type error: \
+            \the types do not fit: Int where Bool is needed"
+          , "(a -> a) -> a -> a" ]
+
+  -- 「文字列」
+  describe "strings" $ do
+    -- ANCHOR: stringRoundTrip
+    -- 「どんな文字列でも、ソースコードに書いて読み直すと、同じ文字列」
+    it "reads back any string it writes" $
+      property $ forAll genText $ \s ->
+        parseExpr (render (Lit (LString s))) == Right (Lit (LString s))
+    -- ANCHOR_END: stringRoundTrip
+
+    -- ANCHOR: stringExamples
+    -- 「文字列をつなぎ、組み込みの関数で変える」
+    it "joins strings and changes them with builtins" $
+      runLines
+        [ "\"Hello, \" ++ \"Lam\""
+        , "toUpper \"lam\""
+        , "length \"ラムダ\""
+        , "\"say \\\"hi\\\"\\n\""
+        , "\"a\" ++ 1" ]
+        `shouldBe`
+          [ "\"Hello, Lam\" : String"
+          , "\"LAM\" : String"
+          , "3 : Int"
+          , "\"say \\\"hi\\\"\\n\" : String"
+          , "type error: the types do not fit: Int where String is needed" ]
+    -- ANCHOR_END: stringExamples
+
+  -- 「タプルとリスト」
+  describe "tuples and lists" $ do
+    -- ANCHOR: collections
+    -- 「タプルとリストに、型が付いて、計算できる」
+    it "gives tuples and lists their types and values" $
+      runLines
+        [ "(\"Lam\", 42)"
+        , "snd (\"Lam\", 42)"
+        , ":type []"
+        , "1 : 2 : [3]"
+        , "map (\\x -> x * x) (range 1 5)"
+        , "[1, 2] ++ [3]"
+        , "length [1, 2, 3]"
+        , "length 5"
+        , "[1, true]"
+        , "head []" ]
+        `shouldBe`
+          [ "(\"Lam\", 42) : (String, Int)"
+          , "42 : Int"
+          , "[a]"
+          , "[1, 2, 3] : [Int]"
+          , "[1, 4, 9, 16, 25] : [Int]"
+          , "[1, 2, 3] : [Int]"
+          , "3 : Int"
+          , "type error: Int is not in the class HasLength"
+          , "type error: the types do not fit: Bool where Int is needed"
+          , "error: head: the list is empty" ]
+    -- ANCHOR_END: collections
+
+    -- ANCHOR: listPrelude
+    -- 「リストの関数に、型が付いている」
+    it "gives the list functions their types" $
+      map (\n -> renderScheme <$> Map.lookup n (sessionTypes preludeSession))
+        ["foldr", "map", "filter", "length", "range"]
+        `shouldBe` map Just
+          [ "(a -> b -> b) -> b -> [a] -> b"
+          , "(a -> b) -> [a] -> [b]"
+          , "(a -> Bool) -> [a] -> [a]"
+          , "HasLength a => a -> Int"
+          , "Int -> Int -> [Int]" ]
+    -- ANCHOR_END: listPrelude
+
+    -- ANCHOR: listLikeHaskell
+    -- 「Lam のリストの関数は、Haskell のものと同じ答えを出す」
+    it "computes the same lists as Haskell" $
+      -- Lam has no negative numbers to write, so 0 to 9.
+      -- Lam には負の数の書き方がないので、0 から 9
+      property $ forAll (listOf (choose (0, 9))) $ \xs ->
+        let source = "reverse (filter (\\x -> x > 4) "
+                     <> renderList xs <> ")"
+        in runLines [source]
+             == [renderList (reverse (filter (> 4) xs)) <> " : [Int]"]
+    -- ANCHOR_END: listLikeHaskell
+
+  -- 「比べる」
+  describe "comparing" $
+    -- ANCHOR: compare
+    -- 「Comparable の型なら比べられる。関数は、動かす前に断る」
+    it "compares Comparable values, and refuses functions before running" $
+      runLines
+        [ "\"apple\" < \"banana\""
+        , "[1, 2] < [1, 3]"
+        , "(\"Lam\", 1) /= (\"Lam\", 2)"
+        , "\"ab\" <= \"b\""
+        , ":type \\x y -> x <= y"
+        , "(\\x -> x) == (\\x -> x)"
+        , "[toUpper] == []"
+        , "max toUpper toLower" ]
+        `shouldBe`
+          [ "true : Bool", "true : Bool", "true : Bool"
+          , "true : Bool"
+          , "Comparable a => a -> a -> Bool"
+          , "type error: a -> a is not in the class Comparable"
+          , "type error: String -> String is not in the class Comparable"
+          , "type error: String -> String is not in the class Comparable" ]
+    -- ANCHOR_END: compare
+
+  -- 「&& と ||」
+  describe "&& and ||" $ do
+    -- ANCHOR: shortcut
+    -- 「&& と || は、要らないときは右側を計算しない」
+    it "does not compute the right side when it is not needed" $
+      runLines
+        [ "and false (1 / 0 == 0)"
+        , "false && 1 / 0 == 0"
+        , "true || 1 / 0 == 0"
+        , "true && 1 / 0 == 0" ]
+        `shouldBe`
+          [ "error: divided by zero"
+          , "false : Bool"
+          , "true : Bool"
+          , "error: divided by zero" ]
+    -- ANCHOR_END: shortcut
+
+    -- ANCHOR: shortcutLikeHaskell
+    -- 「&& と || の答えは、Haskell の && と || と同じ」
+    it "gives the same answers as Haskell" $
+      property $ \a b c ->
+        let lam x = if x then "true" else "false"
+            source = lam a <> " || " <> lam b <> " && " <> lam c
+        in runLines [source] == [lam (a || b && c) <> " : Bool"]
+    -- ANCHOR_END: shortcutLikeHaskell
+
+  -- ANCHOR: examples
+  -- 「例のプログラム（ゴールデンテスト）」
+  describe "examples" $
+    mapM_ golden
+      [ "fib", "church", "broken", "answers", "strings", "words", "shapes"
+      , "sugar" ]
+  -- ANCHOR_END: examples
+
+  -- 「data と case」
+  describe "data and case" $ do
+    -- ANCHOR: dataExamples
+    -- 「型を宣言し、case で値を分ける」
+    it "declares types, and takes values apart with case" $
+      runLines
+        [ "data Shape = Circle Int | Rect Int Int"
+        , "Circle 2"
+        , ":type Rect"
+        , "let area s = case s of | Circle r -> 3 * r * r | Rect w h -> w * h"
+        , "map area [Circle 2, Rect 3 4]"
+        , "case (\"Rust\", 91, true) of | (n, score, _) -> score"
+        , "case [1, 2, 3] of | [] -> 0 | x : rest -> x + length rest"
+        , "case 5 of | 0 -> \"zero\" | 1 -> \"one\"" ]
+        `shouldBe`
+          [ "Circle : Int -> Shape\nRect : Int -> Int -> Shape"
+          , "Circle 2 : Shape"
+          , "Int -> Int -> Shape"
+          , "area : Shape -> Int"
+          , "[12, 12] : [Int]"
+          , "91 : Int"
+          , "3 : Int"
+          , "error: no branch of case fits 5" ]
+    -- ANCHOR_END: dataExamples
+
+    -- ANCHOR: patternTypes
+    -- 「パターンのまちがいは、動かす前に見つける」
+    it "finds mistakes in patterns before running" $
+      drop 1 (runLines
+        [ "data Shape = Circle Int | Rect Int Int"
+        , "case Circle 1 of | Rect w -> w"
+        , "case Circle 1 of | Circel r -> r"
+        , "case Circle 1 of | Circle \"r\" -> 0"
+        , "case Circle 1 of | Circle r -> r | Rect w h -> \"wide\""
+        , ":type \\m -> case m of | Nothing -> 0 | Just x -> x" ])
+        `shouldBe`
+          [ "type error: Rect needs 2 arguments, but the pattern has 1"
+          , "type error: unknown constructor: Circel"
+          , "type error: the types do not fit: String where Int is needed"
+          , "type error: the types do not fit: String where Int is needed"
+          , "Maybe Int -> Int" ]
+    -- ANCHOR_END: patternTypes
+
+    -- ANCHOR: dataErrors
+    -- 「data の宣言のまちがい」
+    it "finds mistakes in data declarations" $
+      runLines
+        [ "data T = C Strng"
+        , "data T = C a"
+        , "data T = C Maybe"
+        , "data List a = Nil" ]
+        `shouldBe`
+          [ "in the data type T: type error: unknown type: Strng"
+          , "in the data type T: type error: unknown type variable: a"
+          , "in the data type T: type error: the type Maybe needs \
+            \1 argument, but got 0"
+          , "in the data type List: type error: List is a builtin type" ]
+    -- ANCHOR_END: dataErrors
+
+    -- ANCHOR: guards
+    -- 「ガードが偽なら、次の枝へ進む」
+    it "goes on to the next branch when a guard is false" $
+      runLines
+        [ "let size n = case n of | 0 -> \"zero\" | k if k < 10 -> \"small\" \
+          \| _ -> \"big\""
+        , "map size [0, 3, 42]"
+        , "let x = 10 in case 50 of | x if x > 100 -> 0 | _ -> x" ]
+        `shouldBe`
+          [ "size : Int -> String"
+          , "[\"zero\", \"small\", \"big\"] : [String]"
+          , "10 : Int" ]
+    -- ANCHOR_END: guards
+
+    -- ANCHOR: guardSugar
+    -- 「ガードは、case と if に開く」
+    it "turns guards into case and if" $
+      fmap render (parseExpr "case n of | k if k < 10 -> 1 | _ -> 2")
+        `shouldBe` Right
+          "let $it = n in \
+          \let $next = \\$u -> case $it of | _ -> 2 in \
+          \case $it of | k -> (if k < 10 then 1 else $next 0) | _ -> $next 0"
+    -- ANCHOR_END: guardSugar
+
+    -- ANCHOR: maybeResult
+    -- 「プレリュードに Maybe と Result がある」
+    it "has Maybe and Result in the prelude" $
+      runLines
+        [ "lookup \"TS\" [(\"Python\", 82), (\"TS\", 75)]"
+        , "lookup \"Go\" [(\"Python\", 82)]"
+        , "fromMaybe 0 (lookup \"Go\" [(\"Python\", 82)])"
+        , "find even [1, 3, 4, 5]"
+        , ":type Err"
+        , "[Ok 1, Err \"oops\"]" ]
+        `shouldBe`
+          [ "Just 75 : Maybe Int"
+          , "Nothing : Maybe Int"
+          , "0 : Int"
+          , "Just 4 : Maybe Int"
+          , "a -> Result a b"
+          , "[Ok 1, Err \"oops\"] : [Result String Int]" ]
+
+    -- 「Maybe の関数に、型が付いている」
+    it "gives the Maybe functions their types" $
+      map (\n -> renderScheme <$> Map.lookup n (sessionTypes preludeSession))
+        ["fromMaybe", "find", "lookup"]
+        `shouldBe` map Just
+          [ "a -> Maybe a -> a"
+          , "(a -> Bool) -> [a] -> Maybe a"
+          , "Comparable a => a -> [(a, b)] -> Maybe b" ]
+    -- ANCHOR_END: maybeResult
+
+  -- 「自分の型を比べる」
+  describe "comparing data" $ do
+    -- ANCHOR: compareData
+    -- 「Comparable かどうかは、中身から決まる」
+    it "decides from the insides whether a type is Comparable" $
+      runLines
+        [ "data Shape = Circle Int | Rect Int Int"
+        , "Circle 5 < Rect 1 1"
+        , "Rect 1 2 < Rect 1 3"
+        , "Nothing < Just 0"
+        , ":type \\x y -> Just x == y"
+        , "Just toUpper == Nothing"
+        , "data Handler = Button (Int -> Int) | Off"
+        , "Off == Off"
+        , "data Tagged a = Tagged Int"
+        , ":type \\x -> x == Tagged 1"
+        , "data Tree a = Leaf | Node (Tree a) a (Tree a)"
+        , "Node Leaf 1 Leaf < Node Leaf 2 Leaf"
+        , ":type \\x y -> Node Leaf x Leaf == y" ]
+        `shouldBe`
+          [ "Circle : Int -> Shape\nRect : Int -> Int -> Shape"
+          , "true : Bool"
+          , "true : Bool"
+          , "true : Bool"
+          , "Comparable a => a -> Maybe a -> Bool"
+          , "type error: String -> String is not in the class Comparable"
+          , "Button : (Int -> Int) -> Handler\nOff : Handler"
+          , "type error: Handler is not in the class Comparable \
+            \(Button holds Int -> Int)"
+          , "Tagged : Int -> Tagged a"
+          , "Tagged a -> Bool"
+          , "Leaf : Tree a\nNode : Tree a -> a -> Tree a -> Tree a"
+          , "true : Bool"
+          , "Comparable a => a -> Tree a -> Bool" ]
+    -- ANCHOR_END: compareData
+
+    -- ANCHOR: compareLikeHaskell
+    -- 「Maybe の大小は、Haskell の deriving Ord と同じ」
+    it "orders Maybe like Haskell's deriving Ord" $
+      property $ forAll ((,) <$> genMaybe <*> genMaybe) $ \(a, b) ->
+        let source = lamMaybe a <> " < " <> lamMaybe b
+        in runLines [source] == [lamBool (a < b) <> " : Bool"]
+    -- ANCHOR_END: compareLikeHaskell
+
+  -- 「パターンを引数に」
+  describe "patterns as arguments" $ do
+    -- ANCHOR: lambdaSugar
+    -- 「パターンの引数は、枝が1つの case に開く」
+    it "opens a pattern argument into a case with one branch" $
+      map (fmap render . parseExpr)
+        [ "\\(a, b) -> a + b"
+        , "\\x (Just y) -> x + y"
+        , "let (q, r) = (17 / 5, mod 17 5) in q * 10 + r"
+        , "let swap (a, b) = (b, a) in swap" ]
+        `shouldBe` map Right
+          [ "\\$arg -> case $arg of | (a, b) -> a + b"
+          , "\\x -> \\$arg -> case $arg of | Just y -> x + y"
+          , "case (17 / 5, mod 17 5) of | (q, r) -> q * 10 + r"
+          , "let swap = \\$arg -> case $arg of | (a, b) -> (b, a) in swap" ]
+    -- ANCHOR_END: lambdaSugar
+
+    -- ANCHOR: patternArgs
+    -- 「タプルや構成子を、引数でほどく」
+    it "takes tuples and constructors apart in arguments" $
+      runLines
+        [ "map (\\(name, score) -> name) [(\"Python\", 82), (\"TS\", 75)]"
+        , "let (q, r) = (17 / 5, mod 17 5) in (q, r)"
+        , "let swap (a, b) = (b, a)"
+        , "swap (1, \"one\")"
+        , "let area (w, h) = w * h"
+        , "(\\(Just x) -> x) Nothing"
+        , "let (a, b) = (1, 2)" ]
+        `shouldBe`
+          [ "[\"Python\", \"TS\"] : [String]"
+          , "(3, 2) : (Int, Int)"
+          , "swap : (a, b) -> (b, a)"
+          , "(\"one\", 1) : (String, Int)"
+          , "area : (Int, Int) -> Int"
+          , "error: no branch of case fits Nothing"
+          , "<repl>:1:20:\n  |\n1 | let (a, b) = (1, 2)\n\
+            \  |                    ^\n\
+            \unexpected end of input\nexpecting a value, an operator, \
+            \or in (a let with a pattern needs in)\n" ]
+    -- ANCHOR_END: patternArgs
+
+    -- ANCHOR: letNotRecursive
+    -- 「パターンの let は再帰しない（外の x を使う）」
+    it "does not make a pattern let recursive" $
+      runLines ["let x = 5 in let (x, y) = (x + 1, x + 2) in (x, y)"]
+        `shouldBe` ["(6, 7) : (Int, Int)"]
+    -- ANCHOR_END: letNotRecursive
+
+  -- 「演算子を関数に」
+  describe "sections" $ do
+    -- ANCHOR: sectionSugar
+    -- 「演算子とセクションは、ラムダに開く」
+    it "opens operators and sections into lambdas" $
+      map (fmap render . parseExpr)
+        ["(+)", "(+ 1)", "(10 -)", "(- 1)", "(:)", "(x :)"]
+        `shouldBe` map Right
+          [ "\\$l -> \\$r -> $l + $r"
+          , "\\$l -> $l + 1"
+          , "\\$r -> 10 - $r"
+          , "\\$l -> $l - 1"
+          , "\\$l -> \\$r -> $l : $r"
+          , "\\$r -> x : $r" ]
+    -- ANCHOR_END: sectionSugar
+
+    -- ANCHOR: sections
+    -- 「セクションを使う。(-1) は、まだセクションではない」
+    it "uses sections, and keeps (-1) for later" $
+      runLines
+        [ "map (* 2) [1, 2, 3]"
+        , "(10 -) 3"
+        , "(- 1) 10"
+        , "foldr (+) 0 [1, 2, 3]"
+        , ":type (++)"
+        , "(-1)" ]
+        `shouldBe`
+          [ "[2, 4, 6] : [Int]"
+          , "7 : Int"
+          , "9 : Int"
+          , "6 : Int"
+          , "Semigroup a => a -> a -> a"
+          , "<repl>:1:3:\n  |\n1 | (-1)\n  |   ^\n\
+            \(-1) is not a section: write (- 1) for \\x -> x - 1\n" ]
+    -- ANCHOR_END: sections
+
+  -- 「リスト内包表記」
+  describe "list comprehensions" $ do
+    -- ANCHOR: comprehensionSugar
+    -- 「内包表記は、ループ $go に開く」
+    it "opens a comprehension into a loop $go" $
+      fmap render (parseExpr "[x * 2 | x <- xs, x > 1]")
+        `shouldBe` Right
+          "let $go = \\$xs -> case $xs of \
+          \| [] -> [] \
+          \| x : $rest -> (if x > 1 then [x * 2] else []) ++ $go $rest \
+          \in $go xs"
+    -- ANCHOR_END: comprehensionSugar
+
+    -- ANCHOR: comprehensions
+    -- 「<- をいくつも、条件、let、外れうるパターン」
+    it "has many <-, conditions, let, and patterns that may not fit" $
+      runLines
+        [ "[x * 2 | x <- [1, 2, 3, 4], x > 1]"
+        , "[(x, y) | x <- [1, 2, 3], y <- [1, 2, 3], x < y]"
+        , "[(x, y) | x <- [1, 2], y <- [x, 10]]"
+        , "[y | x <- [1, 2, 3], let y = x * 10, y > 15]"
+        , "[x | Just x <- [Just 1, Nothing, Just 3]]"
+        , ":type \\xs -> [(x, y) | x <- xs, y <- xs]"
+        , "[x | x <- 5]" ]
+        `shouldBe`
+          [ "[4, 6, 8] : [Int]"
+          , "[(1, 2), (1, 3), (2, 3)] : [(Int, Int)]"
+          , "[(1, 1), (1, 10), (2, 2), (2, 10)] : [(Int, Int)]"
+          , "[20, 30] : [Int]"
+          , "[1, 3] : [Int]"
+          , "[a] -> [(a, a)]"
+          , "type error: the types do not fit: Int where [a] is needed" ]
+    -- ANCHOR_END: comprehensions
+
+    -- ANCHOR: comprehensionLikeHaskell
+    -- 「Haskell の内包表記と同じ答えになる」
+    it "gives the same answers as Haskell's comprehensions" $
+      property $ forAll (listOf (choose (0, 9))) $ \xs ->
+        forAll (listOf (choose (0, 9))) $ \ys ->
+          let source = "[x * 10 + y | x <- " <> renderList xs
+                         <> ", x > 2, y <- " <> renderList ys
+                         <> ", let s = x + y, mod s 2 == 0]"
+              expected = [ x * 10 + y | x <- xs, x > 2, y <- ys
+                                      , let s = x + y, s `mod` 2 == 0 ]
+          in runLines [source] == [renderList expected <> " : [Int]"]
+    -- ANCHOR_END: comprehensionLikeHaskell
+
+  -- 「パイプラインと合成」
+  describe "pipes and composition" $ do
+    -- ANCHOR: pipeSugar
+    -- 「|> と >> も、App と Lam に開く」
+    it "opens |> and >> into App and Lam" $
+      map (fmap render . parseExpr)
+        ["xs |> map f |> sum", "sum <| map f <| xs", "f >> g", "g << f"]
+        `shouldBe` map Right
+          [ "sum (map f xs)"
+          , "sum (map f xs)"
+          , "\\$x -> g (f $x)"
+          , "\\$x -> g (f $x)" ]
+    -- ANCHOR_END: pipeSugar
+
+    -- ANCHOR: pipes
+    -- 「左から右へ流す、関数をつなぐ」
+    it "flows from left to right, and joins functions" $
+      runLines
+        [ "[1, 2, 3] |> map (* 2) |> sum"
+        , "((+ 1) >> (* 2)) 5"
+        , "((+ 1) << (* 2)) 5"
+        , ":type (>>)"
+        , "[\"b\", \"a\"] |> map (toUpper >> chars) |> length"
+        , "case 3 |> (+ 1) of | 4 -> \"four\" | _ -> \"other\"" ]
+        `shouldBe`
+          [ "12 : Int"
+          , "12 : Int"
+          , "11 : Int"
+          , "(a -> b) -> (b -> c) -> a -> c"
+          , "2 : Int"
+          , "\"four\" : String" ]
+    -- ANCHOR_END: pipes
+
+  -- 「トレーニングの解答」
+  describe "answers" $ do
+    -- 「ピタゴラス数と九九」
+    golden "triples"
+    -- ANCHOR: answerLambdaCase
+    -- 「\\case は、引数を case で分けるラムダ」
+    it "reads \\case as a lambda that takes its argument apart" $ do
+      let f = either (error . show) id $ parse (lambdaCase <* eof) ""
+            "\\case | Nothing -> 0 | Just x if x > 9 -> 9 | Just x -> x"
+          apply arg = evaluate preludeSession (App f arg)
+      fmap render (parse (lambdaCase <* eof) "" "\\case | 0 -> 1 | _ -> 2")
+        `shouldBe` Right "\\$arg -> case $arg of | 0 -> 1 | _ -> 2"
+      map apply
+        [ Var "Nothing"
+        , App (Var "Just") (Lit (LInt 3))
+        , App (Var "Just") (Lit (LInt 30)) ]
+        `shouldBe` map Right ["0 : Int", "3 : Int", "9 : Int"]
+    -- ANCHOR_END: answerLambdaCase
+
+    -- ANCHOR: answerRisky
+    -- 「外れうるパターンを、動かす前に見つける」
+    it "finds patterns that may not fit, before running" $ do
+      let (s, _) = step preludeSession "data Point = Point Int Int"
+          risky src = map renderPattern
+            . riskyPatterns (sessionData s) <$> parseExpr src
+      map risky
+        [ "\\(a, b) -> a"
+        , "\\(Point x y) -> x"
+        , "\\(Just x) -> x"
+        , "let [a] = xs in a"
+        , "\\(a, Just b) -> b"
+        , "[x | Just x <- ms]" ]
+        `shouldBe` map Right
+          [ [], [], ["Just x"], ["[a]"], ["(a, Just b)"], [] ]
+    -- ANCHOR_END: answerRisky
+
+  -- 「キーワードで始まる名前」
+  describe "names" $
+    -- 「キーワードで始まる名前も読める（iffy、letter、cases、dataset）」
+    it "reads names that start with a keyword" $
+      runLines
+        [ "let iffy = 1", "iffy + 1", "let letter = \"a\"", "letter"
+        , "let cases = 2", "cases * 3", "let dataset = true", "dataset" ]
+        `shouldBe`
+          [ "iffy : Int", "2 : Int", "letter : String", "\"a\" : String"
+          , "cases : Int", "6 : Int", "dataset : Bool", "true : Bool" ]
+
+  -- 「複数行」
+  describe "program" $
+    -- ANCHOR: layout
+    -- 「1桁目から始まる行は、新しい定義（か、最後の式）」
+    it "starts a new definition at column 1" $
+      fmap (\(decls, final) ->
+              ([ x | DefValue x _ <- decls ], fmap render final))
+        (parse program "" "let a = 1\nlet b =\n  a + 1\nb\n")
+        `shouldBe` Right (["a", "b"], Just "b")
+    -- ANCHOR_END: layout
+
+-- ANCHOR: genMaybe
+-- 🎲 Nothing, or Just a small number (Lam has no negative numbers).
+-- Nothing か、小さな数の Just（Lam には負の数がない）
+genMaybe :: Gen (Maybe Integer)
+genMaybe = oneof [pure Nothing, Just <$> choose (0, 3)]
+
+-- 🖨️ Maybe and Bool, as Lam writes them.
+-- Maybe と Bool を、Lam の書き方で
+lamMaybe :: Maybe Integer -> Text
+lamMaybe m = maybe "Nothing" (\n -> "Just " <> T.pack (show n)) m
+
+lamBool :: Bool -> Text
+lamBool b = if b then "true" else "false"
+-- ANCHOR_END: genMaybe
+
+-- 🖨️ A list of numbers, as Lam writes it: [1, 2, 3]
+-- 数のリストを、Lam の書き方で
+renderList :: [Integer] -> Text
+renderList xs = "[" <> T.intercalate ", " (map (T.pack . show) xs) <> "]"

@@ -1,0 +1,25 @@
+-- The workshop's scores, written with the new sugar.
+-- 工房の点数を、きょう足した糖衣構文で書く
+let scores = [("Python", 82), ("TS", 75), ("Rust", 91), ("Go", 68)]
+
+-- 🎓 The names of those who passed (70 or more): a comprehension,
+--    with a tuple pattern on the left of <-.
+-- 合格した人（70点以上）の名前：<- の左にタプルのパターン
+let passed = [name | (name, score) <- scores, score >= 70]
+
+-- ➕ The total: a pipeline, from left to right.
+-- 合計：左から右へ流すパイプライン
+let total = scores |> map snd |> sum
+
+-- 🎁 Add 5 points, then keep it at most 100: sections, put together.
+-- 5点足して、100で止める：セクションを合成する
+let bonus = (+ 5) >> min 100
+
+-- 🤝 Every pair of names, each pair once.
+-- 名前の組を、1組ずつ全部
+let pairs = [(a, b) | (a, _) <- scores, (b, _) <- scores, a < b]
+
+( passed
+, total
+, map (\(name, score) -> (name, bonus score)) scores
+, length pairs )
