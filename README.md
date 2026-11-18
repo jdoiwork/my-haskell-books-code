@@ -165,26 +165,6 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 評価器と REPL | [`lam/eval/`](lam/eval/)、[`langs/interp-evaluator/`](langs/interp-evaluator/) |
 | 型検査器を作る | [`lam/types/`](lam/types/)、[`langs/interp-typechecker/`](langs/interp-typechecker/) |
 | 言語を仕上げる | [`lam/polish/`](lam/polish/)、[`lam/parser/`](lam/parser/)、[`langs/interp-polish/`](langs/interp-polish/) |
-| 文字列・タプル・リスト | [`lam/strings/`](lam/strings/)、[`lam/polish/`](lam/polish/)、[`langs/interp-strings/`](langs/interp-strings/) |
-| 型を自分で定義する：data と case | [`lam/data/`](lam/data/)、[`lam/strings/`](lam/strings/)、[`langs/interp-data/`](langs/interp-data/) |
-| Map と JSON | [`lam/json/`](lam/json/)、[`lam/data/`](lam/data/)、[`langs/interp-map-json/`](langs/interp-map-json/) |
-| 入出力：IO 型と do | [`lam/io/`](lam/io/)、[`lam/json/`](lam/json/)、[`langs/interp-io/`](langs/interp-io/) |
-| 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/io/`](lam/io/)、[`langs/interp-format/`](langs/interp-format/) |
-| 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/format/`](lam/format/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |
-| 文字列を読み解く：パーサーを組み合わせる | [`lam/parsing/`](lam/parsing/)、[`lam/regex/`](lam/regex/)、[`langs/interp-parsing/`](langs/interp-parsing/)、[`langs/cargo/`](langs/cargo/) |
-| スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-script/`](langs/interp-script/) |
-| ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/script/`](lam/script/)、[`langs/interp-modules/`](langs/interp-modules/) |
-| 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/modules/`](lam/modules/)、[`langs/interp-outside/`](langs/interp-outside/) |
-| 鍵をかける：権限のフラグと見張り | [`lam/guard/`](lam/guard/)、[`lam/outside/`](lam/outside/)、[`langs/interp-guard/`](langs/interp-guard/) |
-| ワンライナーで動かす：Perl のように | [`lam/oneliner/`](lam/oneliner/)、[`lam/guard/`](lam/guard/)、[`langs/interp-oneliner/`](langs/interp-oneliner/) |
-| 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/oneliner/`](lam/oneliner/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |
-| ファイルとコマンドと時計：スクリプトの道具 | [`lam/files/`](lam/files/)、[`lam/stdlib/`](lam/stdlib/)、[`langs/interp-files/`](langs/interp-files/) |
-| 型を書く：型の注釈とレコード | [`lam/files/`](lam/files/)、[`lam/records/`](lam/records/)、[`langs/interp-records/`](langs/interp-records/) |
-| 小数を足す：Elm 風の number | [`lam/records/`](lam/records/)、[`lam/float/`](lam/float/)、[`langs/interp-float/`](langs/interp-float/) |
-| CLI を手軽に作る：型から作る Typer 風のオプション | [`lam/cli/`](lam/cli/)、[`lam/float/`](lam/float/)、[`langs/interp-cli/`](langs/interp-cli/)、[`langs/cargo/`](langs/cargo/) |
-| 並行に動かす：まとめて待つ | [`lam/concurrency/`](lam/concurrency/)、[`lam/cli/`](lam/cli/)、[`langs/interp-concurrency/`](langs/interp-concurrency/) |
-| 仕事どうしで話す：チャネルとメッセージ | [`lam/channels/`](lam/channels/)、[`lam/concurrency/`](lam/concurrency/)、[`langs/interp-channels/`](langs/interp-channels/) |
-| テストとデバッグ：lam test | [`lam/testing/`](lam/testing/)、[`lam/channels/`](lam/channels/)、[`langs/interp-testing/`](langs/interp-testing/)、[`langs/cargo/`](langs/cargo/) |
 | 第8部のふりかえり | [`lam/polish/`](lam/polish/)、[`review-interpreter/`](review-interpreter/) |
 
 ### 第9部 総合演習3：Python の機械学習ライブラリを Haskell で作る
@@ -246,7 +226,42 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/docker/`](tsundoku/docker/)、[`tsundoku/mantine/`](tsundoku/mantine/) |
 | 第12部のふりかえり | [`tsundoku/docker/`](tsundoku/docker/)、[`review-tsundoku/`](review-tsundoku/) |
 
-### 第13部 プログラマーのための数学
+### 第13部 Lam を育てる：言語の機能
+
+| 章 | コード |
+|---|---|
+| 文字列・タプル・リスト | [`lam/strings/`](lam/strings/)、[`lam/polish/`](lam/polish/)、[`langs/interp-strings/`](langs/interp-strings/) |
+| 型を自分で定義する：data と case | [`lam/data/`](lam/data/)、[`lam/strings/`](lam/strings/)、[`langs/interp-data/`](langs/interp-data/) |
+| 型を書く：型の注釈とレコード | [`lam/files/`](lam/files/)、[`lam/records/`](lam/records/)、[`langs/interp-records/`](langs/interp-records/) |
+| 小数を足す：Elm 風の number | [`lam/records/`](lam/records/)、[`lam/float/`](lam/float/)、[`langs/interp-float/`](langs/interp-float/) |
+| Map と JSON | [`lam/json/`](lam/json/)、[`lam/data/`](lam/data/)、[`langs/interp-map-json/`](langs/interp-map-json/) |
+| 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/oneliner/`](lam/oneliner/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |
+| 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/io/`](lam/io/)、[`langs/interp-format/`](langs/interp-format/) |
+| ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/script/`](lam/script/)、[`langs/interp-modules/`](langs/interp-modules/) |
+
+### 第14部 Lam でスクリプトを書く
+
+| 章 | コード |
+|---|---|
+| 入出力：IO 型と do | [`lam/io/`](lam/io/)、[`lam/json/`](lam/json/)、[`langs/interp-io/`](langs/interp-io/) |
+| スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-script/`](langs/interp-script/) |
+| ファイルとコマンドと時計：スクリプトの道具 | [`lam/files/`](lam/files/)、[`lam/stdlib/`](lam/stdlib/)、[`langs/interp-files/`](langs/interp-files/) |
+| 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/format/`](lam/format/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |
+| 文字列を読み解く：パーサーを組み合わせる | [`lam/parsing/`](lam/parsing/)、[`lam/regex/`](lam/regex/)、[`langs/interp-parsing/`](langs/interp-parsing/)、[`langs/cargo/`](langs/cargo/) |
+| 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/modules/`](lam/modules/)、[`langs/interp-outside/`](langs/interp-outside/) |
+| 鍵をかける：権限のフラグと見張り | [`lam/guard/`](lam/guard/)、[`lam/outside/`](lam/outside/)、[`langs/interp-guard/`](langs/interp-guard/) |
+| CLI を手軽に作る：型から作る Typer 風のオプション | [`lam/cli/`](lam/cli/)、[`lam/float/`](lam/float/)、[`langs/interp-cli/`](langs/interp-cli/)、[`langs/cargo/`](langs/cargo/) |
+| ワンライナーで動かす：Perl のように | [`lam/oneliner/`](lam/oneliner/)、[`lam/guard/`](lam/guard/)、[`langs/interp-oneliner/`](langs/interp-oneliner/) |
+
+### 第15部 Lam を仕上げる
+
+| 章 | コード |
+|---|---|
+| 並行に動かす：まとめて待つ | [`lam/concurrency/`](lam/concurrency/)、[`lam/cli/`](lam/cli/)、[`langs/interp-concurrency/`](langs/interp-concurrency/) |
+| 仕事どうしで話す：チャネルとメッセージ | [`lam/channels/`](lam/channels/)、[`lam/concurrency/`](lam/concurrency/)、[`langs/interp-channels/`](langs/interp-channels/) |
+| テストとデバッグ：lam test | [`lam/testing/`](lam/testing/)、[`lam/channels/`](lam/channels/)、[`langs/interp-testing/`](langs/interp-testing/)、[`langs/cargo/`](langs/cargo/) |
+
+### 第16部 プログラマーのための数学
 
 | 章 | コード |
 |---|---|
@@ -261,9 +276,9 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | ベクトルと行列：たくさんの数をまとめて動かす | [`math/`](math/)、[`langs/math-vectors/`](langs/math-vectors/) |
 | 微分と勾配：坂道を下って答えを探す | [`math/`](math/)、[`langs/math-calculus/`](langs/math-calculus/) |
 | 結合法則とモノイド：分けて計算してよい理由 | [`math/`](math/)、[`langs/math-algebra/`](langs/math-algebra/) |
-| 第13部のふりかえり | [`math/`](math/)、[`review-math/`](review-math/) |
+| 第16部のふりかえり | [`math/`](math/)、[`review-math/`](review-math/) |
 
-### 第14部 いまどきのプログラミングと Haskell
+### 第17部 いまどきのプログラミングと Haskell
 
 | 章 | コード |
 |---|---|
@@ -276,7 +291,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | CI と再現できる環境：みんなの手元で同じに動く | [`modern/`](modern/)、[`ci/`](ci/) |
 | AI と書くプログラミング：型とテストを手綱に | [`modern/`](modern/)、[`langs/modern-ai/`](langs/modern-ai/) |
 | MCP サーバーを育てる：チャットから依頼板を動かす | [`modern/`](modern/)、[`langs/modern-mcp/`](langs/modern-mcp/) |
-| 第14部のふりかえり | [`review-modern/`](review-modern/) |
+| 第17部のふりかえり | [`review-modern/`](review-modern/) |
 <!-- chapter-index: end -->
 
 ## ライセンス
