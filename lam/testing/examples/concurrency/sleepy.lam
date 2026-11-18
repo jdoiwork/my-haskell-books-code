@@ -1,0 +1,22 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 😴 Five naps of 0.2 s: one by one, all at once, and two at a time.
+--      lam sleepy.lam
+-- 0.2 秒の昼寝を5回：1つずつ、全部同時に、2つずつ
+nap n = do
+  sleep 200
+  pure n
+
+ns = range 1 5
+
+-- ⏱️ Run it, and say how long it took.
+-- 動かして、かかった時間を言う
+report label io = do
+  done <- IO.timed io
+  putStrLn f"{label:<12} {done.value} {done.seconds:.1} s"
+
+main = do
+  report "one by one" (IO.mapM nap ns)
+  report "all" (IO.all (map nap ns))
+  report "2 at a time" (IO.allN 2 (map nap ns))
+-- ANCHOR_END: all

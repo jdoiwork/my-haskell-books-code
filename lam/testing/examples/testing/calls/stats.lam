@@ -1,0 +1,24 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 📊 The middle score of each day. One day has no scores...
+--      lam stats.lam
+-- 日ごとの、まん中の点数。点数のない日が1日ある……
+
+-- The middle one, after sorting.
+-- 並べたあとの、まん中
+median : [Int] -> Int
+median xs =
+  let sorted = sort xs in
+  head (drop (length sorted // 2) sorted)
+
+-- One line for a day.
+-- 1日分の行
+report : (String, [Int]) -> String
+report day = f"{fst day}: {median (snd day)}"
+
+days : [(String, [Int])]
+days = [("mon", [70, 90, 80]), ("tue", [60, 75]), ("wed", [])]
+
+main : IO ()
+main = forEach days (\day -> putStrLn (report day))
+-- ANCHOR_END: all

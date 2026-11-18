@@ -1,0 +1,49 @@
+-- 🧑‍🤝‍🧑 The crew of the language workshop, as records.
+-- 言語工房の仲間たちを、レコードで
+--   lam examples/records/crew.lam
+
+-- ANCHOR: alias
+-- 🏷️ One member: the name, the language, and the days at the workshop.
+-- 仲間1人：名前、言語、工房に来て何日か
+type alias Member = { name : String, lang : String, days : Int }
+-- ANCHOR_END: alias
+
+-- ANCHOR: crew
+crew : [Member]
+crew =
+  [ { name = "Python", lang = "py", days = 20 }
+  , { name = "TS", lang = "ts", days = 18 }
+  , { name = "Rust", lang = "rs", days = 15 }
+  , { name = "GHC", lang = "hs", days = 20 } ]
+-- ANCHOR_END: crew
+
+-- ANCHOR: label
+-- 🏷️ Anything with a name: a Member, or any other record with one.
+-- name を持つものなら何でも：Member でも、ほかのレコードでも
+label : { r | name : String } -> String
+label r = "[" ++ r.name ++ "]"
+-- ANCHOR_END: label
+
+-- ANCHOR: nextDay
+-- 📅 One more day: a new record, with days changed.
+-- 1日たつ：days だけ変えた、新しいレコード
+nextDay : Member -> Member
+nextDay m = { m | days = m.days + 1 }
+-- ANCHOR_END: nextDay
+
+-- ANCHOR: line
+-- 📋 One line, with the fields taken out by a pattern.
+-- パターンでフィールドを取り出して、1行に
+line : Member -> String
+line m = case m of
+  | { name, lang, days } -> f"{name:<8} .{lang}  day {days}"
+-- ANCHOR_END: line
+
+-- ANCHOR: main
+main : IO ()
+main = do
+  forEach (sortOn .days crew) (\m -> putStrLn (line m))
+  putStrLn (show (map .name crew))
+  putStrLn (label (nextDay { name = "Lam", lang = "lam", days = 19 }))
+  putStrLn (label { name = "Ruby", version = "4.0" })
+-- ANCHOR_END: main

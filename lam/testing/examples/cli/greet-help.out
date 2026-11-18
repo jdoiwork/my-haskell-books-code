@@ -1,0 +1,11 @@
+Usage: greet.lam [OPTIONS] NAME
+
+  Greet someone, as many times as you like.
+
+Arguments:
+  NAME  Who to greet  [required]
+
+Options:
+  -n, --count INT  How many times  [default: 1]
+  --loud           Shout it
+  --help           Show this message and exit

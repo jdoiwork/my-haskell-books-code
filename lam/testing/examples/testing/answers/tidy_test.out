@@ -1,0 +1,10 @@
+tidy_test.lam
+  ✓ kindOf > text
+  ✓ kindOf > pictures
+  ✓ kindOf > others
+  ✓ moves each file into its folder > files
+  ✓ moves each file into its folder > the text stays the same
+  ✓ moves each file into its folder > exit
+  ✓ stops when there is no folder > exit
+  ✓ stops when the arguments are wrong > exit
+  ✓ stops when the arguments are wrong > stderr

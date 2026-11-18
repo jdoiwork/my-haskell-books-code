@@ -1,0 +1,38 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🍽️ Three cooks answer in their own time. receive picks the answer we
+--    want now; the others wait in the mailbox. after gives up.
+--      lam selective.lam
+-- 3人の料理人が、それぞれの速さで答える。receive は、いま欲しい答えを
+-- 選んで取る。ほかは受け箱で待つ。after であきらめる
+data Dish = Dish Int String
+
+-- 👩‍🍳 Cook for ms, then send the dish with its number.
+-- ms ミリ秒かけて作り、番号つきで料理を送る
+cook : Pid Dish -> Int -> Int -> String -> IO ()
+cook to n ms name = do
+  sleep ms
+  Actor.send to (Dish n name)
+
+-- ANCHOR: main
+main = do
+  me <- Actor.new
+  _ <- spawn (cook me 1 300 "curry")
+  _ <- spawn (cook me 2 100 "salad")
+  _ <- spawn (cook me 3 900 "cake")
+  -- The curry first, though the salad comes first: the salad waits.
+  -- まずカレー。サラダが先に届いても、サラダは待っている
+  receive me
+    | Dish 1 name -> putStrLn f"first: {name}"
+  -- Then anything that is there.
+  -- 次は、届いているものを何でも
+  receive me
+    | Dish n name -> putStrLn f"then #{n}: {name}"
+  -- The cake, but no more than half a second.
+  -- ケーキ。ただし、待つのは 0.5 秒まで
+  receive me
+    | Dish 3 name -> putStrLn f"dessert: {name}"
+    -- 「ケーキはまだ。帰ろう」
+    after 500 -> putStrLn "no cake yet: we go home"
+-- ANCHOR_END: main
+-- ANCHOR_END: all

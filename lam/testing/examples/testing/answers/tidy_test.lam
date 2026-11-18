@@ -1,0 +1,40 @@
+-- ANCHOR: all
+-- 🧹 Step 2: the tests of Tidy, in a fake folder.
+--      lam test tidy_test.lam
+-- ステップ2：Tidy のテストを、偽物のフォルダーで
+import Tidy
+
+-- A fake inbox with three files.
+-- 3つのファイルがある、偽物の inbox
+inbox =
+  { Test.world
+    | files =
+        { "inbox/memo.txt": "milk"
+        , "inbox/cat.png": "(a cat)"
+        , "inbox/song.mp3": "(la la)" } }
+
+tests : [Test]
+tests =
+  [ Test.group "kindOf"
+      -- 「拡張子で、フォルダーを決める」
+      [ Test.equal "text" (Tidy.kindOf "a.md") "text"
+      , Test.equal "pictures" (Tidy.kindOf "b.jpg") "pictures"
+      , Test.equal "others" (Tidy.kindOf "c") "others" ]
+  -- 「ファイルを、種類のフォルダーへ動かす」
+  , Test.io "moves each file into its folder" inbox (Tidy.main ["inbox"])
+      (\r ->
+        [ Test.equal "files" (Map.keys r.files)
+            [ "inbox/others/song.mp3", "inbox/pictures/cat.png"
+            , "inbox/text/memo.txt" ]
+        , Test.equal "the text stays the same"
+            (Map.lookup "inbox/text/memo.txt" r.files) (Just "milk")
+        , Test.equal "exit" r.exit 0 ])
+  -- 「フォルダーがなければ、1 で終わる」
+  , Test.io "stops when there is no folder" Test.world (Tidy.main ["none"])
+      (\r -> [ Test.equal "exit" r.exit 1 ])
+  -- 「引数がちがえば、2 で終わる」
+  , Test.io "stops when the arguments are wrong" Test.world (Tidy.main [])
+      (\r ->
+        [ Test.equal "exit" r.exit 2
+        , Test.equal "stderr" r.stderr "usage: lam Tidy.lam folder\n" ]) ]
+-- ANCHOR_END: all

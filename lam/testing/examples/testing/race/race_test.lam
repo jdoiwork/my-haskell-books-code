@@ -1,0 +1,17 @@
+-- ANCHOR: all
+-- 🏁 The tests of First. One of them counts on the order of two jobs
+--    of the same moment.  lam test --seeds 40 race_test.lam
+-- First のテスト。1つは、同じ時刻の2つの仕事の順番を当てにしている
+import First
+
+tests : [Test]
+tests =
+  -- 「左の仕事が先に答える（たまたま）」
+  [ Test.io "the left job answers first" Test.world First.main
+      (\r -> [ Test.equal "stdout" r.stdout "first: left\n" ])
+  -- 「どちらかが答える」
+  , Test.io "one of the two answers" Test.world First.main
+      (\r ->
+        [ Test.that "stdout"
+            (List.elem r.stdout ["first: left\n", "first: right\n"]) ]) ]
+-- ANCHOR_END: all

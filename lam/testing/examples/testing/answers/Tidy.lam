@@ -1,0 +1,46 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🧹 Tidy a folder: each file goes into a folder named by its kind.
+--      lam Tidy.lam inbox     (inbox/a.txt goes to inbox/text/a.txt)
+-- フォルダーを片付ける：ファイルを、種類の名前のフォルダーへ
+module Tidy exposing (main, kindOf)
+
+-- The folder for a file, by its extension.
+-- 拡張子で決める、ファイルのフォルダー
+kindOf : String -> String
+kindOf file =
+  case Path.extension file of
+    | ".txt" -> "text"
+    | ".md" -> "text"
+    | ".png" -> "pictures"
+    | ".jpg" -> "pictures"
+    | _ -> "others"
+
+-- Move one file into its folder.
+-- ファイルを1つ、そのフォルダーへ
+moveOne : String -> String -> IO ()
+moveOne folder name = do
+  let to = Path.join folder (kindOf name)
+  _ <- File.makeDir to
+  _ <- File.rename (Path.join folder name) (Path.join to name)
+  putStrLn f"{name} -> {kindOf name}/"
+
+-- Move every file of the folder.
+-- フォルダーのファイルを、全部動かす
+tidy : String -> IO ()
+tidy folder = do
+  listed <- File.list folder
+  case listed of
+    | Err why -> do
+        ePutStrLn f"tidy: {why}"
+        exit 1
+    | Ok names -> forEach names (moveOne folder)
+
+main : [String] -> IO ()
+main args =
+  case args of
+    | [folder] -> tidy folder
+    | _ -> do
+        ePutStrLn "usage: lam Tidy.lam folder"
+        exit 2
+-- ANCHOR_END: all

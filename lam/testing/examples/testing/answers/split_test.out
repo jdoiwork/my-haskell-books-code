@@ -1,0 +1,4 @@
+split_test.lam
+  ✓ String.split > join gives the text back
+  ✓ String.split > leaves no comma in a piece
+  ✓ String.split > gives one more piece than commas

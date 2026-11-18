@@ -1,0 +1,7 @@
+2026-11-16 09:12:03 INFO  order 1042 paid by card, tel 090-1234-5678
+2026-11-16 09:15:40 ERROR order 1043 card declined, call 080-9876-5432
+2026-11-16 10:02:11 INFO  order 1044 paid in cash
+this line is not a log line
+2026-11-17 11:30:00 INFO  order 1045 paid by card, tel 03-1234-5678
+2026-11-17 12:45:09 ERROR printer timeout after 30s
+2026-11-17 18:20:31 WARN  low on mugs

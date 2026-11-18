@@ -1,0 +1,31 @@
+-- ANCHOR: all
+-- ✂️ Step 1: the properties of String.split and join.
+--      lam test split_test.lam
+-- ステップ1：String.split と join の性質
+
+-- ANCHOR: pieces
+-- Lists of letters, many of them commas. The property joins them.
+-- 文字のリスト。カンマが多め。性質の中でつなぐ
+pieces : Gen [String]
+pieces = Gen.list (Gen.oneOf ["a", "b", ",", ","])
+-- ANCHOR_END: pieces
+
+tests : [Test]
+tests =
+  [ Test.group "String.split"
+      -- 「切ってからつなぐと、もとに戻る」
+      [ Test.forAll "join gives the text back" pieces
+          (\cs ->
+            let t = join "" cs in
+            join "," (String.split "," t) == t)
+      -- 「切ったかけらには、カンマがない」
+      , Test.forAll "leaves no comma in a piece" pieces
+          (\cs ->
+            String.split "," (join "" cs)
+              |> List.all (\p -> not (String.contains "," p)))
+      -- 「かけらは、カンマの数より1つ多い」
+      , Test.forAll "gives one more piece than commas" pieces
+          (\cs ->
+            let commas = cs |> filter (\c -> c == ",") |> length in
+            length (String.split "," (join "" cs)) == commas + 1) ] ]
+-- ANCHOR_END: all

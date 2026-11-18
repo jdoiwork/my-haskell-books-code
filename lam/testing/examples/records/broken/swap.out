@@ -1,0 +1,1 @@
+examples/records/broken/swap.lam:4:1: in the definition of swap: type error: the annotation of swap says a and b may differ, but the definition needs them to be the same
