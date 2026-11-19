@@ -38,6 +38,10 @@ module MiniRegex
   , replaceTemplate
   , replaceAllTemplate
   , split
+    -- * Places in bytes / バイトで数えた場所
+  , matchSpan
+  , byteOffset
+  , byteSpan
   ) where
 -- ANCHOR_END: header
 
@@ -47,6 +51,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Foreign (lengthWord8)
 
 import MiniRegex.Engine (compilePattern, nonEmptyAt, searchFrom)
 import MiniRegex.Template (Template, expand, template)
@@ -223,4 +228,26 @@ split re t = go 0 (findAll re t)
 slice :: Int -> Int -> Text -> Text
 slice from to = T.take (to - from) . T.drop from
 -- ANCHOR_END: split
+
+-- ANCHOR: bytes
+-- 📏 The whole match, as a Span (the same as groupSpan 0).
+-- 一致の全体を Span で（groupSpan 0 と同じ）
+matchSpan :: Match -> Span
+matchSpan m = Span (matchText m) (matchStart m) (matchEnd m)
+
+-- 🧮 The n-th character of the text, counted in bytes of UTF-8 (the
+--    way PCRE2, Rust and Go count). Text keeps UTF-8 inside, so this
+--    is the length of the first n characters.
+-- 文字列の n 文字目を、UTF-8 のバイトで数えたもの（PCRE2・Rust・Go の
+-- 数え方）。Text は中身を UTF-8 で持っているので、頭の n 文字の長さ
+byteOffset :: Text -> Int -> Int
+byteOffset t n = lengthWord8 (T.take n t)
+
+-- 📏 Where a span is in the text, in bytes: (start, end).
+-- Span が文字列のどこにあるかを、バイトで：（始まり、終わり）
+byteSpan :: Text -> Span -> (Int, Int)
+byteSpan t s = (start, start + lengthWord8 (spanText s))
+  where
+    start = byteOffset t (spanStart s)
+-- ANCHOR_END: bytes
 -- ANCHOR_END: all

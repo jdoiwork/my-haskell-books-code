@@ -153,7 +153,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 検索 Web API を公開する | [`minisearch/api/`](minisearch/api/)、[`minisearch/cli/`](minisearch/cli/)、[`langs/project-search-api/`](langs/project-search-api/) |
 | 速くする | [`minisearch/fast/`](minisearch/fast/)、[`minisearch/api/`](minisearch/api/)、[`langs/project-performance/`](langs/project-performance/) |
 | 並列化する | [`minisearch/parallel/`](minisearch/parallel/)、[`minisearch/fast/`](minisearch/fast/)、[`langs/project-concurrency/`](langs/project-concurrency/) |
-| 並行化する | [`minisearch/live-text/`](minisearch/live-text/)、[`minisearch/live/`](minisearch/live/)、[`minisearch/parallel/`](minisearch/parallel/) |
+| 並行化する | [`minisearch/live-text/`](minisearch/live-text/)、[`minisearch/live/`](minisearch/live/)、[`minisearch/parallel/`](minisearch/parallel/)、[`minisearch/live-intmap/`](minisearch/live-intmap/) |
 | 設計を磨く | [`minisearch/architecture/`](minisearch/architecture/)、[`minisearch/live/`](minisearch/live/)、[`langs/project-architecture/`](langs/project-architecture/) |
 | 第7部のふりかえり | [`minisearch/architecture/`](minisearch/architecture/)、[`review-search/`](review-search/) |
 
@@ -256,6 +256,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 章 | コード |
 |---|---|
 | 入出力：IO 型と do | [`lam/io/`](lam/io/)、[`lam/modules/`](lam/modules/)、[`langs/interp-io/`](langs/interp-io/) |
+| 失敗を早めに返す：`?` と後始末 | [`lam/errors/`](lam/errors/)、[`lam/io/`](lam/io/)、[`langs/interp-errors/`](langs/interp-errors/) |
 | スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-script/`](langs/interp-script/) |
 | ファイルとコマンドと時計：スクリプトの道具 | [`lam/files/`](lam/files/)、[`lam/stdlib/`](lam/stdlib/)、[`langs/interp-files/`](langs/interp-files/) |
 | 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/format/`](lam/format/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |

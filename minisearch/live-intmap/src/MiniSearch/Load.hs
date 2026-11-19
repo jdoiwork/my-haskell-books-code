@@ -1,0 +1,86 @@
+-- ANCHOR: all
+-- ANCHOR: module
+{-# LANGUAGE OverloadedStrings #-}
+-- | Read the documents from a folder.
+-- フォルダーから文書を読む。
+module MiniSearch.Load
+  ( readDocuments
+  , readDocument
+  , toDocument
+  , fileDocId
+  , hashDocId
+  ) where
+-- ANCHOR_END: module
+
+-- ANCHOR: imports
+import Control.Exception (throwIO)
+import qualified Crypto.Hash.SHA256 as SHA256
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import Data.List (sort)
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import System.Directory (listDirectory)
+import System.FilePath (takeExtension, (</>))
+
+import MiniSearch.Types
+-- ANCHOR_END: imports
+
+-- ANCHOR: toDocument
+-- 📄 The first line is the title, the rest is the body.
+-- 1行目が題、残りが本文
+toDocument :: DocId -> Text -> Document
+toDocument i content =
+  case T.lines content of
+    []             -> Document i "" ""
+    (title : rest) -> Document i (T.strip title) (T.unlines rest)
+-- ANCHOR_END: toDocument
+
+-- ANCHOR: fileDocId
+-- 🔑 The id of a file: the hash of its name, a \0, and its bytes.
+--    The same name and contents always give the same id, on any
+--    machine, in any version.
+-- ファイルの番号：名前、区切りの \0、中身のバイト列のハッシュ値。
+-- 名前と中身が同じなら、どの機械でも、どの版でも、いつも同じ番号になる
+fileDocId :: FilePath -> ByteString -> DocId
+fileDocId name bytes =
+  hashDocId (TE.encodeUtf8 (T.pack name) <> "\0" <> bytes)
+
+-- 🔑 An id from some bytes: the first 8 bytes of their SHA-256,
+--    read as one 64-bit number (the first byte is the biggest).
+-- バイト列から作る番号：SHA-256 の頭の8バイトを、64ビットの
+-- 1つの数として読む（最初のバイトが、いちばん大きいけた）
+hashDocId :: ByteString -> DocId
+hashDocId bytes =
+  let digest = SHA256.hash bytes
+      push n b = n * 256 + fromIntegral b
+  in DocId (BS.foldl' push 0 (BS.take 8 digest))
+-- ANCHOR_END: fileDocId
+
+-- ANCHOR: read
+-- 📂 Read every .txt file in the folder, in name order.
+-- フォルダーの .txt を全部、名前の順に読む
+readDocuments :: FilePath -> IO [Document]
+readDocuments dir = do
+  names <- listDirectory dir
+  let txtFiles = sort (filter (\n -> takeExtension n == ".txt") names)
+  mapM (readDocument dir) txtFiles
+
+-- 📄 Read one file. Its id comes from its name and contents,
+--    not from where it is in the folder.
+-- ファイルを1つ読む。番号は、名前と中身から決まる。
+-- フォルダーの中の何番目かには、よらない
+--    UTF-8 is checked here, while reading (decodeUtf8' gives an
+--    Either), so a bad file fails now, with its name.
+-- UTF-8 かどうかは、読むときにここで確かめる（decodeUtf8' は Either を
+-- 返す）。だめなファイルは、あとでではなく、いま、名前つきで失敗する
+readDocument :: FilePath -> FilePath -> IO Document
+readDocument dir name = do
+  bytes <- BS.readFile (dir </> name)
+  case TE.decodeUtf8' bytes of
+    -- 「cafe.txt：UTF-8 ではありません」
+    Left _     -> throwIO (userError (name <> ": not UTF-8"))
+    Right text -> pure (toDocument (fileDocId name bytes) text)
+-- ANCHOR_END: read
+-- ANCHOR_END: all

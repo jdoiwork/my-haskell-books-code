@@ -24,7 +24,8 @@ import MiniRegex.Cursor
 import MiniRegex.Groups
 import MiniRegex.Rules
 import MiniRegex.Syntax
-import MiniRegex.Types (Option, Span (..))
+import MiniRegex.Types (Span (..))
+import MiniRegex.Unicode (sameCase)
 -- ANCHOR_END: imports
 
 -- ANCHOR: rest
@@ -42,8 +43,8 @@ type Rest = Cursor -> Caps -> Maybe (Cursor, Caps)
 -- しおりから始めて、パターンが終わる場所と、グループが見つけたもの
 -- （最初にうまくいった試し）。いちばん最後の残りの仕事は、「ここで、
 -- これを持って」と言うこと
-matchAt :: [Option] -> Pattern -> Cursor -> Maybe (Cursor, Caps)
-matchAt opts p c = run opts p (\c' caps -> Just (c', caps)) c noCaps
+matchAt :: Pattern -> Cursor -> Maybe (Cursor, Caps)
+matchAt p c = run p (\c' caps -> Just (c', caps)) c noCaps
 -- ANCHOR_END: rest
 
 -- ANCHOR: run
@@ -51,8 +52,8 @@ matchAt opts p c = run opts p (\c' caps -> Just (c', caps)) c noCaps
 --    numbered as they go: `n` is the number of the next group to open.
 -- パターンを動かしてから、残りの仕事をする。グループの番号は、
 -- 進みながら付ける。n は、次に開くグループの番号
-run :: [Option] -> Pattern -> Rest -> Rest
-run opts = pattern 1
+run :: Pattern -> Rest -> Rest
+run = pattern 1
   where
     -- The left branch first; the next one only when it fails. Each
     -- branch's first group has the number after the groups of the
@@ -63,6 +64,11 @@ run opts = pattern 1
       asum [ branch m b k c caps
            | (m, b) <- numbered n branchGroups (NE.toList branches) ]
 
+    -- (?| ... ): every branch starts at the same number
+    -- (?| ... )：どの枝も、同じ番号から
+    reset n (Pattern branches) k c caps =
+      asum [ branch n b k c caps | b <- NE.toList branches ]
+
     -- The pieces one after another: each one's rest of the work is
     -- the pieces after it, and then k.
     -- 部品を順に。どの部品の残りの仕事も、うしろの部品と、そのあとの k
@@ -70,7 +76,7 @@ run opts = pattern 1
       foldr (\(m, p) k' -> piece m p k') k (numbered n pieceGroups ps)
 
     piece _ (Anchor a) k c caps
-      | holds opts a c = k c caps
+      | holds a c = k c caps
       | otherwise      = Nothing
     piece n (Quantified a q) k c caps = repeatAtom q (atom n a) k c caps
 -- ANCHOR_END: run
@@ -83,6 +89,7 @@ run opts = pattern 1
     -- 始めた場所から、パターンが終わった場所までを書き留めてから、
     -- 残りの仕事をする
     atom n (Group NonCapturing inner) k c caps = pattern n inner k c caps
+    atom n (Group BranchReset inner) k c caps = reset n inner k c caps
     atom n (Group _ inner) k c caps =
       pattern (n + 1) inner (\c' caps' -> k c' (remember n c c' caps')) c caps
     -- \1: the same text again. A group that has found nothing makes it
@@ -93,8 +100,14 @@ run opts = pattern 1
       s <- recall r caps
       c' <- stepOver (spanText s) c
       k c' caps
+    -- (?i)\1: the same text, but A and a are the same
+    -- (?i)\1：同じ文字列。ただし A と a は同じ
+    atom _ (NoCase (Backref r)) k c caps = do
+      s <- recall r caps
+      c' <- stepOverBy sameCase (spanText s) c
+      k c' caps
     atom _ a k c caps = case step c of
-      Just (x, c') | fitsChar opts a x -> k c' caps
+      Just (x, c') | fitsChar a x -> k c' caps
       _                                -> Nothing
     -- ANCHOR_END: atom
 

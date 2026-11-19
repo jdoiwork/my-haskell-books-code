@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 総合演習：PCRE2 互換の正規表現エンジンを作る
--- （4. グループとキャプチャ：使いやすい顔を仕上げる）
+-- （5. 文字クラスと Unicode：フラグと大文字・小文字）
 
 common shared
   default-language: GHC2024
@@ -24,6 +24,7 @@ library
                     MiniRegex.Groups
                     MiniRegex.Cursor
                     MiniRegex.Caps
+                    MiniRegex.Unicode
                     MiniRegex.Rules
                     MiniRegex.Candidates
                     MiniRegex.Continuation
@@ -39,6 +40,9 @@ library
     , megaparsec       ^>=9.8
     , containers       ^>=0.8
     , mtl              ^>=2.3
+    -- The scripts of Unicode 17, the same version as PCRE2 10.49's
+    -- Unicode 17 の文字体系（PCRE2 10.49 と同じ版）
+    , unicode-data-scripts ^>=0.6
 
 -- The compatibility meter: how many of PCRE2's tests pass.
 -- 互換度メーター：PCRE2 のテストのうち、いくつ通るか

@@ -1,11 +1,12 @@
 -- ANCHOR: all
 -- | The small rules that both matchers share: does one character fit
---   an atom, and does a place fit an anchor. The flags m and s change
---   them.
+--   an atom, and does a place fit an anchor. The flags are in the tree
+--   now, so the rules no longer need them.
 -- 2つのマッチャーが使う、小さな決まり：1文字がアトムに合うか、場所が
--- アンカーに合うか。フラグ m と s で変わる
+-- アンカーに合うか。フラグは木の中に入ったので、決まりにはもう要らない
 module MiniRegex.Rules
   ( fitsChar
+  , inClass
   , holds
   ) where
 
@@ -15,7 +16,7 @@ import Data.Text qualified as T
 
 import MiniRegex.Cursor
 import MiniRegex.Syntax
-import MiniRegex.Types (Option (..))
+import MiniRegex.Unicode (caseVariants, hasType, sameCase)
 -- ANCHOR_END: imports
 
 -- ANCHOR: char
@@ -24,32 +25,47 @@ import MiniRegex.Types (Option (..))
 --    themselves.)
 -- この1文字は、1文字のアトムに合うか（グループと後方参照は1文字では
 -- ないので、マッチャーが自分で見る）
-fitsChar :: [Option] -> Atom -> Char -> Bool
-fitsChar _    (Lit x)     c = c == x
-fitsChar opts AnyChar     c = DotAll `elem` opts || c /= '\n'
-fitsChar _    (Class cls) c = negated cls /= any has (NE.toList (items cls))
-  where
-    has (Single x)  = c == x
-    has (Range a b) = a <= c && c <= b
-fitsChar _    (Group _ _) _ = False
-fitsChar _    (Backref _) _ = False
+fitsChar :: Atom -> Char -> Bool
+fitsChar (Lit x)              c = c == x
+fitsChar AnyChar              c = c /= '\n'
+fitsChar Anything             _ = True
+fitsChar (Class cls)          c = inClass False cls c
+fitsChar (NoCase (Lit x))     c = sameCase x c
+fitsChar (NoCase (Class cls)) c = inClass True cls c
+fitsChar (NoCase a)           c = fitsChar a c
+fitsChar (Group _ _)          _ = False
+fitsChar (Backref _)          _ = False
 -- ANCHOR_END: char
 
+-- ANCHOR: class
+-- 🔤 Is the character in the class? Without case, a or A is in [a-z]
+--    when any of its other cases is in it. \d, [:alpha:] and \p{...}
+--    look at the character itself, as PCRE2 does.
+-- 文字は、文字の集まりに入っているか。大文字と小文字を区別しないなら、
+-- ほかの形のどれかが入っていれば入っている。\d・[:alpha:]・\p{...} は、
+-- PCRE2 と同じく、その文字そのものを見る
+inClass :: Bool -> CharClass -> Char -> Bool
+inClass noCase (CharClass neg is) c = neg /= any has (NE.toList is)
+  where
+    forms = if noCase then caseVariants c else [c]
+    has (Single x)    = x `elem` forms
+    has (Range a b)   = any (\f -> a <= f && f <= b) forms
+    has (Builtin o t) = o /= hasType t c
+-- ANCHOR_END: class
+
 -- ANCHOR: anchor
--- ⚓ Does the place fit the anchor? Without m, ^ is only the start of
---    the text, and $ is the end or just before a newline at the end.
---    With m, they fit at every line (but ^ not after a newline that
---    ends the text).
--- 場所がアンカーに合うか。m なしなら、^ は文字列の頭だけ、$ は終わりか、
--- 最後の改行のすぐ前。m があれば、行ごとに合う（ただし ^ は、文字列を
--- 終える改行のうしろには合わない）
-holds :: [Option] -> Anchor -> Cursor -> Bool
-holds opts LineStart c
-  | Multiline `elem` opts =
-      at c == 0 || (before c == Just '\n' && not (T.null (rest c)))
-  | otherwise = at c == 0
-holds opts LineEnd c
-  | Multiline `elem` opts = T.null (rest c) || "\n" `T.isPrefixOf` rest c
-  | otherwise             = T.null (rest c) || rest c == "\n"
+-- ⚓ Does the place fit the anchor? ^ and $ with m fit at every line
+--    (but ^ not after a newline that ends the text). Without m, the
+--    parser has made them \A and \Z.
+-- 場所がアンカーに合うか。m のある ^ と $ は、行ごとに合う（ただし ^ は、
+-- 文字列を終える改行のうしろには合わない）。m がなければ、パーサーが
+-- \A と \Z にしてある
+holds :: Anchor -> Cursor -> Bool
+holds LineStart c =
+  at c == 0 || (before c == Just '\n' && not (T.null (rest c)))
+holds LineEnd     c = T.null (rest c) || "\n" `T.isPrefixOf` rest c
+holds TextStart   c = at c == 0
+holds TextEnd     c = T.null (rest c)
+holds LastLineEnd c = T.null (rest c) || rest c == "\n"
 -- ANCHOR_END: anchor
 -- ANCHOR_END: all

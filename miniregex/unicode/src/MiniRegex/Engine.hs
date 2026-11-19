@@ -2,13 +2,12 @@
 -- | The engine. compilePattern reads with the parser; searchFrom runs
 --   the backtracking matcher from each place in turn, and gives back
 --   what the groups found, too. nonEmptyAt is for findAll, after an
---   empty match. Only two things are still stopped at the door: the
---   flag i and the possessive quantifier (for later chapters).
+--   empty match. Only one thing is still stopped at the door: the
+--   possessive quantifier (for the chapter on looking around).
 -- エンジン。compilePattern はパーサーで読む。searchFrom は、バック
 -- トラックのマッチャーを、場所を1つずつずらしながら動かし、グループが
 -- 見つけたものも返す。nonEmptyAt は、空の一致のあとの findAll のため。
--- 入り口で止めるのは、あと2つだけ：フラグ i と、所有的な量指定子
--- （あとの章で）
+-- 入り口で止めるのは、あと1つだけ：所有的な量指定子（まわりを見る章で）
 module MiniRegex.Engine
   ( compilePattern
   , searchFrom
@@ -34,25 +33,23 @@ import MiniRegex.Types
 -- ANCHOR_END: imports
 
 -- ANCHOR: compile
--- 🏗️ Read a pattern into a tree, with the parser; then stop the two
---    things the matcher cannot run yet.
--- パーサーでパターンを読んで木にする。そのあと、マッチャーがまだ
--- 動かせない2つだけを止める
+-- 🏗️ Read a pattern into a tree, with the parser (the flags go into
+--    the tree); then stop the one thing the matcher cannot run yet.
+-- パーサーでパターンを読んで木にする（フラグも木に入る）。そのあと、
+-- マッチャーがまだ動かせない1つだけを止める
 compilePattern :: [Option] -> Text -> Either RegexError Pattern
 compilePattern opts src = do
   tree <- parsePattern opts src
-  matcherCanRun opts tree
+  matcherCanRun tree
   pure tree
 
--- 🚧 The flag i waits for the chapter on Unicode, the possessive
---    quantifier (a*+) for the chapter on looking around.
--- フラグ i は Unicode の章を、所有的な量指定子（a*+）は、まわりを
--- 見る章を待つ
-matcherCanRun :: [Option] -> Pattern -> Either RegexError ()
-matcherCanRun opts tree
-  | Caseless `elem` opts = Left (Unsupported 0 "matcher: flag i")
-  | hasPossessive tree   = Left (Unsupported 0 "matcher: possessive")
-  | otherwise            = Right ()
+-- 🚧 The possessive quantifier (a*+) waits for the chapter on looking
+--    around.
+-- 所有的な量指定子（a*+）は、まわりを見る章を待つ
+matcherCanRun :: Pattern -> Either RegexError ()
+matcherCanRun tree
+  | hasPossessive tree = Left (Unsupported 0 "matcher: possessive")
+  | otherwise          = Right ()
 
 -- 🔎 Is there a possessive quantifier anywhere in the tree?
 -- 木のどこかに、所有的な量指定子があるか
@@ -75,14 +72,14 @@ hasPossessive (Pattern branches) = any inBranch (NE.toList branches)
 -- その場所でマッチャーを試し、うまくいった最初の場所を取る。from は
 -- 文字列全体の何文字目かで数える（^ が、その手前を見られるように）
 searchWith
-  :: ([Option] -> Pattern -> Cursor -> Maybe (Cursor, Caps))
+  :: (Pattern -> Cursor -> Maybe (Cursor, Caps))
   -> Regex -> Text -> Int -> Maybe Match
 searchWith matcher re subject from = do
   start <- cursorAt subject from
   listToMaybe (mapMaybe tryAt (onwards start))
   where
     tryAt c = do
-      (end, caps) <- matcher (options re) (tree re) c
+      (end, caps) <- matcher (tree re) c
       pure (toMatch re c end caps)
 
 -- 📦 A Match: the text between the two cursors, and the groups.
@@ -99,7 +96,7 @@ toMatch re from to caps = Match
 -- 📋 With the list of candidates: the first one.
 -- 候補のリストで：先頭の1つ
 searchFromList :: Regex -> Text -> Int -> Maybe Match
-searchFromList = searchWith (\opts p c -> listToMaybe (ends opts p c))
+searchFromList = searchWith (\p c -> listToMaybe (ends p c))
 
 -- 📮 With continuations: the one the engine uses.
 -- 継続で：エンジンが使うのは、こちら
@@ -116,7 +113,7 @@ searchFrom = searchWith matchAt
 nonEmptyAt :: Regex -> Text -> Int -> Maybe Match
 nonEmptyAt re subject from = do
   start <- cursorAt subject from
-  (end, caps) <- run (options re) (tree re) notHere start noCaps
+  (end, caps) <- run (tree re) notHere start noCaps
   pure (toMatch re start end caps)
   where
     notHere c caps

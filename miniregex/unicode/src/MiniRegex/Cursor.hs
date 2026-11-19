@@ -13,6 +13,7 @@ module MiniRegex.Cursor
   , onwards
   , taken
   , stepOver
+  , stepOverBy
   ) where
 
 -- ANCHOR: imports
@@ -71,5 +72,20 @@ stepOver t c
   | otherwise = do
       ahead <- T.stripPrefix t (rest c)
       pure (Cursor (at c + T.length t) (Just (T.last t)) ahead)
+
+-- 🦘 The same, but comparing each pair of characters with `same` (for
+--    (?i)\1: a and A are the same).
+-- 同じことを、文字を1つずつ same でくらべながら（(?i)\1 のため：
+-- a と A は同じ）
+stepOverBy :: (Char -> Char -> Bool) -> Text -> Cursor -> Maybe Cursor
+stepOverBy same t c
+  | T.length ahead < n                    = Nothing
+  | and (zipWith same (T.unpack t) (T.unpack (T.take n ahead))) =
+      Just (Cursor (at c + n) (lastOf t) (T.drop n ahead))
+  | otherwise                             = Nothing
+  where
+    n = T.length t
+    ahead = rest c
+    lastOf s = if T.null s then before c else Just (T.last (T.take n ahead))
 -- ANCHOR_END: over
 -- ANCHOR_END: all

@@ -1,9 +1,9 @@
 -- ANCHOR: all
 -- 🧾 The receipt of the shop, once more: the same work as in the
 --    chapter before, but each failure goes back at once with ?, and
---    the shop closes whatever happens (defer).
+--    the shop closes after an Err or a stop too (defer).
 -- お店のレシートを、もう一度。前の章と同じ仕事だが、失敗は ? ですぐに
--- 返し、何があってもお店を閉める（defer）
+-- 返し、Err でも止まっても、お店を閉める（defer）
 --   LAM_PATH=examples/modules/receipt lam examples/errors/shop.lam
 import Receipt
 

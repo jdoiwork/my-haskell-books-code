@@ -139,7 +139,7 @@ see src = case parsePattern [] src of
 -- GHCi で試す用：パターンが文字列の頭から始まるとき、候補のリストの
 -- マッチャーが並べる場所（何文字目か）を、順に
 endsOf :: Text -> Text -> [Int]
-endsOf p t = map (at . fst) (ends [] (tree (surely p)) (Cursor 0 Nothing t))
+endsOf p t = map (at . fst) (ends (tree (surely p)) (Cursor 0 Nothing t))
 
 -- 🧮 How many of them. The pieces after the pattern are tried once at
 --    each of them.

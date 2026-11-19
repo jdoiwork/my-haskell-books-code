@@ -10,6 +10,7 @@ module MiniRegex.Compat
   , Modifiers (..)
   , readTests
   , readTestFile
+  , Encoding (..)
   , judge
   , judgeWithin
   , readable
@@ -27,7 +28,7 @@ import Data.Text qualified as T
 import Control.Exception (evaluate)
 import Numeric (showHex)
 import System.IO
-  (IOMode (ReadMode), hGetContents', hSetEncoding, latin1, withFile)
+  (IOMode (ReadMode), hGetContents', hSetEncoding, latin1, utf8, withFile)
 import System.Timeout (timeout)
 
 import MiniRegex
@@ -110,14 +111,19 @@ readTests = outside "" "" . zip [1 ..] . T.lines
     -- "\= Expect no match" は、人のためのメモ
     isComment   = ("\\=" `T.isPrefixOf`)
 
--- 📂 Read the tests from a file. It is not UTF-8 but one byte for one
---    character (the tests are for PCRE2 without UTF), so read it as
---    Latin-1, where byte 0xe9 is the character U+00E9.
--- ファイルからテストを読む。UTF-8 ではなく、1バイトが1文字（UTF なしの
--- PCRE2 のテスト）なので、Latin-1 として読む（0xe9 のバイトは U+00E9 の文字）
-readTestFile :: FilePath -> IO [TestCase]
-readTestFile file = withFile file ReadMode $ \h -> do
-  hSetEncoding h latin1
+-- 📂 Read the tests from a file. The tests for PCRE2 without UTF
+--    (testoutput1) are one byte for one character: read them as Latin-1,
+--    where byte 0xe9 is the character U+00E9. The tests with UTF
+--    (testoutput4) are UTF-8.
+-- ファイルからテストを読む。UTF なしの PCRE2 のテスト（testoutput1）は、
+-- 1バイトが1文字なので、Latin-1 として読む（0xe9 のバイトは U+00E9 の
+-- 文字）。UTF のあるテスト（testoutput4）は UTF-8
+data Encoding = Latin1 | Utf8
+  deriving (Show, Eq)
+
+readTestFile :: Encoding -> FilePath -> IO [TestCase]
+readTestFile enc file = withFile file ReadMode $ \h -> do
+  hSetEncoding h (if enc == Latin1 then latin1 else utf8)
   readTests . T.pack <$> hGetContents' h
 
 -- 🧶 The rest of a pattern after the first /: up to the / that has no
@@ -155,16 +161,37 @@ judge t = case (flagsOf (testModifiers t), decodeSubject (testSubject t)) of
   (Left m, _)             -> NotYet ("modifier " <> m)
   (_, Nothing)            -> NotYet "subject modifier"
   (Right mods, Just subj) ->
-    case compileWith (modOptions mods) (testPattern t) of
+    case compileWith (modOptions mods) (patternOf mods t) of
       Left (Unsupported _ what) -> NotYet what
       Left (Invalid _ _)        -> Fail
       Right re
+        | oneByteCase mods (testPattern t) subj ->
+            NotYet "caseless without UTF"
         | showFound mods subj (matches re subj) == testExpected t -> Pass
         | otherwise                                             -> Fail
       where
         matches re
           | modGlobal mods = findAll re
           | otherwise      = maybeToList . find re
+
+-- ✍️ The pattern of a test, with (?xx) before it for the modifier xx.
+-- テストのパターン。修飾子 xx があれば、頭に (?xx) を付ける
+patternOf :: Modifiers -> TestCase -> Text
+patternOf mods t
+  | modMore mods = "(?xx)" <> testPattern t
+  | otherwise    = testPattern t
+
+-- 🔡 Without UTF, PCRE2 tells é from É even under (?i): only ASCII
+--    letters have another case. MiniRegex is always Unicode, so a
+--    caseless test with a character from 128 on is "not yet".
+-- UTF なしの PCRE2 は、(?i) のもとでも é と É を区別する（ほかの形が
+-- あるのは ASCII の文字だけ）。MiniRegex はいつも Unicode なので、
+-- 128 から先の文字がある、大文字と小文字を区別しないテストは「まだ」
+oneByteCase :: Modifiers -> Text -> Text -> Bool
+oneByteCase mods pat subj =
+  not (modUtf mods)
+    && (Caseless `elem` modOptions mods || "i" `T.isInfixOf` pat)
+    && T.any (>= '\x80') (pat <> subj)
 
 -- ⏱️ Judge a test, but give up after this many microseconds: a
 --    backtracking matcher can take for ever on some patterns. That
@@ -188,7 +215,7 @@ judgeWithin micro t = do
 readable :: TestCase -> Verdict
 readable t = case flagsOf (testModifiers t) of
   Left m     -> NotYet ("modifier " <> m)
-  Right mods -> case parsePattern (modOptions mods) (testPattern t) of
+  Right mods -> case parsePattern (modOptions mods) (patternOf mods t) of
     Right _                   -> Pass
     Left (Invalid _ _)        -> Fail
     Left (Unsupported _ what) -> NotYet what
@@ -196,27 +223,43 @@ readable t = case flagsOf (testModifiers t) of
 
 -- ANCHOR: flags
 -- 🚩 The modifiers MiniRegex knows: the flags i, m, s and x, g (all
---    the matches) and aftertext (print what is after each match, too).
+--    the matches), aftertext (print what is after each match, too),
+--    utf (the subject is Unicode; print it as \x{...}) and ucp (\d,
+--    \w ... are Unicode). Without ucp, PCRE2's \d and \w are ASCII:
+--    the test is run with the flag Ascii.
 -- MiniRegex が知っている修飾子：フラグの i・m・s・x、g（全部の一致）、
--- aftertext（一致のうしろの文字も書く）
+-- aftertext（一致のうしろの文字も書く）、utf（入力が Unicode。\x{...} で
+-- 書く）、ucp（\d・\w などが Unicode）。ucp がなければ、PCRE2 の \d・\w は
+-- ASCII なので、テストはフラグ Ascii を付けて動かす
 data Modifiers = Modifiers
   { modOptions :: [Option]
   , modGlobal  :: Bool
   , modAfter   :: Bool
+  , modUtf     :: Bool
+  , modMore    :: Bool
   }
   deriving (Show, Eq)
 
 -- 🚩 Read the modifiers. Any other one is given back, as "not yet".
 -- 修飾子を読む。ほかのものは「まだ」として返す
 flagsOf :: Text -> Either Text Modifiers
-flagsOf mods = foldr add (Right (Modifiers [] False False)) parts
+flagsOf mods =
+  withUcp <$> foldr add (Right (Modifiers [] False False False False)) parts
   where
     parts = filter (not . T.null) (T.splitOn "," mods)
+    withUcp ms
+      | "ucp" `elem` parts = ms
+      | otherwise          = ms { modOptions = modOptions ms ++ [Ascii] }
     add m acc = do
       ms <- acc
       case m of
         "g"         -> Right ms { modGlobal = True }
         "aftertext" -> Right ms { modAfter = True }
+        "utf"       -> Right ms { modUtf = True }
+        "ucp"       -> Right ms
+        -- xx is not one of our Options: the test writes (?xx) instead
+        -- xx は Option にないので、テストはかわりに (?xx) を書く
+        "xx"        -> Right ms { modMore = True }
         _ | T.all (`elem` letters) m ->
               Right ms { modOptions = map flag (T.unpack m) ++ modOptions ms }
           | otherwise -> Left m
@@ -230,11 +273,13 @@ flagsOf mods = foldr add (Right (Modifiers [] False False)) parts
 --    line " 0: …"; with aftertext, " 0+ …" (what comes after it); then
 --    the groups, up to the last one that found something ("<unset>"
 --    for a group that found nothing). No match at all: "No match".
---    Characters that are not plain ASCII are written as \xhh.
+--    Characters that are not plain ASCII are written as \xhh (with
+--    utf: \x{h}, as pcre2test does).
 -- この一致なら、pcre2test は何と出すか。一致ごとに " 0: …" の行、
 -- aftertext なら " 0+ …"（そのうしろの文字）、そのあとに、何かを
 -- 見つけた最後のグループまでの行（見つけなかったグループは "<unset>"）。
 -- 1つもなければ "No match"。ふつうの ASCII でない文字は \xhh と書く
+-- （utf なら、pcre2test と同じく \x{h}）
 showFound :: Modifiers -> Text -> [Match] -> [Text]
 showFound _ _ [] = ["No match"]
 showFound mods subj ms = concatMap one ms
@@ -251,6 +296,7 @@ showFound mods subj ms = concatMap one ms
     visible = T.concatMap char
     char c
       | c >= ' ' && c <= '~' = T.singleton c
+      | modUtf mods          = "\\x{" <> hex2 (ord c) <> "}"
       | ord c < 0x100        = "\\x" <> hex2 (ord c)
       | otherwise            = "\\x{" <> T.pack (showHex (ord c) "") <> "}"
     hex2 n = T.justifyRight 2 '0' (T.pack (showHex n ""))
@@ -258,11 +304,12 @@ showFound mods subj ms = concatMap one ms
 
 -- ANCHOR: decode
 -- 🔓 Turn the \ escapes of a subject line into characters, the way
---    pcre2test does: \t \n \x41 \x{263a} \101 ... Nothing when the line
+--    pcre2test does: \t \n \x41 \x{263a} \o{11064} \N{U+1234} \101 ...
+--    Nothing when the line
 --    has \= (modifiers for this subject), which MiniRegex cannot follow
 --    yet.
 -- 入力の行の \ を、pcre2test と同じように文字にする：\t \n \x41
--- \x{263a} \101 など。\=（この入力だけの修飾子）があれば Nothing
+-- \x{263a} \o{11064} \N{U+1234} \101 など。\=（この入力だけの修飾子）があれば Nothing
 -- （MiniRegex には、まだ従えない）
 decodeSubject :: Text -> Maybe Text
 decodeSubject = fmap T.pack . go . T.unpack
@@ -271,9 +318,9 @@ decodeSubject = fmap T.pack . go . T.unpack
     go [] = Just []
     go ('\\' : '=' : _) = Nothing
     go ['\\'] = Nothing
-    go ('\\' : 'x' : '{' : cs) = case span isHexDigit cs of
-      (h@(_ : _), '}' : rest) -> (number 16 h :) <$> go rest
-      _                       -> Nothing
+    go ('\\' : 'x' : '{' : cs) = braced 16 isHexDigit cs
+    go ('\\' : 'o' : '{' : cs) = braced 8 isOctDigit cs
+    go ('\\' : 'N' : '{' : 'U' : '+' : cs) = braced 16 isHexDigit cs
     go ('\\' : 'x' : cs) =
       let (h, rest) = spanUpTo 2 isHexDigit cs
       in  (number 16 h :) <$> go rest
@@ -284,6 +331,12 @@ decodeSubject = fmap T.pack . go . T.unpack
       | Just e <- lookup c escapes = (e :) <$> go cs
       | otherwise                  = (c :) <$> go cs
     go (c : cs) = (c :) <$> go cs
+
+    -- the digits up to }, as one character
+    -- } までの数字を、1文字に
+    braced base isDigitOf cs = case span isDigitOf cs of
+      (h@(_ : _), '}' : rest) -> (number base h :) <$> go rest
+      _                       -> Nothing
 
     escapes = [ ('a', '\a'), ('b', '\b'), ('e', '\ESC'), ('f', '\f')
               , ('n', '\n'), ('r', '\r'), ('t', '\t'), ('v', '\v') ]

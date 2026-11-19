@@ -65,8 +65,10 @@ data Span = Span
 -- ANCHOR_END: match
 
 -- ANCHOR: option
--- 🚩 The flags, the same as PCRE2's i, m, s and x.
--- フラグ。PCRE2 の i・m・s・x と同じ
+-- 🚩 The flags, the same as PCRE2's i, m, s, x and a. They can be set
+--    in the pattern, too: (?i), (?m), (?s), (?x), (?a).
+-- フラグ。PCRE2 の i・m・s・x・a と同じ。パターンの中でも
+-- (?i)・(?m)・(?s)・(?x)・(?a) で付けられる
 data Option
   -- (?i) A and a are the same.
   -- 大文字と小文字を区別しない
@@ -80,6 +82,11 @@ data Option
   -- (?x) Spaces and # comments in the pattern are skipped.
   -- パターンの中の空白と # のコメントを読み飛ばす
   | Extended
+  -- (?a) \d, \s, \w and [:alpha:] ... are ASCII only (MiniRegex's
+  -- default is Unicode, as Python's and Rust's).
+  -- \d・\s・\w・[:alpha:] などを ASCII だけにする（MiniRegex の
+  -- 既定は、Python・Rust と同じく Unicode）
+  | Ascii
   deriving (Show, Eq, Ord, Enum, Bounded)
 -- ANCHOR_END: option
 

@@ -19,7 +19,8 @@ import MiniRegex.Cursor
 import MiniRegex.Groups
 import MiniRegex.Rules
 import MiniRegex.Syntax
-import MiniRegex.Types (Option, Span (..))
+import MiniRegex.Types (Span (..))
+import MiniRegex.Unicode (sameCase)
 -- ANCHOR_END: imports
 
 -- ANCHOR: ends
@@ -27,14 +28,19 @@ import MiniRegex.Types (Option, Span (..))
 --    and what the groups found on the way.
 -- しおりから始めて、パターンが終われる場所の全部と、その道でグループが
 -- 見つけたもの
-ends :: [Option] -> Pattern -> Cursor -> [(Cursor, Caps)]
-ends opts p c = pattern 1 p (c, noCaps)
+ends :: Pattern -> Cursor -> [(Cursor, Caps)]
+ends p c = pattern 1 p (c, noCaps)
   where
     -- The left branch first, then the next one.
     -- 左の枝が先、それから次の枝
     pattern n (Pattern branches) here =
       concat [ branch m b here
              | (m, b) <- numbered n branchGroups (NE.toList branches) ]
+
+    -- (?| ... ): every branch starts at the same number
+    -- (?| ... )：どの枝も、同じ番号から
+    reset n (Pattern branches) here =
+      concat [ branch n b here | b <- NE.toList branches ]
 
     -- The pieces one after another: where the first ends, the next
     -- starts.
@@ -47,7 +53,7 @@ ends opts p c = pattern 1 p (c, noCaps)
           go qs h'
 
     piece _ (Anchor a) here@(cur, _)
-      | holds opts a cur = [here]
+      | holds a cur = [here]
       | otherwise        = []
     piece n (Quantified a q) here = repeatAtom q (atom n a) here
 
@@ -56,14 +62,19 @@ ends opts p c = pattern 1 p (c, noCaps)
     -- 1文字。グループなら中のパターン全体（見つけたものを書き留める）。
     -- 後方参照なら、グループが前に見つけた文字列
     atom n (Group NonCapturing inner) here = pattern n inner here
+    atom n (Group BranchReset inner) here = reset n inner here
     atom n (Group _ inner) here@(from, _) =
       [ (to, remember n from to caps)
       | (to, caps) <- pattern (n + 1) inner here ]
     atom _ (Backref r) (cur, caps) = case recall r caps of
       Just s | Just cur' <- stepOver (spanText s) cur -> [(cur', caps)]
       _                                               -> []
+    atom _ (NoCase (Backref r)) (cur, caps) = case recall r caps of
+      Just s | Just cur' <- stepOverBy sameCase (spanText s) cur ->
+        [(cur', caps)]
+      _ -> []
     atom _ a (cur, caps) = case step cur of
-      Just (x, cur') | fitsChar opts a x -> [(cur', caps)]
+      Just (x, cur') | fitsChar a x -> [(cur', caps)]
       _                                  -> []
 
 -- 🔢 Give each part the number of its first group.

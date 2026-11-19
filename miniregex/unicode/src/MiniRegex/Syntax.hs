@@ -12,6 +12,9 @@ module MiniRegex.Syntax
   , Anchor (..)
   , CharClass (..)
   , ClassItem (..)
+  , CharType (..)
+  , Reach (..)
+  , Property (..)
   , Quantifier (..)
   , Count (..)
   , Greed (..)
@@ -28,6 +31,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import Data.Text qualified as T
 import Numeric.Natural (Natural)
+import Unicode.Char.General.Scripts (Script)
 -- ANCHOR_END: imports
 
 -- ANCHOR: pattern
@@ -54,16 +58,22 @@ data Piece
 -- ANCHOR_END: pattern
 
 -- ANCHOR: atom
--- ⚛️ The things that can be repeated.
--- くり返せるもの
+-- ⚛️ The things that can be repeated. The flags are already in the
+--    tree: the parser writes down, for each atom, what (?i) and (?s)
+--    said at its place.
+-- くり返せるもの。フラグは、もう木の中にある。パーサーが、アトムごとに、
+-- その場所で (?i) と (?s) が何と言っていたかを書き込む
 data Atom
   -- a, b, 日 ...: the character itself.
   -- その文字
   = Lit Char
-  -- . : any one character but a newline.
-  -- 改行のほかの、どの1文字でも
+  -- . (without s) and \N: any one character but a newline.
+  -- .（s なし）と \N：改行のほかの、どの1文字でも
   | AnyChar
-  -- [a-z], [^0-9]: one of a set of characters.
+  -- . with s: any one character, a newline too.
+  -- s のもとの .：どの1文字でも（改行も）
+  | Anything
+  -- [a-z], [^0-9], \d, \p{Han}: one of a set of characters.
   -- 文字の集まりのどれか1文字
   | Class CharClass
   -- ( ... ), (?<name> ... ), (?: ... ): a pattern in a pattern.
@@ -74,6 +84,9 @@ data Atom
   -- 1番のグループが見つけたのと同じ文字列（名前は、パターンを読む
   -- ときに番号にする）
   | Backref Int
+  -- (?i): a Lit, a Class or a Backref that does not tell A from a.
+  -- (?i)：A と a を区別しない Lit・Class・Backref
+  | NoCase Atom
   deriving (Show, Eq)
 
 -- 🏷️ What a group keeps.
@@ -82,13 +95,17 @@ data Capture
   = Numbered      -- ( ... )
   | Named Text    -- (?<name> ... )
   | NonCapturing  -- (?: ... )
+  | BranchReset   -- (?| ... ): each branch numbers from the same place
   deriving (Show, Eq)
 
 -- ⚓ The places that take no character.
 -- 文字を食べない、場所の印
 data Anchor
-  = LineStart  -- ^
-  | LineEnd    -- $
+  = LineStart    -- ^ with m: the start of any line
+  | LineEnd      -- $ with m: the end of any line
+  | TextStart    -- \A, and ^ without m
+  | TextEnd      -- \z
+  | LastLineEnd  -- \Z, and $ without m: the end, or before a last \n
   deriving (Show, Eq)
 
 -- 🔤 [ ... ] has at least one item; [^ ... ] is the negated one.
@@ -100,10 +117,42 @@ data CharClass = CharClass
   deriving (Show, Eq)
 
 data ClassItem
-  = Single Char       -- a
-  | Range Char Char   -- a-z
+  = Single Char        -- a
+  | Range Char Char    -- a-z
+  -- \d, [:alpha:], \p{L}; True for the opposite (\D, [:^alpha:], \P{L})
+  -- \d・[:alpha:]・\p{L}。True なら、その逆（\D・[:^alpha:]・\P{L}）
+  | Builtin Bool CharType
   deriving (Show, Eq)
 -- ANCHOR_END: atom
+
+-- ANCHOR: chartype
+-- 🧺 The sets of characters that have a name.
+-- 名前の付いた、文字の集まり
+data CharType
+  = Digit Reach        -- \d
+  | WhiteSpace Reach   -- \s
+  | Word Reach         -- \w
+  | HSpace             -- \h: the same list, with or without Unicode
+  | VSpace             -- \v
+  | Posix Reach Text   -- [:alpha:], [:digit:] ... (the name)
+  | Property Property  -- \p{...}
+  deriving (Show, Eq)
+
+-- 🌏 How far a name reaches: only ASCII, or all of Unicode.
+-- 名前がどこまで届くか：ASCII だけか、Unicode の全部か
+data Reach = AsciiOnly | AllUnicode
+  deriving (Show, Eq)
+
+-- 🏷️ \p{...}: a general category (L, Lu, ...), a script, or Any.
+-- \p{...}：一般カテゴリー（L・Lu など）、文字体系、Any
+data Property
+  = Category Text      -- \p{L}, \p{Lu}, \p{Lc}
+  | Script Script      -- \p{sc:Han}: the script of the character
+  | ScriptExt Script   -- \p{Han}: the script, or one it is used with
+  | AnyCode            -- \p{Any}
+  | Special Text       -- \p{Xan}, \p{Xps}, \p{Xsp}, \p{Xwd}
+  deriving (Show, Eq)
+-- ANCHOR_END: chartype
 
 -- ANCHOR: quantifier
 -- 🔁 How many times, and how hungry.

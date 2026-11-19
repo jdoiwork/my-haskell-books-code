@@ -33,10 +33,16 @@ pieceGroups :: Piece -> [Capture]
 pieceGroups (Anchor _)       = []
 pieceGroups (Quantified a _) = atomGroups a
 
--- A group's own ( comes before the ( inside it.
--- グループ自身の ( は、中の ( より先
+-- A group's own ( comes before the ( inside it. In (?| ... ), the
+-- branches share their numbers: as many as the branch with the most.
+-- グループ自身の ( は、中の ( より先。(?| ... ) の枝は番号を分け合う：
+-- いちばん多い枝の数だけ
 atomGroups :: Atom -> [Capture]
 atomGroups (Group NonCapturing p) = patternGroups p
+atomGroups (Group BranchReset (Pattern bs)) =
+  foldr longer [] (map branchGroups (NE.toList bs))
+  where
+    longer a b = if length a >= length b then a else b
 atomGroups (Group c p)            = c : patternGroups p
 atomGroups _                      = []
 -- ANCHOR_END: walk

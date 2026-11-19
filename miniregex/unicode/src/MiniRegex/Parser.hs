@@ -5,18 +5,19 @@
 --   for yet (\d, look-ahead, ...) stops as Unsupported.
 -- パターンを読んで、MiniRegex.Syntax の木にする。読み方は PCRE2 と同じ。
 -- まちがったパターンは、PCRE2 と同じ文と場所で止まる。正しいけれど、
--- 木にまだ居場所のないもの（\d、先読みなど）は Unsupported で止まる
+-- 木にまだ居場所のないもの（先読みなど）は Unsupported で止まる
 module MiniRegex.Parser
   ( parsePattern
   , Parser
   , Reading (..)
   , Known (..)
+  , Flag (..)
   ) where
 
 -- ANCHOR: imports
 -- The parser, and what it keeps while reading
 -- パーサーと、読みながら覚えておくもの
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.State.Strict (State, evalState, gets, modify')
 import Data.Set (Set)
 import Data.Set qualified as Set
@@ -24,7 +25,7 @@ import Text.Megaparsec
   ( ParsecT, ParseErrorBundle (..), ParseError (..), ErrorFancy (..)
   , runParserT, customFailure, getOffset, atEnd, eof, try, lookAhead
   , anySingle, satisfy, takeWhileP, option, many, some, (<|>)
-  , notFollowedBy, getInput )
+  , notFollowedBy, getInput, empty )
 import Text.Megaparsec.Char (char, string)
 
 -- Characters, text and numbers
@@ -42,6 +43,8 @@ import Data.Text.Foreign (lengthWord8)
 import MiniRegex.Groups (groupCount, groupNames)
 import MiniRegex.Syntax
 import MiniRegex.Types
+import MiniRegex.Unicode (caseVariants, isPatternSpace, posixNames,
+  propertyNamed)
 -- ANCHOR_END: imports
 
 -- ANCHOR: parser
@@ -53,15 +56,19 @@ type Parser = ParsecT RegexError Text (State Reading)
 -- 📒 What the parser keeps while it reads: the names of the groups so
 --    far (to find a name used twice), how many groups have opened so
 --    far (for \g{-1}), and what the first reading found out about the
---    whole pattern (Nothing while it is the first reading).
+--    whole pattern (Nothing while it is the first reading). From this
+--    chapter, the flags in effect here, and whether we are in (?| ... ).
 -- パーサーが読みながら覚えておくもの：ここまでのグループの名前（同じ
 -- 名前が2回出てきたら、わかるように）、ここまでに開いたグループの数
 -- （\g{-1} のため）、1回目の読みでわかった、パターン全体のこと
--- （1回目の読みのあいだは Nothing）
+-- （1回目の読みのあいだは Nothing）。この章から、この場所で効いている
+-- フラグと、(?| ... ) の中にいるかも
 data Reading = Reading
   { seenNames :: Set Text
   , opened    :: Int
   , known     :: Maybe Known
+  , flags     :: Set Flag
+  , inReset   :: Bool
   }
 
 -- 🔭 The whole pattern, from the first reading: how many groups, and
@@ -73,6 +80,43 @@ data Known = Known
   { knownCount :: Int
   , knownNames :: [(Text, Int)]
   }
+
+-- ANCHOR: flags
+-- 🚩 The flags that can change inside a pattern: (?i) (?m) (?n) (?s)
+--    (?x) (?xx) (?U), and the ASCII ones (?aD) (?aS) (?aW) (?aP) (?aT).
+-- パターンの途中で変えられるフラグ：(?i) (?m) (?n) (?s) (?x) (?xx) (?U)
+-- と、ASCII にするもの (?aD) (?aS) (?aW) (?aP) (?aT)
+data Flag
+  = I | M | N | S | X | XX | U   -- caseless, multiline ... ungreedy
+  | AD | AS | AW | AP | AT       -- \d \s \w POSIX, and [:digit:]
+  deriving (Show, Eq, Ord, Enum, Bounded)
+
+-- 🚩 The flags from compileWith, at the start of the pattern.
+-- compileWith のフラグ。パターンの頭で効いている
+startFlags :: [Option] -> Set Flag
+startFlags = Set.fromList . concatMap one
+  where
+    one Caseless  = [I]
+    one Multiline = [M]
+    one DotAll    = [S]
+    one Extended  = [X]
+    one Ascii     = asciiFlags
+
+asciiFlags :: [Flag]
+asciiFlags = [AD, AS, AW, AP, AT]
+
+-- ❓ Is this flag in effect here?
+-- このフラグは、ここで効いているか
+on :: Flag -> Parser Bool
+on f = gets (Set.member f . flags)
+
+-- 🌏 \d, \s, \w ... reach all of Unicode, unless the flag says ASCII.
+-- \d・\s・\w などは、フラグが ASCII と言わなければ、Unicode の全部に届く
+reachOf :: Flag -> Parser Reach
+reachOf f = do
+  ascii <- on f
+  pure (if ascii then AsciiOnly else AllUnicode)
+-- ANCHOR_END: flags
 
 -- 🚧 Stop: the pattern is wrong. `at` is the place PCRE2 gives.
 -- 止まる：パターンがまちがっている。at は PCRE2 が言う場所
@@ -92,21 +136,19 @@ unsupported at what = customFailure (Unsupported at what)
 --    patterns, and counts the groups and their names. The second one,
 --    knowing them, turns \k<name> into a number, and refuses a
 --    reference to a group that is not there (PCRE2, too, looks over
---    the whole pattern first). Of the flags, only x (Extended) changes
---    how a pattern is read, and it is not done yet.
+--    the whole pattern first). The flags are written into the tree as
+--    it is read.
 -- パターンを2回読む。1回目で、まちがったパターンを見つけ、グループと
 -- 名前を数える。2回目は、それを知ったうえで、\k<name> を番号にし、
 -- ないグループを指していたら断る（PCRE2 も、先にパターン全体を
--- 見渡す）。フラグのうち、読み方を変えるのは x（Extended）だけ。
--- それは、まだ
+-- 見渡す）。フラグは、どれも読みながら木に書き込む
 parsePattern :: [Option] -> Text -> Either RegexError Pattern
-parsePattern opts src
-  | Extended `elem` opts = Left (Unsupported 0 "flag x")
-  | otherwise            = do
-      first <- readOnce Nothing
-      readOnce (Just (Known (groupCount first) (groupNames first)))
+parsePattern opts src = do
+  first <- readOnce Nothing
+  readOnce (Just (Known (groupCount first) (groupNames first)))
   where
-    readOnce k = case evalState run (Reading Set.empty 0 k) of
+    start k = Reading Set.empty 0 k (startFlags opts) False
+    readOnce k = case evalState run (start k) of
       Right tree   -> Right tree
       Left  bundle -> Left (firstError bundle)
     run = runParserT (whole <* eof) "pattern" src
@@ -115,12 +157,26 @@ parsePattern opts src
 -- パターン全体と、その終わり。ここに来た ) には、対になる ( がない
 whole :: Parser Pattern
 whole = do
+  _ <- many leadingVerb
   tree <- pattern
   at <- getOffset
   end <- atEnd
   if end
     then pure tree
     else invalid (at + 1) "unmatched closing parenthesis"  -- 122
+
+-- 🏁 (*UTF) and (*UCP), only at the very start. MiniRegex always reads
+--    Text as Unicode; (*UCP) takes the ASCII flags away.
+-- (*UTF) と (*UCP)。パターンのいちばん頭にだけ書ける。MiniRegex は、
+-- いつも Text を Unicode として読む。(*UCP) は ASCII のフラグを外す
+leadingVerb :: Parser ()
+leadingVerb = utf <|> ucp
+  where
+    utf = () <$ try (string "(*UTF)")
+    ucp = do
+      _ <- try (string "(*UCP)")
+      modify' (\r -> r { flags = flags r `Set.difference`
+                                    Set.fromList asciiFlags })
 
 -- 📮 Our own error, out of megaparsec's bundle. Every way to fail
 --    in this parser is one of ours; just in case, anything else is
@@ -163,15 +219,30 @@ branch = do
 -- 部品1つ：アンカーか、くり返すものと回数。\Q...\E は文字をまとめて
 -- くれるので、うしろの量指定子は最後の1文字にかかる
 piece :: Parser [Piece]
-piece = anchorPiece <|> quantifiedPieces
+piece = anchorPiece <|> settingPiece <|> quantifiedPieces
   where
     anchorPiece = do
-      a <- (LineStart <$ char '^') <|> (LineEnd <$ char '$')
+      a <- anchor
       skipIgnorable
       noQuantifier
       pure [Anchor a]
+    -- (?i) and the like leave nothing in the tree; they change the
+    -- flags for the rest of the group
+    -- (?i) などは、木に何も残さない。グループの残りのフラグを変える
+    settingPiece = do
+      _ <- try (lookAhead settingShape)
+      at <- getOffset
+      _ <- string "(?"
+      change <- optionLetters at
+      _ <- char ')'
+      modify' (\r -> r { flags = change (flags r) })
+      skipIgnorable
+      noQuantifier
+      pure []
+    settingShape =
+      string "(?" *> takeWhileP Nothing isOptionChar *> char ')'
     quantifiedPieces = do
-      atoms <- atomsP
+      atoms <- atomsP >>= traverse caseAware
       skipIgnorable
       q <- option once quantifier
       skipIgnorable
@@ -194,17 +265,60 @@ noQuantifier = do
     invalid at "quantifier does not follow a repeatable item"  -- 109
 -- ANCHOR_END: pattern
 
+-- ANCHOR: anchors
+-- ⚓ ^ and $ ask the flag m which they are. \A, \z and \Z never do.
+-- ^ と $ は、フラグ m に、どちらになるかを聞く。\A・\z・\Z は聞かない
+anchor :: Parser Anchor
+anchor = do
+  m <- on M
+  choice' [ (if m then LineStart else TextStart)   <$ char '^'
+          , (if m then LineEnd   else LastLineEnd) <$ char '$'
+          , TextStart   <$ try (string "\\A")
+          , TextEnd     <$ try (string "\\z")
+          , LastLineEnd <$ try (string "\\Z") ]
+  where
+    choice' = foldr (<|>) empty
+-- ANCHOR_END: anchors
+
+-- ANCHOR: caseaware
+-- 🔡 Under (?i), a letter, a class or a back reference does not tell
+--    A from a. A character with no other case (1, 日) stays as it is.
+--    In a class, [:upper:] and [:lower:] (ASCII) become [:alpha:], and
+--    \p{Lu}, \p{Ll} and \p{Lt} become \p{Lc}, as PCRE2 does.
+-- (?i) のもとでは、文字・文字の集まり・後方参照が、A と a を区別しない。
+-- ほかの形のない文字（1・日）は、そのまま。集まりの中では、PCRE2 と
+-- 同じく、[:upper:] と [:lower:]（ASCII）は [:alpha:] に、\p{Lu}・
+-- \p{Ll}・\p{Lt} は \p{Lc} になる
+caseAware :: Atom -> Parser Atom
+caseAware a = do
+  i <- on I
+  pure (if i then noCase a else a)
+  where
+    noCase atom = case atom of
+      Lit c | length (caseVariants c) > 1 -> NoCase atom
+      Class cls -> NoCase (Class cls { items = fmap item (items cls) })
+      Backref _ -> NoCase atom
+      _         -> atom
+    item (Builtin b (Posix AsciiOnly n))
+      | n `elem` ["upper", "lower"] = Builtin b (Posix AsciiOnly "alpha")
+    item (Builtin b (Property (Category n)))
+      | n `elem` ["Lu", "Ll", "Lt"] = Builtin b (Property (Category "Lc"))
+    item other = other
+-- ANCHOR_END: caseaware
+
 -- ANCHOR: ignorable
 -- 💤 Things that leave nothing in the tree: a comment (?#...), a lone
 --    \E, and an empty \Q\E. PCRE2 reads past them, so a* and a(?#c)*
---    are the same.
+--    are the same. Under (?x), spaces and # comments too.
 -- 木に何も残さないもの：コメント (?#...)、ひとりの \E、空の \Q\E。
--- PCRE2 は読み飛ばすので、a* と a(?#c)* は同じ
+-- PCRE2 は読み飛ばすので、a* と a(?#c)* は同じ。(?x) のもとでは、空白と
+-- # のコメントも
 skipIgnorable :: Parser ()
 skipIgnorable = () <$ many ignorable
   where
     ignorable = comment <|> try (string "\\E" >> pure ())
                         <|> try emptyQuote
+                        <|> extendedSpace
     emptyQuote = string "\\Q" >> (() <$ string "\\E" <|> eof)
     comment = do
       _ <- try (string "(?#")
@@ -213,6 +327,16 @@ skipIgnorable = () <$ many ignorable
       at <- getOffset
       when (not closed) $
         invalid at "missing ) after (?# comment"  -- 118
+
+-- 💤 With (?x): spaces, and # up to the end of the line.
+-- (?x) のもとでは：空白と、# から行の終わりまで
+extendedSpace :: Parser ()
+extendedSpace = do
+  x <- on X
+  if not x
+    then empty
+    else (() <$ satisfy isPatternSpace)
+           <|> (char '#' *> takeWhileP Nothing (/= '\n') *> pure ())
 -- ANCHOR_END: ignorable
 
 -- ANCHOR: atom
@@ -238,10 +362,10 @@ atom :: Parser Atom
 atom = do
   c <- lookAhead anySingle
   case c of
-    '.'  -> AnyChar <$ anySingle
+    '.'  -> anySingle *> dot
     '['  -> Class <$> charClass
     '('  -> group
-    '\\' -> reference <|> (Lit <$> escaped OutsideClass)
+    '\\' -> reference <|> typeEscape <|> (Lit <$> escaped OutsideClass)
     _ | c == '|' || c == ')' -> fail "the end of a branch"
       -- ^ and $ are pieces; * + ? and {n,m} were caught by
       -- noQuantifier. Anything else is the character itself
@@ -249,6 +373,12 @@ atom = do
       -- ^ と $ は部品の側で、* + ? {n,m} は noQuantifier が止めた。
       -- 残りは、その文字そのもの（] と }、量指定子でない { も）
       | otherwise -> Lit <$> anySingle
+  where
+    -- . asks the flag s whether it takes a newline, too
+    -- . は、改行も食べるかを、フラグ s に聞く
+    dot = do
+      s <- on S
+      pure (if s then Anything else AnyChar)
 -- ANCHOR_END: atom
 
 -- ANCHOR: escape
@@ -281,6 +411,9 @@ escaped place = do
     'b' | place == InsideClass -> pure '\b'
     'x' -> hexEscape at
     'o' -> octalBraces at
+    -- \N{U+263a}: a character by its Unicode number
+    -- \N{U+263a}：Unicode の番号で書いた文字
+    'N' -> unicodeName at place
     '0' -> octalDigits
     'c' -> control at
     -- [\1] is the character 1 (octal), not a reference
@@ -290,12 +423,147 @@ escaped place = do
           pure (chr (readBase 8 (c : ds)))
       | c `elem` ("ijmqyIJMOTY" :: String) ->
           invalid (at + 2) "unrecognized character follows \\"  -- 103
+      | place == InsideClass && c `elem` ("BRX" :: String) ->
+          invalid (at + 2) "escape sequence is invalid in character class"
+            -- 107
       | c `elem` ("lLuUF" :: String) ->
           invalid (at + 2)
             "PCRE2 does not support \\F, \\L, \\l, \\N{name}, \\U, or \\u"
             -- 137
-      | otherwise -> unsupported at what  -- \d \w \b \p ...
+      | otherwise -> unsupported at what  -- \b \G \K \R \X ...
+
+-- 🔢 \N{U+263a}. \N{name} is not in PCRE2; \N alone (any character
+--    but a newline) cannot be in a class.
+-- \N{U+263a}。\N{name} は PCRE2 にない。\N だけ（改行のほかの1文字）は、
+-- [ ] の中に書けない
+unicodeName :: Int -> Place -> Parser Char
+unicodeName at place = do
+  brace <- option False (True <$ char '{')
+  when brace blanks
+  hasU <- option False (True <$ try (string "U+"))
+  case () of
+    _ | brace && hasU -> inBraces 16 isHexDigit
+          "non-hex character in \\x{} (closing brace missing?)"  -- 167
+      | brace -> invalid (at + 3)
+          "PCRE2 does not support \\F, \\L, \\l, \\N{name}, \\U, or \\u"
+          -- 137
+      | place == InsideClass ->
+          invalid (at + 2) "\\N is not supported in a class"  -- 171
+      | otherwise -> fail "\\N is any character but a newline"
 -- ANCHOR_END: escape
+
+-- ANCHOR: types
+-- 🧺 \d \D \w \W \s \S \h \H \v \V \p \P \N outside [ ]: an atom.
+--    All but \N are a class of one item.
+-- [ ] の外の \d \D \w \W \s \S \h \H \v \V \p \P \N：アトム。
+-- \N のほかは、項目が1つの文字の集まり
+typeEscape :: Parser Atom
+typeEscape = do
+  two <- lookAhead (takeWhileUpTo 3 (const True))
+  case two of
+    -- \N{2,3} is \N, repeated; \N{U+263a} is a character
+    -- \N{2,3} は \N のくり返し。\N{U+263a} は文字
+    ['\\', 'N', '{'] -> do
+      repeated <- option False (True <$ try (lookAhead (string "\\N" *> braces)))
+      if repeated then AnyChar <$ string "\\N" else fail "a character"
+    '\\' : 'N' : _   -> AnyChar <$ string "\\N"
+    '\\' : c : _ | c `elem` typeLetters -> do
+      item <- typeItem
+      pure (Class (CharClass False (item :| [])))
+    _ -> fail "not a type of character"
+
+typeLetters :: String
+typeLetters = "dDwWsShHvVpP"
+
+-- 🧺 One of \d \D \w \W \s \S \h \H \v \V \p{...} \P{...}, as an
+--    item of a class. The flags (?aD) (?aS) (?aW) say whether \d \s \w
+--    are ASCII only.
+-- \d \D \w \W \s \S \h \H \v \V \p{...} \P{...} を、文字の集まりの
+-- 項目として。\d \s \w が ASCII だけかは、フラグ (?aD) (?aS) (?aW) が言う
+typeItem :: Parser ClassItem
+typeItem = do
+  at <- getOffset
+  _ <- char '\\'
+  c <- satisfy (`elem` typeLetters)
+  let opposite = isUpperAscii c
+  case c of
+    _ | c `elem` ("dD" :: String) -> Builtin opposite . Digit <$> reachOf AD
+      | c `elem` ("sS" :: String) -> Builtin opposite . WhiteSpace <$> reachOf AS
+      | c `elem` ("wW" :: String) -> Builtin opposite . Word  <$> reachOf AW
+      | c `elem` ("hH" :: String) -> pure (Builtin opposite HSpace)
+      | c `elem` ("vV" :: String) -> pure (Builtin opposite VSpace)
+      | otherwise                 -> property at opposite
+  where
+    isUpperAscii c = c >= 'A' && c <= 'Z'
+-- ANCHOR_END: types
+
+-- ANCHOR: property
+-- 🏷️ \p{Han}, \p{^Lu}, \pL. A name MiniRegex does not know is "not
+--    yet" if PCRE2 knows it (\p{Alphabetic}, \p{bc:AL}), and wrong if
+--    PCRE2 does not either (\p{Letter}, error 147).
+-- \p{Han}・\p{^Lu}・\pL。MiniRegex の知らない名前は、PCRE2 が知って
+-- いれば「まだ」（\p{Alphabetic}・\p{bc:AL}）、PCRE2 も知らなければ
+-- まちがい（\p{Letter}。エラー 147）
+property :: Int -> Bool -> Parser ClassItem
+property at opposite = do
+  next <- option Nothing (Just <$> anySingle)
+  case next of
+    Nothing  -> malformed
+    Just '{' -> do
+      body <- takeWhileP Nothing (/= '}')
+      closed <- option False (True <$ char '}')
+      unless closed malformed
+      let trimmed = T.dropWhile (`elem` (" \t\n\v\f\r" :: String)) body
+          (hat, name) = case T.stripPrefix "^" trimmed of
+            Just rest -> (True, rest)
+            Nothing   -> (False, body)
+      named (opposite /= hat) name
+    Just c   -> named opposite (T.singleton c)
+  where
+    malformed = do
+      end <- getOffset
+      invalid end "malformed \\P or \\p sequence"  -- 146
+    named neg name = do
+      end <- getOffset
+      case propertyNamed name of
+        Just p -> pure (Builtin neg (Property p))
+        Nothing
+          | pcre2Knows name -> unsupported at "\\p{binary property}"
+          | otherwise ->
+              invalid end "unknown property after \\P or \\p"  -- 147
+
+-- 📋 The names PCRE2 10.49 knows that MiniRegex does not: the
+--    yes-or-no properties (pcre2test -LP), and Bidi_Class.
+-- PCRE2 10.49 が知っていて、MiniRegex が知らない名前：はい・いいえの
+-- 性質（pcre2test -LP）と、Bidi_Class
+pcre2Knows :: Text -> Bool
+pcre2Knows written =
+  loose `elem` binaryProperties
+    || any (`T.isPrefixOf` loose) ["bc:", "bidiclass:"]
+  where
+    loose = T.toLower (T.filter (`notElem` (" \t\n\v\f\r-_" :: String))
+                                (T.replace "=" ":" written))
+
+binaryProperties :: [Text]
+binaryProperties = T.words
+  "ahex alpha alphabetic ascii asciihexdigit bidic bidicontrol bidim \
+  \bidimirrored cased caseignorable changeswhencasefolded \
+  \changeswhencasemapped changeswhenlowercased changeswhentitlecased \
+  \changeswhenuppercased ci cwcf cwcm cwl cwt cwu dash \
+  \defaultignorablecodepoint dep deprecated di dia diacritic ebase ecomp \
+  \emod emoji emojicomponent emojimodifier emojimodifierbase \
+  \emojipresentation epres ext extendedpictographic extender extpict \
+  \graphemebase graphemeextend graphemelink grbase grext grlink hex \
+  \hexdigit idc idcompatmathcontinue idcompatmathstart idcontinue ideo \
+  \ideographic ids idsb idsbinaryoperator idst idstart idstrinaryoperator \
+  \idsu idsunaryoperator incb joinc joincontrol loe \
+  \logicalorderexception lower lowercase math mcm modifiercombiningmark \
+  \nchar noncharactercodepoint patsyn patternsyntax patternwhitespace \
+  \patws pcm prependedconcatenationmark qmark quotationmark radical \
+  \regionalindicator ri sd sentenceterminal softdotted space sterm term \
+  \terminalpunctuation uideo unifiedideograph upper uppercase \
+  \variationselector vs whitespace wspace xidc xidcontinue xids xidstart"
+-- ANCHOR_END: property
 
 -- ANCHOR: numbers
 -- 🔢 \x41 (one or two digits) and \x{263a}.
@@ -407,6 +675,7 @@ charClass = do
   _ <- char '['
   noPosixHere
   neg <- option False (True <$ char '^')
+  classSpace
   firstItem <- classItem (char ']' <|> classChar)
   rest <- many (classItem classChar)
   closed <- option False (True <$ char ']')
@@ -445,21 +714,48 @@ noPosixHere = do
       "POSIX named classes are supported only within a class"  -- 112
     posixError _ = "POSIX collating elements are not supported"  -- 113
 
--- 🔤 a, or a-z. A - just before the ] is the character -.
--- a か a-z。] のすぐ前の - は、文字の -
+-- 🔤 a, a-z, \d or [:alpha:]. A - just before the ] is the character
+--    -. A range cannot start or end with \d or [:alpha:] (error 150).
+--    Under (?xx), spaces and tabs between the items are skipped.
+-- a・a-z・\d・[:alpha:]。] のすぐ前の - は、文字の -。\d や [:alpha:] は、
+-- 範囲の端になれない（エラー 150）。(?xx) のもとでは、項目のあいだの
+-- 空白とタブを読み飛ばす
 classItem :: Parser Char -> Parser ClassItem
 classItem first = do
   noEnd
-  lo <- first
-  dash <- option False (True <$ try (char '-' <* lookAhead notClose))
-  if not dash
-    then pure (Single lo)
-    else do
-      hi <- classChar
+  named <- option Nothing (Just <$> (posixItem <|> typeInClass))
+  item <- case named of
+    Just it -> do
+      -- [\d-z]: a - that is not just before ] is a wrong range
+      -- [\d-z]：] のすぐ前でない - は、まちがった範囲
+      wrongDash <- option False
+        (True <$ lookAhead (char '-' *> classSpace *> notClose))
       at <- getOffset
-      when (hi < lo) $
-        invalid at "range out of order in character class"  -- 108
-      pure (Range lo hi)
+      when wrongDash $
+        invalid (at + 1) "invalid range in character class"  -- 150
+      pure it
+    Nothing -> do
+      lo <- first
+      classSpace
+      dash <- option False
+        (True <$ try (char '-' <* lookAhead (classSpace *> notClose)))
+      if not dash
+        then pure (Single lo)
+        else do
+          classSpace
+          endsWithName <- option False (True <$ lookAhead
+                            (posixItem <|> typeInClass))
+          when endsWithName $ do
+            _ <- posixItem <|> typeInClass
+            at <- getOffset
+            invalid at "invalid range in character class"  -- 150
+          hi <- classChar
+          at <- getOffset
+          when (hi < lo) $
+            invalid at "range out of order in character class"  -- 108
+          pure (Range lo hi)
+  classSpace
+  pure item
   where
     notClose = satisfy (/= ']')
     -- a [ with nothing after it is missing its ]
@@ -469,6 +765,41 @@ classItem first = do
       at <- getOffset
       when end $
         invalid at "missing terminating ] for character class"  -- 106
+    typeInClass = try (lookAhead (char '\\' *> satisfy (`elem` typeLetters)))
+                    *> typeItem
+
+-- 💤 Under (?xx), spaces and tabs in [ ] are skipped.
+-- (?xx) のもとでは、[ ] の中の空白とタブを読み飛ばす
+classSpace :: Parser ()
+classSpace = do
+  xx <- on XX
+  when xx $ () <$ takeWhileP Nothing (`elem` (" \t" :: String))
+
+-- 🏛️ [:alpha:] and [:^alpha:] in a class. With (?aP), ASCII only;
+--    [:digit:] and [:xdigit:] listen to (?aT), too. A [ that is not
+--    followed by the whole shape is the character [.
+-- 文字の集まりの中の [:alpha:] と [:^alpha:]。(?aP) なら ASCII だけ。
+-- [:digit:] と [:xdigit:] は (?aT) も聞く。形が最後までそろっていない [ は、
+-- 文字の [
+posixItem :: Parser ClassItem
+posixItem = do
+  (neg, name) <- try shape
+  at <- getOffset
+  unless (name `elem` posixNames) $
+    invalid at "unknown POSIX class name"  -- 130
+  asciiP <- on AP
+  asciiT <- on AT
+  let ascii = asciiP || (asciiT && name `elem` ["digit", "xdigit"])
+      reach = if ascii then AsciiOnly else AllUnicode
+  pure (Builtin neg (Posix reach name))
+  where
+    shape = do
+      _ <- string "[:"
+      neg <- option False (True <$ char '^')
+      name <- takeWhileP Nothing isAsciiLetter
+      _ <- string ":]"
+      pure (neg, name)
+    isAsciiLetter c = isAscii c && isLetter c
 
 -- 🔤 One character in [ ... ]: itself, or a \ that means one.
 -- [ ... ] の中の1文字：その文字か、1文字を表す \
@@ -479,43 +810,49 @@ classChar = do
   next <- lookAhead (anySingle *> option ' ' anySingle)
   case c of
     ']' -> fail "the end of the class"
-    -- \Q \E, and [:alpha:] and its friends, are for later chapters.
-    -- Read them first, then stop: a parser in `many` that stops
-    -- without reading anything only ends the `many`.
-    -- \Q \E と、[:alpha:] とその仲間は、あとの章で。先に読んでから
-    -- 止まる（many の中のパーサーが、何も読まずに止まると、many が
-    -- 終わるだけになる）
+    -- \Q \E, and [.ch.] and [=ch=], are for later. Read them first,
+    -- then stop: a parser in `many` that stops without reading
+    -- anything only ends the `many`.
+    -- \Q \E と、[.ch.]・[=ch=] は、まだ。先に読んでから止まる（many の
+    -- 中のパーサーが、何も読まずに止まると、many が終わるだけになる）
     '\\' | next `elem` ("QE" :: String) -> do
       _ <- anySingle
       unsupported at (T.pack ['\\', next] <> " in []")
     '\\' -> escaped InsideClass
-    '[' | next `elem` (":.=" :: String) -> do
+    '[' | next `elem` (".=" :: String) -> do
       _ <- anySingle
-      unsupported at "[:"
+      unsupported at "[."
     _ -> anySingle
 -- ANCHOR_END: class
 
 -- ANCHOR: group
 -- ANCHOR: groupfn
--- 🫧 ( ... ), (?: ... ), (?<name> ... ); and the things in (? ... )
---    that are for later chapters.
--- ( ... )、(?: ... )、(?<name> ... )。(? ... ) のうち、あとの章で
--- 読むもの
+-- 🫧 ( ... ), (?: ... ), (?<name> ... ), (?i: ... ), (?| ... ); and the
+--    things in (? ... ) that are for later chapters. A flag changed in
+--    the group goes back to what it was at the ).
+-- ( ... )、(?: ... )、(?<name> ... )、(?i: ... )、(?| ... )。(? ... ) の
+-- うち、あとの章で読むもの。グループの中で変えたフラグは、) で元に戻る
 group :: Parser Atom
 group = pythonRef <|> do
   at <- getOffset
+  saved <- gets flags
   _ <- char '('
   kind <- groupKind at
   -- one more group has opened (for \g{-1})
   -- グループが1つ開いた（\g{-1} のため）
-  when (kind /= NonCapturing) $
+  when (keeps kind) $
     modify' (\r -> r { opened = opened r + 1 })
-  inner <- pattern
+  inner <- if kind == BranchReset then resetPattern else pattern
   closed <- option False (True <$ char ')')
   end <- getOffset
   when (not closed) $
     invalid end "missing closing parenthesis"  -- 114
+  modify' (\r -> r { flags = saved })
   pure (Group kind inner)
+  where
+    keeps (Named _) = True
+    keeps Numbered  = True
+    keeps _         = False
 -- ANCHOR_END: groupfn
 
 -- 🏷️ What is just after the (.
@@ -523,23 +860,127 @@ group = pythonRef <|> do
 groupKind :: Int -> Parser Capture
 groupKind at = do
   rest <- lookAhead (takeWhileUpTo 3 (const True))
+  n <- on N
   case rest of
     '?' : ':' : _       -> NonCapturing <$ string "?:"
+    '?' : '|' : _       -> BranchReset <$ string "?|"
     '?' : '<' : c : _
       | c `elem` ("=!" :: String) -> notYet (T.pack ['(', '?', '<', c])
     '?' : '<' : _       -> string "?<"  *> name '>'
     '?' : '\'' : _      -> string "?'"  *> name '\''
     '?' : 'P' : '<' : _ -> string "?P<" *> name '>'
     '?' : 'P' : c : _   -> notYet (T.pack ['(', '?', 'P', c])
+    '?' : '-' : d : _ | isDigit d -> notYet "(?R"
     '?' : c : _
-      | c `elem` ("=!>|(" :: String) -> notYet (T.pack ['(', '?', c])
+      | c `elem` ("=!>([" :: String) -> notYet (T.pack ['(', '?', c])
       | c == 'R' || c == '&' || c == '+' || isDigit c -> notYet "(?R"
       | c == 'C' -> notYet "(?C"
-    '?' : _             -> notYet "(?flags)"  -- (?i) (?-m) (?s: ...)
+      | c == '*' -> notYet "(?*"
+    '?' : _             -> optionGroup
     '*' : _             -> notYet "(*"
-    _                   -> pure Numbered
+    _ | n               -> pure NonCapturing  -- (?n): ( keeps nothing
+      | otherwise       -> pure Numbered
   where
     notYet = unsupported at
+    -- (?i: ... ): the flags change from here to the )
+    -- (?i: ... )：ここから ) まで、フラグが変わる
+    optionGroup = do
+      _ <- char '?'
+      change <- optionLetters at
+      end <- atEnd
+      here <- getOffset
+      when end $ invalid here "missing closing parenthesis"  -- 114
+      _ <- char ':'
+      modify' (\r -> r { flags = change (flags r) })
+      pure NonCapturing
+
+-- ANCHOR: options
+-- 🔤 The letters of (?im-sx) or (?^i), up to ) or :, as a change of the
+--    flags. Letters after - take the flag away; ^ first takes away
+--    i, m, n, s and x. xx is x and more; a is all the a-flags.
+-- (?im-sx) や (?^i) の文字を、) か : まで読み、フラグの変え方にする。
+-- - のうしろの文字はフラグを外す。頭の ^ は i・m・n・s・x を外す。xx は
+-- x の強い版。a だけなら、a の付くフラグを全部
+optionLetters :: Int -> Parser (Set Flag -> Set Flag)
+optionLetters at = do
+  hat <- option False (True <$ char '^')
+  ons  <- letters
+  offs <- option [] $ do
+    here <- getOffset
+    _ <- char '-'
+    when hat $ invalid (here + 1) "invalid hyphen in option setting"  -- 194
+    letters
+  extra <- option False (True <$ lookAhead (char '-'))
+  when extra $ do
+    here <- getOffset
+    invalid (here + 1) "invalid hyphen in option setting"  -- 194
+  let start | hat       = (`Set.difference` Set.fromList [I, M, N, S, X, XX])
+            | otherwise = id
+      add     = Set.union (Set.fromList (concat ons))
+      -- taking x away takes xx away, too; so does setting x alone
+      -- x を外すと、xx も外れる。x だけを付けても、xx は外れる
+      offs'   = concat offs
+                  ++ [XX | X `elem` concat offs]
+                  ++ [XX | X `elem` concat ons, XX `notElem` concat ons]
+      remove  = (`Set.difference` Set.fromList offs')
+  pure (remove . add . start)
+  where
+    letters = many letter
+    letter = do
+      c <- satisfy (\c -> c /= ')' && c /= ':' && c /= '-')
+      here <- getOffset
+      case c of
+        'i' -> pure [I]
+        'm' -> pure [M]
+        'n' -> pure [N]
+        's' -> pure [S]
+        'U' -> pure [U]
+        'x' -> do
+          two <- option False (True <$ char 'x')
+          pure (if two then [X, XX] else [X])
+        'a' -> do
+          which <- option Nothing (Just <$> satisfy (`elem` ("DSWPT" :: String)))
+          pure $ case which of
+            Just 'D' -> [AD]
+            Just 'S' -> [AS]
+            Just 'W' -> [AW]
+            Just 'P' -> [AP, AT]
+            Just _   -> [AT]
+            Nothing  -> asciiFlags
+        _ | c `elem` ("Jr" :: String) ->
+              unsupported at (T.pack ['(', '?', c, ')'])
+          | otherwise ->
+              invalid here "unrecognized character after (? or (?-"  -- 111
+
+-- ❓ Can this character be in (?...) of flags?
+-- (?...) のフラグに書ける文字か
+isOptionChar :: Char -> Bool
+isOptionChar c = c `elem` ("imnsxUaDSWPTJr^-" :: String)
+-- ANCHOR_END: options
+
+-- ANCHOR: reset
+-- 🔁 (?| ... ): every branch numbers its groups from the same place.
+--    After the group, the numbers go on from the branch that had the
+--    most.
+-- (?| ... )：どの枝も、グループの番号を同じところから付ける。グループの
+-- あとは、いちばん多かった枝の続きから
+resetPattern :: Parser Pattern
+resetPattern = do
+  start <- gets opened
+  wasIn <- gets inReset
+  modify' (\r -> r { inReset = True })
+  first <- resetBranch start
+  rest  <- many (char '|' *> resetBranch start)
+  let most = maximum (map snd (first : rest))
+  modify' (\r -> r { opened = most, inReset = wasIn })
+  pure (Pattern (fmap fst (first :| rest)))
+  where
+    resetBranch start = do
+      modify' (\r -> r { opened = start })
+      b <- branch
+      o <- gets opened
+      pure (b, o)
+-- ANCHOR_END: reset
 
 -- ANCHOR: names
 -- 📛 A group's name, up to its end mark. A letter or _ first, then
@@ -550,6 +991,11 @@ groupKind at = do
 -- 128 バイトまで。同じ名前は2回使えない
 name :: Char -> Parser Capture
 name close = do
+  -- (?| ... ) with names is for later
+  -- 名前のある (?| ... ) は、まだ
+  reset <- gets inReset
+  here <- getOffset
+  when reset $ unsupported here "names in (?|"
   n <- nameText close
   seen <- gets (Set.member n . seenNames)
   after <- getOffset
@@ -776,8 +1222,18 @@ quantifier = do
     ['\\', 'E', x] | x `elem` ("?+" :: String) ->
       unsupported at "\\E after a quantifier"
     _ -> pure ()
+  -- under (?x), a+ +  is a++ (the space may come between)
+  -- (?x) のもとでは、a+ + は a++（あいだに空白があってもよい）
+  skipIgnorable
   g <- option Greedy ((Lazy <$ char '?') <|> (Possessive <$ char '+'))
-  pure (Quantifier c g)
+  -- (?U) swaps greedy and lazy
+  -- (?U) は、欲ばりと控えめを入れ替える
+  u <- on U
+  pure (Quantifier c (if u then swap g else g))
+  where
+    swap Greedy = Lazy
+    swap Lazy   = Greedy
+    swap other  = other
 -- ANCHOR_END: quantifierfn
 
 -- 🔢 * + ? or {n,m}. A { that does not have the shape of {n,m} is

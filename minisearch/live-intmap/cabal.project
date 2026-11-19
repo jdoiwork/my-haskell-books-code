@@ -1,0 +1,4 @@
+-- 第7部「並行化する」のコラム「IntMap の落とし穴」で測った、
+-- live の段階の写し（文書の番号の入れ物を IntMap にした版）。
+-- servant 0.20.3 は QuickCheck < 2.19 なので、QuickCheck 2.18 で組まれる
+packages: .
