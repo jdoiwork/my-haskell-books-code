@@ -696,7 +696,7 @@ main = hspec $ do
         , "half : Int -> Int; double x = x * 2" ]
         `shouldBe`
           [ "r : Number a => { age : a, name : String }\n\
-            \  -- usually { age : Int, name : String }"
+            \  -- usually : { age : Int, name : String }"
           , "\"Lam\" : String"
           , "{ age = 4, name = \"Lam\" } : { age : Int, name : String }"
           , "{ age = 3, name = \"Lam\" } : { age : Int, name : String }"
@@ -761,8 +761,9 @@ main = hspec $ do
         [ "let iffy = 1", "iffy + 1", "let letter = \"a\"", "letter"
         , "let cases = 2", "cases * 3", "let dataset = true", "dataset" ]
         `shouldBe`
-          [ "iffy : Number a => a\n  -- usually Int", "2 : Int", "letter : String"
-          , "\"a\" : String", "cases : Number a => a\n  -- usually Int", "6 : Int"
+          [ "iffy : Number a => a\n  -- usually : Int", "2 : Int"
+          , "letter : String", "\"a\" : String"
+          , "cases : Number a => a\n  -- usually : Int", "6 : Int"
           , "dataset : Bool", "true : Bool" ]
 
   -- 「小数」
@@ -866,7 +867,7 @@ main = hspec $ do
           [ "3.5 : Float", "3.5 : Float", "0.30000000000000004 : Float"
           , "1000 : Float", "-7 : Int", "7 : Int"
           , "-1 : Int", "9 : Int", "[9, 19] : [Int]"
-          , "x : Number a => a\n  -- usually Int", "9 : Int", "9 : Int"
+          , "x : Number a => a\n  -- usually : Int", "9 : Int", "9 : Int"
           , "type error: a number and a function are mixed up \
             \(a -> b is not in the class Number): x -1 gives -1 to x \
             \(write x - 1), and -f x is (-f) x (write -(f x))"
@@ -875,8 +876,8 @@ main = hspec $ do
           , "type error: the types do not fit: Float where Int is needed"
           , "3 : Float"
           , "type error: String is not in the class Number"
-          , "3 : Int", "Number a => a\n  -- usually Int"
-          , "n : Number a => a\n  -- usually Int"
+          , "3 : Int", "Number a => a\n  -- usually : Int"
+          , "n : Number a => a\n  -- usually : Int"
           , "3 : Int", "-4 : Int", "error: divided by zero"
           , "Nothing : Maybe Int", "Infinity : Float", "NaN : Float"
           , "Just 3.5 : Maybe Float", "Just 3 : Maybe Int"
@@ -1124,7 +1125,7 @@ main = hspec $ do
         , "let name = \"TS\" in {name: 1, [name]: 2}"
         , "{[1]: 2}" ]
         `shouldBe`
-          [ "scores : Number a => Map String a\n  -- usually Map String Int"
+          [ "scores : Number a => Map String a\n  -- usually : Map String Int"
           , "{\"Python\": 82, \"TS\": 75} : Map String Int"
           , "Just 75 : Maybe Int"
           , "Nothing : Maybe Int"
@@ -1253,12 +1254,12 @@ main = hspec $ do
         , "words = {\"a\": \"b\"}" ]
         `shouldBe`
           [ "treasures : (Comparable a, Number a, Comparable b, Number b) \
-            \=> Map (a, b) String\n  -- usually Map (Int, Int) String"
+            \=> Map (a, b) String\n  -- usually : Map (Int, Int) String"
           , "(Comparable a, Number a, Comparable b, Number b) \
-            \=> Map (a, b) String\n  -- usually Map (Int, Int) String"
+            \=> Map (a, b) String\n  -- usually : Map (Int, Int) String"
           , "double : Number a => a -> a"
           , "names : (Comparable a, Number a) => Map a String\n\
-            \  -- usually Map Int String"
+            \  -- usually : Map Int String"
           , "words : Map String String" ]
     -- ANCHOR_END: usualTypes
 
@@ -1280,7 +1281,7 @@ main = hspec $ do
           [ "{ name = 1 } : { name : Int }"
           , "{\"name\": 1} : Map String Int"
           , "{} : Comparable a => Map a b"
-          , "r : Number a => { name : a }\n  -- usually { name : Int }"
+          , "r : Number a => { name : a }\n  -- usually : { name : Int }"
           , "{ name = 2 } : { name : Int }" ]
 
   -- 「JSON」

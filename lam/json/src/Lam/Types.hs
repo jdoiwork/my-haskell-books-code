@@ -1619,7 +1619,7 @@ defaultNumbers (Forall vs ns t) =
 --    numbers of any type, the type it usually is (as an Int) on a
 --    second line:
 --      treasures : (Comparable a, Number a, ...) => Map (a, b) String
---        -- usually Map (Int, Int) String
+--        -- usually : Map (Int, Int) String
 --    A function stays on one line: double : Number a => a -> a really
 --    works for both Int and Float.
 -- 関数でない値の型。どの型にもなれる数があれば、ふつうの型（Int に
@@ -1628,7 +1628,7 @@ defaultNumbers (Forall vs ns t) =
 renderUsual :: Scheme -> Text
 renderUsual sc@(Forall _ _ t) = case t of
   TFun _ _ -> renderScheme sc
-  _ | usual /= shown -> shown <> "\n  -- usually " <> usual
+  _ | usual /= shown -> shown <> "\n  -- usually : " <> usual
     | otherwise      -> shown
   where
     shown = renderScheme sc
