@@ -397,7 +397,7 @@ addDecls s decls = case decls of
   DefInstance i : rest -> next (defineInstance s i) rest
   -- ANCHOR_END: addClasses
   -- ANCHOR: addInfix
-  DefInfix _ o f : rest -> next (Right (defineInfix s o f, "")) rest
+  DefInfix _ o f : rest -> next (Right (defineInfix s o f, T.empty)) rest
   -- ANCHOR_END: addInfix
   where
     next done rest = do

@@ -2419,12 +2419,11 @@ main = hspec $ do
         forAll (vectorOf n (choose (0, 99 :: Integer))) $ \xs ->
         forAll (elements [("infixl", True), ("infixr", False)]) $
           \(word, left) ->
-            let first : rest = xs
-                source = T.unlines
+            let source = T.unlines
                   [ "minus a b = a - b", word <> " 5 minus as <->"
                   , T.intercalate " <-> " (map (T.pack . show) xs) ]
                 expected
-                  | left      = foldl (-) first rest
+                  | left      = foldl1 (-) xs
                   | otherwise = foldr1 (-) xs
             in runModules [] source
                  === Right (T.pack (show expected) <> " : Int")
