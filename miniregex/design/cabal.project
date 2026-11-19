@@ -1,3 +1,11 @@
 -- 「設計：使う側から決めて、パターンを型で描く」の段階。
 -- 章ごとに育つので、段階ごとに別のプロジェクトにしている
 packages: .
+
+-- Keep the tests (and the other programs) under 20 GB of heap: a
+-- pattern that runs away fails with "heap overflow", instead of
+-- eating the Mac's memory.
+-- テスト（とほかのプログラム）のヒープを 20 GB までにする。暴走した
+-- パターンは、Mac のメモリーを食べつくさずに heap overflow で止まる
+package miniregex
+  ghc-options: -with-rtsopts=-M20g

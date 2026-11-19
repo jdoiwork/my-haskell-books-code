@@ -1,0 +1,7 @@
+/a*b/B
+
+/a*b/B,no_auto_possess
+
+/a*a/B
+
+/^(\w+\s?)+$/B

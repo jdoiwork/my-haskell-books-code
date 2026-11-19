@@ -2416,12 +2416,14 @@ main = hspec $ do
     -- ANCHOR_END: ioTypes
 
     -- ANCHOR: monadTypes
-    -- 「pure と bind は、クラス Monad のメソッド」
-    it "makes pure and bind the methods of Monad" $
+    -- 「pure と ap は Applicative、bind は Monad のメソッド」
+    it "makes pure and ap the methods of Applicative, and bind of Monad" $
       runLines
-        [ ":type pure", ":type bind", ":type forEach", ":type mapM" ]
+        [ ":type pure", ":type ap", ":type bind"
+        , ":type forEach", ":type mapM" ]
         `shouldBe`
-          [ "Monad f => a -> f a"
+          [ "Applicative f => a -> f a"
+          , "Applicative f => f (a -> b) -> f a -> f b"
           , "Monad f => f a -> (a -> f b) -> f b"
           , "Monad f => [a] -> (a -> f b) -> f ()"
           , "Monad f => (a -> f b) -> [a] -> f [b]" ]
@@ -2467,6 +2469,69 @@ main = hspec $ do
           , "[(1, \"a\"), (1, \"b\"), (2, \"a\"), (2, \"b\")] : [(Int, String)]"
           , "Just [3, 1, 2] : Maybe [Int]" ]
     -- ANCHOR_END: doMonads
+
+    -- ANCHOR: applicativeOps
+    -- 「<$> と <*> で、箱の中の値を1つの関数に渡す」
+    it "gives the values in boxes to one function with <$> and <*>" $
+      runLines
+        [ ":type (<$>)", ":type (<*>)"
+        , "(+) <$> Just 1 <*> Just 2"
+        , "(+) <$> Just 1 <*> Nothing"
+        , "(+) <$> Ok 1 <*> Err \"no b\""
+        , "(+) <$> [1, 2] <*> [10, 20]"
+        , "(+) <$> Just 1 <*> Just 2 == Just 3" ]
+        `shouldBe`
+          [ "Functor f => (a -> b) -> f a -> f b"
+          , "Applicative f => f (a -> b) -> f a -> f b"
+          , "Just 3 : Maybe Int", "Nothing : Maybe Int"
+          , "Err \"no b\" : Result String Int"
+          , "[11, 21, 12, 22] : [Int]"
+          , "true : Bool" ]
+    -- ANCHOR_END: applicativeOps
+
+    -- ANCHOR: adoSugar
+    -- 「ado は、隠した名前の map と ap に開く」
+    it "opens ado into the hidden map and ap" $
+      map (fmap render . parseExpr)
+        [ "ado x <- Just 1; y <- Just 2; pure (x + y)"
+        , "ado putStr \"a\"; s <- getLine; pure s"
+        , "ado pure 3" ]
+        `shouldBe` map Right
+          [ "$do.ap ($do.map (\\x -> \\y -> x + y) (Just 1)) (Just 2)"
+          , "$do.ap ($do.map (\\$_ -> \\s -> s) (putStr \"a\")) getLine"
+          , "$do.pure 3" ]
+    -- ANCHOR_END: adoSugar
+
+    -- ANCHOR: adoErrors
+    -- 「ado の行は、上の行の名前を使えない。最後は pure」
+    it "says why an ado cannot be opened" $
+      runLines
+        [ "ado x <- Just 1; y <- Just x; pure y"
+        , "ado x <- Just 1; x" ]
+        `shouldBe`
+          [ "<repl>:1:37:\n  |\n1 | ado x <- Just 1; y <- Just x; pure y\n\
+            \  |                                     ^\n\
+            \in an ado, a line cannot use x from a line above (use do)\n"
+          , "<repl>:1:19:\n  |\n1 | ado x <- Just 1; x\n\
+            \  |                   ^\n\
+            \the last line of an ado must be pure, then an expression\n" ]
+    -- ANCHOR_END: adoErrors
+
+    -- ANCHOR: adoTypes
+    -- 「ado は Applicative だけ、do は Monad を求める」
+    it "needs only an Applicative for an ado" $
+      runLinesIn emptyWorld { worldInput = ["Lam", "3"] }
+        [ "both a b = ado x <- a; y <- b; pure (x, y)"
+        , "bothDo a b = do x <- a; y <- b; pure (x, y)"
+        , "both (Just 1) (Just \"one\")"
+        , "both getLine getLine" ]
+        `shouldBe`
+          ( [ "both : Applicative f => f a -> f b -> f (a, b)"
+            , "bothDo : Monad f => f a -> f b -> f (a, b)"
+            , "Just (1, \"one\") : Maybe (Int, String)"
+            , "(Just \"Lam\", Just \"3\") : (Maybe String, Maybe String)" ]
+          , emptyWorld )
+    -- ANCHOR_END: adoTypes
 
     -- ANCHOR: makingIsNotDoing
     -- 「作るだけでは、何も起きない。やるたびに起きる」
@@ -2568,7 +2633,7 @@ main = hspec $ do
     -- ANCHOR_END: checkMain
 
     -- ANCHOR: ioGolden
-    mapM_ (golden . ("io/" <>)) ["hello", "shop"]
+    mapM_ (golden . ("io/" <>)) ["hello", "shop", "ado"]
     -- ANCHOR_END: ioGolden
 
   -- 「トレーニングの解答」

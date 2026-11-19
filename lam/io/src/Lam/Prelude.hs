@@ -25,7 +25,7 @@ import Text.Megaparsec (errorBundlePretty, eof)
 import Lam.Module (importInto, standardModule)
 import Lam.Parser (importLine, runLamParser, spaces, fmtName)
 import Lam.Program
-import Lam.Sugar (doBind)
+import Lam.Sugar (doAp, doBind, doMap, doPure)
 import Lam.Syntax
 -- ANCHOR_END: head
 
@@ -314,27 +314,57 @@ basicsSource = """
   -- ANCHOR_END: functor
 
   -- ANCHOR: monad
-  -- 🔗 Monad: pure puts a value in, with nothing else; bind takes the
-  --    value out, and gives it to what comes next. A do is opened
-  --    into bind, so a do works for each of these.
-  -- Monad：pure は値を、ほかに何もせずに入れる。bind は値を取り出し、
-  -- 続きに渡す。do は bind に開くので、どの仲間にも do が使える
-  class Functor m => Monad m where
-    pure : a -> m a
+  -- ANCHOR: applicative
+  -- 🧩 Applicative: pure puts a value in, with nothing else; ap gives
+  --    the value in one box to the function in another. Neither box
+  --    looks at what the other holds, so an ado is opened into these.
+  -- Applicative：pure は値を、ほかに何もせずに入れる。ap は、箱の中の
+  -- 関数に、別の箱の中の値を渡す。どちらの箱も、相手の中身を見ないので、
+  -- ado はこの2つに開く
+  class Functor f => Applicative f where
+    pure : a -> f a
+    ap : f (a -> b) -> f a -> f b
+  -- ANCHOR_END: applicative
+
+  -- 🔗 Monad: bind takes the value out, and gives it to what comes
+  --    next. A do is opened into bind, so a do works for each of
+  --    these.
+  -- Monad：bind は値を取り出し、続きに渡す。do は bind に開くので、
+  -- どの仲間にも do が使える
+  class Applicative m => Monad m where
     bind : m a -> (a -> m b) -> m b
 
-  instance Monad Maybe where
+  -- ANCHOR: applicativeInstances
+  instance Applicative Maybe where
     pure x = Just x
+    ap mf mx =
+      case mf of
+        | Nothing -> Nothing
+        | Just f -> map f mx
+
+  instance Applicative (Result e) where
+    pure x = Ok x
+    ap rf rx =
+      case rf of
+        | Err e -> Err e
+        | Ok f -> map f rx
+
+  -- Each function, with each value, in order.
+  -- 関数ごとに、値を全部、順に
+  instance Applicative List where
+    pure x = [x]
+    ap fs xs = concatMap (\\f -> List.map f xs) fs
+  -- ANCHOR_END: applicativeInstances
+
+  instance Monad Maybe where
     bind m f = Maybe.bind m f
 
   instance Monad (Result e) where
-    pure x = Ok x
     bind r f = Result.bind r f
 
   -- Each item, then each of its answers, in order.
   -- 項目ごとに、その答えを全部、順に
   instance Monad List where
-    pure x = [x]
     bind xs f = concatMap f xs
   -- ANCHOR_END: monad
 
@@ -637,15 +667,18 @@ ioSource = """
     (putStr, putStrLn, getLine, readFile, writeFile, andThen)
 
   -- ANCHOR: monadIO
-  -- IO joins Functor and Monad with its two builtins (here, without
-  -- IO. in front: returnIO and bindIO).
-  -- IO は、2つの組み込みで Functor と Monad の仲間になる（ここでは
-  -- IO. を付けずに returnIO と bindIO）
+  -- IO joins Functor, Applicative and Monad with its two builtins
+  -- (here, without IO. in front: returnIO and bindIO).
+  -- IO は、2つの組み込みで Functor・Applicative・Monad の仲間になる
+  -- （ここでは IO. を付けずに returnIO と bindIO）
   instance Functor IO where
     map f m = bindIO m (\\x -> returnIO (f x))
 
-  instance Monad IO where
+  instance Applicative IO where
     pure x = returnIO x
+    ap mf mx = bindIO mf (\\f -> bindIO mx (\\x -> returnIO (f x)))
+
+  instance Monad IO where
     bind m f = bindIO m f
   -- ANCHOR_END: monadIO
 
@@ -690,11 +723,14 @@ formatNames =
 
 -- ANCHOR: hiddenNames
 -- 🙈 Each hidden name, and the name of the prelude it stands for:
---    the ones of f"...", and the bind a do calls ($do.bind).
--- 隠した名前と、それが表すプレリュードの名前：f"..." のものと、do が
--- 呼ぶ bind（$do.bind）
+--    the ones of f"...", the bind a do calls ($do.bind), and the map,
+--    ap and pure an ado calls.
+-- 隠した名前と、それが表すプレリュードの名前：f"..." のもの、do が
+-- 呼ぶ bind（$do.bind）、ado が呼ぶ map・ap・pure
 hiddenNames :: [(Name, Name)]
-hiddenNames = [ (fmtName x, x) | x <- formatNames ] <> [(doBind, "bind")]
+hiddenNames =
+  [ (fmtName x, x) | x <- formatNames ]
+    <> [(doBind, "bind"), (doMap, "map"), (doAp, "ap"), (doPure, "pure")]
 
 withHiddenNames :: Session -> Session
 withHiddenNames session = session
