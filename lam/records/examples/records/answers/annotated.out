@@ -1,3 +1,1 @@
-(true, false)
-{ age = 14, name = "Elm" }
-{ age = 3, name = "Lam 2" }
+(true, true, "Lam", { days = 9, name = "LAM" }) : (Bool, Bool, String, { days : Int, name : String })

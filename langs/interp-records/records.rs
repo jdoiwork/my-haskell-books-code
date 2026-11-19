@@ -39,10 +39,10 @@ fn label(r: &impl Named) -> String {
 // ANCHOR_END: trait
 
 fn main() {
-    let lam = Member { name: "Lam".into(), lang: "lam".into(), days: 19 };
+    let lam = Member { name: "Lam".into(), lang: "lam".into(), days: 9 };
     let older = next_day(lam.clone());
-    assert_eq!(older.days, 20);
-    assert_eq!(lam.days, 19);
+    assert_eq!(older.days, 10);
+    assert_eq!(lam.days, 9);
     assert_eq!(label(&older), "[Lam]");
     println!("{} {:?}", label(&older), older);
 }

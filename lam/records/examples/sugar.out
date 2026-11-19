@@ -1,0 +1,1 @@
+(["Python", "TS", "Rust"], 316, [("Python", 87), ("TS", 80), ("Rust", 96), ("Go", 73)], 6) : ([String], Int, [(String, Int)], Int)

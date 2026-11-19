@@ -21,17 +21,11 @@ import Lam.Syntax
 -- 式の種類ごとの、結びつきの強さ。大きいほど強く結びつく
 level :: Expr -> Int
 level expr = case expr of
-  -- A mark of a place is not shown: the expression inside decides.
-  -- 場所の印は見せない。中の式で決まる
-  At _ e        -> level e
   Lam {}        -> 0   -- \x -> ...     （右の端まで続く）
   Let {}        -> 0   -- let ... in ...
   If {}         -> 0   -- if ... then ... else ...
   Case {}       -> 0   -- case ... of | ...
   BinOp op _ _  -> opLevel op
-  -- re"\d+" is one piece, like a string.
-  -- re"\d+" は、文字列と同じく、ひとかたまり
-  App (Var "$regex") (Lit (LString _)) -> 8
   App {}        -> 7   -- f x
   Lit _         -> 8   -- 42
   Var _         -> 8   -- x
@@ -94,7 +88,6 @@ at p e
 
 plain :: Expr -> Text
 plain expr = case expr of
-  At _ e            -> plain e
   Lit (LInt n)      -> T.pack (show n)
   Lit (LBool True)  -> "true"
   Lit (LBool False) -> "false"
@@ -106,23 +99,12 @@ plain expr = case expr of
   Lam "$r" (Field (Var "$r") x) -> "." <> x
   -- ANCHOR_END: renderAccessor
   Lam x body        -> "\\" <> x <> " -> " <> at 0 body
-  -- re"\d+" is shown as it was written.
-  -- re"\d+" は、書いたとおりに見せる
-  App (Var "$regex") (Lit (LString s)) -> "re\"" <> s <> "\""
-  App (At _ f) a    -> plain (App f a)
   App f a           -> at 7 f <> " " <> at 8 a
   Let x e body      -> "let " <> x <> " = " <> at 0 e <> " in " <> at 0 body
   If c a b          -> "if " <> at 0 c <> " then " <> at 0 a
                          <> " else " <> at 0 b
   Tuple es          -> "(" <> T.intercalate ", " (map (at 0) es) <> ")"
   List es           -> "[" <> T.intercalate ", " (map (at 0) es) <> "]"
-  -- ANCHOR: renderRecordExpr
-  Record fs         -> "{ " <> fieldsOf fs <> " }"
-  -- r.name, and (f x).name: only a name can go before the dot as it is.
-  -- 点の前にそのまま置けるのは、名前だけ
-  Field e x         -> beforeDot e <> "." <> x
-  Update e fs       -> "{ " <> plain e <> " | " <> fieldsOf fs <> " }"
-  -- ANCHOR_END: renderRecordExpr
   BinOp op l r      ->
     let n = opLevel op
         -- How each operator leans. 1 - 2 - 3 is (1 - 2) - 3,
@@ -147,10 +129,16 @@ plain expr = case expr of
             <> at (if i < n then 1 else 0) body
     in "case " <> at 0 e <> " of" <> T.concat (zipWith branch [1 ..] alts)
   -- ANCHOR_END: renderCase
+  -- ANCHOR: renderRecordExpr
+  Record fs         -> "{ " <> fieldsOf fs <> " }"
+  -- r.name, and (f x).name: only a name can go before the dot as it is.
+  -- 点の前にそのまま置けるのは、名前だけ
+  Field e x         -> beforeDot e <> "." <> x
+  Update e fs       -> "{ " <> plain e <> " | " <> fieldsOf fs <> " }"
+  -- ANCHOR_END: renderRecordExpr
   where
     fieldsOf fs = T.intercalate ", " [ x <> " = " <> at 0 e | (x, e) <- fs ]
     beforeDot e = case e of
-      At _ e'   -> beforeDot e'
       Var _     -> plain e
       Field _ _ -> plain e
       _         -> "(" <> plain e <> ")"

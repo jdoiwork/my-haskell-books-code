@@ -1,0 +1,1 @@
+in the definition of surround: type error: the annotation of surround must say Semigroup a (the definition needs it)

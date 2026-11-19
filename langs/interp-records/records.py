@@ -34,8 +34,8 @@ class Lang:
     name: str
     version: str
 
-lam = Member("Lam", "lam", 19)
-assert next_day(lam).days == 20 and lam.days == 19
+lam = Member("Lam", "lam", 9)
+assert next_day(lam).days == 10 and lam.days == 9
 assert label(next_day(lam)) == "[Lam]"
 assert label(Lang("Ruby", "4.0")) == "[Ruby]"
 print(label(next_day(lam)), label(Lang("Ruby", "4.0")))

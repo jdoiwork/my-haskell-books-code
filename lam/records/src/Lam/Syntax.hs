@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- | The abstract syntax tree (AST) of Lam: a program, as a value.
 -- Lam の抽象構文木（AST）：プログラムを、値として表す。
@@ -13,16 +12,6 @@ module Lam.Syntax
   , Signature (..)
   , AliasDecl (..)
   , Decl (..)
-  , Program (..)
-  , Header (..)
-  , Import (..)
-  , Exposing (..)
-  , Exposed (..)
-  , Shown (..)
-  , baseName
-  , Loc (..)
-  , renderLoc
-  , stripLocations
   , freeVars
   , patternVars
   ) where
@@ -30,7 +19,6 @@ module Lam.Syntax
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
-import qualified Data.Text as T
 
 -- ANCHOR: expr
 -- 🏷️ A variable's name: x, double, fact
@@ -47,7 +35,7 @@ data Expr
   | Let Name Expr Expr     -- let x = e in body
   | If Expr Expr Expr      -- if c then a else b
   | BinOp Op Expr Expr     -- a + b
-  | Tuple [Expr]           -- (1, "one"), and () with none
+  | Tuple [Expr]           -- (1, "one")    (two or more)
   | List [Expr]            -- [1, 2, 3]
   | Case Expr [(Pattern, Expr)]   -- case e of | p -> a | q -> b
   -- ANCHOR: recordExprs
@@ -55,53 +43,8 @@ data Expr
   | Field Expr Name                -- r.name
   | Update Expr [(Name, Expr)]     -- { r | age = 4 }
   -- ANCHOR_END: recordExprs
-  -- ANCHOR: at
-  -- A mark of where the expression inside was written. It does not
-  -- change the value: only an error looks at it.
-  -- 中の式を書いた場所の印。値は変えない。見るのはエラーだけ
-  | At Loc Expr
-  -- ANCHOR_END: at
   deriving (Eq, Show)
 -- ANCHOR_END: expr
-
--- ANCHOR: loc
--- 📍 A place in a file: the name, the line and the column (from 1).
--- ファイルの中の場所：名前、行、列（どれも 1 から）
-data Loc = Loc FilePath Int Int
-  deriving (Eq, Show)
-
--- 📍 wordfreq.lam:12:15  (the same shape as GHC and gcc)
--- GHC や gcc と同じ形
-renderLoc :: Loc -> Text
-renderLoc (Loc file line column) =
-  T.pack file <> ":" <> T.pack (show line) <> ":" <> T.pack (show column)
--- ANCHOR_END: loc
-
--- ANCHOR: strip
--- 🧽 The same tree without the marks of places, to compare trees in
---    the tests.
--- 場所の印を取った、同じ木。テストで木を比べるため
-stripLocations :: Expr -> Expr
-stripLocations expr = case expr of
-  At _ e       -> stripLocations e
-  Lit l        -> Lit l
-  Var x        -> Var x
-  Lam x b      -> Lam x (stripLocations b)
-  App f a      -> App (stripLocations f) (stripLocations a)
-  Let x e b    -> Let x (stripLocations e) (stripLocations b)
-  If c a b     -> If (stripLocations c) (stripLocations a) (stripLocations b)
-  BinOp o l r  -> BinOp o (stripLocations l) (stripLocations r)
-  Tuple es     -> Tuple (map stripLocations es)
-  List es      -> List (map stripLocations es)
-  Case e alts  -> Case (stripLocations e)
-                    [ (p, stripLocations b) | (p, b) <- alts ]
-  -- ANCHOR: stripRecords
-  Record fs    -> Record [ (x, stripLocations e) | (x, e) <- fs ]
-  Field e x    -> Field (stripLocations e) x
-  Update e fs  -> Update (stripLocations e)
-                    [ (x, stripLocations v) | (x, v) <- fs ]
-  -- ANCHOR_END: stripRecords
--- ANCHOR_END: strip
 
 -- 🔢 The values you can write directly.
 -- そのまま書ける値
@@ -173,13 +116,13 @@ data DataDecl = DataDecl
 data Signature = Signature [(Name, Name)] TypeExpr
   deriving (Eq, Show)
 
--- 🏷️ type alias User = { name : String, age : Int }
+-- 🏷️ type alias Member = { name : String, days : Int }
 --    A new name for a type that is already there (not a new type).
 -- もうある型に付ける、新しい名前（新しい型ではない）
 data AliasDecl = AliasDecl
-  { aliasName   :: Name             -- User
+  { aliasName   :: Name             -- Member
   , aliasParams :: [Name]           -- []   (Pair a has [a])
-  , aliasType   :: TypeExpr         -- { name : String, age : Int }
+  , aliasType   :: TypeExpr         -- { name : String, days : Int }
   }
   deriving (Eq, Show)
 -- ANCHOR_END: signature
@@ -188,75 +131,14 @@ data AliasDecl = AliasDecl
 --    annotation, or a type alias.
 -- プログラムの1つの宣言：定義、data の宣言、型の注釈、型の別名
 data Decl
-  = DefValue Name Expr       -- x = e  (or  let x = e)
+  = DefValue Name Expr       -- let x = e
   | DefData DataDecl         -- data Shape = ...
   -- ANCHOR: declMore
-  | DefSig Loc Name Signature   -- add : Int -> Int -> Int
-  | DefAlias AliasDecl          -- type alias User = { ... }
+  | DefSig Name Signature    -- add : Int -> Int -> Int
+  | DefAlias AliasDecl       -- type alias Member = { ... }
   -- ANCHOR_END: declMore
   deriving (Eq, Show)
 -- ANCHOR_END: decl
-
--- ANCHOR: program
--- 📜 A whole file: the module line (if any), the imports, the
---    declarations, and the expression at the end (if any).
--- ファイルの全体：module の行（あれば）、import、宣言、最後の式（あれば）
-data Program = Program
-  { programHeader  :: Maybe Header
-  , programImports :: [Import]
-  , programDecls   :: [Decl]
-  , programFinal   :: Maybe Expr
-  }
-  deriving (Eq, Show)
--- ANCHOR_END: program
-
--- ANCHOR: header
--- 🪧 module Shapes exposing (Shape (..), area)
---    Where it was written, the name, and what other files may use.
--- 書いた場所、名前、ほかのファイルが使ってよいもの
-data Header = Header Loc Name Exposing
-  deriving (Eq, Show)
-
--- 📥 import Shapes as S (area)
--- import の1行
-data Import = Import
-  { importLoc      :: Loc
-  , importName     :: Name            -- Shapes
-  , importAlias    :: Maybe Name      -- as S
-  , importList     :: Maybe Exposing  -- (area)
-  }
-  deriving (Eq, Show)
-
--- 👀 What a module shows (or what an import also takes without the
---    module's name): (..) for everything, or a list.
--- モジュールが見せるもの（import なら、モジュールの名前を付けずにも
--- 使うもの）。(..) で全部か、一覧
-data Exposing
-  = ExposeAll                 -- (..)
-  | ExposeSome [Exposed]      -- (area, Shape (..))
-  deriving (Eq, Show)
-
--- 🏷️ One item of the list: a value, or a type with some of its
---    constructors.
--- 一覧の1つ：値か、型と、その構成子のいくつか
-data Exposed
-  = ExposeValue Name          -- area
-  | ExposeType Name Shown     -- Shape, Shape (..), Json (JInt, JStr)
-  deriving (Eq, Show)
-
--- 🧱 Which constructors of a type are shown.
--- 型の構成子のうち、どれを見せるか
-data Shown
-  = NoConstructors            -- Shape          (the type only)
-  | AllConstructors           -- Shape (..)
-  | TheseConstructors [Name]  -- Json (JInt, JStr)
-  deriving (Eq, Show)
-
--- ✂️ The name without its module:  Json.JInt  is  JInt.
--- モジュールの名前を取った名前
-baseName :: Name -> Name
-baseName = snd . T.breakOnEnd "."
--- ANCHOR_END: header
 
 -- ANCHOR: freeVars
 -- 🔓 The variables used but not defined inside the expression.
@@ -280,7 +162,6 @@ freeVars expr = case expr of
   -- パターンの名前は、その枝の中で決まっている
   Case e alts     -> freeVars e <> foldMap
     (\(p, body) -> freeVars body `Set.difference` patternVars p) alts
-  At _ e          -> freeVars e
   -- ANCHOR: freeRecords
   Record fs       -> foldMap (freeVars . snd) fs
   Field e _       -> freeVars e

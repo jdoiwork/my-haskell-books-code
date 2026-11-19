@@ -1,8 +1,9 @@
--- ANCHOR: all
+-- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
--- | The answers of the training of "Writing types: type annotations
---   and records".
--- 「型を書く：型の注釈とレコード」のトレーニングの解答。
+-- ANCHOR: all
+-- | Answers to the training of the chapter on type annotations and
+--   records.
+-- 型の注釈とレコードの章のトレーニングの解答。
 module Lam.Answers
   ( shortRecord
   ) where
@@ -12,16 +13,17 @@ import Text.Megaparsec (sepBy1, try)
 
 import Lam.Parser (Parser, name, symbol)
 import Lam.Syntax
+-- ANCHOR_END: head
 
 -- ANCHOR: shortRecord
 -- ✂️ Step 5: { name, days } is short for { name = name, days = days },
 --    as in JavaScript. Each field gets the variable of the same name.
---    Put it into the choice of atom, after recordLiteral: a map always
---    has : after its keys, so { name, days } is never one.
+--    Put it into the choice of atom, after recordLiteral: a record
+--    always has = after its first field, so recordLiteral reads
+--    nothing of { name, days }.
 -- ステップ5：{ name, days } は { name = name, days = days } の略
 -- （JavaScript と同じ）。どのフィールドも、同じ名前の変数の値になる。
--- atom の choice の recordLiteral の後ろに置く。Map はキーの後ろに必ず :
--- があるので、{ name, days } が Map になることはない
+-- atom の choice の recordLiteral の後ろに置く
 shortRecord :: Parser Expr
 shortRecord = do
   xs <- try (symbol "{" *> (name `sepBy1` symbol ",") <* symbol "}")

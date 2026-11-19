@@ -1,0 +1,10 @@
+-- 🐛 Step 2: a class is missing in the annotation.
+-- ステップ2：注釈に、クラスが足りない
+--   lam examples/records/answers/surround-broken.lam
+
+-- ANCHOR: broken
+surround : a -> a -> a
+surround mark x = mark ++ x ++ mark
+
+(surround "*" "Lam", surround [0] [1, 2])
+-- ANCHOR_END: broken

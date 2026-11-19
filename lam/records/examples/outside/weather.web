@@ -1,1 +1,0 @@
-https://api.open-meteo.com/v1/forecast?latitude=35.68&longitude=139.76&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto 200 web/tokyo.json

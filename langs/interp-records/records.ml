@@ -21,7 +21,7 @@ let ruby = object method name = "Ruby" method version = "4.0" end
 let () = print_endline (label ruby)          (* [Ruby] *)
 (* ANCHOR_END: objects *)
 
-let lam = { name = "Lam"; lang = "lam"; days = 19 }
-let () = assert ((next_day lam).days = 20 && lam.days = 19)
+let lam = { name = "Lam"; lang = "lam"; days = 9 }
+let () = assert ((next_day lam).days = 10 && lam.days = 9)
 let () = assert (label ruby = "[Ruby]")
 let () = assert (label (object method name = "Lam" end) = "[Lam]")

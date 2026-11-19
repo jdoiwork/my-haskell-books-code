@@ -233,7 +233,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 文字列・タプル・リスト | [`lam/strings/`](lam/strings/)、[`lam/polish/`](lam/polish/)、[`langs/interp-strings/`](langs/interp-strings/) |
 | 型を自分で定義する：data と case | [`lam/data/`](lam/data/)、[`lam/strings/`](lam/strings/)、[`langs/interp-data/`](langs/interp-data/) |
 | 書きやすくする：パターンと糖衣構文 | [`lam/sugar/`](lam/sugar/)、[`lam/data/`](lam/data/)、[`langs/interp-sugar/`](langs/interp-sugar/) |
-| 型を書く：型の注釈とレコード | [`lam/files/`](lam/files/)、[`lam/records/`](lam/records/)、[`langs/interp-records/`](langs/interp-records/) |
+| 型を書く：型の注釈とレコード | [`lam/records/`](lam/records/)、[`lam/sugar/`](lam/sugar/)、[`langs/interp-records/`](langs/interp-records/) |
 | 小数を足す：Elm 風の number | [`lam/records/`](lam/records/)、[`lam/float/`](lam/float/)、[`langs/interp-float/`](langs/interp-float/) |
 | Map と JSON | [`lam/json/`](lam/json/)、[`lam/data/`](lam/data/)、[`langs/interp-map-json/`](langs/interp-map-json/) |
 | 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/oneliner/`](lam/oneliner/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |

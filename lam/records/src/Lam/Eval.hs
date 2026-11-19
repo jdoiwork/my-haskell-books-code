@@ -6,16 +6,7 @@ module Lam.Eval
   ( Value (..)
   , Env
   , EvalError (..)
-  , Action (..)
-  , Request (..)
-  , OpenMode (..)
-  , Cell (..)
-  , LamParser
-  , Farthest
   , eval
-  , apply
-  , compareValues
-  , located
   , binOp
   , match
   , renderValue
@@ -30,11 +21,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
-import Control.Monad.State.Strict (StateT)
-import Data.Void (Void)
-import Text.Megaparsec (ParseError, ParsecT)
 
-import Lam.Pcre (Regex (..))
 import Lam.Pretty (opSymbol, renderString)
 import Lam.Syntax
 
@@ -45,13 +32,8 @@ data Value
   = VInt Integer
   | VBool Bool
   | VString Text           -- "hello"
-  | VTuple [Value]         -- (1, "one"), and () (unit)
+  | VTuple [Value]         -- (1, "one")
   | VList [Value]          -- [1, 2, 3]
-  -- ANCHOR: vmap
-  -- {"Python": 82, "TS": 75}: the keys are strings, kept in order.
-  -- キーは文字列。順に並べて持つ
-  | VMap (Map Text Value)
-  -- ANCHOR_END: vmap
   -- ANCHOR: vcon
   -- A value made with a constructor: Just 3, Circle 2, Nothing.
   -- The number is the constructor's place in the declaration
@@ -72,137 +54,6 @@ data Value
   -- it needs, what it does, and the arguments given so far.
   -- Haskell で書いた関数：名前、要る引数の数、すること、ここまでの引数
   | VPrim Name Int ([Value] -> Either EvalError Value) [Value]
-  -- ANCHOR: vio
-  -- An IO action: a request to the outside world, not yet done.
-  -- IO の値：外の世界への頼みごと。まだ、やっていない
-  | VIO Action
-  -- ANCHOR_END: vio
-  -- ANCHOR: vregex
-  -- A compiled regular expression:  re"\d+".
-  -- コンパイルした正規表現
-  | VRegex Regex
-  -- ANCHOR_END: vregex
-  -- ANCHOR: vparser
-  -- A parser, made of megaparsec: it reads a string and gives a value.
-  -- パーサー。中身は megaparsec：文字列を読んで、値をくれる
-  | VParser LamParser
-  -- ANCHOR_END: vparser
-
--- ANCHOR: lamParser
--- 🧩 The parser inside a Parser value. It reads Text, and calls Lam
---    functions as it goes (Parser.map, Parser.andThen). Under it are
---    two more things:
---    - Farthest: the error that got the farthest so far. A choice
---      that failed is forgotten when the next one is tried, but its
---      error is kept here, for a better message at the end.
---    - Either EvalError: a Lam function can fail (1 / 0), and a Left
---      stops the whole run. It is an error of the program, not a
---      string that does not fit.
--- Parser の値の中のパーサー。Text を読みながら、Lam の関数を呼ぶ
--- （Parser.map、Parser.andThen）。下に、もう2つ重ねる：
--- ・Farthest：ここまでで、いちばん遠くまで読めたエラー。失敗した選択肢は、
---   次を試すときに忘れるが、エラーはここに残し、最後のエラーの文に使う
--- ・Either EvalError：Lam の関数は失敗しうる（1 / 0）。Left は、読むのを
---   丸ごと止める。文字列が合わないのではなく、プログラムのまちがいだから
-type LamParser = ParsecT Void Text (StateT Farthest (Either EvalError)) Value
-
-type Farthest = Maybe (ParseError Text Void)
--- ANCHOR_END: lamParser
-
--- ANCHOR: action
--- 📮 What an IO action asks for. Only the runner does it (Lam.Io).
--- IO の値が頼むこと。やるのは、実行役だけ（Lam.Io）
-data Action
-  = Pure Value              -- pure 3: ask for nothing, the answer is 3
-  | Ask Request             -- putStrLn "hi": one request
-  -- getLine, and then what to do with the line it gives.
-  -- getLine と、その行を受け取ってから、することの続き
-  | Bind Action (Value -> Either EvalError Action)
-  -- ANCHOR: exitAction
-  -- exit 2: not a request to the world, but a sign to the runner:
-  -- stop here, and do not do the rest.
-  -- exit 2：世界への頼みごとではなく、実行役への合図。ここで止まり、
-  -- 続きはやらない
-  | Exit Int
-  -- ANCHOR_END: exitAction
-
--- 📨 One request to the outside world.
--- 外の世界への、1つの頼みごと
-data Request
-  = PutStr Text             -- write to the screen
-  | GetLine                 -- read a line (Nothing at the end)
-  | ReadFile Text           -- read a file
-  | WriteFile Text Text     -- write a file
-  -- ANCHOR: scriptRequests
-  | GetArgs                 -- the arguments after the file name
-  | LookupEnv Text          -- one environment variable
-  | GetEnvironment          -- all the environment variables
-  | GetContents             -- read all of the standard input
-  | PutErr Text             -- write to the standard error
-  -- ANCHOR_END: scriptRequests
-  -- ANCHOR: httpRequest
-  -- HTTP: the method, the URL, the headers, and the body.
-  -- HTTP：メソッド、URL、ヘッダー、本文
-  | HttpSend Text Text [(Text, Text)] Text
-  -- ANCHOR_END: httpRequest
-  -- ANCHOR: sqlRequests
-  -- SQLite: open a file (":memory:" for one in memory), then ask the
-  -- database with its number. The ? in the SQL are the cells.
-  -- SQLite：ファイルを開き（":memory:" ならメモリーの中に）、あとは
-  -- データベースの番号で頼む。SQL の ? には、マスの値が入る
-  | SqlOpen Text OpenMode
-  | SqlQuery Int Text [Cell]
-  | SqlExec Int Text [Cell]
-  | SqlClose Int
-  -- ANCHOR_END: sqlRequests
-  -- ANCHOR: fileRequests
-  -- Files and folders: look, then change.
-  -- ファイルとフォルダー：見る、それから変える
-  | ListDir Text            -- the names in a folder
-  | Glob Text               -- the paths that match "logs/*.log"
-  | Exists Text             -- a file or a folder is there
-  | IsDir Text              -- a folder is there
-  | FileInfo Text           -- the size and the time it was changed
-  | MakeDir Text            -- make a folder (and the ones above it)
-  | Remove Text             -- remove a file, or an empty folder
-  | Rename Text Text        -- move from, to
-  | CopyFile Text Text      -- copy from, to
-  | AppendFile Text Text    -- add to the end of a file
-  -- ANCHOR_END: fileRequests
-  -- ANCHOR: processRequest
-  -- A command: its name, its arguments, and the text for its input.
-  -- No shell: "a b; rm x" is one argument, as it is.
-  -- コマンド：名前、引数、標準入力に渡す文字。シェルは通さない：
-  -- "a b; rm x" は、そのまま1つの引数
-  | RunProcess Text [Text] Text
-  -- ANCHOR_END: processRequest
-  -- ANCHOR: clockRequests
-  -- The clock, the time zone of this machine, and a die.
-  -- 時計、このマシンのタイムゾーン、さいころ
-  | Now
-  | Here
-  | RandomInt Integer Integer  -- from, to (both in)
-  -- ANCHOR_END: clockRequests
-  deriving (Eq, Show)
-
--- ANCHOR: cell
--- 🔓 Open a database to read and write, or only to read.
--- データベースを、読み書きのために開くか、読むだけに開くか
-data OpenMode = ReadWrite | ReadOnly
-  deriving (Eq, Show)
-
--- 🧱 One cell of SQLite: what a ? in the SQL can be. Json has more
---    (arrays, objects), so the builtin turns a Json into a Cell first.
--- SQLite の1マス：SQL の ? に入れられるもの。Json のほうが多い（配列、
--- オブジェクト）ので、組み込みの関数が、先に Json をマスに直す
-data Cell
-  = CNull
-  | CInt Integer
-  | CDec Integer Int        -- c / 10^d, like JDec
-  | CText Text
-  deriving (Eq, Show)
--- ANCHOR_END: cell
--- ANCHOR_END: action
 
 -- 📒 The environment: the value of each variable.
 -- 環境：それぞれの変数の値
@@ -224,11 +75,6 @@ data EvalError
   -- r.name なのに、r に name がない（型検査器が先に止める）
   | NoField Name Text
   -- ANCHOR_END: noField
-  -- ANCHOR: locatedError
-  -- The same error, and where it happened (the innermost place).
-  -- 同じエラーと、それが起きた場所（いちばん内側の場所）
-  | Located Loc EvalError
-  -- ANCHOR_END: locatedError
   deriving (Eq, Show)
 -- ANCHOR_END: value
 
@@ -308,13 +154,6 @@ eval env expr = case expr of
     eval env' body
   -- ANCHOR_END: let
 
-  -- ANCHOR: evalAt
-  -- A mark of a place: the value of the expression inside. If it
-  -- fails, the error remembers this place.
-  -- 場所の印：中の式の値。失敗したら、エラーにこの場所を覚えさせる
-  At loc e -> located loc (eval env e)
-  -- ANCHOR_END: evalAt
-
   -- ANCHOR: case
   -- Try the branches from the top. The first pattern that fits the
   -- value wins, and its names are added to the environment.
@@ -356,27 +195,6 @@ eval env expr = case expr of
   -- ANCHOR_END: evalRecord
 -- ANCHOR_END: eval
 
--- ANCHOR: fieldOf
--- 🔎 The value of one field.
--- フィールド1つの値
-field :: Name -> Value -> Either EvalError Value
-field x v = case v of
-  VRecord m | Just fv <- Map.lookup x m -> Right fv
-  _ -> Left (NoField x (renderValue v))
--- ANCHOR_END: fieldOf
-
--- ANCHOR: located
--- 📍 Put the place on an error. An error that already has a place
---    keeps it: the innermost place is the most exact.
--- エラーに場所を付ける。もう場所のあるエラーは、そのまま。
--- いちばん内側の場所が、いちばんくわしいから
-located :: Loc -> Either EvalError a -> Either EvalError a
-located loc result = case result of
-  Left err@(Located _ _) -> Left err
-  Left err               -> Left (Located loc err)
-  Right v                -> Right v
--- ANCHOR_END: located
-
 -- ANCHOR: match
 -- 🧩 Does the value fit the pattern? If so, the names and their values.
 --    Just x  and  Just 3  give  [(x, 3)].
@@ -389,14 +207,8 @@ match p v = case (p, v) of
   (PLit (LInt n), VInt m)     -> if n == m then Just [] else Nothing
   (PLit (LBool a), VBool b)   -> if a == b then Just [] else Nothing
   (PLit (LString a), VString b) -> if a == b then Just [] else Nothing
-  -- ANCHOR: matchCon
-  -- Json.JInt and JInt are the same constructor: look at the name
-  -- without the module (the type checker made sure of the type).
-  -- Json.JInt と JInt は同じ構成子。モジュールを取った名前を見る
-  -- （型は、型検査器が確かめてある）
   (PCon c ps, VCon c' _ vs)
-    | baseName c == c'        -> matchAll ps vs
-  -- ANCHOR_END: matchCon
+    | c == c'                 -> matchAll ps vs
   (PTuple ps, VTuple vs)      -> matchAll ps vs
   (PList ps, VList vs)        -> matchAll ps vs
   (PCons h t, VList (x : xs)) -> (<>) <$> match h x <*> match t (VList xs)
@@ -419,6 +231,15 @@ matchAll ps vs = case (ps, vs) of
   (p : ps', v : vs') -> (<>) <$> match p v <*> matchAll ps' vs'
   _                  -> Nothing
 -- ANCHOR_END: match
+
+-- ANCHOR: fieldOf
+-- 🔎 The value of one field.
+-- フィールド1つの値
+field :: Name -> Value -> Either EvalError Value
+field x v = case v of
+  VRecord m | Just fv <- Map.lookup x m -> Right fv
+  _ -> Left (NoField x (renderValue v))
+-- ANCHOR_END: fieldOf
 
 -- ANCHOR: apply
 -- 📞 Call a function: the body runs in the function's OWN environment,
@@ -483,11 +304,6 @@ compareValues a b = case (a, b) of
   (VString x, VString y) -> Right (compare x y)
   (VTuple xs, VTuple ys) -> compareLists xs ys
   (VList xs,  VList ys)  -> compareLists xs ys
-  -- ANCHOR: compareMap
-  -- Two maps: compare their (key, value) pairs, in the order of keys.
-  -- 2つの Map は、（キー, 値）の組を、キーの順に比べる
-  (VMap xs,   VMap ys)   -> compareLists (pairs xs) (pairs ys)
-  -- ANCHOR_END: compareMap
   -- ANCHOR: compareCon
   -- The constructor written first is the smaller one. With the same
   -- constructor, compare the arguments from the left.
@@ -502,13 +318,6 @@ compareValues a b = case (a, b) of
   (VRecord xs, VRecord ys) -> compareLists (Map.elems xs) (Map.elems ys)
   -- ANCHOR_END: compareRecord
   _                      -> Left (CannotCompare (renderValue a))
-
--- ANCHOR: pairs
--- 🔑 The pairs of a map, as Lam tuples.
--- Map の組を、Lam のタプルにする
-pairs :: Map Text Value -> [Value]
-pairs m = [ VTuple [VString k, v] | (k, v) <- Map.toList m ]
--- ANCHOR_END: pairs
 
 compareLists :: [Value] -> [Value] -> Either EvalError Ordering
 compareLists xs ys = case (xs, ys) of
@@ -531,13 +340,6 @@ renderValue v = case v of
   VString s      -> renderString s
   VTuple vs      -> "(" <> T.intercalate ", " (map renderValue vs) <> ")"
   VList vs       -> "[" <> T.intercalate ", " (map renderValue vs) <> "]"
-  -- ANCHOR: renderMap
-  -- {"Python": 82, "TS": 75}, the same as it is written.
-  -- 書くときと同じ形
-  VMap m         -> "{" <> T.intercalate ", "
-                      [ renderString k <> ": " <> renderValue x
-                      | (k, x) <- Map.toList m ] <> "}"
-  -- ANCHOR_END: renderMap
   -- ANCHOR: renderCon
   -- Just (Just 3): an argument with arguments of its own needs ( ).
   -- 引数を持つ引数は、括弧で包む
@@ -553,24 +355,10 @@ renderValue v = case v of
   -- ANCHOR_END: renderRecord
   VClosure x _ _ -> "<function of " <> x <> ">"
   VPrim n _ _ _  -> "<builtin " <> n <> ">"
-  -- ANCHOR: renderIO
-  VIO _          -> "<IO action>"
-  -- ANCHOR_END: renderIO
-  -- ANCHOR: renderRegex
-  -- re"\d+", the same as it is written.
-  -- 書くときと同じ形
-  VRegex p       -> "re\"" <> regexSource p <> "\""
-  -- ANCHOR_END: renderRegex
-  VParser _      -> "<parser>"
-  -- ANCHOR: argument
   where
     argument a = case a of
       VCon _ _ (_ : _) -> "(" <> renderValue a <> ")"
-      -- JInt (-5), as Haskell shows it.
-      -- Haskell と同じく、負の数も括弧で包む
-      VInt n | n < 0   -> "(" <> renderValue a <> ")"
       _                -> renderValue a
-  -- ANCHOR_END: argument
 
 -- 📣 An error, as people read it.
 -- 人が読むエラー
@@ -592,9 +380,7 @@ renderError err = case err of
   BuiltinFailed n m  -> n <> ": " <> m
   -- 「case のどの枝にも合いません」
   NoMatch v          -> "no branch of case fits " <> v
-  -- 「フィールドがありません」
+  -- 「{ age = 3 } には、フィールド name がありません」
   NoField x v        -> v <> " has no field " <> x
-  -- 「場所：……」
-  Located loc e      -> renderLoc loc <> ": " <> renderError e
 -- ANCHOR_END: render
 -- ANCHOR_END: all

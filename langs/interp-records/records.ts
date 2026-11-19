@@ -28,8 +28,8 @@ label(ruby);                                  // OK: through a variable
 label({ name: "Ruby", version: "4.0" });      // an error, written here
 // ANCHOR_END: excess
 
-const lam: Member = { name: "Lam", lang: "lam", days: 19 };
+const lam: Member = { name: "Lam", lang: "lam", days: 9 };
 console.assert(label(nextDay(lam)) === "[Lam]");
-console.assert(nextDay(lam).days === 20 && lam.days === 19);
+console.assert(nextDay(lam).days === 10 && lam.days === 9);
 console.assert(label(ruby) === "[Ruby]");
 console.log(label(nextDay(lam)), label(ruby));

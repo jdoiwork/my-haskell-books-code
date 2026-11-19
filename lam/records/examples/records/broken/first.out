@@ -1,1 +1,1 @@
-examples/records/broken/first.lam:3:1: in the definition of next: type error: the annotation of next says a can be any type, but the definition needs Int
+in the definition of next: type error: the annotation of next says a can be any type, but the definition needs Int

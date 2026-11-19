@@ -1,0 +1,35 @@
+-- 🏆 Step 3: a score table with records.
+-- ステップ3：レコードで成績表
+--   lam examples/records/answers/players.lam
+
+-- ANCHOR: players
+type alias Player = { name : String, score : Int }
+
+players : [Player]
+players =
+  [ { name = "Python", score = 82 }
+  , { name = "Rust", score = 91 }
+  , { name = "Go", score = 68 } ]
+
+-- ➕ n more points for everyone: a new record for each one.
+-- 全員に n 点足す：1人ずつ新しいレコードにする
+bonus : Int -> [Player] -> [Player]
+bonus n ps = map (\p -> { p | score = p.score + n }) ps
+
+-- 🥇 The one with the most points (the first one, if two are equal).
+-- いちばん点の高い人（同じ点なら、先の人）
+top : [Player] -> Maybe Player
+top ps =
+  case ps of
+    | [] -> Nothing
+    | p : rest -> Just (foldl better p rest)
+  where
+    better a b = if b.score > a.score then b else a
+-- ANCHOR_END: players
+
+-- ANCHOR: final
+( [(name, score) | { name, score } <- bonus 5 players]
+, case top players of
+    | Just { name, score } -> name ++ " " ++ showInt score
+    | Nothing -> "nobody" )
+-- ANCHOR_END: final

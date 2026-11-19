@@ -1,17 +1,21 @@
 -- The shapes on the workshop's new sign, and the biggest of them.
 -- 工房の新しい看板の図形と、そのうちいちばん大きなもの
+-- ANCHOR: shape
 data Shape
   = Circle Int
   | Rect Int Int
   | Triangle Int Int
+-- ANCHOR_END: shape
 
 -- The area (pi is 3, to stay with whole numbers).
 -- 面積（整数のままにするため、円周率は 3）
+-- ANCHOR: area
 let area s =
   case s of
     | Circle r -> 3 * r * r
     | Rect w h -> w * h
     | Triangle b h -> b * h / 2
+-- ANCHOR_END: area
 
 -- A name for each shape. A Rect with the same sides is a square.
 -- 図形の名前。辺が同じ Rect は正方形

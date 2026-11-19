@@ -1,1 +1,0 @@
--n --begin Map.empty -e 'Map.insert line () acc' --end 'forEach (Map.keys acc) putStrLn' examples/oneliner/fruits.txt

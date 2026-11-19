@@ -10,26 +10,13 @@ module Lam.Builtins
     -- 組み込みの関数を足すための部品（トレーニング）
   , prim1
   , prim2
-  , prim3
-  , prim4
-  , requiring
   , (~>)
   , string
   , list
-  , mapOf
-    -- The constructors of the prelude, made from Haskell.
-    -- プレリュードの構成子を、Haskell から作る
-  , preludeConstructors
-  , con
-  , maybeValue
   ) where
 
-import Data.List (sortBy)
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.Read as TR
 
 import Lam.Eval
 import Lam.Syntax (Name)
@@ -79,6 +66,9 @@ builtins =
 
   -- Lists
   -- リスト
+  , prim1 "null" (tList a ~> TBool) $ \v -> do
+      xs <- list v
+      Right (VBool (null xs))
   , prim1 "head" (tList a ~> a) $ \v -> do
       xs <- list v
       case xs of
@@ -91,168 +81,10 @@ builtins =
         _ : rest -> Right (VList rest)
         []       -> Left (BuiltinFailed "tail" "the list is empty")
   ]
-  <> mapBuiltins
-  <> wordBuiltins
-  <> oneLinerBuiltins
   where
     a = TVar 0
     b = TVar 1
 -- ANCHOR_END: table
-
--- ANCHOR: wordTable
--- ✂️ For scripts: cut a text into lines and words, and sort.
--- スクリプトのため：文字列を行と単語に切る、並べ替える
-wordBuiltins :: [Builtin]
-wordBuiltins =
-  -- "a\nb\n" gives ["a", "b"], and words cuts at any spaces.
-  -- 行に切る・空白で単語に切る（Haskell の lines・words と同じ）
-  [ prim1 "lines" (tString ~> tList tString) (cutWith T.lines)
-  , prim1 "words" (tString ~> tList tString) (cutWith T.words)
-  -- Sort from the smallest: Comparable a => [a] -> [a]
-  -- 小さい順に並べる
-  , requiring [(Comparable, 0)] $ prim1 "sort" (tList a ~> tList a) $ \v -> do
-      xs <- list v
-      Right (VList (sortBy order xs))
-  -- Sort by a key that a Lam function gives:
-  --   sortOn (\p -> 0 - snd p) pairs   (the biggest count first)
-  -- Lam の関数がくれるキーで並べる
-  , requiring [(Comparable, 1)] $
-      prim2 "sortOn" ((a ~> b) ~> tList a ~> tList a) $ \f v -> do
-        xs   <- list v
-        -- Each key is made once, before sorting.
-        -- キーは、並べる前に1回ずつ作る
-        keys <- traverse (apply f) xs
-        Right (VList (map snd (sortBy (\x y -> order (fst x) (fst y))
-                                       (zip keys xs))))
-  ]
-  where
-    a = TVar 0
-    b = TVar 1
-    cutWith f v = VList . map VString . f <$> string v
-    -- The type checker made sure that these can be compared (no
-    -- functions inside), so compareValues gives Right here.
-    -- 型検査器が、比べられる（中に関数がない）ことを確かめてあるので、
-    -- ここで compareValues は Right をくれる
-    order x y = either (const EQ) id (compareValues x y)
--- ANCHOR_END: wordTable
-
--- ANCHOR: oneLinerTable
--- 🔢 For one-liners: a number from text, and the columns of a line.
--- ワンライナーのため：文字列から数を、行から列を
-oneLinerBuiltins :: [Builtin]
-oneLinerBuiltins =
-  -- toInt " 42" is Just 42, toInt "12abc" is Nothing.
-  -- 前後の空白は飛ばす。数でなければ Nothing
-  [ prim1 "toInt" (tString ~> TCon "Maybe" [TInt]) $ \v -> do
-      s <- string v
-      Right (maybeValue (VInt <$> wholeInt (T.strip s)))
-  -- $field line fields n: what -a gives as field. 0 is the whole line,
-  -- 1 the first column, and a column that is not there is "".
-  -- -a の field の中身。0 は行全体、1 は1列目。ない列は ""
-  , prim3 "$field" (tString ~> tList tString ~> TInt ~> tString) $
-      \l vs i -> case i of
-        VInt 0 -> Right l
-        VInt n | n > 0 -> do
-          cols <- list vs
-          Right (case drop (fromInteger n - 1) cols of
-                   col : _ -> col
-                   []      -> VString "")
-        _ -> Right (VString "")
-  ]
-  where
-    -- The whole text must be the number: "+7", "-3", "120".
-    -- 文字列の全部が数のときだけ
-    wholeInt s = case TR.signed TR.decimal s of
-      Right (n, rest) | T.null rest -> Just n
-      _                             -> Nothing
--- ANCHOR_END: oneLinerTable
-
--- ANCHOR: mapTable
--- 🗺️ Maps from strings. Each name starts with Map., like Haskell's
---    qualified import (import qualified Data.Map as Map).
--- 文字列をキーにした Map。名前は、Haskell の qualified な import と
--- 同じく、Map. で始める
-mapBuiltins :: [Builtin]
-mapBuiltins =
-  [ Builtin "Map.empty" (closeOver (tMap a)) (VMap Map.empty)
-  , prim3 "Map.insert" (tString ~> a ~> tMap a ~> tMap a) $ \k v m -> do
-      key <- string k
-      VMap . Map.insert key v <$> mapOf m
-  , prim2 "Map.lookup" (tString ~> tMap a ~> tMaybe a) $ \k m -> do
-      key <- string k
-      found <- Map.lookup key <$> mapOf m
-      Right $ case found of
-        Just v  -> con "Just" [v]
-        Nothing -> con "Nothing" []
-  , prim2 "Map.delete" (tString ~> tMap a ~> tMap a) $ \k m -> do
-      key <- string k
-      VMap . Map.delete key <$> mapOf m
-  , prim2 "Map.member" (tString ~> tMap a ~> TBool) $ \k m -> do
-      key <- string k
-      VBool . Map.member key <$> mapOf m
-  , prim1 "Map.size" (tMap a ~> TInt) $ \m ->
-      VInt . fromIntegral . Map.size <$> mapOf m
-  , prim1 "Map.toList" (tMap a ~> tList (tTuple [tString, a])) $ \m -> do
-      kvs <- Map.toList <$> mapOf m
-      Right (VList [ VTuple [VString k, v] | (k, v) <- kvs ])
-  , prim1 "Map.fromList" (tList (tTuple [tString, a]) ~> tMap a) $ \v -> do
-      kvs <- list v >>= traverse keyValue
-      Right (VMap (Map.fromList kvs))
-  , prim1 "Map.keys" (tMap a ~> tList tString) $ \m ->
-      VList . map VString . Map.keys <$> mapOf m
-  , prim1 "Map.values" (tMap a ~> tList a) $ \m ->
-      VList . Map.elems <$> mapOf m
-  ]
-  where
-    a = TVar 0
-    tMaybe t = TCon "Maybe" [t]
-    keyValue v = case v of
-      VTuple [k, x] -> do
-        key <- string k
-        Right (key, x)
-      _ -> wrong "a pair"
--- ANCHOR_END: mapTable
-
--- ANCHOR: preludeCons
--- 🧱 The constructors of the prelude that the builtins make, with
---    their numbers in the declarations (Nothing is 0, Just is 1).
---    The prelude declares them in Lam, so a test checks that the
---    numbers here are the same.
--- 組み込みの関数が作る、プレリュードの構成子と、宣言の中での番号。
--- 宣言は Lam で書いたプレリュードにあるので、番号が同じことを
--- テストで確かめる
-preludeConstructors :: [(Name, Int)]
-preludeConstructors =
-  [ ("Nothing", 0), ("Just", 1)                  -- Maybe a
-  , ("Ok", 0), ("Err", 1)                        -- Result e a
-  , ("JNull", 0), ("JBool", 1), ("JInt", 2), ("JDec", 3)
-  , ("JStr", 4), ("JArr", 5), ("JObj", 6)       -- Json
-  , ("Match", 0)                                 -- Match
-  -- ANCHOR: outsideCons
-  -- (Http.Response and File.FileInfo are records now: no constructor)
-  -- （Http.Response と File.FileInfo は、いまはレコード。構成子はない）
-  , ("Db", 0)                                    -- Sql.Db
-  -- ANCHOR_END: outsideCons
-  -- ANCHOR: filesCons
-  , ("Time", 0), ("Zone", 0)                     -- Time.Time, Time.Zone
-  , ("CannotStart", 0), ("Failed", 1)
-  , ("Succeeded", 2) ]                           -- Process.Outcome
-  -- ANCHOR_END: filesCons
-
--- 🧱 con "Just" [v] is the value Just v.
--- con "Just" [v] は、値 Just v
-con :: Name -> [Value] -> Value
-con c args = case lookup c preludeConstructors of
-  Just i  -> VCon c i args
-  Nothing -> error ("not a constructor of the prelude: " <> T.unpack c)
-
--- 🧱 A Haskell Maybe, as a Lam Maybe.
--- Haskell の Maybe を、Lam の Maybe に
-maybeValue :: Maybe Value -> Value
-maybeValue m = case m of
-  Just v  -> con "Just" [v]
-  Nothing -> con "Nothing" []
--- ANCHOR_END: preludeCons
 
 -- ANCHOR: helpers
 -- ➡️ A function type, written like Lam:  String ~> Int  is  String -> Int.
@@ -261,8 +93,8 @@ maybeValue m = case m of
 (~>) = TFun
 infixr 5 ~>
 
--- 🔧 Make a row for a function of one or two arguments (and prim3).
--- 引数が1つ・2つの関数の行を作る（3つの prim3 も同じ形）
+-- 🔧 Make a row for a function of one or two arguments.
+-- 引数が1つ・2つの関数の行を作る
 prim1 :: Name -> Type -> (Value -> Either EvalError Value) -> Builtin
 prim1 n t f = Builtin n (closeOver t) (VPrim n 1 run [])
   where
@@ -274,27 +106,6 @@ prim2 n t f = Builtin n (closeOver t) (VPrim n 2 run [])
   where
     run [x, y] = f x y
     run _      = wrong n
-
-prim3
-  :: Name -> Type
-  -> (Value -> Value -> Value -> Either EvalError Value) -> Builtin
-prim3 n t f = Builtin n (closeOver t) (VPrim n 3 run [])
-  where
-    run [x, y, z] = f x y z
-    run _         = wrong n
-
--- ANCHOR: prim4
--- 🧰 A builtin with four arguments (Http.send).
--- 引数が4つの組み込みの関数（Http.send）
-prim4
-  :: Name -> Type
-  -> (Value -> Value -> Value -> Value -> Either EvalError Value)
-  -> Builtin
-prim4 n t f = Builtin n (closeOver t) (VPrim n 4 run [])
-  where
-    run [w, x, y, z] = f w x y z
-    run _            = wrong n
--- ANCHOR_END: prim4
 
 -- 🎓 The same row, but some type variables must be in a class.
 --    requiring [(HasLength, 0)] puts HasLength on t0 (that is, a).
@@ -316,11 +127,6 @@ list :: Value -> Either EvalError [Value]
 list v = case v of
   VList xs -> Right xs
   _        -> wrong "a list"
-
-mapOf :: Value -> Either EvalError (Map Text Value)
-mapOf v = case v of
-  VMap m -> Right m
-  _      -> wrong "a map"
 
 onString :: (Text -> Text) -> Value -> Either EvalError Value
 onString f v = VString . f <$> string v

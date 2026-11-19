@@ -1,0 +1,33 @@
+-- 🧮 Step 4: a table of tuples, turned into records.
+-- ステップ4：タプルの表を、レコードに
+--   lam examples/records/answers/changes.lam
+
+-- ANCHOR: rows
+-- (who, language, lines): who changed how many lines, in which language.
+-- （だれが、どの言語で、何行変えたか）
+rows : [(String, String, Int)]
+rows =
+  [ ("Python", "py", 120)
+  , ("GHC", "hs", 300)
+  , ("Rust", "rs", 80)
+  , ("Lam", "hs", 45)
+  , ("TS", "py", 15) ]
+-- ANCHOR_END: rows
+
+-- ANCHOR: changes
+type alias Change = { who : String, lang : String, lines : Int }
+
+-- 🔁 A pattern on the left of <-, a record on the left of |.
+-- <- の左にパターン、| の左にレコード
+changes : [Change]
+changes = [{ who = w, lang = l, lines = n } | (w, l, n) <- rows]
+
+-- 🧮 The lines of one language.
+-- 1つの言語の行数
+linesOf : String -> Int
+linesOf lang = sum [c.lines | c <- changes, c.lang == lang]
+-- ANCHOR_END: changes
+
+-- ANCHOR: final
+[(lang, linesOf lang) | lang <- ["hs", "py", "rs"]]
+-- ANCHOR_END: final

@@ -1,0 +1,49 @@
+-- 📐 The shapes on the workshop's sign again, with a record in each
+--    constructor: the numbers are read by their names.
+-- 工房の看板の図形を、もう一度。構成子ごとにレコードを持たせて、
+-- 数を名前で読む
+--   lam examples/records/shapes.lam
+
+-- ANCHOR: shape
+data Shape
+  = Circle { radius : Int }
+  | Rect { width : Int, height : Int }
+  | Triangle { base : Int, height : Int }
+-- ANCHOR_END: shape
+
+-- ANCHOR: area
+-- 📏 The area (pi is 3, to stay with whole numbers).
+-- 面積（整数のままにするため、円周率は 3）
+area : Shape -> Int
+area s =
+  case s of
+    | Circle { radius } -> 3 * radius * radius
+    | Rect { width, height } -> width * height
+    | Triangle { base, height } -> base * height / 2
+-- ANCHOR_END: area
+
+-- ANCHOR: name
+-- 🏷️ A name for each shape. A Rect with the same sides is a square.
+-- 図形の名前。辺が同じ Rect は正方形
+name : Shape -> String
+name s =
+  case s of
+    | Circle _ -> "circle"
+    | Rect { width, height } if width == height -> "square"
+    | Rect _ -> "rect"
+    | Triangle _ -> "triangle"
+-- ANCHOR_END: name
+
+-- ANCHOR: sign
+sign : [Shape]
+sign =
+  [ Rect { width = 3, height = 3 }
+  , Circle { radius = 2 }
+  , Triangle { base = 4, height = 5 }
+  , Rect { width = 2, height = 5 } ]
+-- ANCHOR_END: sign
+
+-- ANCHOR: final
+( [(name s, area s) | s <- sign]
+, Rect { width = 2, height = 5 } == Rect { height = 5, width = 2 } )
+-- ANCHOR_END: final
