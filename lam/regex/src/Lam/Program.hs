@@ -269,11 +269,14 @@ evaluate handle session e =
     table = sessionData session
     types = sessionTypes session
     -- ANCHOR: defaultIO
-    -- pure 1 could be any monad: then it is an IO, as in GHCi.
-    -- pure 1 はどのモナドでもありうる。そのときは、GHCi と同じく IO
+    -- pure 1 could be any Applicative (or monad): then it is an IO,
+    -- as in GHCi.
+    -- pure 1 はどの Applicative（やモナド）でもありうる。そのときは、
+    -- GHCi と同じく IO
     typed = case inferType table types e of
       Right (Forall _ ns (TApp (TVar m) _), _)
-        | Declared "Monad" `elem` Map.findWithDefault mempty m ns ->
+        | any (`elem` Map.findWithDefault mempty m ns)
+              [Declared "Applicative", Declared "Monad"] ->
             inferIO table types Nothing e
       other -> other
     -- ANCHOR_END: defaultIO

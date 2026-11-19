@@ -2587,12 +2587,14 @@ main = hspec $ do
     -- ANCHOR_END: ioTypes
 
     -- ANCHOR: monadTypes
-    -- 「pure と bind は、クラス Monad のメソッド」
-    it "makes pure and bind the methods of Monad" $
+    -- 「pure と ap は Applicative、bind は Monad のメソッド」
+    it "makes pure and ap the methods of Applicative, and bind of Monad" $
       runLines
-        [ ":type pure", ":type bind", ":type forEach", ":type mapM" ]
+        [ ":type pure", ":type ap", ":type bind"
+        , ":type forEach", ":type mapM" ]
         `shouldBe`
-          [ "Monad f => a -> f a"
+          [ "Applicative f => a -> f a"
+          , "Applicative f => f (a -> b) -> f a -> f b"
           , "Monad f => f a -> (a -> f b) -> f b"
           , "Monad f => [a] -> (a -> f b) -> f ()"
           , "Monad f => (a -> f b) -> [a] -> f [b]" ]
@@ -2638,6 +2640,69 @@ main = hspec $ do
           , "[(1, \"a\"), (1, \"b\"), (2, \"a\"), (2, \"b\")] : [(Int, String)]"
           , "Just [3, 1, 2] : Maybe [Int]" ]
     -- ANCHOR_END: doMonads
+
+    -- ANCHOR: applicativeOps
+    -- 「<$> と <*> で、箱の中の値を1つの関数に渡す」
+    it "gives the values in boxes to one function with <$> and <*>" $
+      runLines
+        [ ":type (<$>)", ":type (<*>)"
+        , "(+) <$> Just 1 <*> Just 2"
+        , "(+) <$> Just 1 <*> Nothing"
+        , "(+) <$> Ok 1 <*> Err \"no b\""
+        , "(+) <$> [1, 2] <*> [10, 20]"
+        , "(+) <$> Just 1 <*> Just 2 == Just 3" ]
+        `shouldBe`
+          [ "Functor f => (a -> b) -> f a -> f b"
+          , "Applicative f => f (a -> b) -> f a -> f b"
+          , "Just 3 : Maybe Int", "Nothing : Maybe Int"
+          , "Err \"no b\" : Result String Int"
+          , "[11, 21, 12, 22] : [Int]"
+          , "true : Bool" ]
+    -- ANCHOR_END: applicativeOps
+
+    -- ANCHOR: adoSugar
+    -- 「ado は、隠した名前の map と ap に開く」
+    it "opens ado into the hidden map and ap" $
+      map (fmap render . parseExpr)
+        [ "ado x <- Just 1; y <- Just 2; pure (x + y)"
+        , "ado putStr \"a\"; s <- getLine; pure s"
+        , "ado pure 3" ]
+        `shouldBe` map Right
+          [ "$do.ap ($do.map (\\x -> \\y -> x + y) (Just 1)) (Just 2)"
+          , "$do.ap ($do.map (\\$_ -> \\s -> s) (putStr \"a\")) getLine"
+          , "$do.pure 3" ]
+    -- ANCHOR_END: adoSugar
+
+    -- ANCHOR: adoErrors
+    -- 「ado の行は、上の行の名前を使えない。最後は pure」
+    it "says why an ado cannot be opened" $
+      runLines
+        [ "ado x <- Just 1; y <- Just x; pure y"
+        , "ado x <- Just 1; x" ]
+        `shouldBe`
+          [ "<repl>:1:37:\n  |\n1 | ado x <- Just 1; y <- Just x; pure y\n\
+            \  |                                     ^\n\
+            \in an ado, a line cannot use x from a line above (use do)\n"
+          , "<repl>:1:19:\n  |\n1 | ado x <- Just 1; x\n\
+            \  |                   ^\n\
+            \the last line of an ado must be pure, then an expression\n" ]
+    -- ANCHOR_END: adoErrors
+
+    -- ANCHOR: adoTypes
+    -- 「ado は Applicative だけ、do は Monad を求める」
+    it "needs only an Applicative for an ado" $
+      runLinesIn emptyWorld { worldInput = ["Lam", "3"] }
+        [ "both a b = ado x <- a; y <- b; pure (x, y)"
+        , "bothDo a b = do x <- a; y <- b; pure (x, y)"
+        , "both (Just 1) (Just \"one\")"
+        , "both getLine getLine" ]
+        `shouldBe`
+          ( [ "both : Applicative f => f a -> f b -> f (a, b)"
+            , "bothDo : Monad f => f a -> f b -> f (a, b)"
+            , "Just (1, \"one\") : Maybe (Int, String)"
+            , "(Just \"Lam\", Just \"3\") : (Maybe String, Maybe String)" ]
+          , emptyWorld )
+    -- ANCHOR_END: adoTypes
 
     -- ANCHOR: makingIsNotDoing
     -- 「作るだけでは、何も起きない。やるたびに起きる」
@@ -2742,7 +2807,7 @@ main = hspec $ do
     -- ANCHOR_END: checkMain
 
     -- ANCHOR: ioGolden
-    mapM_ (golden . ("io/" <>)) ["hello", "shop"]
+    mapM_ (golden . ("io/" <>)) ["hello", "shop", "ado"]
     -- ANCHOR_END: ioGolden
 
   -- 「失敗を早めに返す：? と後始末」
@@ -3313,7 +3378,7 @@ main = hspec $ do
     -- 「大きなファイル（テストの中で作る）を、本物の世界で1行ずつ数える」
     it "counts a big file of the real world, one line at a time" $ do
       dir <- getTemporaryDirectory
-      let path = dir </> "lam-streams-big.log"
+      let path = dir </> "lam-outside-big.log"
           statuses = cycle ["200", "200", "304", "404", "200", "500"]
           lines' = [ "t GET / " <> s <> " 1ms" | s <- take 200000 statuses ]
       B.writeFile path (encodeUtf8 (T.unlines lines'))
@@ -3582,11 +3647,16 @@ main = hspec $ do
     it "opens a do of parsers into $do.bind, as any do" $
       fmap render (parseExpr "do\n  x <- p\n  q\n  pure x")
         `shouldBe` Right "$do.bind p (\\x -> $do.bind q (\\$_ -> pure x))"
-    -- 「Parser は Functor と Monad の仲間。map・pure・bind が使える」
-    it "has Parser in Functor and Monad" $
+    -- 「Parser は Functor・Applicative・Monad の仲間。map・pure・ap・
+    --   bind が使え、ado と <*> も使える」
+    it "has Parser in Functor, Applicative and Monad" $
       runLines
         [ ":type map (\\n -> n + 1) Parser.int"
         , ":type do x <- Parser.int; pure (x, x)"
+        , "Parser.run (ado a <- Parser.int; Parser.string \",\";\
+          \ b <- Parser.int; pure (a, b)) \"1,2\" |> toMaybe"
+        , "Parser.run ((++) <$> Parser.string \"1\" <*> Parser.string \"2\")\
+          \ \"12\" |> toMaybe"
         , "Parser.run (bind Parser.int (\\n -> pure (n + 1))) \"41\"\
           \ |> toMaybe"
         , "Parser.run (Parser.andThen (\\n -> pure (n + 1)) Parser.int)\
@@ -3596,6 +3666,8 @@ main = hspec $ do
         `shouldBe`
           [ "Parser Int"
           , "Parser (Int, Int)"
+          , "Just (1, 2) : Maybe (Int, Int)"
+          , "Just \"12\" : Maybe String"
           , "Just 42 : Maybe Int"
           , "Just 42 : Maybe Int"
           , "Just 42 : Maybe Int" ]
@@ -3754,25 +3826,29 @@ main = hspec $ do
     -- ANCHOR_END: decodeBasics
 
     -- ANCHOR: decodeMonad
-    -- 「Decoder は Functor と Monad の仲間。do は最初の問題で止まり、
-    --   map2 は両方の問題を返す」
-    it "stops a do at the first problem, and map2 gives both" $
+    -- 「Decoder は Functor・Applicative・Monad の仲間。do は最初の問題で
+    --   止まり、map2 と ado は両方の問題を返す」
+    it "stops a do at the first problem, and map2 and ado give both" $
       runLines
         [ ":type do x <- Decode.int; pure (x, x)"
         , "let pair = Decode.map2 (\\a b -> (a, b))\
           \ (Decode.field \"a\" Decode.int) (Decode.field \"b\" Decode.int)"
         , "let pairDo = do a <- Decode.field \"a\" Decode.int;\
           \ b <- Decode.field \"b\" Decode.int; pure (a, b)"
+        , "let pairAdo = ado a <- Decode.field \"a\" Decode.int;\
+          \ b <- Decode.field \"b\" Decode.int; pure (a, b)"
         , "let count d = Decode.fromString d \"{}\"\
           \ |> Result.mapError length"
-        , "(count pair, count pairDo)"
+        , "(count pair, count pairDo, count pairAdo)"
         , "Decode.fromString pair \"{\\\"a\\\": 1, \\\"b\\\": 2}\" |> toMaybe" ]
         `shouldBe`
           [ "Decoder (Int, Int)"
           , "pair : Decoder (Int, Int)"
           , "pairDo : Decoder (Int, Int)"
+          , "pairAdo : Decoder (Int, Int)"
           , "count : Decoder a -> Result Int a"
-          , "(Err 2, Err 1) : (Result Int (Int, Int), Result Int (Int, Int))"
+          , "(Err 2, Err 1, Err 2) : (Result Int (Int, Int), \
+            \Result Int (Int, Int), Result Int (Int, Int))"
           , "Just (1, 2) : Maybe (Int, Int)" ]
     -- ANCHOR_END: decodeMonad
 

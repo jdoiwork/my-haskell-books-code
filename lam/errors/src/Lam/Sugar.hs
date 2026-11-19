@@ -18,15 +18,23 @@ module Lam.Sugar
   , pipeLeft
   , composeRight
   , composeLeft
+  , mapOver
+  , apply
   , Statement (..)
   , doBind
   , doPure
   , tryBranch
   , doFinally
   , doBlock
+  , adoBlock
+  , doMap
+  , doAp
   ) where
 
 import Lam.Syntax
+
+import qualified Data.Set as Set
+import Data.Text (Text)
 -- ANCHOR_END: head
 
 -- ANCHOR: lambda
@@ -156,6 +164,18 @@ composeLeft :: Expr -> Expr -> Expr
 composeLeft g f = composeRight f g
 -- ANCHOR_END: compose
 
+-- ANCHOR: applicativeOps
+-- 🧩 f <$> a  is  map f a,  and  ff <*> a  is  ap ff a  (the map and
+--    ap of the classes, under the hidden names an ado uses too).
+-- f <$> a は map f a、ff <*> a は ap ff a（クラスの map と ap。ado と
+-- 同じ隠した名前で呼ぶ）
+mapOver :: Expr -> Expr -> Expr
+mapOver f a = App (App (Var doMap) f) a
+
+apply :: Expr -> Expr -> Expr
+apply ff a = App (App (Var doAp) ff) a
+-- ANCHOR_END: applicativeOps
+
 -- ANCHOR: statement
 -- 📝 One line of a do.
 -- do の1行
@@ -216,6 +236,54 @@ doBlock statements = case statements of
 doBind :: Name
 doBind = "$do.bind"
 -- ANCHOR_END: doBlock
+
+-- ANCHOR: adoBlock
+-- 🧩 ado: the lines do not look at each other, so they are given to
+--    one function all at once, with map and ap:
+--      ado a <- ea; b <- eb; c <- ec; pure body
+--        is  $do.ap ($do.ap ($do.map (\a b c -> body) ea) eb) ec
+--      ado pure body  is  $do.pure body
+--    A line that uses a name from a line above would need bind: then
+--    it is an error, with the name.
+-- ado：行どうしは、おたがいを見ないので、map と ap で、1つの関数に
+-- まとめて渡す。上の行の名前を使う行には bind が要るので、その名前を
+-- 添えてエラーにする
+adoBlock :: [Statement] -> Either Text Expr
+adoBlock statements = case reverse statements of
+  DoRun (App (Var "pure") body) : rest -> do
+    lines' <- traverse line (reverse rest)
+    checkApart Set.empty lines'
+    pure $ case lines' of
+      [] -> App (Var doPure) body
+      (_, e) : more ->
+        foldl (\acc (_, x) -> App (App (Var doAp) acc) x)
+              (App (App (Var doMap) (lambdaWith (map fst lines') body)) e)
+              more
+  -- 「ado の最後の行は、pure 式でなければなりません」
+  _ -> Left "the last line of an ado must be pure, then an expression"
+  where
+    line s = case s of
+      DoBind p e -> Right (p, e)
+      DoRun e    -> Right (PWild, e)
+      DoLet _ _        -> letLine
+      DoLetPattern _ _ -> letLine
+      -- 「ado の中には ? も defer も書けません（do を使ってください）」
+      _          -> Left "an ado cannot have ? or defer (use do)"
+    -- 「ado の中には let を書けません」
+    letLine = Left "an ado cannot have a let line"
+    checkApart _ [] = Right ()
+    checkApart seen ((p, e) : more) =
+      case Set.toList (Set.intersection seen (freeVars e)) of
+        x : _ -> Left ("in an ado, a line cannot use " <> x
+                       <> " from a line above (use do)")
+        []    -> checkApart (seen <> patternVars p) more
+
+-- 🙈 The hidden names of map and ap (pure is $do.pure).
+-- map と ap の隠した名前（pure は $do.pure）
+doMap, doAp :: Name
+doMap  = "$do.map"
+doAp   = "$do.ap"
+-- ANCHOR_END: adoBlock
 
 -- ANCHOR: tryThen
 -- ❓ What comes after  p <- e ?  : the answer of e is a container

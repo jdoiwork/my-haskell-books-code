@@ -125,7 +125,7 @@ keywords =
   , "module", "import"
   -- ANCHOR_END: keywordsModules
   -- ANCHOR: keywordsDo
-  , "do"
+  , "do", "ado"
   -- ANCHOR_END: keywordsDo
   -- ANCHOR: keywordsDefer
   , "defer" ]
@@ -608,6 +608,12 @@ operatorRows =
   -- a、次に b を試す。++ より弱く、== より強い
   , [ (RightA, "?:", binary OrElse) ]
   -- ANCHOR_END: orElseRow
+  -- ANCHOR: applicativeRow
+  -- f <$> a <*> b: map, then ap. Leaning left, as in Haskell; looser
+  -- than ?:, tighter than ==.
+  -- map してから ap。Haskell と同じく左に寄る。?: より弱く、== より強い
+  , [ (LeftA, "<$>", Operator mapOver), (LeftA, "<*>", Operator apply) ]
+  -- ANCHOR_END: applicativeRow
   , [ (NoneA, "==", binary Eq), (NoneA, "/=", binary Ne)
     , (NoneA, "<",  binary Lt), (NoneA, "<=", binary Le)
     , (NoneA, ">",  binary Gt), (NoneA, ">=", binary Ge) ]
@@ -622,7 +628,7 @@ operatorRows =
 -- The letters that operators are made of.
 -- 演算子を作る文字
 opLetters :: String
-opLetters = "+-*/=<>:&|?"
+opLetters = "+-*/=<>:&|?$"
 
 -- 🧮 Calls and operators together. An operator is not followed by
 --    more operator letters ("+" is not the start of "++", "<" not of
@@ -668,7 +674,7 @@ operatorExprWith rows = makeExprParser application (map (map toInfix) rows)
 -- 🌳 A whole expression. \, let and if reach to the right end.
 -- 式全体。\、let、if は右の端まで続く
 expr :: Parser Expr
-expr = choice [lambda, letIn, ifThenElse, caseOf, doExpr, operatorExpr]
+expr = choice [lambda, letIn, ifThenElse, caseOf, doExpr, adoExpr, operatorExpr]
 
 -- ANCHOR: doExpr
 -- 📝 do, then lines one under another, all at the same column (or
@@ -692,6 +698,23 @@ doExpr = do
     nextLine column = (() <$ symbol ";") <|> do
       now <- L.indentLevel
       if now == column then pure () else empty
+
+-- ANCHOR: adoExpr
+-- 🧩 ado: lines as in a do, and the last one is pure, then an
+--    expression. adoBlock opens it, or says why it cannot.
+-- ado：行は do と同じで、最後の行は pure と式。adoBlock が開くか、
+-- 開けないわけを言う
+adoExpr :: Parser Expr
+adoExpr = do
+  keyword "ado"
+  column <- L.indentLevel
+  lines' <- local (const column) (statement `sepBy1` nextLine column)
+  either (fail . T.unpack) pure (adoBlock lines')
+  where
+    nextLine column = (() <$ symbol ";") <|> do
+      now <- L.indentLevel
+      if now == column then pure () else empty
+-- ANCHOR_END: adoExpr
 
 -- 📝 One line: let x = e,  defer e,  p <- e,  or an expression. A
 --    let followed by in is an expression. The last two may end with ?.

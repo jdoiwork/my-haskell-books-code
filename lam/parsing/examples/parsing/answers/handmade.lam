@@ -24,12 +24,20 @@ instance Functor P where
                 | Nothing -> Nothing
                 | Just (x, rest) -> Just (f x, rest))
 
--- pure reads nothing. bind reads with p, then with the parser that f
--- makes from what p gave.
--- pure は何も読まない。bind は p で読み、p がくれた値から f が作った
--- パーサーで、続きを読む
-instance Monad P where
+-- pure reads nothing. ap reads the function with pf, then the value
+-- with px.
+-- pure は何も読まない。ap は pf で関数を読み、続きを px で読む
+instance Applicative P where
   pure x = P (\cs -> Just (x, cs))
+  ap pf px =
+    P (\cs -> case step pf cs of
+                | Nothing -> Nothing
+                | Just (f, rest) -> step (map f px) rest)
+
+-- bind reads with p, then with the parser that f makes from what p
+-- gave.
+-- bind は p で読み、p がくれた値から f が作ったパーサーで、続きを読む
+instance Monad P where
   bind p f =
     P (\cs -> case step p cs of
                 | Nothing -> Nothing

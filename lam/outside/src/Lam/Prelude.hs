@@ -26,7 +26,7 @@ import Text.Megaparsec (errorBundlePretty, eof)
 import Lam.Module (importInto, standardModule)
 import Lam.Parser (importLine, runLamParser, spaces, fmtName, reName)
 import Lam.Program
-import Lam.Sugar (doBind, doFinally, doPure, tryBranch)
+import Lam.Sugar (doAp, doBind, doFinally, doMap, doPure, tryBranch)
 import Lam.Syntax
 -- ANCHOR_END: head
 
@@ -379,27 +379,57 @@ basicsSource = """
   -- ANCHOR_END: functor
 
   -- ANCHOR: monad
-  -- 🔗 Monad: pure puts a value in, with nothing else; bind takes the
-  --    value out, and gives it to what comes next. A do is opened
-  --    into bind, so a do works for each of these.
-  -- Monad：pure は値を、ほかに何もせずに入れる。bind は値を取り出し、
-  -- 続きに渡す。do は bind に開くので、どの仲間にも do が使える
-  class Functor m => Monad m where
-    pure : a -> m a
+  -- ANCHOR: applicative
+  -- 🧩 Applicative: pure puts a value in, with nothing else; ap gives
+  --    the value in one box to the function in another. Neither box
+  --    looks at what the other holds, so an ado is opened into these.
+  -- Applicative：pure は値を、ほかに何もせずに入れる。ap は、箱の中の
+  -- 関数に、別の箱の中の値を渡す。どちらの箱も、相手の中身を見ないので、
+  -- ado はこの2つに開く
+  class Functor f => Applicative f where
+    pure : a -> f a
+    ap : f (a -> b) -> f a -> f b
+  -- ANCHOR_END: applicative
+
+  -- 🔗 Monad: bind takes the value out, and gives it to what comes
+  --    next. A do is opened into bind, so a do works for each of
+  --    these.
+  -- Monad：bind は値を取り出し、続きに渡す。do は bind に開くので、
+  -- どの仲間にも do が使える
+  class Applicative m => Monad m where
     bind : m a -> (a -> m b) -> m b
 
-  instance Monad Maybe where
+  -- ANCHOR: applicativeInstances
+  instance Applicative Maybe where
     pure x = Just x
+    ap mf mx =
+      case mf of
+        | Nothing -> Nothing
+        | Just f -> map f mx
+
+  instance Applicative (Result e) where
+    pure x = Ok x
+    ap rf rx =
+      case rf of
+        | Err e -> Err e
+        | Ok f -> map f rx
+
+  -- Each function, with each value, in order.
+  -- 関数ごとに、値を全部、順に
+  instance Applicative List where
+    pure x = [x]
+    ap fs xs = concatMap (\\f -> List.map f xs) fs
+  -- ANCHOR_END: applicativeInstances
+
+  instance Monad Maybe where
     bind m f = Maybe.bind m f
 
   instance Monad (Result e) where
-    pure x = Ok x
     bind r f = Result.bind r f
 
   -- Each item, then each of its answers, in order.
   -- 項目ごとに、その答えを全部、順に
   instance Monad List where
-    pure x = [x]
     bind xs f = concatMap f xs
   -- ANCHOR_END: monad
 
@@ -721,15 +751,18 @@ ioSource = """
     , forEachLine, foldLines )
 
   -- ANCHOR: monadIO
-  -- IO joins Functor and Monad with its two builtins (here, without
-  -- IO. in front: returnIO and bindIO).
-  -- IO は、2つの組み込みで Functor と Monad の仲間になる（ここでは
-  -- IO. を付けずに returnIO と bindIO）
+  -- IO joins Functor, Applicative and Monad with its two builtins
+  -- (here, without IO. in front: returnIO and bindIO).
+  -- IO は、2つの組み込みで Functor・Applicative・Monad の仲間になる
+  -- （ここでは IO. を付けずに returnIO と bindIO）
   instance Functor IO where
     map f m = bindIO m (\\x -> returnIO (f x))
 
-  instance Monad IO where
+  instance Applicative IO where
     pure x = returnIO x
+    ap mf mx = bindIO mf (\\f -> bindIO mx (\\x -> returnIO (f x)))
+
+  instance Monad IO where
     bind m f = bindIO m f
   -- ANCHOR_END: monadIO
 
@@ -1172,15 +1205,21 @@ parserSource = """
   -- ANCHOR_END: parseErrorAlias
 
   -- ANCHOR: monadParser
-  -- A Parser joins Functor and Monad with its three builtins (here,
-  -- without Parser. in front). Then a do reads one line after another.
-  -- Parser は、3つの組み込みで Functor と Monad の仲間になる（ここでは
-  -- Parser. を付けずに）。これで、do が1行ずつ読んでいく
+  -- A Parser joins Functor, Applicative and Monad with its three
+  -- builtins (here, without Parser. in front). Then a do reads one
+  -- line after another.
+  -- Parser は、3つの組み込みで Functor・Applicative・Monad の仲間に
+  -- なる（ここでは Parser. を付けずに）。これで、do が1行ずつ読んでいく
   instance Functor Parser where
     map f p = mapParser f p
 
-  instance Monad Parser where
+  -- ap reads the function with pf, then the value with px after it.
+  -- ap は、pf で関数を読み、そのあとを px で読んで値を渡す
+  instance Applicative Parser where
     pure x = pureParser x
+    ap pf px = bindParser pf (\\f -> mapParser f px)
+
+  instance Monad Parser where
     bind p f = bindParser p f
   -- ANCHOR_END: monadParser
 
@@ -1448,15 +1487,25 @@ decodeSource = """
   -- ANCHOR_END: decodeMaybe
 
   -- ANCHOR: monadDecoder
-  -- 🔗 Functor and Monad: then do reads one field after another. A do
-  --    stops at the first problem: the next line may need the value.
-  -- Functor と Monad の仲間。do で、項目を1つずつ読める。do は、
-  -- 最初の問題で止まる（次の行が、その値を使うかもしれないから）
+  -- 🔗 Functor, Applicative and Monad: then do reads one field after
+  --    another. A do stops at the first problem: the next line may
+  --    need the value. But ap (and so <*> and ado) runs both
+  --    decoders, and gives back the problems of both.
+  -- Functor・Applicative・Monad の仲間。do で、項目を1つずつ読める。
+  -- do は、最初の問題で止まる（次の行が、その値を使うかもしれないから）。
+  -- でも ap（だから <*> と ado も）は、両方の Decoder を動かし、両方の
+  -- 問題を返す
   instance Functor Decoder where
     map f d = Decoder (\\j -> Result.map f (run d j))
 
-  instance Monad Decoder where
+  instance Applicative Decoder where
     pure x = succeed x
+    ap df dx =
+      Decoder (\\j -> case (run df j, run dx j) of
+                       | (Ok f, Ok x) -> Ok (f x)
+                       | (rf, rx) -> Err (problems rf ++ problems rx))
+
+  instance Monad Decoder where
     bind d f =
       Decoder (\\j -> case run d j of
                        | Ok x -> run (f x) j
@@ -1893,7 +1942,7 @@ formatNames =
 hiddenNames :: [(Name, Name)]
 hiddenNames =
   [ (fmtName x, x) | x <- formatNames ]
-    <> [ (doBind, "bind"), (doPure, "pure")
+    <> [ (doBind, "bind"), (doMap, "map"), (doAp, "ap"), (doPure, "pure")
        , (tryBranch, "branch"), (doFinally, "IO.finally")
        , (mainBind, "IO.bindIO"), (mainArgs, "IO.getArgs")
        , (mainEnv, "IO.getEnvironment") ]
