@@ -1,0 +1,5 @@
+-- 🐛 The annotation lets a and b differ, but the definition gives back
+--    the first one twice.
+-- 注釈は a と b がちがってよいと言うが、定義は1つ目を2回返す
+swap : (a, b) -> (b, a)
+swap (x, y) = (x, x)

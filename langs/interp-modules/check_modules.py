@@ -7,16 +7,16 @@ import os, subprocess, sys
 here = os.path.dirname(os.path.abspath(__file__))
 node = os.environ.get("BOOK_NODE", "node")
 
-py = subprocess.run([sys.executable, "receipt.py"], cwd=os.path.join(here, "run/py"),
+py = subprocess.run([sys.executable, "menu.py"], cwd=os.path.join(here, "run/py"),
                     capture_output=True, text=True, check=True).stdout
 assert py == "1,200 yen\n350 yen\nnot a price\n-5 yen\n", py
-print("ok receipt.py")
+print("ok menu.py")
 
 js_dir = os.path.join(here, "run/js")
-js = subprocess.run([node, "receipt.mjs"], cwd=js_dir, capture_output=True,
+js = subprocess.run([node, "menu.mjs"], cwd=js_dir, capture_output=True,
                     text=True, check=True).stdout
 assert js == "1,200 yen\n350 yen\nnot a price\nundefined\n", js
-print("ok receipt.mjs")
+print("ok menu.mjs")
 
 cheat = subprocess.run([node, "cheat.mjs"], cwd=js_dir, capture_output=True,
                        text=True)

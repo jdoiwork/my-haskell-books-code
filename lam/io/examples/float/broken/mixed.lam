@@ -1,0 +1,8 @@
+-- 🐛 An Int times a Float: Lam does not turn one into the other.
+-- Int かける Float。Lam は、片方をもう片方に勝手に変えない
+--   lam examples/float/broken/mixed.lam
+
+scores : [Int]
+scores = [82, 75, 91]
+
+length scores * 1.5

@@ -1,1 +1,0 @@
-examples/answers/cheat.lam:6:35: in the definition of main: type error: Percent.Percent is hidden by the module Percent (it is not in its exposing list)

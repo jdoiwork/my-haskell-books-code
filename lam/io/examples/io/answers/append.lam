@@ -1,0 +1,23 @@
+-- ANCHOR: all
+-- 📝 Step 3 of the training: appendFile, made of readFile and writeFile.
+-- トレーニングのステップ3：readFile と writeFile から appendFile を作る
+
+-- 📝 Add text to the end of a file. A file that is not there yet is made.
+-- ファイルの終わりに文字を足す。まだないファイルは作る
+appendFile : String -> String -> IO (Result String ())
+appendFile path text = do
+  old <- readFile path
+  case old of
+    | Ok s -> writeFile path (s ++ text)
+    | Err _ -> writeFile path text
+
+main : IO ()
+main = do
+  _ <- writeFile "log.txt" "started\n"
+  _ <- appendFile "log.txt" "step 1\n"
+  _ <- appendFile "log.txt" "step 2\n"
+  log <- readFile "log.txt"
+  case log of
+    | Ok text -> putStr text
+    | Err why -> putStrLn why
+-- ANCHOR_END: all

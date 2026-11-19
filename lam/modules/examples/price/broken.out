@@ -1,1 +1,0 @@
-examples/price/broken.lam:6:34: in the definition of main: type error: Price.Price is hidden by the module Price (it is not in its exposing list)

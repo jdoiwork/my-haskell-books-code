@@ -1,0 +1,20 @@
+-- ANCHOR: all
+-- 📥 Step 1 of the training: getContents, made of getLine.
+-- トレーニングのステップ1：getLine から getContents を作る
+
+-- 📜 Every line still to be read, each one with its line break.
+-- まだ読んでいない行を全部。どの行にも改行を付ける
+getContents : IO String
+getContents = do
+  line <- getLine
+  case line of
+    | Nothing -> pure ""
+    | Just s -> do
+        rest <- getContents
+        pure f"{s}\n{rest}"
+
+main : IO ()
+main = do
+  text <- getContents
+  putStr (toUpper text)
+-- ANCHOR_END: all

@@ -5,22 +5,27 @@
 # "inside only", but it is only a promise between people.
 # `from price import *` が持ってくる名前。頭の _ は「中だけで使う」の
 # 印だが、人どうしの約束にすぎない
-__all__ = ["Price", "from_yen", "add", "show"]
+__all__ = ["Price", "from_yen", "yen", "add"]
 
 
 class Price:
     def __init__(self, yen: int) -> None:
         self._yen = yen
 
+    # Lam's  instance Display Price: f"{p}" calls it.
+    # Lam の instance Display Price と同じ。f"{p}" が呼ぶ
+    def __str__(self) -> str:
+        return f"{self._yen:,} yen"
+
 
 def from_yen(n: int) -> Price | None:
     return None if n < 0 else Price(n)
 
 
+def yen(p: Price) -> int:
+    return p._yen
+
+
 def add(a: Price, b: Price) -> Price:
     return Price(a._yen + b._yen)
-
-
-def show(p: Price) -> str:
-    return f"{p._yen:,} yen"
 # ANCHOR_END: all

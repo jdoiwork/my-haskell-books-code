@@ -1,0 +1,22 @@
+-- ANCHOR: all
+-- 📊 How far the chapters are, with Percent.fromInt.
+-- 章の進み具合を、Percent.fromInt で
+--   lam> :load examples/modules/answers/progress.lam
+--   lam> :print report
+import Percent
+
+line (name, n) =
+  case Percent.fromInt n of
+    | Just p -> f"{name:<8}{Percent.bar p} {p}"
+    | Nothing -> f"{name:<8}not a percent: {n}"
+
+sumLine =
+  case (Percent.fromInt 60, Percent.fromInt 70) of
+    | (Just a, Just b) -> f"60% + 70% = {Percent.add a b}"
+    | _ -> "?"
+
+report =
+  map line [("strings", 100), ("modules", 70), ("oops", 120)] ++ [sumLine]
+
+report
+-- ANCHOR_END: all

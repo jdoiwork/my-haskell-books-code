@@ -1,16 +1,13 @@
 -- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main (main) where
 
 import qualified Data.Aeson as A
+import Data.List (nub, sortOn)
 import qualified Data.Aeson.Key as Key
-import Data.Char (isAlpha, toLower)
-import Data.Either (isLeft)
-import Data.Functor.Identity (runIdentity)
-import Data.List (sortOn)
-import Data.Ord (Down (..))
-import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Scientific (scientific)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -19,43 +16,38 @@ import Test.Hspec
 import Test.QuickCheck
 import qualified Data.Vector as V
 import qualified Control.Exception as E
-import System.Directory (doesDirectoryExist, doesFileExist, listDirectory)
 import System.Timeout (timeout)
 
+import Data.Either (isLeft)
+
+import Lam.Answers
+import Lam.Module
+import Data.Functor.Identity (Identity, runIdentity)
+import Control.Monad.State.Strict (modify, runState)
+import Data.Maybe (fromMaybe)
+import System.Directory (doesDirectoryExist, doesFileExist, listDirectory)
+import System.FilePath (dropExtension, splitSearchPath, takeExtension, (</>))
+import Lam.Format (groupDigits, padLeft, padRight, center, zeroPad)
 import Lam.Builtins (preludeConstructors)
-import Lam.Format (center, groupDigits, padLeft, padRight, zeroPad)
+import Lam.Stdlib (splitOn)
 import Lam.Json (fromAeson, toAeson)
 import Lam.Parser
-import Lam.Pcre (Cut (..), Regex (..), compileRegex)
 import Lam.Prelude
 import Lam.Pretty
 import Lam.Program
-import Lam.Module
-import Lam.Answers (importGraph, toDot)
 import Lam.Repl
 import Lam.Syntax
 import Lam.Types
-import Lam.World
-import Control.Monad.State.Strict (modify, runState)
 -- ANCHOR_END: head
 
 -- ANCHOR: run
 -- 🔁 Type the lines into a REPL with the prelude, one by one.
---    IO is done in a fake world, with nothing to read.
--- プレリュード入りの REPL に、1行ずつ打ちこむ。
--- IO は、読むものが何もない偽物の世界でやる
+-- プレリュード入りの REPL に、1行ずつ打ちこむ
 runLines :: [Text] -> [Text]
-runLines inputs = fst (runLinesIn emptyWorld inputs)
-
--- 🎭 The same, in a given fake world. The answer has the world after.
--- 同じだが、渡した偽物の世界で。答えには、あとの世界も入る
-runLinesIn :: FakeWorld -> [Text] -> ([Text], FakeWorld)
-runLinesIn world inputs = runFake world (go preludeSession inputs)
+runLines inputs = snd (foldl go (preludeSession, []) inputs)
   where
-    go _ [] = pure []
-    go s (line : rest) = do
-      (s', out) <- step fakeWorld s line
-      (out :) <$> go s' rest
+    go (s, outs) line =
+      let (s', out) = step s line in (s', outs <> [out])
 -- ANCHOR_END: run
 
 -- ANCHOR: genText
@@ -70,72 +62,103 @@ genText = T.pack <$> listOf (frequency
 -- ANCHOR_END: genText
 
 -- ANCHOR: golden
--- 📜 Run an example program, as `lam file.lam args...` would show it,
---    but in a fake world: the keyboard types the lines of the .in file
---    (if there is one), the arguments are the lines of the .args file
---    (if there is one), the environment is the KEY=VALUE lines of the
---    .env file (if there is one), and the files are
---    examples/orders.json and every .lam file under examples/ (for
---    the modules). The standard error comes after the standard output,
---    and exit n (but not 0) is shown at the end as [exit n].
--- 例のプログラムを、lam file.lam 引数... と同じように動かす。ただし
--- 偽物の世界で。キーボードは .in ファイルの行（あれば）を打ち、引数は
--- .args ファイルの行（あれば）、環境変数は .env ファイルの KEY=VALUE の
--- 行（あれば）、ファイルは examples/orders.json と、examples/ の下の
--- .lam ファイル全部（モジュールのため）。
--- 標準エラーは標準出力の後ろに、exit n（0 のほか）は最後に [exit n] と見せる
+-- 📜 Run an example program, as `lam file.lam` would show it. The
+--    files are every .lam file under examples/ (for the modules), and
+--    LAM_PATH is the line of the .env file (if there is one).
+-- 例のプログラムを、lam file.lam と同じように動かす。ファイルは、
+-- examples/ の下の .lam ファイル全部（モジュールのため）。LAM_PATH は、
+-- .env ファイルの行（あれば）
 runExample :: FilePath -> IO Text
-runExample base = do
-  source <- Utf8.readFile (base <> ".lam")
-  input  <- linesOf (base <> ".in")
-  args   <- linesOf (base <> ".args")
-  env    <- linesOf (base <> ".env")
-  orders <- Utf8.readFile "examples/orders.json"
+runExample file = do
+  source  <- Utf8.readFile file
   modules <- lamFiles "examples"
-  let world = emptyWorld
-        { worldInput = input
-        , worldArgs  = args
-        , worldEnv   = Map.fromList [ (k, T.drop 1 v)
-                                    | l <- env, let (k, v) = T.breakOn "=" l ]
-        , worldFiles =
-            Map.fromList (("examples/orders.json", orders) : modules) }
-      (result, world') =
-        runFake world (runProgram fakeWorld (fakeFiles world)
-                         preludeSession (base <> ".lam") source)
-      shown = case result of
-        Finished ""  -> ""
-        Finished out -> out <> "\n"
-        Errored err  -> err <> "\n"
-        ExitedWith 0 -> ""
-        ExitedWith n -> "[exit " <> T.pack (show n) <> "]\n"
-  pure (outputOf world' <> errorsOf world' <> shown)
+  env     <- linesOf (dropExtension file <> ".env")
+  let path  = [ T.unpack (T.drop 1 v)
+              | l <- env, let (k, v) = T.breakOn "=" l, k == "LAM_PATH" ]
+      files = mapFiles (Map.fromList modules)
+                (concatMap (splitSearchPath) path)
+  pure $ case runIdentity (loadProgram files preludeSession preludeSession
+                             file source) of
+    Right (_, Just out) -> out <> "\n"
+    Right (_, Nothing)  -> ""
+    Left err            -> err <> "\n"
   where
-    linesOf file = do
-      there <- doesFileExist file
-      if there then T.lines <$> Utf8.readFile file else pure []
+    linesOf f = do
+      there <- doesFileExist f
+      if there then T.lines <$> Utf8.readFile f else pure []
 
 -- 📂 Every .lam file under a folder: its path and its text.
 -- フォルダーの下の .lam ファイル全部：道と中身
-lamFiles :: FilePath -> IO [(Text, Text)]
+lamFiles :: FilePath -> IO [(FilePath, Text)]
 lamFiles dir = do
   names <- listDirectory dir
   concat <$> mapM (\n -> do
-    let path = dir <> "/" <> n
+    let path = dir </> n
     folder <- doesDirectoryExist path
     if folder then lamFiles path
-    else if ".lam" `T.isSuffixOf` T.pack n
-      then (\t -> [(T.pack path, t)]) <$> Utf8.readFile path
+    else if takeExtension n == ".lam"
+      then (\t -> [(path, t)]) <$> Utf8.readFile path
       else pure []) names
+
+-- 🗂️ Files from a Map (no disk), and the folders of LAM_PATH.
+-- Map のファイル（ディスクなし）と、LAM_PATH のフォルダー
+mapFiles :: Map.Map FilePath Text -> [FilePath] -> Files Identity
+mapFiles table = Files (\f -> pure (Map.lookup f table))
+
+-- 📜 Load a program that imports nothing of its own.
+-- 自分の import がないプログラムを読みこむ
+loadPlain :: Session -> FilePath -> Text -> Either Text (Session, Maybe Text)
+loadPlain session file source =
+  runIdentity (loadProgram noFiles preludeSession session file source)
 
 -- 🥇 Golden test: the output must be the same as the .out file.
 -- ゴールデンテスト：出力が .out ファイルと同じであること
 golden :: String -> Spec
 golden base =
   it ("examples/" <> base <> ".lam") $ do
-    actual   <- runExample ("examples/" <> base)
+    actual   <- runExample ("examples/" <> base <> ".lam")
     expected <- Utf8.readFile ("examples/" <> base <> ".out")
     actual `shouldBe` expected
 -- ANCHOR_END: golden
+
+-- ANCHOR: genPair
+-- 🎲 A key and a value. The keys are few, so the same key comes often.
+-- キーと値。キーは少しだけなので、同じキーがよく出る
+genPair :: Gen (Text, Integer)
+genPair = (,) <$> elements ["a", "b", "λ", "\"q\""] <*> choose (0, 9)
+
+-- 🖨️ Pairs, as Lam writes them: [("a", 1), ("b", 2)]
+-- 組のリストを、Lam の書き方で
+lamPairs :: [(Text, Integer)] -> Text
+lamPairs kvs = "[" <> T.intercalate ", "
+  [ "(" <> renderString k <> ", " <> T.pack (show v) <> ")" | (k, v) <- kvs ]
+  <> "]"
+-- ANCHOR_END: genPair
+
+-- ANCHOR: genAeson
+-- 🎲 Any JSON value of aeson, not too big. The numbers are made of
+--    two whole numbers, as aeson keeps them: 1999 and -2 is 19.99.
+-- aeson の JSON の値（大きすぎないもの）。数は、aeson と同じく、
+-- 2つの整数から作る
+genAeson :: Gen A.Value
+genAeson = sized go
+  where
+    go n = oneof $
+      [ pure A.Null
+      , A.Bool <$> arbitrary
+      , A.Number <$> (scientific <$> arbitrary <*> choose (-30, 30))
+      , A.String <$> genText ]
+      <> if n <= 0 then [] else
+           [ A.Array . V.fromList <$> few (go (n `div` 3))
+           , A.object <$> few
+               ((\k v -> (Key.fromText k, v))
+                  <$> genText <*> go (n `div` 3)) ]
+    -- 0 to 4 of them, so that the value does not grow too big.
+    -- 0〜4個。値が大きくなりすぎないように
+    few g = do
+      k <- choose (0, 4)
+      vectorOf k g
+-- ANCHOR_END: genAeson
 
 main :: IO ()
 main = hspec $ do
@@ -172,12 +195,14 @@ main = hspec $ do
             [ "gcd 84 36", "compose not even 7"
             , "let add x y = x + y", "add 1 2"
             , "let bad = not 1", ":type twice twice" ]
-      runLines inputs
+          go (s, outs) line =
+            let (s', out) = step s line in (s', outs <> [out])
+      snd (foldl go (preludeSession, []) inputs)
         `shouldBe`
           [ "12 : Int", "true : Bool"
-          , "add : Int -> Int -> Int", "3 : Int"
+          , "add : Number a => a -> a -> a", "3 : Int"
           , "in the definition of bad: type error: \
-            \the types do not fit: Int where Bool is needed"
+            \Bool is not in the class Number"
           , "(a -> a) -> a -> a" ]
 
   -- 「文字列」
@@ -203,7 +228,7 @@ main = hspec $ do
           , "\"LAM\" : String"
           , "3 : Int"
           , "\"say \\\"hi\\\"\\n\" : String"
-          , "type error: the types do not fit: Int where String is needed" ]
+          , "type error: String is not in the class Number" ]
     -- ANCHOR_END: stringExamples
 
   -- 「タプルとリスト」
@@ -231,7 +256,7 @@ main = hspec $ do
           , "[1, 2, 3] : [Int]"
           , "3 : Int"
           , "type error: Int is not in the class HasLength"
-          , "type error: the types do not fit: Bool where Int is needed"
+          , "type error: Bool is not in the class Number"
           , "error: head: the list is empty" ]
     -- ANCHOR_END: collections
 
@@ -241,19 +266,19 @@ main = hspec $ do
       map (\n -> renderScheme <$> Map.lookup n (sessionTypes preludeSession))
         ["foldr", "map", "filter", "length", "range"]
         `shouldBe` map Just
-          [ "(a -> b -> b) -> b -> [a] -> b"
-          , "(a -> b) -> [a] -> [b]"
+          [ "Foldable f => (a -> b -> b) -> b -> f a -> b"
+          , "Functor f => (a -> b) -> f a -> f b"
           , "(a -> Bool) -> [a] -> [a]"
           , "HasLength a => a -> Int"
-          , "Int -> Int -> [Int]" ]
+          , "(Comparable a, Number a) => a -> a -> [a]" ]
     -- ANCHOR_END: listPrelude
 
     -- ANCHOR: listLikeHaskell
     -- 「Lam のリストの関数は、Haskell のものと同じ答えを出す」
     it "computes the same lists as Haskell" $
-      -- Lam has no negative numbers to write, so 0 to 9.
-      -- Lam には負の数の書き方がないので、0 から 9
-      property $ forAll (listOf (choose (0, 9))) $ \xs ->
+      -- Negative numbers, too: renderList writes -3 as it is.
+      -- 負の数も。renderList は -3 をそのまま書く
+      property $ forAll (listOf (choose (-9, 9))) $ \xs ->
         let source = "reverse (filter (\\x -> x > 4) "
                      <> renderList xs <> ")"
         in runLines [source]
@@ -289,10 +314,10 @@ main = hspec $ do
     -- 「&& と || は、要らないときは右側を計算しない」
     it "does not compute the right side when it is not needed" $
       runLines
-        [ "and false (1 / 0 == 0)"
-        , "false && 1 / 0 == 0"
-        , "true || 1 / 0 == 0"
-        , "true && 1 / 0 == 0" ]
+        [ "and false (1 // 0 == 0)"
+        , "false && 1 // 0 == 0"
+        , "true || 1 // 0 == 0"
+        , "true && 1 // 0 == 0" ]
         `shouldBe`
           [ "error: divided by zero"
           , "false : Bool"
@@ -314,224 +339,37 @@ main = hspec $ do
   describe "examples" $
     mapM_ golden
       [ "fib", "church", "broken", "answers", "strings", "words", "shapes"
-      , "result", "tree", "orders", "count", "cents", "hello", "report"
-      , "receipt", "shoplog", "pair", "csv", "calc", "menu"
-      , "wordfreq", "greet", "average", "echo", "shout", "sum", "wc" ]
+      , "sugar"
+      -- ANCHOR: recordGolden
+      , "records/annotate", "records/report", "records/tuples"
+      , "records/crew", "records/shapes", "records/scores"
+      , "records/broken/unnoted", "records/broken/noted"
+      , "records/broken/first", "records/broken/swap"
+      , "records/broken/largest", "records/broken/len"
+      , "records/broken/len-late", "records/broken/order"
+      -- ANCHOR_END: recordGolden
+      -- ANCHOR: floatGolden
+      , "float/temps", "float/split", "float/prices"
+      , "float/broken/mixed", "float/broken/called"
+      -- ANCHOR_END: floatGolden
+      -- ANCHOR: classGolden
+      , "classes/before", "classes/describe", "classes/byhand"
+      , "classes/containers", "classes/combine", "classes/defaults"
+      , "classes/ranked", "classes/broken/missing", "classes/broken/unsaid"
+      , "classes/broken/ambiguous", "classes/broken/ambiguous-fixed"
+      , "classes/broken/super"
+      -- ANCHOR_END: classGolden
+      -- ANCHOR: jsonGolden
+      , "json/grid", "json/orders", "json/tojson"
+      -- ANCHOR_END: jsonGolden
+      -- ANCHOR: stdlibGolden
+      , "stdlib/signup", "stdlib/quiz", "stdlib/tally", "stdlib/team"
+      , "stdlib/skipped"
+      -- ANCHOR_END: stdlibGolden
+      -- ANCHOR: formatGolden
+      , "format/money" ]
+      -- ANCHOR_END: formatGolden
   -- ANCHOR_END: examples
-
-  -- 「モジュール」
-  describe "modules" $ do
-    -- ANCHOR: moduleGolden
-    mapM_ golden
-      [ "wordfreq/wordfreq", "tools/vocab", "ring/shop", "clash/report"
-      , "clash/fixed", "price/receipt", "price/broken"
-        -- the answers of the training / トレーニングの解答
-      , "wordfreq/short", "answers/progress", "answers/cheat" ]
-    -- ANCHOR_END: moduleGolden
-
-    -- ANCHOR: parseModule
-    -- 「module と import の行を読む」
-    it "reads the module line and the import lines" $
-      fmap (\(Program h is _ _) -> (h, is))
-        (runLamParser program "m.lam" (T.unlines
-          [ "module Shapes exposing (Shape (..), area, Json (JInt, JStr))"
-          , "import Json"
-          , "import Json as J (get)" ]))
-        `shouldBe` Right
-          ( Just (Header (Loc "m.lam" 1 1) "Shapes" (ExposeSome
-              [ ExposeType "Shape" AllConstructors, ExposeValue "area"
-              , ExposeType "Json" (TheseConstructors ["JInt", "JStr"]) ]))
-          , [ Import (Loc "m.lam" 2 1) "Json" Nothing Nothing
-            , Import (Loc "m.lam" 3 1) "Json" (Just "J")
-                (Just (ExposeSome [ExposeValue "get"])) ] )
-    -- ANCHOR_END: parseModule
-
-    -- ANCHOR: importNames
-    -- 「import した名前の付き方：前にモジュールの名前、as なら別名だけ、
-    --   かっこの一覧なら名前なしでも」
-    it "names what it imports: with the module, the alias, or bare" $ do
-      withShapes "import Shapes\nShapes.area (Shapes.square 3)"
-        `shouldBe` Finished "9 : Int"
-      withShapes "import Shapes as S\nS.area (S.Circle 2)"
-        `shouldBe` Finished "12 : Int"
-      -- Unlike Haskell, as takes the place of the name: Shapes. is gone.
-      -- Haskell とちがい、as は名前の代わり。Shapes. は使えない
-      withShapes "import Shapes as S\nShapes.area (S.Circle 2)"
-        `shouldBe` Errored
-          "main.lam:2:1: type error: unknown name: Shapes.area"
-      withShapes "import Shapes (area, Shape (..))\narea (Rect 2 5)"
-        `shouldBe` Finished "10 : Int"
-      withShapes "import Shapes (area)\nsquare 3"
-        `shouldBe` Errored "main.lam:2:1: type error: unknown name: square"
-      withShapes (T.unlines [ "import Shapes as S (area)"
-                            , "(area (S.Circle 1), S.area (S.square 2))" ])
-        `shouldBe` Finished "(3, 4) : (Int, Int)"
-      -- A ( at column 1 is the expression at the end, not the list.
-      -- 1桁目の ( は、一覧ではなく、最後の式
-      withShapes "import Shapes\n(Shapes.area (Shapes.square 2), 1)"
-        `shouldBe` Finished "(4, 1) : (Int, Int)"
-    -- ANCHOR_END: importNames
-
-    -- ANCHOR: hiding
-    -- 「見せていない名前は、ほかのファイルからは見えない」
-    it "keeps the names a module does not expose" $ do
-      withShapes "import Shapes\nShapes.secret"
-        `shouldBe` Errored "type error: unknown name: Shapes.secret"
-      withShapes "import Shapes (secret)\n1"
-        `shouldBe` Errored
-          "main.lam:1:1: error: the module Shapes does not expose secret"
-      -- A constructor hidden by Json: written bare or with Json.
-      -- Json が隠した構成子。名前なしでも、Json. を付けても
-      runLines
-        [ "JDec 1 2", "Json.JDec 1 2", "case JInt 1 of | JDec c d -> c" ]
-        `shouldBe` map (\c -> "type error: " <> c
-                          <> " is hidden by the module Json"
-                          <> " (it is not in its exposing list)")
-          [ "JDec", "Json.JDec", "JDec" ]
-      -- The values still show as JDec: only writing it is not allowed.
-      -- 値の見せ方は JDec のまま。書くことだけができない
-      case runLines [ "Json.mkDec 1999 2", ":browse Json" ] of
-        [shown, browsed] -> do
-          shown `shouldBe` "JDec 1999 2 : Json"
-          last (T.lines browsed) `shouldBe` "(hidden: JDec)"
-        other -> expectationFailure (show other)
-    -- ANCHOR_END: hiding
-
-    -- ANCHOR: patterns
-    -- 「別名の付いた構成子も、パターンに書ける」
-    it "matches constructors written with the module's name" $
-      withShapes (T.unlines
-        [ "import Shapes as S"
-        , "let name s = case s of"
-        , "  | S.Circle _ -> \"circle\""
-        , "  | S.Rect _ _ -> \"rect\""
-        , "(name (S.Circle 1), name (S.square 2))" ])
-        `shouldBe` Finished "(\"circle\", \"rect\") : (String, String)"
-    -- ANCHOR_END: patterns
-
-    -- ANCHOR: finding
-    -- 「探す順：まず隣、それから LAM_PATH のフォルダーを順に」
-    it "looks next to the file first, then in LAM_PATH" $ do
-      let next  = "module Greet exposing (hi)\nlet hi = \"next to it\""
-          inLib = "module Greet exposing (hi)\nlet hi = \"in lib\""
-          world files = emptyWorld
-            { worldFiles = Map.fromList files
-            , worldEnv = Map.fromList [("LAM_PATH", "lib:more")] }
-          go files = fst (runFake (world files)
-            (runProgram fakeWorld (fakeFiles (world files)) preludeSession
-               "app/main.lam" "import Greet\nGreet.hi"))
-      go [("app/Greet.lam", next), ("lib/Greet.lam", inLib)]
-        `shouldBe` Finished "\"next to it\" : String"
-      go [("more/Greet.lam", next), ("lib/Greet.lam", inLib)]
-        `shouldBe` Finished "\"in lib\" : String"
-      go [] `shouldBe` Errored ("app/main.lam:1:1: error: no module Greet "
-        <> "(looked for app/Greet.lam, lib/Greet.lam, more/Greet.lam)")
-    -- ANCHOR_END: finding
-
-    -- ANCHOR: once
-    -- 「2つのファイルが import しても、モジュールのファイルは1度だけ読む」
-    it "reads a module file only once, even if two files import it" $ do
-      let files = Map.fromList
-            [ ("A.lam", "module A exposing (a)\nimport C\nlet a = C.c + 1")
-            , ("B.lam", "module B exposing (b)\nimport C\nlet b = C.c + 2")
-            , ("C.lam", "module C exposing (c)\nlet c = 10") ]
-          logging = Files
-            { readSource = \path -> do
-                modify (path :)
-                pure (Map.lookup (T.pack path) files)
-            , searchPath = [] }
-          (loaded, readLog) = runState
-            (loadProgram logging preludeSession "main.lam"
-               "import A\nimport B\nA.a + B.b") []
-      fmap (fmap render . snd) loaded `shouldBe` Right (Just "A.a + B.b")
-      reverse readLog `shouldBe` ["A.lam", "C.lam", "B.lam"]
-    -- ANCHOR_END: once
-
-    -- ANCHOR: moduleErrors
-    -- 「モジュールのファイルのまちがいを、場所と一緒に教える」
-    it "tells what is wrong with a module file, and where" $ do
-      let with m = fst . runModules [("M.lam", m)]
-      with "let x = 1" "import M\n1" `shouldBe` Errored
-        ("M.lam:1:1: error: a module starts with the line  "
-         <> "module M exposing (...)")
-      with "module N exposing (x)\nlet x = 1" "import M\n1" `shouldBe`
-        Errored "M.lam:1:1: error: the file M.lam must be the module M, not N"
-      with "module M exposing (y)\nlet x = 1" "import M\n1" `shouldBe`
-        Errored ("M.lam:1:1: error: the module M exposes y, "
-                 <> "but does not define it")
-      with "module M exposing (x)\nlet x = 1\nx" "import M\n1" `shouldBe`
-        Errored ("M.lam: error: a module cannot end with an expression"
-                 <> " (only a program can)")
-      with "module M exposing (x)\nlet x = 1 / 0" "import M\n1" `shouldBe`
-        Errored "M.lam:2:11: in the definition of x: error: divided by zero"
-    -- ANCHOR_END: moduleErrors
-
-    -- ANCHOR: clashTests
-    -- 「2つのモジュールの同じ名前・同じ型は、エラーにする」
-    it "stops when two modules give the same name or the same type" $ do
-      let box m n = T.unlines
-            [ "module " <> m <> " exposing (Box (..), size)"
-            , "data Box = Box Int", "let size = " <> n ]
-          a = box "A" "1"
-          b = box "B" "2"
-          go src = fst (runModules [("A.lam", a), ("B.lam", b)] src)
-      go "import A (size)\nimport B (size)\n1"
-        `shouldBe` Errored
-          "main.lam:2:1: error: the name size comes from both A and B"
-      go "import A\nimport B\n1" `shouldBe` Errored
-        "main.lam:2:1: error: the type Box comes from both A and B"
-      -- Only the names in front differ: A.size and B.size are fine.
-      -- 前の名前だけがちがうなら、A.size と B.size は大丈夫
-      go "import A as X\nX.size" `shouldBe` Finished "1 : Int"
-      fst (runModules [] "data Maybe a = Nope\n1") `shouldBe` Errored
-        ("in the data type Maybe: type error: "
-         <> "the type Maybe belongs to the module Maybe")
-    -- ANCHOR_END: clashTests
-
-    -- ANCHOR: ringTest
-    -- 「import の輪は、ぐるぐる回らずにエラーにする」
-    it "finds imports that go around in a ring" $
-      fst (runModules
-        [ ("A.lam", "module A exposing (a)\nimport B\nlet a = 1")
-        , ("B.lam", "module B exposing (b)\nimport A\nlet b = 2") ]
-        "import A\n1")
-        `shouldBe` Errored ("B.lam:2:1: error: the imports go around in a "
-                            <> "ring: main.lam -> A.lam -> B.lam -> A.lam")
-    -- ANCHOR_END: ringTest
-
-    -- ANCHOR: exposedProp
-    -- 「exposing に書いた名前だけが、ほかのファイルから見える」
-    it "shows exactly the names in the exposing list" $
-      property $ forAll (sublistOf ["one", "two", "three"]) $ \shown ->
-        let header =
-              "module Nums exposing (" <> T.intercalate ", " shown <> ")"
-            nums = T.unlines
-              [ header, "let one = 1", "let two = 2", "let three = 3" ]
-            seen n = fst (runModules [("Nums.lam", nums)]
-                           ("import Nums\nNums." <> n))
-                       /= Errored ("type error: unknown name: Nums." <> n)
-        in not (null shown) ==>
-             [ n | n <- ["one", "two", "three"], seen n ] === shown
-    -- ANCHOR_END: exposedProp
-
-    -- ANCHOR: answerGraph
-    -- 「import の図：ファイルごとに1度、輪でも止まる」
-    it "draws the imports, each file once, even in a ring" $ do
-      let files = Map.fromList
-            [ ("A.lam", "module A exposing (a)\nimport B\nimport C\n1")
-            , ("B.lam", "module B exposing (b)\nimport C\nimport Json\n2")
-            , ("C.lam", "module C exposing (c)\nimport A\nlet c = 3") ]
-          fake = Files (pure . (`Map.lookup` files) . T.pack) []
-          graph = runIdentity
-            (importGraph fake preludeSession "main.lam" "import A\n1")
-      graph `shouldBe` Right
-        [ ("main.lam", ["A"]), ("A", ["B", "C"]), ("B", ["C", "Json"])
-        , ("C", ["A"]) ]
-      fmap toDot graph `shouldBe` Right (T.unlines
-        [ "digraph imports {", "  \"main.lam\" -> \"A\";"
-        , "  \"A\" -> \"B\";", "  \"A\" -> \"C\";", "  \"B\" -> \"C\";"
-        , "  \"B\" -> \"Json\";", "  \"C\" -> \"A\";", "}" ])
-    -- ANCHOR_END: answerGraph
 
   -- 「data と case」
   describe "data and case" $ do
@@ -573,7 +411,7 @@ main = hspec $ do
           , "type error: unknown constructor: Circel"
           , "type error: the types do not fit: String where Int is needed"
           , "type error: the types do not fit: String where Int is needed"
-          , "Maybe Int -> Int" ]
+          , "Number a => Maybe a -> a" ]
     -- ANCHOR_END: patternTypes
 
     -- ANCHOR: dataErrors
@@ -640,7 +478,7 @@ main = hspec $ do
         ["fromMaybe", "find", "lookup"]
         `shouldBe` map Just
           [ "a -> Maybe a -> a"
-          , "(a -> Bool) -> [a] -> Maybe a"
+          , "Foldable f => (a -> Bool) -> f a -> Maybe a"
           , "Comparable a => a -> [(a, b)] -> Maybe b" ]
     -- ANCHOR_END: maybeResult
 
@@ -688,6 +526,643 @@ main = hspec $ do
         in runLines [source] == [lamBool (a < b) <> " : Bool"]
     -- ANCHOR_END: compareLikeHaskell
 
+  -- 「パターンを引数に」
+  describe "patterns as arguments" $ do
+    -- ANCHOR: lambdaSugar
+    -- 「パターンの引数は、枝が1つの case に開く」
+    it "opens a pattern argument into a case with one branch" $
+      map (fmap render . parseExpr)
+        [ "\\(a, b) -> a + b"
+        , "\\x (Just y) -> x + y"
+        , "let (q, r) = (17 // 5, mod 17 5) in q * 10 + r"
+        , "let swap (a, b) = (b, a) in swap" ]
+        `shouldBe` map Right
+          [ "\\$arg -> case $arg of | (a, b) -> a + b"
+          , "\\x -> \\$arg -> case $arg of | Just y -> x + y"
+          , "case (17 // 5, mod 17 5) of | (q, r) -> q * 10 + r"
+          , "let swap = \\$arg -> case $arg of | (a, b) -> (b, a) in swap" ]
+    -- ANCHOR_END: lambdaSugar
+
+    -- ANCHOR: patternArgs
+    -- 「タプルや構成子を、引数でほどく」
+    it "takes tuples and constructors apart in arguments" $
+      runLines
+        [ "map (\\(name, score) -> name) [(\"Python\", 82), (\"TS\", 75)]"
+        , "let (q, r) = (17 // 5, mod 17 5) in (q, r)"
+        , "let swap (a, b) = (b, a)"
+        , "swap (1, \"one\")"
+        , "let area (w, h) = w * h"
+        , "(\\(Just x) -> x) Nothing"
+        , "let (a, b) = (1, 2)" ]
+        `shouldBe`
+          [ "[\"Python\", \"TS\"] : [String]"
+          , "(3, 2) : (Int, Int)"
+          , "swap : (a, b) -> (b, a)"
+          , "(\"one\", 1) : (String, Int)"
+          , "area : Number a => (a, a) -> a"
+          , "error: no branch of case fits Nothing"
+          , "<repl>:1:20:\n  |\n1 | let (a, b) = (1, 2)\n\
+            \  |                    ^\n\
+            \unexpected end of input\nexpecting a value, an operator, \
+            \or in (a let with a pattern needs in)\n" ]
+    -- ANCHOR_END: patternArgs
+
+    -- ANCHOR: letNotRecursive
+    -- 「パターンの let は再帰しない（外の x を使う）」
+    it "does not make a pattern let recursive" $
+      runLines ["let x = 5 in let (x, y) = (x + 1, x + 2) in (x, y)"]
+        `shouldBe` ["(6, 7) : (Int, Int)"]
+    -- ANCHOR_END: letNotRecursive
+
+  -- 「演算子を関数に」
+  describe "sections" $ do
+    -- ANCHOR: sectionSugar
+    -- 「演算子とセクションは、ラムダに開く」
+    it "opens operators and sections into lambdas" $
+      map (fmap render . parseExpr)
+        ["(+)", "(+ 1)", "(10 -)", "(- 1)", "(:)", "(x :)"]
+        `shouldBe` map Right
+          [ "\\$l -> \\$r -> $l + $r"
+          , "\\$l -> $l + 1"
+          , "\\$r -> 10 - $r"
+          , "\\$l -> $l - 1"
+          , "\\$l -> \\$r -> $l : $r"
+          , "\\$r -> x : $r" ]
+    -- ANCHOR_END: sectionSugar
+
+    -- ANCHOR: sections
+    -- 「セクションを使う。(-1) はセクションではなく、負の数」
+    it "uses sections, and reads (-1) as a negative number" $
+      runLines
+        [ "map (* 2) [1, 2, 3]"
+        , "(10 -) 3"
+        , "(- 1) 10"
+        , "foldr (+) 0 [1, 2, 3]"
+        , ":type (++)"
+        , "(-1)" ]
+        `shouldBe`
+          [ "[2, 4, 6] : [Int]"
+          , "7 : Int"
+          , "9 : Int"
+          , "6 : Int"
+          , "Semigroup a => a -> a -> a"
+          , "-1 : Int" ]
+    -- ANCHOR_END: sections
+
+  -- 「リスト内包表記」
+  describe "list comprehensions" $ do
+    -- ANCHOR: comprehensionSugar
+    -- 「内包表記は、ループ $go に開く」
+    it "opens a comprehension into a loop $go" $
+      fmap render (parseExpr "[x * 2 | x <- xs, x > 1]")
+        `shouldBe` Right
+          "let $go = \\$xs -> case $xs of \
+          \| [] -> [] \
+          \| x : $rest -> (if x > 1 then [x * 2] else []) ++ $go $rest \
+          \in $go xs"
+    -- ANCHOR_END: comprehensionSugar
+
+    -- ANCHOR: comprehensions
+    -- 「<- をいくつも、条件、let、外れうるパターン」
+    it "has many <-, conditions, let, and patterns that may not fit" $
+      runLines
+        [ "[x * 2 | x <- [1, 2, 3, 4], x > 1]"
+        , "[(x, y) | x <- [1, 2, 3], y <- [1, 2, 3], x < y]"
+        , "[(x, y) | x <- [1, 2], y <- [x, 10]]"
+        , "[y | x <- [1, 2, 3], let y = x * 10, y > 15]"
+        , "[x | Just x <- [Just 1, Nothing, Just 3]]"
+        , ":type \\xs -> [(x, y) | x <- xs, y <- xs]"
+        , "[x | x <- 5]" ]
+        `shouldBe`
+          [ "[4, 6, 8] : [Int]"
+          , "[(1, 2), (1, 3), (2, 3)] : [(Int, Int)]"
+          , "[(1, 1), (1, 10), (2, 2), (2, 10)] : [(Int, Int)]"
+          , "[20, 30] : [Int]"
+          , "[1, 3] : [Int]"
+          , "[a] -> [(a, a)]"
+          , "type error: [a] is not in the class Number" ]
+    -- ANCHOR_END: comprehensions
+
+    -- ANCHOR: comprehensionLikeHaskell
+    -- 「Haskell の内包表記と同じ答えになる」
+    it "gives the same answers as Haskell's comprehensions" $
+      property $ forAll (listOf (choose (0, 9))) $ \xs ->
+        forAll (listOf (choose (0, 9))) $ \ys ->
+          let source = "[x * 10 + y | x <- " <> renderList xs
+                         <> ", x > 2, y <- " <> renderList ys
+                         <> ", let s = x + y, mod s 2 == 0]"
+              expected = [ x * 10 + y | x <- xs, x > 2, y <- ys
+                                      , let s = x + y, s `mod` 2 == 0 ]
+          in runLines [source] == [renderList expected <> " : [Int]"]
+    -- ANCHOR_END: comprehensionLikeHaskell
+
+  -- 「パイプラインと合成」
+  describe "pipes and composition" $ do
+    -- ANCHOR: pipeSugar
+    -- 「|> と >> も、App と Lam に開く」
+    it "opens |> and >> into App and Lam" $
+      map (fmap render . parseExpr)
+        ["xs |> map f |> sum", "sum <| map f <| xs", "f >> g", "g << f"]
+        `shouldBe` map Right
+          [ "sum (map f xs)"
+          , "sum (map f xs)"
+          , "\\$x -> g (f $x)"
+          , "\\$x -> g (f $x)" ]
+    -- ANCHOR_END: pipeSugar
+
+    -- ANCHOR: pipes
+    -- 「左から右へ流す、関数をつなぐ」
+    it "flows from left to right, and joins functions" $
+      runLines
+        [ "[1, 2, 3] |> map (* 2) |> sum"
+        , "((+ 1) >> (* 2)) 5"
+        , "((+ 1) << (* 2)) 5"
+        , ":type (>>)"
+        , "[\"b\", \"a\"] |> map (toUpper >> chars) |> length"
+        , "case 3 |> (+ 1) of | 4 -> \"four\" | _ -> \"other\"" ]
+        `shouldBe`
+          [ "12 : Int"
+          , "12 : Int"
+          , "11 : Int"
+          , "(a -> b) -> (b -> c) -> a -> c"
+          , "2 : Int"
+          , "\"four\" : String" ]
+    -- ANCHOR_END: pipes
+
+  -- 「型の注釈とレコード」
+  describe "annotations and records" $ do
+    -- ANCHOR: annotationTest
+    -- 「let のない定義、注釈、where を読む。ファイルの終わりの x : xs は式」
+    it "reads definitions without let, annotations and where" $ do
+      let decls src = fmap (\(ds, final) ->
+            ( [ case d of
+                  DefValue x e -> x <> " = " <> render e
+                  DefSig x _   -> x <> " : ..."
+                  _            -> "?"
+              | d <- ds ]
+            , fmap render final ))
+            (runLamParser programParts "" src)
+      decls "add : Int -> Int -> Int\nadd x y = x + y\n"
+        `shouldBe` Right (["add : ...", "add = \\x -> \\y -> x + y"], Nothing)
+      decls "f x = a * b\n  where\n    a = x + 1\n    b = 2\n"
+        `shouldBe` Right
+          (["f = \\x -> let a = x + 1 in let b = 2 in a * b"], Nothing)
+      decls "xs = [2]\nx = 1\nx : xs\n"
+        `shouldBe` Right (["xs = [2]", "x = 1"], Just "x : xs")
+    -- ANCHOR_END: annotationTest
+
+    -- ANCHOR: recordTypesTest
+    -- 「レコードの型：読むだけなら、ほかのフィールドがあってよい」
+    it "gives the types of records, with the rest of the fields" $
+      runLines
+        [ "{ name = \"Lam\", age = 3 }"
+        , ":type \\r -> r.name"
+        , ":type \\r -> (r.name, r.age)"
+        , ":type \\r -> { r | age = r.age + 1 }"
+        , ":type .name"
+        , ":type .name >> toUpper"
+        , ":type \\{ x, y } -> x + y"
+        , "(\\r -> r.name) { name = \"Ruby\", version = \"4.0\" }"
+        , "{ name = \"Lam\" }.age"
+        , "{ name = \"Lam\" } == { name = \"Lam\" }"
+        , "{ f = \\x -> x } == { f = \\x -> x }" ]
+        `shouldBe`
+          [ "{ age = 3, name = \"Lam\" } : { age : Int, name : String }"
+          , "{ r | name : a } -> a"
+          , "{ r | age : a, name : b } -> (b, a)"
+          , "Number a => { r | age : a } -> { r | age : a }"
+          , "{ r | name : a } -> a"
+          , "{ r | name : String } -> String"
+          , "Number a => { r | x : a, y : a } -> a"
+          , "\"Ruby\" : String"
+          , "type error: { name : String } has no field age"
+          , "true : Bool"
+          , "type error: a -> a is not in the class Comparable" ]
+    -- ANCHOR_END: recordTypesTest
+
+    -- 「本文の REPL のやり取り」
+    it "answers as the chapter shows" $
+      runLines
+        [ "r = { name = \"Lam\", age = 3 }", "r.name", "{ r | age = 4 }", "r"
+        , "r.title", "{ r | title = \"x\" }", "{ r | age = \"four\" }"
+        , "label r = \"[\" ++ r.name ++ \"]\"", "label r"
+        , "label { name = \"Ruby\", version = \"4.0\" }", "label { title = \"x\" }"
+        , "total : [Int] -> Int; total xs = sum xs"
+        , ":type max", "biggest : Int -> Int -> Int; biggest = max"
+        , "{ name = \"Lam\" } 1"
+        , "half : Int -> Int; double x = x * 2" ]
+        `shouldBe`
+          [ "r : Number a => { age : a, name : String }\n\
+            \  -- usually : { age : Int, name : String }"
+          , "\"Lam\" : String"
+          , "{ age = 4, name = \"Lam\" } : { age : Int, name : String }"
+          , "{ age = 3, name = \"Lam\" } : { age : Int, name : String }"
+          , "type error: { age : a, name : String } has no field title"
+          , "type error: { age : a, name : String } has no field title"
+          , "type error: String is not in the class Number"
+          , "label : { r | name : String } -> String"
+          , "\"[Lam]\" : String"
+          , "\"[Ruby]\" : String"
+          , "type error: { title : String } has no field name"
+          , "total : [Int] -> Int"
+          , "Comparable a => a -> a -> a"
+          , "biggest : Int -> Int -> Int"
+          , "type error: the types do not fit: { name : String } \
+            \where a -> b is needed"
+          , "<repl>:1:36:\n  |\n1 | half : Int -> Int; double x = x * 2\n  |                                    ^\nthe annotation and the definition have different names\n" ]
+
+    -- ANCHOR: updateProp
+    -- 「一部を変えたレコード：変えたフィールドは新しい値、ほかはそのまま」
+    it "changes only the fields it names" $
+      property $ \a b n ->
+        let r = "{ a = " <> num a <> ", b = " <> num b <> " }"
+            changed = "{ r | a = " <> num n <> " }"
+        in map valuePart (runLines
+             [ inRecord r (changed <> ".a")
+             , inRecord r (changed <> ".b")
+             , inRecord r "r.a" ])
+           === map (T.pack . show) [n, b, a]
+    -- ANCHOR_END: updateProp
+
+    -- ANCHOR: aliasTest
+    -- 「別名は、中身の型と同じ」
+    it "takes an alias as the type it stands for" $
+      runLines
+        [ "type alias User = { name : String, age : Int }"
+        , "older : User -> User; older u = { u | age = u.age + 1 }"
+        , "older { name = \"Lam\", age = 3 }"
+        , "type alias Pair a = (a, a)"
+        , "both : Pair Int -> Int; both (x, y) = x + y"
+        , "type alias Bad = Bad"
+        , "type alias Int = Bool" ]
+        `shouldBe`
+          [ "type alias User"
+          , "older : { age : Int, name : String } -> { age : Int, name : String }"
+          , "{ age = 4, name = \"Lam\" } : { age : Int, name : String }"
+          , "type alias Pair"
+          , "both : (Int, Int) -> Int"
+          , "in the type alias Bad: type error: unknown type: Bad"
+          , "in the type alias Int: type error: Int is a builtin type" ]
+    -- ANCHOR_END: aliasTest
+
+    -- 「注釈の下に、同じ名前の定義が要る」
+    it "needs the definition right below an annotation" $
+      fmap snd (loadPlain preludeSession "<test>" "half : Int -> Int\ndouble x = x * 2\n")
+        `shouldBe` Left "error: the type annotation of half needs the definition of half right below it"
+
+  -- 「キーワードで始まる名前」
+  describe "names" $
+    -- 「キーワードで始まる名前も読める（iffy、letter、cases、dataset）」
+    it "reads names that start with a keyword" $
+      runLines
+        [ "let iffy = 1", "iffy + 1", "let letter = \"a\"", "letter"
+        , "let cases = 2", "cases * 3", "let dataset = true", "dataset" ]
+        `shouldBe`
+          [ "iffy : Number a => a\n  -- usually : Int", "2 : Int"
+          , "letter : String", "\"a\" : String"
+          , "cases : Number a => a\n  -- usually : Int", "6 : Int"
+          , "dataset : Bool", "true : Bool" ]
+
+  -- 「小数」
+  describe "floats" $ do
+    -- ANCHOR: floatParse
+    -- 「数のリテラルと負の数を読む。マイナスの前後の空白で見分ける」
+    it "reads Floats and negative numbers, by the spaces around -" $
+      map (fmap render . parseExpr)
+        [ "1.5", "1e3", "2.5e-3", "-7", "-1.5", "f -7", "x - 1", "x-1"
+        , "x -1", "-x", "-(a + b)", "a * -2", "[-1, -2]", "(-1)", "(- 1)"
+        , "-r.age", "Float.isNaN x" ]
+        `shouldBe` map Right
+          [ "1.5", "1000.0", "0.0025", "-7", "-1.5", "f -7", "x - 1"
+          , "x - 1", "x -1", "negate x", "negate (a + b)", "a * -2"
+          , "[-1, -2]", "-1", "\\$l -> $l - 1", "negate r.age"
+          , "Float.isNaN x" ]
+    -- ANCHOR_END: floatParse
+
+    -- ANCHOR: floatShow
+    -- 「Float は、JavaScript と同じ形で見せる（node で確かめた）」
+    it "shows a Float as JavaScript does" $
+      map showFloat
+        [ 1, 0.1 + 0.2, 1e21, 1e-7, 123456789012345680000, 0.000001
+        , 1.5e-10, -2.5, 100, 1 / 3, 5e-324, 1.7976931348623157e308
+        , 2 ^ (53 :: Int), 0 / 0, 1 / 0, -1 / 0 ]
+        `shouldBe`
+          [ "1", "0.30000000000000004", "1e+21", "1e-7"
+          , "123456789012345680000", "0.000001", "1.5e-10", "-2.5", "100"
+          , "0.3333333333333333", "5e-324", "1.7976931348623157e+308"
+          , "9007199254740992", "NaN", "Infinity", "-Infinity" ]
+    -- ANCHOR_END: floatShow
+
+    -- ANCHOR: floatLiteralProp
+    -- 「どんな Float のリテラルも、書いて読み直すと同じ Float」
+    it "reads back any Float literal it writes" $
+      property $ \x ->
+        parseExpr (render (Lit (LFloat x))) == Right (Lit (LFloat x))
+    -- ANCHOR_END: floatLiteralProp
+
+    -- ANCHOR: floatLikeHaskell
+    -- 「+ - * / の答えは、Haskell の Double と同じ」
+    it "computes + - * / as Haskell's Double does" $
+      property $ \a b ->
+        let lit x = "(" <> floatLiteral x <> ")"
+            run o = runLines [lit a <> " " <> o <> " " <> lit b]
+        in map run ["+", "-", "*", "/"]
+             === map (\x -> [showFloat x <> " : Float"])
+                     [a + b, a - b, a * b, a / (b :: Double)]
+    -- ANCHOR_END: floatLikeHaskell
+
+    -- ANCHOR: intDivLikeHaskell
+    -- 「// は Haskell の div、//? は 0 のときだけ Nothing」
+    it "divides Ints as Haskell's div does" $
+      property $ \a b ->
+        runLines [num a <> " // " <> num b, num a <> " //? " <> num b]
+          === if b == 0
+                then ["error: divided by zero", "Nothing : Maybe Int"]
+                else [ T.pack (show (a `div` b)) <> " : Int"
+                     , "Just " <> num (a `div` b) <> " : Maybe Int" ]
+    -- ANCHOR_END: intDivLikeHaskell
+
+    -- ANCHOR: roundingProp
+    -- 「丸めの3つのやり方は、半分のときだけちがう」
+    it "rounds a half in three ways, and the rest alike" $
+      property $ \(n :: Integer) (k :: Int) ->
+        let x = fromInteger n + fromIntegral (k `mod` 10) / 10 :: Double
+            lit = "(" <> floatLiteral x <> ")"
+            answers = runLines
+              [ "round " <> lit, "Float.roundTiesEven " <> lit
+              , "Float.roundTiesUp " <> lit ]
+            just m = "Just " <> num m <> " : Maybe Int"
+            r = toRational x
+            away = if r < 0 then negate (round' (negate r)) else round' r
+            round' q = floor (q + 1 / 2) :: Integer
+        in answers === [just away, just (round r), just (floor (r + 1 / 2))]
+    -- ANCHOR_END: roundingProp
+
+    -- ANCHOR: floatRepl
+    -- 「本文の REPL のやり取り」
+    it "answers the REPL lines of the chapter" $
+      runLines
+        [ "7 / 2", "1.5 + 2", "0.1 + 0.2", "1e3", "-7", "abs -7"
+        , "(-1)", "(- 1) 10", "map (- 1) [10, 20]"
+        , "x = 10", "x - 1", "x-1", "x -1", "-(x + 1)"
+        , "double n = n * 2", "double 4", "double 1.5"
+        , "length [1, 2] * 1.5", "toFloat (length [1, 2]) * 1.5"
+        , "\"a\" + 1", "1 + 2", ":type 1 + 2", "n = 3"
+        , "7 // 2", "-7 // 2", "7 // 0", "7 //? 0", "1 / 0", "0 / 0"
+        , "7 /? 2", "round 2.5", "round -2.5", "Float.roundTiesEven 2.5"
+        , "Float.roundTiesUp -2.5", "floor -2.7", "truncate -2.7"
+        , "round (0 / 0)", "round 2.5 ?: 0", "Nothing ?: Just 3 ?: 0"
+        , "Just 1 ?: 1 // 0", "Err \"no\" ?: 0", "Ok 2 ?: 0"
+        , ":type \\m -> m ?: 0"
+        , "nan = 0 / 0", "nan == nan", "Float.isNaN nan"
+        , "showFloat (2 / 3)", "Float.fixed 3 (2 / 3)", "Float.fixed 1 -0.25"
+        , "Float.fixed 0 2.5", "Float.fixed 2 7"
+        , "next : a -> a; next x = x + 1"
+        , "next : Number a => a -> a; next x = x + 1"
+        , "3 == 3.0", "toFloat 3", "sqrt 2", "Float.pow 2 10" ]
+        `shouldBe`
+          [ "3.5 : Float", "3.5 : Float", "0.30000000000000004 : Float"
+          , "1000 : Float", "-7 : Int", "7 : Int"
+          , "-1 : Int", "9 : Int", "[9, 19] : [Int]"
+          , "x : Number a => a\n  -- usually : Int", "9 : Int", "9 : Int"
+          , "type error: a number and a function are mixed up \
+            \(a -> b is not in the class Number): x -1 gives -1 to x \
+            \(write x - 1), and -f x is (-f) x (write -(f x))"
+          , "-11 : Int"
+          , "double : Number a => a -> a", "8 : Int", "3 : Float"
+          , "type error: the types do not fit: Float where Int is needed"
+          , "3 : Float"
+          , "type error: String is not in the class Number"
+          , "3 : Int", "Number a => a\n  -- usually : Int"
+          , "n : Number a => a\n  -- usually : Int"
+          , "3 : Int", "-4 : Int", "error: divided by zero"
+          , "Nothing : Maybe Int", "Infinity : Float", "NaN : Float"
+          , "Just 3.5 : Maybe Float", "Just 3 : Maybe Int"
+          , "Just (-3) : Maybe Int", "Just 2 : Maybe Int"
+          , "Just (-2) : Maybe Int", "Just (-3) : Maybe Int"
+          , "Just (-2) : Maybe Int", "Nothing : Maybe Int", "3 : Int"
+          , "3 : Int", "1 : Int", "0 : Int", "2 : Int"
+          , "(Fallible f, Number a) => f a -> a"
+          , "nan : Float", "false : Bool", "true : Bool"
+          , "\"0.6666666666666666\" : String", "\"0.667\" : String"
+          , "\"-0.3\" : String", "\"3\" : String", "\"7.00\" : String"
+          , "in the definition of next: type error: the \
+            \annotation of next must say Number a (the definition needs it)"
+          , "next : Number a => a -> a", "true : Bool", "3 : Float"
+          , "1.4142135623730951 : Float", "1024 : Float" ]
+    -- ANCHOR_END: floatRepl
+
+    -- ANCHOR: splitRepl
+    -- 「割り勘の例を :load して、share を試す」
+    it "splits the bill in the example" $ do
+      source <- Utf8.readFile "examples/float/split.lam"
+      let loaded = case loadPlain preludeSession "split.lam" source of
+            Right (s, _) -> s
+            Left err     -> error (T.unpack err)
+          go (s, outs) line =
+            let (s', out) = step s line in (s', outs <> [out])
+      snd (foldl go (loaded, []) ["share 4", "share 0", "exact 4"])
+        `shouldBe`
+          [ "Just (622, 2) : Maybe (Int, Int)", "Nothing : Maybe (Int, Int)"
+          , "\"622.50: 623 622 623\" : String" ]
+    -- ANCHOR_END: splitRepl
+
+    -- ANCHOR: orElseErrors
+    -- 「?: の左が Maybe でも Result でもなければ、そう教える」
+    it "says what ?: needs on its left" $
+      runLines ["3 ?: 0", "\"a\" ?: \"b\"", "[1] ?: 0", "round 2.5 ?: 0"]
+        `shouldBe`
+          [ "type error: ?: needs a Maybe or a Result on its left, but got \
+            \a number (only a Maybe or a Result can be missing its value)"
+          , "type error: ?: needs a Maybe or a Result on its left, but got \
+            \String (only a Maybe or a Result can be missing its value)"
+          , "type error: ?: needs a Maybe or a Result on its left, but got \
+            \[a] (only a Maybe or a Result can be missing its value)"
+          , "3 : Int" ]
+    -- ANCHOR_END: orElseErrors
+
+  -- 「複数行」
+  -- 「クラスとインスタンス」
+  describe "classes" $ do
+    -- ANCHOR: classParse
+    -- 「class の下に、メソッドの型と既定のメソッドを並べて読む」
+    it "reads the methods and the defaults under a class" $
+      fmap (\(decls, _) ->
+              [ (classDeclName c, classVar c, map fst (classMethods c)
+                , map fst (classDefaults c))
+              | DefClass c <- decls ])
+        (runLamParser programParts ""
+           "class Describe a where\n\
+           \  describe : a -> String\n\
+           \  describeAll : [a] -> String\n\
+           \  describeAll xs = join \", \" (map describe xs)\n\
+           \describe\n")
+        `shouldBe` Right
+          [("Describe", "a", ["describe", "describeAll"], ["describeAll"])]
+    -- ANCHOR_END: classParse
+
+    -- ANCHOR: classRepl
+    -- 「本文の REPL のやり取り（1行で書けるクラス）」
+    it "answers the REPL lines of the chapter" $
+      runLines
+        [ "class Describe a where describe : a -> String"
+        , "instance Describe Int where describe n = showInt n"
+        , "describe 42", ":type describe", ":dicts describe 42"
+        , "describe true"
+        , "describeTwice x = describe x ++ \", \" ++ describe x"
+        , ":dicts describeTwice 7"
+        , ":dicts \\x -> describe x ++ describe x" ]
+        `shouldBe`
+          [ "describe : Describe a => a -> String"
+          , "instance Describe Int"
+          , "\"42\" : String", "Describe a => a -> String"
+          , "describe $Describe$Int 42"
+          , "type error: Bool is not in the class Describe"
+          , "describeTwice : Describe a => a -> String"
+          , "describeTwice $Describe$Int 7"
+          , "\\$Describe_a -> \\x -> describe $Describe_a x \
+            \++ describe $Describe_a x" ]
+    -- ANCHOR_END: classRepl
+
+    -- ANCHOR: classDicts
+    -- 「例を :load して、辞書を入れた式を見る」
+    it "shows where the dictionaries go" $ do
+      containers <- replAfter "examples/classes/containers.lam"
+        [":dicts describe (Just [3, 4])"]
+      ranked <- replAfter "examples/classes/ranked.lam"
+        [ ":dicts \\x -> describe x ++ showInt (rank x)"
+        , ":type \\x -> describe x ++ showInt (rank x)" ]
+      combine <- replAfter "examples/classes/combine.lam"
+        [":dicts total [Yen 1]", ":dicts total [1, 2]", "total []"]
+      (containers, ranked, combine) `shouldBe`
+        ( [ "describe ($Describe$Maybe ($Describe$List $Describe$Int)) \
+            \(Just [3, 4])" ]
+        , [ "\\$Ranked_a -> \\x -> describe $Ranked_a.$Describe x \
+            \++ showInt (rank $Ranked_a x)"
+          , "Ranked a => a -> String" ]
+        , [ "total $Combine$Money [Yen 1]", "total $Combine$Int [1, 2]"
+          , "type error: cannot choose an instance of Combine: the type a \
+            \is not known here (an annotation can tell it)" ] )
+    -- ANCHOR_END: classDicts
+
+    -- 「本文の、例を :load してからのやり取り」
+    it "answers the REPL lines after loading the examples" $ do
+      described <- replAfter "examples/classes/describe.lam"
+        [ ":type describe", ":type twice", ":dicts describe (Yen 500)"
+        , ":dicts twice (Yen 80)" ]
+      contained <- replAfter "examples/classes/containers.lam"
+        [":dicts describe [Just (Circle { radius = 1 }), Nothing]"]
+      combined <- replAfter "examples/classes/combine.lam"
+        [ ":type empty", ":dicts total [Yen 300, Yen 450]"
+        , ":dicts combine empty (Minutes 5)", ":dicts total [1, 2, 3]"
+        , "total [1, 2, 3]" ]
+      (described, contained, combined) `shouldBe`
+        ( [ "Describe a => a -> String", "Describe a => a -> String"
+          , "describe $Describe$Money (Yen 500)"
+          , "twice $Describe$Money (Yen 80)" ]
+        , [ "describe ($Describe$List ($Describe$Maybe $Describe$Shape)) \
+            \[Just (Circle { radius = 1 }), Nothing]" ]
+        , [ "Combine a => a", "total $Combine$Money [Yen 300, Yen 450]"
+          , "combine $Combine$Minutes (empty $Combine$Minutes) (Minutes 5)"
+          , "total $Combine$Int [1, 2, 3]", "6 : Int" ] )
+
+    -- ANCHOR: byHandProp
+    -- 「Lam が入れる辞書は、手で書いた辞書と同じ答えを出す」
+    it "gives the same answers as the dictionaries by hand" $
+      property $ \(NonNegative r) (NonNegative n) -> ioProperty $ do
+        let circle = "(Circle { radius = " <> num r <> " })"
+            line   = "(twice " <> circle <> ", twice (Yen " <> num n <> "))"
+            byHand = "(twice shapeDict " <> circle <> ", twice moneyDict (Yen "
+                       <> num n <> "))"
+        withClass <- replAfter "examples/classes/describe.lam" [line]
+        withHand  <- replAfter "examples/classes/byhand.lam" [byHand]
+        pure (withClass === withHand)
+    -- ANCHOR_END: byHandProp
+
+    -- ANCHOR: totalProp
+    -- 「total は、Int なら Haskell の sum と同じ。お金も分も、中の数の合計」
+    it "adds up as Haskell's sum does" $
+      property $ \(NonEmpty xs) -> ioProperty $ do
+        outs <- replAfter "examples/classes/combine.lam"
+          [ "total " <> renderList xs
+          , "total (map Yen " <> lamList xs <> ")" ]
+        pure (outs === [ T.pack (show (sum xs)) <> " : Int"
+                       , "Yen " <> num (sum xs) <> " : Money" ])
+    -- ANCHOR_END: totalProp
+
+    -- ANCHOR: classSelf
+    -- 「注釈のない定義も、同じ辞書で自分を呼ぶ。中の let は、辞書の
+    --   型変数を1つの型に決める」
+    it "calls itself with the same dictionary, and keeps a local let \
+       \to one type" $
+      runLines
+        [ "class Describe a where describe : a -> String"
+        , "instance Describe Int where describe n = showInt n"
+        , "describeEach xs = case xs of | [] -> \"\" \
+          \| x : rest -> describe x ++ describeEach rest"
+        , "describeEach [1, 2, 3]"
+        , "let f x = describe x in (f 1, f 2)"
+        , "let f x = describe x in (f 1, f \"a\")" ]
+        `shouldBe`
+          [ "describe : Describe a => a -> String", "instance Describe Int"
+          , "describeEach : Describe a => [a] -> String", "\"123\" : String"
+          , "(\"1\", \"2\") : (String, String)"
+          , "type error: String is not in the class Number" ]
+    -- ANCHOR_END: classSelf
+
+    -- 「組み込みのクラスも、上位のクラスに書ける（辞書はない）」
+    it "takes a builtin class above a declared one" $
+      runLines
+        [ "class Comparable a => Sorted a where key : a -> Int"
+        , "instance Sorted Int where key n = n"
+        , "smaller : Sorted a => a -> a -> a; smaller x y = if x < y then x else y"
+        , "smaller 3 5", "data H = H (Int -> Int)"
+        , "instance Sorted H where key h = 0" ]
+        `shouldBe`
+          [ "key : Sorted a => a -> Int", "instance Sorted Int"
+          , "smaller : Sorted a => a -> a -> a", "3 : Int"
+          , "H : (Int -> Int) -> H"
+          , "in the instance Sorted H: type error: H is not in the class Comparable (H holds Int -> Int)" ]
+
+    -- ANCHOR: classErrors
+    -- 「クラスとインスタンスのまちがいを、そう教える」
+    it "says what is wrong with a class or an instance" $
+      runLines
+        [ "class Describe a where describe : a -> String"
+        , "instance Describe Int where describe n = showInt n"
+        , "class Describe a where describe : a -> Int"
+        , "instance Comparable Int"
+        , "instance Describe Int where describe n = \"x\""
+        , "instance Describe Bool where descrbe b = \"b\""
+        , "instance Describe Bool"
+        , "class Sized a where size : Int"
+        , "instance Describe (Int -> Int) where describe f = \"f\""
+        , "instance Describe (Maybe Int) where describe m = \"m\"" ]
+        `shouldBe`
+          [ "describe : Describe a => a -> String", "instance Describe Int"
+          , "in the class Describe: type error:\
+            \ the class Describe is already declared"
+          , "in the instance Comparable Int: type error:\
+            \ Comparable is a builtin class: the language decides its\
+            \ members"
+          , "in the instance Describe Int: type error:\
+            \ there is already an instance Describe Int"
+          , "in the instance Describe Bool: type error:\
+            \ the class Describe has no method descrbe"
+          , "in the instance Describe Bool: type error:\
+            \ the method describe of Describe is not written (and has no\
+            \ default)"
+          , "in the class Sized: type error:\
+            \ the type of the method size must have the class's a"
+          , "in the instance Describe (Int -> Int): type error:\
+            \ an instance is for a type name with different type\
+            \ variables, like (Maybe a), not Int -> Int"
+          , "in the instance Describe (Maybe Int): type error:\
+            \ an instance is for a type name with different type\
+            \ variables, like (Maybe a), not Maybe Int" ]
+    -- ANCHOR_END: classErrors
+
+  -- 「トレーニングの解答」
   -- 「Map」
   describe "maps" $ do
     -- ANCHOR: maps
@@ -707,29 +1182,18 @@ main = hspec $ do
         , "let name = \"TS\" in {name: 1, [name]: 2}"
         , "{[1]: 2}" ]
         `shouldBe`
-          [ "scores : Map Int"
-          , "{\"Python\": 82, \"TS\": 75} : Map Int"
+          [ "scores : Number a => Map String a\n  -- usually : Map String Int"
+          , "{\"Python\": 82, \"TS\": 75} : Map String Int"
           , "Just 75 : Maybe Int"
           , "Nothing : Maybe Int"
           , "true : Bool"
-          , "Map a"
+          , "KeyComparable a => Map a b"
           , "true : Bool"
           , "type error: String -> String is not in the class Comparable"
-          , "{\"the\": 3} : Map Int"
-          , "{\"TS\": 2, \"name\": 1} : Map Int"
-          , "type error: the types do not fit: Int where String is needed" ]
+          , "{\"the\": 3} : Map String Int"
+          , "{\"TS\": 2, \"name\": 1} : Map String Int"
+          , "{1: 2} : Map Int Int" ]
     -- ANCHOR_END: maps
-
-    -- ANCHOR: mapLikeHaskell
-    -- 「Map.fromList は、Haskell の Map.fromList と同じ答え」
-    --  (the last of the same keys wins, and the keys come out in order)
-    it "builds the same map as Haskell's Map.fromList" $
-      property $ forAll (listOf1 genPair) $ \kvs ->
-        let source = "Map.toList (Map.fromList " <> lamPairs kvs <> ")"
-        in runLines [source]
-             == [lamPairs (Map.toList (Map.fromList kvs))
-                   <> " : [(String, Int)]"]
-    -- ANCHOR_END: mapLikeHaskell
 
     -- ANCHOR: qualified
     -- 「Map. の付いた名前は、1つの名前。{ } は Map.fromList の糖衣構文」
@@ -748,6 +1212,173 @@ main = hspec $ do
       fmap render (parseExpr "{[name]: 1, [toUpper k]: 2}")
         `shouldBe` Right "Map.fromList [(name, 1), (toUpper k, 2)]"
     -- ANCHOR_END: qualified
+
+    -- ANCHOR: mapLikeHaskell
+    -- 「Map.fromList は、Haskell の Map.fromList と同じ答え」
+    --  (the last of the same keys wins, and the keys come out in order)
+    it "builds the same map as Haskell's Map.fromList" $
+      property $ forAll (listOf1 genPair) $ \kvs ->
+        let source = "Map.toList (Map.fromList " <> lamPairs kvs <> ")"
+        in runLines [source]
+             == [lamPairs (Map.toList (Map.fromList kvs))
+                   <> " : [(String, Int)]"]
+    -- ANCHOR_END: mapLikeHaskell
+
+    -- ANCHOR: anyKeys
+    -- 「キーは、Comparable な型なら何でもよい」
+    it "takes keys of any Comparable type" $
+      runLines
+        [ "{1: \"one\", 2: \"two\"}"
+        , "Map.lookup (1, 2) {[(1, 2)]: \"a\", [(0, 5)]: \"b\"}"
+        , ":type Map.insert"
+        , "{-1: 2, 1.5: 3}"
+        , "Map.fromList [(Just 2, 1), (Nothing, 0)]"
+        , "{[toUpper]: 1}"
+        , "{1: 2, \"a\": 3}" ]
+        `shouldBe`
+          [ "{1: \"one\", 2: \"two\"} : Map Int String"
+          , "Just \"a\" : Maybe String"
+          , "KeyComparable a => a -> b -> Map a b -> Map a b"
+          , "{-1: 2, 1.5: 3} : Map Float Int"
+          , "{[Nothing]: 0, [Just 2]: 1} : Map (Maybe Int) Int"
+          , "type error: String -> String is not in the class KeyComparable"
+          , "type error: String is not in the class Number" ]
+    -- ANCHOR_END: anyKeys
+
+    -- ANCHOR: sets
+    -- 「Set：どの値も1つずつ、順に並べて持つ」
+    it "keeps each value once, in order, in a set" $
+      runLines
+        [ "Set.fromList [3, 1, 3, 2]"
+        , "Set.member 2 (Set.fromList [1, 2])"
+        , "Set.union (Set.fromList [1, 2]) (Set.fromList [2, 3])"
+        , "Set.intersection (Set.fromList [1, 2]) (Set.fromList [2, 3])"
+        , "Set.difference (Set.fromList [1, 2]) (Set.fromList [2, 3])"
+        , "Set.toList (Set.insert (0, 0) Set.empty)"
+        , "Just (Set.fromList [\"a\"])"
+        , "Set.fromList [1, 2] == Set.fromList [2, 1, 2]"
+        , ":type Set.fromList"
+        , "Set.fromList [toUpper]" ]
+        `shouldBe`
+          [ "Set.fromList [1, 2, 3] : Set Int"
+          , "true : Bool"
+          , "Set.fromList [1, 2, 3] : Set Int"
+          , "Set.fromList [2] : Set Int"
+          , "Set.fromList [1] : Set Int"
+          , "[(0, 0)] : [(Int, Int)]"
+          , "Just (Set.fromList [\"a\"]) : Maybe (Set String)"
+          , "true : Bool"
+          , "KeyComparable a => [a] -> Set a"
+          , "type error: String -> String is not in the class KeyComparable" ]
+
+    -- 「Set.fromList は、Haskell の Set.fromList と同じ答え」
+    it "builds the same set as Haskell's Set.fromList" $
+      property $ \(NonEmpty (xs :: [Integer])) ->
+        let shown ns = "[" <> T.intercalate ", " (map (T.pack . show) ns)
+                         <> "]"
+        in runLines ["Set.toList (Set.fromList " <> lamList xs <> ")"]
+             === [shown (Set.toList (Set.fromList xs)) <> " : [Int]"]
+    -- ANCHOR_END: sets
+
+    -- ANCHOR: mapTypes
+    -- 「型の注釈と data の宣言にも、Map と Set を書ける」
+    it "writes Map and Set in annotations and data" $
+      runLines
+        [ "count : [String] -> Map String Int; count ws = "
+            <> "foldl (\\m w -> Map.insertWith (+) w 1 m) {} ws"
+        , "count [\"a\", \"b\", \"a\"]"
+        , "data Board = Board (Set (Int, Int))"
+        , "Board (Set.fromList [(1, 2)])"
+        , "data T = C (Map Int)" ]
+        `shouldBe`
+          [ "count : [String] -> Map String Int"
+          , "{\"a\": 2, \"b\": 1} : Map String Int"
+          , "Board : Set (Int, Int) -> Board"
+          , "Board (Set.fromList [(1, 2)]) : Board"
+          , "in the data type T: type error: the type Map needs 2 \
+            \arguments, but got 1" ]
+    -- ANCHOR_END: mapTypes
+
+    -- ANCHOR: nanKeys
+    -- 「NaN のキーも、また引ける。== は IEEE どおり」
+    it "finds a NaN key again" $
+      runLines
+        [ "nan = 0 / 0"
+        , "m = Map.insert nan \"a\" Map.empty"
+        , "Map.lookup nan m"
+        , "Map.insert nan \"b\" m"
+        , "Set.fromList [nan, nan, 1.5, -1 / 0]"
+        , "Set.member (Just nan) (Set.fromList [Just nan])"
+        , "nan == nan"
+        , "f : Comparable k => k -> Map k Int; f k = Map.insert k 1 {}"
+        , "g k = (k < k, Map.insert k 1 {})" ]
+        `shouldBe`
+          [ "nan : Float"
+          , "m : Map Float String"
+          , "Just \"a\" : Maybe String"
+          , "{NaN: \"b\"} : Map Float String"
+          , "Set.fromList [-Infinity, 1.5, NaN] : Set Float"
+          , "true : Bool"
+          , "false : Bool"
+          , "f : Comparable a => a -> Map a Int"
+          , "g : (Comparable a, Number b) => a -> (Bool, Map a b)" ]
+
+    -- 「キーの比べ方は、NaN のほかは == と < と同じ」
+    it "compares keys as == and < do, but for NaN" $
+      property $ \(x :: Double) (y :: Double) ->
+        let lit v = "(" <> floatLiteral v <> ")"
+        in runLines
+             [ "Set.toList (Set.fromList [" <> lit x <> ", " <> lit y <> "])"
+                 <> " == (if " <> lit y <> " < " <> lit x
+                 <> " then [" <> lit y <> ", " <> lit x <> "]"
+                 <> " else if " <> lit x <> " == " <> lit y
+                 <> " then [" <> lit x <> "]"
+                 <> " else [" <> lit x <> ", " <> lit y <> "])" ]
+             === ["true : Bool"]
+    -- ANCHOR_END: nanKeys
+
+    -- ANCHOR: usualTypes
+    -- 「どの型にもなれる数のある値には、ふつうの型（Int）を添える。
+    --   関数は1行のまま」
+    it "shows the usual type of a value with numbers of any type" $
+      runLines
+        [ "treasures = {[(2, 0)]: \"herb\", [(1, 1)]: \"elixir\"}"
+        , ":type treasures"
+        , "double x = x * 2"
+        , "names = {1: \"one\"}"
+        , "words = {\"a\": \"b\"}" ]
+        `shouldBe`
+          [ "treasures : (Number a, KeyComparable a, Number b, \
+            \KeyComparable b) => Map (a, b) String\n\
+            \  -- usually : Map (Int, Int) String"
+          , "(Number a, KeyComparable a, Number b, KeyComparable b) \
+            \=> Map (a, b) String\n  -- usually : Map (Int, Int) String"
+          , "double : Number a => a -> a"
+          , "names : (Number a, KeyComparable a) => Map a String\n\
+            \  -- usually : Map Int String"
+          , "words : Map String String" ]
+    -- ANCHOR_END: usualTypes
+
+    -- ANCHOR: braceError
+    -- 「どちらでもないときは、: と = のどちらが来るはずかを言う」
+    it "says : or = is needed after a name in { }" $
+      runLines ["{name}"]
+        `shouldBe`
+          [ "<repl>:1:6:\n  |\n1 | {name}\n  |      ^\nunexpected '}'\n\
+            \expecting ':' (a Map) or '=' (a record)\n" ]
+    -- ANCHOR_END: braceError
+
+    -- 「レコードと Map の { } は、= と : で見分ける」
+    it "tells a record from a map by = and :" $
+      runLines
+        [ "{ name = 1 }", "{ name: 1 }", "{}", "r = { name = 1 }"
+        , "{ r | name = 2 }" ]
+        `shouldBe`
+          [ "{ name = 1 } : { name : Int }"
+          , "{\"name\": 1} : Map String Int"
+          , "{} : KeyComparable a => Map a b"
+          , "r : Number a => { name : a }\n  -- usually : { name : Int }"
+          , "{ name = 2 } : { name : Int }" ]
 
   -- 「JSON」
   describe "JSON" $ do
@@ -787,7 +1418,7 @@ main = hspec $ do
         , "{\"a\": JInt 1, \"a\": JInt 2}" ]
         `shouldBe`
           [ "Ok (JObj {\"a\": JInt 2}) : Result String Json"
-          , "{\"a\": JInt 2} : Map Json" ]
+          , "{\"a\": JInt 2} : Map String Json" ]
     -- ANCHOR_END: parseJson
 
     -- ANCHOR: numbers
@@ -795,8 +1426,7 @@ main = hspec $ do
     it "reads whole numbers as JInt, and fractions as JDec, exactly" $
       runLines
         [ "Json.parse \"[42, 19.99, -0.5, 1.0, 1e3, 12345678901234567890]\""
-        , "Json.show (JArr [Json.mkDec 1999 2, Json.mkDec (0 - 5) 1, "
-            <> "JInt 1000])" ]
+        , "Json.show (JArr [Json.mkDec 1999 2, Json.mkDec (0 - 5) 1, JInt 1000])" ]
         `shouldBe`
           [ "Ok (JArr [JInt 42, JDec 1999 2, JDec (-5) 1, JInt 1, JInt 1000, "
               <> "JInt 12345678901234567890]) : Result String Json"
@@ -813,29 +1443,44 @@ main = hspec $ do
         , "\"1.0e1000000000\" : String" ]
     -- ANCHOR_END: numbers
 
-    -- ANCHOR: roundTrip
-    -- 「aeson の値を Lam の Json にして戻すと、もとの値」
-    it "turns aeson's values into Lam's Json and back" $
-      property $ forAll genAeson $ \j ->
-        toAeson (fromAeson j) == Right j
-    -- ANCHOR_END: roundTrip
+    -- ANCHOR: floatJson
+    -- 「JSON の数と Float を行き来する」
+    it "turns JSON numbers into Floats, and back" $
+      runLines
+        [ "Json.toFloat (Json.mkDec 1999 2)", "Json.toFloat (JInt 3)"
+        , "Json.toFloat (JStr \"3\")"
+        , "Json.fromFloat 0.1", "Json.fromFloat 2.0"
+        , "Json.fromFloat (0 / 0)", "Json.fromFloat (1 / 0)"
+        , "Json.show (Json.fromFloat (0.1 + 0.2))" ]
+        `shouldBe`
+          [ "Just 19.99 : Maybe Float", "Just 3 : Maybe Float"
+          , "Nothing : Maybe Float"
+          , "JDec 1 1 : Json", "JInt 2 : Json"
+          , "JNull : Json", "JNull : Json"
+          , "\"0.30000000000000004\" : String" ]
+
+    -- 「Json.fromFloat を Json.toFloat で戻すと、同じ Float」
+    it "turns a Float into JSON and back" $
+      property $ \x ->
+        runLines ["Json.toFloat (Json.fromFloat (" <> floatLiteral x <> "))"]
+          === ["Just " <> (if x < 0 then "(" <> showFloat x <> ")"
+                           else showFloat x) <> " : Maybe Float"]
+    -- ANCHOR_END: floatJson
 
     -- ANCHOR: mkDec
     -- 「Json.mkDec は、Json.parse と同じ形の小数を作る」
     it "makes a number in the same shape as Json.parse" $
       runLines
-        [ "JDec 19990 3"
+        [ "Json.decimal (Json.mkDec 19990 3)"
         , "Json.mkDec 19990 3", "Json.mkDec 1900 2", "Json.mkDec 0 5"
         , "Json.mkDec 1999 2 == Json.mkDec 19990 3" ]
         `shouldBe`
-          [ "type error: JDec is hidden by the module Json"
-              <> " (it is not in its exposing list)"
+          [ "Just (1999, 2) : Maybe (Int, Int)"
           , "JDec 1999 2 : Json", "JInt 19 : Json", "JInt 0 : Json"
           , "true : Bool" ]
 
-    -- 「どんな c と d でも、c × 10^(-d) を書いた JSON を読んだものと同じ」
-    -- (JDec is hidden now, so Haskell writes the number.)
-    -- （JDec は隠れたので、数は Haskell が書く）
+    -- 「どんな c と d でも、Haskell が書いた数 c × 10^(-d) を読んだものと同じ」
+    -- （JDec は隠したので、Lam では書けない）
     it "makes the same Json as reading the number c * 10^(-d)" $
       property $ forAll ((,) <$> arbitrary <*> choose (-6, 8)) $
         \(c, d) ->
@@ -848,6 +1493,13 @@ main = hspec $ do
                    <> "\" of | Ok j -> j | Err _ -> JNull)" ]
                === ["true : Bool"]
     -- ANCHOR_END: mkDec
+
+    -- ANCHOR: roundTrip
+    -- 「aeson の値を Lam の Json にして戻すと、もとの値」
+    it "turns aeson's values into Lam's Json and back" $
+      property $ forAll genAeson $ \j ->
+        toAeson (fromAeson j) == Right j
+    -- ANCHOR_END: roundTrip
 
     -- ANCHOR: jsonTools
     -- 「奥の値を、道すじで取り出す」
@@ -869,154 +1521,374 @@ main = hspec $ do
           , "Just (JInt 1) : Maybe Json" ]
     -- ANCHOR_END: jsonTools
 
-    -- 「bind は値が先、andThen は関数が先。中身は同じ」
-    it "has bind with the value first, and andThen with the function first" $
+  -- 「道具箱」
+  describe "toolbox" $ do
+    -- ANCHOR: toolboxStrings
+    -- 「文字列の道具」
+    it "trims, splits and replaces strings" $
       runLines
-        [ "let down n = if n > 0 then Just (n - 1) else Nothing"
-        , "Maybe.bind (Just 3) down"
-        , "Maybe.andThen down (Just 3)"
-        , "Maybe.bind (Just 0) down" ]
+        [ "String.trim \"  Lam  \""
+        , "String.split \",\" \"a,,b\""
+        , "\" TS , ts@lam.test \" |> String.split \",\" |> map String.trim"
+        , "String.startsWith \"#\" \"# note\""
+        , "String.contains \"@\" \"ruby-at-lam.test\""
+        , "String.replace \"-at-\" \"@\" \"ruby-at-lam.test\""
+        , "String.repeat 3 \"ab\""
+        , "String.split \"\" \"abc\"" ]
         `shouldBe`
-          [ "down : Int -> Maybe Int"
-          , "Just 2 : Maybe Int", "Just 2 : Maybe Int", "Nothing : Maybe Int" ]
-    -- 「Result と IO にも、値が先の bind と関数が先の andThen がある」
-    it "has bind and andThen for Result and IO, too" $
+          [ "\"Lam\" : String"
+          , "[\"a\", \"\", \"b\"] : [String]"
+          , "[\"TS\", \"ts@lam.test\"] : [String]"
+          , "true : Bool"
+          , "false : Bool"
+          , "\"ruby@lam.test\" : String"
+          , "\"ababab\" : String"
+          , "[\"a\", \"b\", \"c\"] : [String]" ]
+    -- 「区切りが空でなければ、Haskell と同じ。区切りでつなぎ直すと元に戻る」
+    it "splits as Haskell's splitOn does, and join undoes it" $
+      property $ forAll ((,) <$> elements ["", ",", ", ", "ab"] <*> genText) $
+        \(sep, text) ->
+          runLines [ "String.split " <> renderString sep <> " "
+                       <> renderString text ]
+          === [ "[" <> T.intercalate ", "
+                         (map renderString (splitOn sep text))
+                  <> "] : [String]" ]
+          .&&. (T.null sep || T.intercalate sep (splitOn sep text) == text)
+          .&&. (T.null sep || splitOn sep text == T.splitOn sep text)
+    -- ANCHOR_END: toolboxStrings
+
+    -- ANCHOR: toolboxSequence
+    -- 「reverse・take・slice は、文字列にもリストにも」
+    it "reverses, takes and slices strings and lists alike" $
       runLines
-        [ ":type Result.bind", ":type Result.andThen", ":type IO.andThen"
-        , "Result.bind (Ok 1) (\\n -> Ok (n + 1))"
-        , "IO.andThen (\\x -> pure (x + 1)) (pure 1)" ]
+        [ "reverse \"abc\""
+        , "reverse [1, 2, 3]"
+        , "take 3 \"Haskell\""
+        , "drop 1 [1, 2, 3]"
+        , "slice 1 (-1) \"Lam!\""
+        , "slice 1 (-1) [1, 2, 3, 4]"
+        , "let palindrome s = s == reverse s"
+        , "map palindrome [\"level\", \"lam\"]"
+        , "palindrome [1, 2, 1]"
+        , "reverse (Just 1)" ]
         `shouldBe`
-          [ "Result a b -> (b -> Result a c) -> Result a c"
-          , "(a -> Result b c) -> Result b a -> Result b c"
-          , "(a -> IO b) -> IO a -> IO b"
-          , "Ok 2 : Result a Int", "2 : Int" ]
+          [ "\"cba\" : String"
+          , "[3, 2, 1] : [Int]"
+          , "\"Has\" : String"
+          , "[2, 3] : [Int]"
+          , "\"am\" : String"
+          , "[2, 3] : [Int]"
+          , "palindrome : (Comparable a, Sequence a) => a -> Bool"
+          , "[true, false] : [Bool]"
+          , "true : Bool"
+          , "type error: Maybe a is not in the class Sequence" ]
+    -- 「slice は Python の s[i:j] と同じ（負の数は後ろから）」
+    it "slices as Python's s[i:j] does" $
+      property $ \(i, j) -> forAll genText $ \text ->
+        let len = T.length text
+            place k = max 0 (min len (if k < 0 then len + k else k))
+            python = T.drop (place i) (T.take (place j) text)
+        in runLines [ "slice " <> num (toInteger (i :: Int)) <> " "
+                        <> num (toInteger (j :: Int)) <> " "
+                        <> renderString text ]
+           === [ renderString python <> " : String" ]
+    -- 「文字列の reverse は Haskell と同じ」
+    it "reverses a string as Haskell does" $
+      property $ forAll genText $ \text ->
+        runLines ["reverse " <> renderString text]
+          === [renderString (T.reverse text) <> " : String"]
+    -- ANCHOR_END: toolboxSequence
 
-  -- 「入出力」
-  describe "IO" $ do
-    -- ANCHOR: doSugar
-    -- 「do は、bind と関数に開く」
-    it "opens do into bind and functions" $
-      map (fmap render . parseExpr)
-        [ "do x <- getLine; putStrLn x"
-        , "do putStr \"a\"; let b = \"b\"; putStrLn b"
-        , "do\n  name <- getLine\n  putStrLn (fromMaybe \"\" name)" ]
-        `shouldBe` map Right
-          [ "bind getLine (\\x -> putStrLn x)"
-          , "bind (putStr \"a\") (\\_ -> let b = \"b\" in putStrLn b)"
-          , "bind getLine (\\name -> putStrLn (fromMaybe \"\" name))" ]
-    -- ANCHOR_END: doSugar
+    -- ANCHOR: toolboxListMax
+    -- 「リストの版：空の maximum は Nothing」
+    it "gives Nothing for the maximum of an empty list" $
+      runLines [ "List.maximum [95, 88, 79]", "List.maximum []"
+               , ":type List.maximum" ]
+        `shouldBe` [ "Just 95 : Maybe Int"
+                   , "Nothing : Comparable a => Maybe a"
+                   , "Comparable a => [a] -> Maybe a" ]
+    -- ANCHOR_END: toolboxListMax
 
-    -- ANCHOR: keywordStart
-    -- 「キーワードで始まる名前も読める（double、iffy、letter）」
-    it "reads names that start with a keyword" $
+    -- ANCHOR: toolboxKinds
+    -- 「f a の型を書き、穴のある型だけを instance にする」
+    it "writes f a in types, and checks the holes of an instance" $
       runLines
-        [ "let double x = x * 2", "double 4"
-        , "let iffy = 1", "iffy + 1", "let letter = \"a\"", "letter" ]
+        [ ":type toList"
+        , ":type foldr"
+        , "instance Foldable Int where foldr f z x = z"
+        , "class Box f where unbox : f a -> a"
+        , "instance Box Maybe where unbox m = m ?: unbox m"
+        , "instance Box (Maybe a) where unbox m = m"
+        , "class Size a where size : a -> Int"
+        , "instance Size Maybe where size m = 1"
+        , "instance Size (Maybe a) where size m = 1"
+        , "instance Size (a, b) where size p = 2" ]
         `shouldBe`
-          [ "double : Int -> Int", "8 : Int", "iffy : Int", "2 : Int"
-          , "letter : String", "\"a\" : String" ]
-    -- ANCHOR_END: keywordStart
+          [ "Foldable f => f a -> [a]"
+          , "Foldable f => (a -> b -> b) -> b -> f a -> b"
+          , "in the instance Foldable Int: type error: Foldable is for a type"
+              <> " with a hole (one that takes 1 more type, like List or"
+              <> " Maybe), not Int"
+          , "unbox : Box f => f a -> a"
+          , "instance Box Maybe"
+          , "in the instance Box (Maybe a): type error: Box is for a type"
+              <> " with a hole (one that takes 1 more type, like List or"
+              <> " Maybe), not Maybe a"
+          , "size : Size a => a -> Int"
+          , "in the instance Size Maybe: type error: Size is for a type"
+              <> " with no hole (one that takes 0 more types, like Int or"
+              <> " (Maybe a)), not Maybe"
+          , "instance Size (Maybe a)"
+          , "instance Size (a, b)" ]
+    -- ANCHOR_END: toolboxKinds
 
-    -- ANCHOR: ioTypes
-    -- 「IO の値の型」
-    it "gives IO values their types" $
+    -- ANCHOR: toolboxFoldable
+    -- 「Foldable：リストにも Map にも Maybe にも Set にも」
+    it "folds lists, maps, Maybes and sets alike" $
       runLines
-        [ ":type putStrLn", ":type getLine", ":type bind"
-        , ":type do x <- pure 1; pure (x + 1)"
-        , "do x <- pure 1"
-        , "putStrLn \"hi\" == putStrLn \"hi\"" ]
+        [ ":type any"
+        , "any even [1, 3, 4]"
+        , "sum {python: 82, ts: 75}"
+        , "maximum {python: 82, ts: 75}"
+        , "maximum []"
+        , "sum (Just 3)"
+        , "elem \"Lam\" (Just \"Lam\")"
+        , "toList {b: 2, a: 1}"
+        , "sum (Set.fromList [3, 1, 3])"
+        , "sum 5"
+        , "any even \"abc\"" ]
         `shouldBe`
-          [ "String -> IO ()", "IO (Maybe String)"
-          , "IO a -> (a -> IO b) -> IO b", "IO Int"
-          , "<repl>:1:15:\n  |\n1 | do x <- pure 1\n  |               ^\n\
-            \the last line of do must be an expression\n"
-          , "type error: IO () is not in the class Comparable" ]
-    -- ANCHOR_END: ioTypes
+          [ "Foldable f => (a -> Bool) -> f a -> Bool"
+          , "true : Bool"
+          , "157 : Int"
+          , "Just 82 : Maybe Int"
+          , "Nothing : Comparable a => Maybe a"
+          , "3 : Int"
+          , "true : Bool"
+          , "[1, 2] : [Int]"
+          , "4 : Int"
+          , "type error: the types do not fit: Int where f a is needed"
+          , "type error: the types do not fit: String where f Int is needed" ]
+    -- 「maximum は、Haskell の maximum と同じ。空なら Nothing」
+    it "finds the same maximum as Haskell, and Nothing for []" $
+      property $ \xs ->
+        map valuePart
+          (runLines ["maximum " <> lamList xs, "minimum " <> lamList xs])
+          === map valuePart
+                [ lamMaybe (if null xs then Nothing else Just (maximum xs))
+                , lamMaybe (if null xs then Nothing else Just (minimum xs)) ]
+    -- 「Map の値は、キーの順にたたむ（引き算で順番まで確かめる）」
+    it "folds the values of a map in the order of the keys" $
+      property $ \kvs ->
+        let m = Map.fromList [ (k :: Int, v :: Integer) | (k, v) <- kvs ]
+            lit = "(Map.fromList [" <> T.intercalate ", "
+                    [ "(" <> num (toInteger k) <> ", " <> num v <> ")"
+                    | (k, v) <- Map.toList m ] <> "])"
+        in map valuePart
+             (runLines [ "sum " <> lit, "foldr (\\x acc -> x - acc) 0 " <> lit ])
+           === [ T.pack (show (sum m)), T.pack (show (foldr (-) 0 m)) ]
+    -- ANCHOR_END: toolboxFoldable
 
-    -- ANCHOR: makingIsNotDoing
-    -- 「作るだけでは、何も起きない。やるたびに起きる」
-    it "does nothing when an action is made, and does it each time" $
-      runLinesIn emptyWorld
-        [ "let hi = putStrLn \"hi\""
-        , "[hi, hi, hi]"
-        , "do hi; hi" ]
+    -- ANCHOR: toolboxPending
+    -- 「f がわからないうちの条件は待ち、最後まで決まらなければリストに」
+    it "waits for f, and makes it a list when it is never known" $
+      runLines
+        [ "let total t = sum t"
+        , "let average xs = sum xs / toFloat (length xs)"
+        , "average [80, 90]"
+        , "let grow t = map (\\x -> x + 1) t ++ [0]"
+        , "(\\t -> length (map (\\x -> x) t)) (Just 1)" ]
         `shouldBe`
-          ( [ "hi : IO ()"
-            , "[<IO action>, <IO action>, <IO action>] : [IO ()]"
-            , "" ]
-          , emptyWorld { worldOutput = ["hi\n", "hi\n"] } )
-    -- ANCHOR_END: makingIsNotDoing
+          [ "total : (Foldable f, Number a) => f a -> a"
+          , "average : [Float] -> Float"
+          , "85 : Float"
+          , "grow : Number a => [a] -> [a]"
+          , "type error: Maybe a is not in the class HasLength" ]
+    -- ANCHOR_END: toolboxPending
 
-    -- ANCHOR: fakeFiles
-    -- 「偽物の世界のファイルを、読んで書く」
-    it "reads and writes the files of a fake world" $ do
-      let world = emptyWorld
-            { worldFiles = Map.fromList [("memo.txt", "λ memo\n")] }
-          (outs, world') = runLinesIn world
-            [ "readFile \"memo.txt\""
-            , "readFile \"nothing.txt\""
-            , "writeFile \"new.txt\" \"hello\"" ]
-      outs `shouldBe`
-        [ "Ok \"λ memo\\n\" : Result String String"
-        , "Err \"nothing.txt: no such file\" : Result String String"
-        , "Ok () : Result String ()" ]
-      worldFiles world' `shouldBe`
-        Map.fromList [("memo.txt", "λ memo\n"), ("new.txt", "hello")]
-    -- ANCHOR_END: fakeFiles
+    -- ANCHOR: toolboxFunctor
+    -- 「Functor：map はリストにも Maybe にも Map にも Result にも」
+    it "maps lists, Maybes, maps and Results alike" $
+      runLines
+        [ ":type map"
+        , "map (\\n -> n * 2) [1, 2]"
+        , "map (\\n -> n * 2) (Just 4)"
+        , "map (\\n -> n * 2) {a: 1, b: 2}"
+        , "map (\\n -> n * 2) (Ok 3)"
+        , "map (\\n -> n * 2) (Err \"no\")"
+        , "map toUpper \"abc\""
+        , ":dicts map (\\n -> n * 2) (Just 4)" ]
+        `shouldBe`
+          [ "Functor f => (a -> b) -> f a -> f b"
+          , "[2, 4] : [Int]"
+          , "Just 8 : Maybe Int"
+          , "{\"a\": 2, \"b\": 4} : Map String Int"
+          , "Ok 6 : Result a Int"
+          , "Err \"no\" : Result String Int"
+          , "type error: the types do not fit: String where f String"
+              <> " is needed"
+          , "map $Functor$Maybe (\\n -> n * 2) (Just 4)" ]
+    -- ANCHOR_END: toolboxFunctor
 
-    -- ANCHOR: echo
-    -- 「読んだ行を、そのまま全部書き出す（でたらめな行で）」
-    it "echoes every line it reads" $
-      forAll (listOf (T.filter (/= '\n') <$> genText)) $ \ls ->
-        let echo = "let echo = do line <- getLine; case line of \
-                   \| Nothing -> pure () | Just s -> do putStrLn s; echo"
-            (_, world') = runLinesIn emptyWorld { worldInput = ls }
-                            [echo, "echo"]
-        in outputOf world' === T.concat [ l <> "\n" | l <- ls ]
-    -- ANCHOR_END: echo
+    -- ANCHOR: toolboxFallible
+    -- 「?: は Fallible の toMaybe で開く。右は要るときだけ計算する」
+    it "opens ?: with toMaybe, and computes the right only when needed" $
+      runLines
+        [ ":type \\m -> m ?: 0"
+        , "Just 3 ?: (1 // 0)"
+        , "Err \"no\" ?: 4"
+        , "3 ?: 0"
+        , "[1] ?: 0"
+        , ":dicts Just 3 ?: 0" ]
+        `shouldBe`
+          [ "(Fallible f, Number a) => f a -> a"
+          , "3 : Int"
+          , "4 : Int"
+          , "type error: ?: needs a Maybe or a Result on its left, but got"
+              <> " a number (only a Maybe or a Result can be missing its"
+              <> " value)"
+          , "type error: ?: needs a Maybe or a Result on its left, but got"
+              <> " [a] (only a Maybe or a Result can be missing its value)"
+          , "case toMaybe $Fallible$Maybe (Just 3) of | Just $x -> $x"
+              <> " | Nothing -> 0" ]
+    -- ANCHOR_END: toolboxFallible
 
-    -- ANCHOR: report
-    -- 「report.lam は、偽物の世界に report.json を書く」
-    it "writes report.json into the fake world" $ do
-      source <- Utf8.readFile "examples/report.lam"
-      orders <- Utf8.readFile "examples/orders.json"
-      let world = emptyWorld
-            { worldFiles = Map.fromList [("examples/orders.json", orders)] }
-          (result, world') =
-            runFake world (runProgram fakeWorld (fakeFiles world)
-                             preludeSession "report.lam" source)
-      result `shouldBe` Finished ""
-      Map.lookup "report.json" (worldFiles world')
-        `shouldBe` Just "{\"mug\":1,\"sticker\":6}"
-    -- ANCHOR_END: report
+    -- ANCHOR: toolboxOwn
+    -- 「自分の data の型も、Foldable・Functor・Fallible に入る」
+    it "puts our own data types into the classes of the toolbox" $ do
+      team <- replAfter "examples/stdlib/team.lam"
+        [ "maximum (Team 1 3 2)", ":dicts sum (Team 1 2 3)" ]
+      skipped <- replAfter "examples/stdlib/skipped.lam"
+        [ ":type toMaybe", "Answered \"a\" ?: \"none\"" ]
+      (team, skipped) `shouldBe`
+        ( [ "Just 3 : Maybe Int", "sum $Foldable$Team (Team 1 2 3)" ]
+        , [ "Fallible f => f a -> Maybe a", "\"a\" : String" ] )
+    -- ANCHOR_END: toolboxOwn
 
-    -- ANCHOR: checkMain
-    -- 「main は、3つの形のどれかでなければならない」
-    it "says when main has none of the three shapes" $
-      map (\src -> fst (runFake emptyWorld
-                      (runProgram fakeWorld noFiles preludeSession "m" src)))
-        ["let main = 1", "let main = putStrLn", "let main = pure 3"]
-        `shouldBe` map
-          (\t -> Errored ("in main: type error: main must be IO (), "
-                      <> "[String] -> IO (), or [String] -> Map String "
-                      <> "-> IO (), but it is " <> t))
-          [ "Int", "String -> IO ()", "IO Int" ]
-    -- ANCHOR_END: checkMain
+    -- ANCHOR: toolboxLists
+    -- 「リストの道具は、Haskell の zip・nub・partition・sortOn と同じ」
+    it "zips, numbers, splits, sorts and makes unique as Haskell does" $
+      property $ \xs ys ->
+        let shown zs = "[" <> T.intercalate ", " (map (T.pack . show) zs)
+                         <> "]"
+        in map valuePart
+             (runLines [ "zip " <> lamList xs <> " " <> lamList ys
+                       , "unique " <> lamList xs
+                       , "partition even " <> lamList xs
+                       , "map fst (indexed " <> lamList xs <> ")"
+                       , "sortOn negate " <> lamList xs ])
+           === [ "[" <> T.intercalate ", "
+                   [ "(" <> T.pack (show a) <> ", " <> T.pack (show b) <> ")"
+                   | (a, b) <- zip xs ys ] <> "]"
+               , shown (nub xs)
+               , "(" <> shown (filter even xs) <> ", "
+                   <> shown (filter odd xs) <> ")"
+               , shown (map toInteger [0 .. length xs - 1])
+               , shown (sortOn negate xs) ]
+    -- 「sortOn は、同じキーの2つの順を変えない」
+    it "keeps the order of the items with the same key" $
+      property $ \(kvs :: [(Integer, Integer)]) ->
+        let lit = "[" <> T.intercalate ", "
+                    [ "(" <> num k <> ", " <> num v <> ")" | (k, v) <- kvs ]
+                    <> "]"
+            shownPairs ps = "[" <> T.intercalate ", "
+              [ "(" <> T.pack (show k) <> ", " <> T.pack (show v) <> ")"
+              | (k, v) <- ps ] <> "]"
+        in map valuePart (runLines ["sortOn fst " <> lit])
+             === [shownPairs (sortOn fst kvs)]
+    -- ANCHOR_END: toolboxLists
+
+    -- ANCHOR: toolboxMaps
+    -- 「Map の道具は、Haskell の Map と同じ（unionWith は引数の順も）」
+    it "unions, filters and updates maps as Haskell's Map does" $
+      property $ \as bs k ->
+        let a = Map.fromList [ (key :: Int, v :: Integer) | (key, v) <- as ]
+            b = Map.fromList [ (key, v) | (key, v) <- bs ]
+            lit m = "(Map.fromList [" <> T.intercalate ", "
+                      [ "(" <> num (toInteger x) <> ", " <> num v <> ")"
+                      | (x, v) <- Map.toList m ] <> "])"
+            shown m = "{" <> T.intercalate ", "
+                        [ T.pack (show x) <> ": " <> T.pack (show v)
+                        | (x, v) <- Map.toList m ] <> "}"
+            bump n = case n of
+              Just v | v > 0 -> Just (v - 1)
+              _              -> Nothing
+        in map valuePart (runLines
+             [ "Map.unionWith (\\x y -> x - y) " <> lit a <> " " <> lit b
+             , "Map.filter (\\v -> v > 0) " <> lit a
+             , "Map.update " <> num (toInteger (k :: Int))
+                 <> " (\\n -> case n of | Just v -> if v > 0"
+                 <> " then Just (v - 1) else Nothing | Nothing -> Nothing) "
+                 <> lit a
+             , "Map.union " <> lit a <> " " <> lit b
+             , "Map.map (\\v -> v * 2) " <> lit a ])
+           === map shown [ Map.unionWith (-) a b, Map.filter (> 0) a
+                         , Map.alter bump k a, Map.union a b
+                         , Map.map (* 2) a ]
+    -- ANCHOR_END: toolboxMaps
+
+    -- ANCHOR: toolboxPretty
+    -- 「Json.pretty は、何行かに分けて2つずつ字下げする。読み戻すと同じ」
+    it "writes JSON on many lines, and parse reads it back" $
+      runLines
+        [ "Json.pretty (JArr [JInt 1, JStr \"a\"])"
+        , "Json.parse (Json.pretty (JObj {b: JNull, a: JBool true}))" ]
+        `shouldBe`
+          [ "\"[\\n  1,\\n  \\\"a\\\"\\n]\" : String"
+          , "Ok (JObj {\"a\": JBool true, \"b\": JNull})"
+              <> " : Result String Json" ]
+    -- ANCHOR_END: toolboxPretty
+
+    -- ANCHOR: quizRepl
+    -- 「本文の、例を :load してからのやり取り」
+    it "answers the REPL lines after loading the examples" $ do
+      signup <- replAfter "examples/stdlib/signup.lam"
+        [ "cells \"  Python , python@lam.test , Python\""
+        , "fixMail \"ruby-at-lam.test\"", "map .mail entries" ]
+      quiz <- replAfter "examples/stdlib/quiz.lam"
+        [ "best [95, 88, 79]", "best []", "totals", "bestTotal", "allPoints"
+        , "passedNames", "notYet", "map best book", "notice" ]
+      tally <- replAfter "examples/stdlib/tally.lam" ["map showCounts days"]
+      (signup, quiz, tally) `shouldBe`
+        ( [ "[\"Python\", \"python@lam.test\", \"Python\"] : [String]"
+          , "\"ruby@lam.test\" : String"
+          , "[\"python@lam.test\", \"ts@lam.test\", \"rust@lam.test\","
+              <> " \"ruby@lam.test\"] : [String]" ]
+        , [ "\"95\" : String", "\"-\" : String"
+          , "{\"Erlang\": 156, \"Python\": 247, \"Ruby\": 0, \"Rust\": 262,"
+              <> " \"TS\": 159} : Map String Int"
+          , "262 : Int", "824 : Int"
+          , "[\"Python\", \"Rust\", \"TS\"] : [String]"
+          , "[\"Erlang\", \"Ruby\"] : [String]"
+          , "{\"Erlang\": \"61\", \"Python\": \"90\", \"Ruby\": \"-\","
+              <> " \"Rust\": \"95\", \"TS\": \"91\"} : Map String String"
+          , "\"{\\n  \\\"Erlang\\\": 156,\\n  \\\"Python\\\": 247,\\n  \\\"Ruby"
+              <> "\\\": 0,\\n  \\\"Rust\\\": 262,\\n  \\\"TS\\\": 159\\n}\" : String" ]
+        , [ "[\"Haskell 1, Lam 2, Python 1\", \"Go 1, Haskell 2, Lam 1,"
+              <> " Rust 1\"] : [String]" ] )
+    -- ANCHOR_END: quizRepl
 
   -- 「値を埋めこむ書式」
   describe "f-strings" $ do
     -- ANCHOR: formatSugar
     -- 「f"..." は、++ と関数の呼び出しに開く」
+    -- (The names it calls are hidden ones, like $fmt.display: see the
+    -- tests of the modules. Here, without $fmt.)
+    -- （呼ぶ名前は $fmt.display のような隠した名前。ここでは $fmt. を外す）
     it "opens f\"...\" into ++ and calls" $
-      map (fmap render . parseExpr)
+      map (fmap (T.replace "$fmt." "" . render) . parseExpr)
         [ "f\"Hello, {name}!\""
         , "f\"{n:>8,} {n:05}\""
+        , "f\"{x:.1} {x:>9,.2}\""
         , "f\"{x=} {x = :^6}\""
         , "f\"{{}} {f\"{x}\"}\""
         , "f\"\"" ]
         `shouldBe` map Right
           [ "\"Hello, \" ++ display name ++ \"!\""
-          , "padLeft 8 (groupDigits n) ++ \" \" ++ zeroPad 5 n"
+          , "padLeft 8 (groupDigits (showNumber n)) ++ \" \""
+              <> " ++ zeroPad 5 (showNumber n)"
+          , "Float.fixed 1 x ++ \" \" ++ padLeft 9 (groupDigits"
+              <> " (Float.fixed 2 x))"
           , "\"x=\" ++ show x ++ \" x = \" ++ center 6 (display x)"
           , "\"{} \" ++ display (display x)"
           , "\"\"" ]
@@ -1026,17 +1898,19 @@ main = hspec $ do
     -- 「値を埋めこみ、桁をそろえる（Python と同じ答え）」
     it "puts values in, and lines them up like Python" $
       runLines
-        [ "let name = \"Lam\""
+        [ "name = \"Lam\""
         , "f\"[{name:<6}] [{name:>6}] [{name:^6}] [{name:^5}]\""
-        , "f\"{1234567:,} {0 - 1234:,} {42:05} {0 - 42:05} {123456:03}\""
+        , "f\"{1234567:,} {-1234:,} {42:05} {-42:05} {123456:03}\""
         , "f\"{name=} {[name]} {Just (1, true)} {{\""
-        , "f\"{name:>2}|{\"日本\":>4}|\"" ]
+        , "f\"{name:>2}|{\"日本\":>4}|\""
+        , "f\"{2.5:.2} {-0.5:.1} {1234567.891:,.2} {3.14159:08.3}\"" ]
         `shouldBe`
           [ "name : String"
           , "\"[Lam   ] [   Lam] [ Lam  ] [ Lam ]\" : String"
           , "\"1,234,567 -1,234 00042 -0042 123456\" : String"
           , "\"name=\\\"Lam\\\" [\\\"Lam\\\"] Just (1, true) {\" : String"
-          , "\"Lam|  日本|\" : String" ]
+          , "\"Lam|  日本|\" : String"
+          , "\"2.50 -0.5 1,234,567.89 0003.142\" : String" ]
     -- ANCHOR_END: formatValues
 
     -- ANCHOR: formatErrors
@@ -1044,18 +1918,21 @@ main = hspec $ do
     it "finds the mistakes of a format before running" $
       map (fmap (const ()) . parseExpr)
         [ "f\"{x:>}\"", "f\"{x:8}\"", "f\"{x:>05}\"", "f\"{x:05,}\""
-        , "f\"{x:>8d}\"", "f\"{x : xs}\"", "f\"{\\y -> y}\"", "f\"a } b\"" ]
+        , "f\"{x:>8d}\"", "f\"{x:.}\"", "f\"{x:.1f}\"", "f\"{x : xs}\""
+        , "f\"{\\y -> y}\"", "f\"a } b\"" ]
         `shouldSatisfy` all isLeft
     -- ANCHOR_END: formatErrors
 
     -- 「エラーの文が、まちがいの場所を言う」
     it "says what is wrong with a format, and where" $
-      runLines ["f\"{x:>}\"", "f\"{x:8}\"", "f\"a } b\""]
+      runLines ["f\"{x:>}\"", "f\"{x:8}\"", "f\"{x:.2f}\"", "f\"a } b\""]
         `shouldBe`
           [ "<repl>:1:7:\n  |\n1 | f\"{x:>}\"\n  |       ^\n\
             \a width must follow < > or ^\n"
           , "<repl>:1:6:\n  |\n1 | f\"{x:8}\"\n  |      ^\n\
             \a width needs < > or ^ before it (or 0, for a number)\n"
+          , "<repl>:1:8:\n  |\n1 | f\"{x:.2f}\"\n  |        ^\n\
+            \a format has no type letter like f (write {x:.1}, not {x:.1f})\n"
           , "<repl>:1:5:\n  |\n1 | f\"a } b\"\n  |     ^\n\
             \a single } must be written }}\n" ]
 
@@ -1063,39 +1940,89 @@ main = hspec $ do
     -- 「埋めこめない値と、数にしか使えない書式は、型のエラー」
     it "gives a type error for values that cannot be shown" $
       runLines
-        [ ":type display"
-        , "f\"{putStrLn}\""
+        [ ":type show"
+        , ":type display"
+        , "f\"{\\n -> n}\""
+        , "f\"{(\\n -> n)}\""
         , "f\"{\"Lam\":,}\""
+        , "f\"{\"Lam\":.1}\""
         , "data Handler = Button (Int -> Int)"
-        , "f\"{Button (\\n -> n)}\""
+        , "show (Button (\\n -> n))"
+        , "instance Display Handler"
         , "data Box a = Box a"
-        , "f\"{Box {a: [1]}}\""
-        , "f\"{Box (\\n -> n)}\"" ]
+        , "f\"{Box 1}\""
+        , "show (Box {a: [1]})" ]
         `shouldBe`
           [ "Showable a => a -> String"
-          , "type error: String -> IO () is not in the class Showable"
-          , "type error: the types do not fit: String where Int is needed"
+          , "Display a => a -> String"
+          , "<repl>:1:4:\n  |\n1 | f\"{\\n -> n}\"\n  |    ^\n\
+            \inside { }, put \\, let, if and case in ( )\n"
+          , "type error: a -> a is not in the class Display"
+          , "type error: String is not in the class Number"
+          , "type error: String is not in the class Number"
           , "Button : (Int -> Int) -> Handler"
           , "type error: Handler is not in the class Showable \
             \(Button holds Int -> Int)"
+          , "in the instance Display Handler: type error: Handler is not \
+            \in the class Showable (Button holds Int -> Int)"
           , "Box : a -> Box a"
-          , "\"Box {\\\"a\\\": [1]}\" : String"
-          , "type error: a -> a is not in the class Showable" ]
+          , "type error: Box a is not in the class Display"
+          , "\"Box {\\\"a\\\": [1]}\" : String" ]
     -- ANCHOR_END: formatTypes
+
+    -- ANCHOR: formatDisplay
+    -- 「Display：自分の型は1行で入れるか、見せ方を自分で決める」
+    it "shows our own types and JSON with Display" $
+      runLines
+        [ "display \"Lam\"", "show \"Lam\""
+        , "f\"{Json.mkDec 1999 2} {JArr [JInt 1, JNull]}\""
+        , "data Money = Yen Int"
+        , "instance Display Money"
+        , "f\"{Yen 300}\""
+        , "data Tag = Tag String"
+        , "instance Display Tag where display (Tag s) = \"#\" ++ s"
+        , "f\"{Tag \"lam\"} {[Tag \"a\"]}\"" ]
+        `shouldBe`
+          [ "\"Lam\" : String", "\"\\\"Lam\\\"\" : String"
+          , "\"19.99 [1,null]\" : String"
+          , "Yen : Int -> Money"
+          , "instance Display Money"
+          , "\"Yen 300\" : String"
+          , "Tag : String -> Tag"
+          , "instance Display Tag"
+          , "\"#lam [Tag \\\"a\\\"]\" : String" ]
+    -- ANCHOR_END: formatDisplay
 
     -- 「f と文字列のあいだに空白があれば、いままでどおり関数の呼び出し」
     it "still calls a function f when a space comes before the string" $
-      runLines ["let f s = s ++ \"!\"", "f \"hi\"", "f\"hi\""]
+      runLines ["f s = s ++ \"!\"", "f \"hi\"", "f\"hi\""]
         `shouldBe`
           ["f : String -> String", "\"hi!\" : String", "\"hi\" : String"]
+
+    -- ANCHOR: formatPrint
+    -- 「:print は、文字列をそのまま書く。レシートも、そろって見える」
+    it "writes the receipt with :print" $ do
+      out <- replAfter "examples/format/receipt.lam"
+        [":print receipt", ":print 3"]
+      out `shouldBe`
+        [ T.intercalate "\n"
+            [ "             RECEIPT              "
+            , "sticker     4 x    300 =     1,200"
+            , "mug         1 x  1,200 =     1,200"
+            , "tshirt      3 x  2,500 =     7,500"
+            , "----------------------------------"
+            , "total                        9,900"
+            , "per item                   1,237.5" ]
+        , "type error: :print writes a String or a [String], not Int" ]
+    -- ANCHOR_END: formatPrint
 
     -- ANCHOR: padProps
     -- 「そろえた文字は、幅より短くならず、もとの文字を右・左・真ん中に持つ」
     it "pads to the width, keeping the text on its side" $
       forAll ((,) <$> choose (0, 12) <*> genText) $ \(w, s) ->
-        let n      = max (fromIntegral w) (T.length s)
-            blank k  = T.replicate k " "
-            d      = n - T.length s
+        let n       = max (fromIntegral w) (T.length s)
+            blank k = T.replicate k " "
+            d       = n - T.length s
         in  padLeft w s  === blank d <> s
        .&&. padRight w s === s <> blank d
        .&&. center w s   === blank (d `div` 2) <> s <> blank (d - d `div` 2)
@@ -1103,764 +2030,450 @@ main = hspec $ do
     -- 「カンマを外すと、もとの数。0 で埋めた数を読むと、もとの数」
     it "groups digits and pads with zeros without changing the number" $
       forAll ((,) <$> arbitrary <*> choose (0, 12)) $ \(n, w) ->
-        let grouped = groupDigits n
+        let text    = T.pack (show (n :: Integer))
+            grouped = groupDigits text
             parts   = T.splitOn "," (T.dropWhile (== '-') grouped)
-            padded  = zeroPad w n
+            padded  = zeroPad w text
         in  read (T.unpack (T.filter (/= ',') grouped)) === n
        .&&. all ((== 3) . T.length) (drop 1 parts)
        .&&. all ((`elem` [1, 2, 3]) . T.length) (take 1 parts)
        .&&. read (T.unpack (T.filter (/= '-') padded)) === abs n
        .&&. T.isPrefixOf "-" padded === (n < 0)
-       .&&. T.length padded === max (fromIntegral w)
-                                    (T.length (T.pack (show n)))
+       .&&. T.length padded === max (fromIntegral w) (T.length text)
     -- ANCHOR_END: padProps
 
-  -- 「正規表現」
-  describe "regular expressions" $ do
-    -- ANCHOR: regexSugar
-    -- 「re"..." は $regex の呼び出しに開き、中の \ はそのまま」
-    it "opens re\"...\" into a call, keeping every \\" $
-      map (fmap render . parseExpr)
-        [ "re\"\\d{4}-\\d\\d\""
-        , "Regex.find re\"a\\\"b\" s" ]
-        `shouldBe` map Right
-          [ "re\"\\d{4}-\\d\\d\""
-          , "Regex.find re\"a\\\"b\" s" ]
-    -- ANCHOR_END: regexSugar
 
-    -- 「木の中では、ふつうの文字列を渡す、ふつうの呼び出し」
-    it "is an ordinary call in the tree" $
-      parseExpr "re\"\\d+\""
-        `shouldBe` Right (App (Var "$regex") (Lit (LString "\\d+")))
+  -- 「モジュール」
+  describe "modules" $ do
+    -- ANCHOR: moduleGolden
+    mapM_ (golden . ("modules/" <>))
+      [ "receipt/today", "tools/week", "price/menu", "price/broken"
+      , "shapes/gallery", "shapes/both", "clash/report", "clash/fixed"
+      , "ring/shop"
+        -- the answers of the training / トレーニングの解答
+      , "receipt/short", "answers/progress", "answers/cheat" ]
+    -- ANCHOR_END: moduleGolden
 
-    -- ANCHOR: regexErrors
-    -- 「コンパイルできない正規表現は、動かす前にパーサーが見つける」
-    it "finds a regex that does not compile, before running" $ do
-      map (fmap (const ()) . parseExpr)
-        ["re\"a(b\"", "re\"*\"", "re\"[a-\"", "re\"x{2,1}\""]
-        `shouldSatisfy` all isLeft
-      runLines ["re\"(\\d{4}\""]
-        `shouldBe`
-          [ "<repl>:1:4:\n  |\n1 | re\"(\\d{4}\"\n  |    ^\n\
-            \this regex does not compile: missing closing parenthesis\n" ]
-    -- ANCHOR_END: regexErrors
-
-    -- ANCHOR: regexValues
-    -- 「探す・置き換える・切り分ける」
-    it "finds, replaces and splits" $
-      runLines
-        [ "let date = re\"(?<year>\\d{4})-(\\d\\d)-(\\d\\d)\""
-        , "Regex.find date \"paid on 2026-11-16\""
-        , "Regex.find date \"no date\""
-        , "map Match.text (Regex.findAll re\"\\d+\" \"a1b22c\")"
-        , "map Match.start (Regex.findAll re\"\\d+\" \"a1b22c\")"
-        , "Regex.matches re\"^\\d+$\" \"123\""
-        , "Regex.replace re\"\\d+\" \"#\" \"a1b22c\""
-        , "Regex.replaceAll re\"\\d+\" \"#\" \"a1b22c\""
-        , "Regex.replaceAll re\"\\d+\" \"$1\" \"a1b\""
-        , "Regex.replaceWith re\"\\d+\" (\\m -> f\"<{Match.text m}>\") \"a1\""
-        , "Regex.split re\",\\s*\" \"a, b,c\""
-        , "Regex.split re\"x\" \"\""
-        , "map Match.text (Regex.findAll re\"a*\" \"baaac\")"
-        , "Regex.find re\"(?<=x)é\" \"éaxé\""
-        , "map Match.text (Regex.findAll re\"\\w+\" \"Lam は 小さな\")"
-        , "map Match.text (Regex.findAll re\"\\d+\" \"a１２b34\")"
-        , "let m = fromMaybe (Match \"\" 0 [] {}) "
-            <> "(Regex.find date \"2026-11-16\")"
-        , "(Match.group 2 m, Match.group 4 m, Match.named \"year\" m)" ]
-        `shouldBe`
-          [ "date : Regex"
-          , "Just (Match \"2026-11-16\" 8 [\"2026\", \"11\", \"16\"] \
-            \{\"year\": \"2026\"}) : Maybe Match"
-          , "Nothing : Maybe Match"
-          , "[\"1\", \"22\"] : [String]"
-          , "[1, 3] : [Int]"
-          , "true : Bool"
-          , "\"a#b22c\" : String"
-          , "\"a#b#c\" : String"
-          , "\"a$1b\" : String"
-          , "\"a<1>\" : String"
-          , "[\"a\", \"b\", \"c\"] : [String]"
-          , "[\"\"] : [String]"
-          , "[\"\", \"aaa\", \"\", \"\"] : [String]"
-          , "Just (Match \"\233\" 3 [] {}) : Maybe Match"
-          , "[\"Lam\", \"は\", \"小さな\"] : [String]"
-          , "[\"１２\", \"34\"] : [String]"
-          , "m : Match"
-          , "(Just \"11\", Nothing, Just \"2026\") : \
-            \(Maybe String, Maybe String, Maybe String)" ]
-    -- ANCHOR_END: regexValues
-
-    -- ANCHOR: perlSugar
-    -- 「m/…/ は re"…" に、s/…/…/ は置き換えの関数に、=~ は matches に開く」
-    it "opens m/…/, s/…/…/ and =~ like Perl" $
-      map (fmap render . parseExpr)
-        [ "m/\\d+/i"
-        , "s/\\d+/#/g"
-        , "s/\\d+/#/"
-        , "s/(?<y>\\d+)-(\\d+)/{2}.{y}/g"
-        , "line =~ m/ERROR/"
-        , "m/2"
-        , "s/2/1" ]
-        `shouldBe` map Right
-          [ "re\"(?i)\\d+\""
-          , "Regex.replaceAll re\"\\d+\" \"#\""
-          , "Regex.replace re\"\\d+\" \"#\""
-          , "Regex.replaceWith re\"(?<y>\\d+)-(\\d+)\" \
-            \(\\$m -> $group \"2\" $m ++ \".\" ++ $group \"y\" $m)"
-          , "Regex.matches re\"ERROR\" line"
-          , "m / 2"
-          , "s / 2 / 1" ]
-    -- ANCHOR_END: perlSugar
-
-    -- ANCHOR: perlValues
-    -- 「Perl 風の書き方で、探して置き換える」
-    it "finds and replaces in the style of Perl" $
-      runLines
-        [ "Regex.find m/lam/i \"I LOVE LAM\""
-        , "let hide = s/\\d{2,4}-\\d{2,4}-(?<last>\\d{4})/***-****-{last}/g"
-        , "hide \"call 080-9876-5432 or 03-1234-5678\""
-        , "s/(\\d+)-(\\d+)/{2}-{1}/ \"11-22 33-44\""
-        , "s/(\\d+)/{{{1}}}/g \"a1b2\""
-        , "map s/\\s+/ /g [\"a  b\", \"c   d\"]"
-        , "(\"ERROR here\" =~ m/^ERROR/, \"ok\" =~ m/^ERROR/)"
-        , "Regex.matches m/a\\/b/ \"a/b\""
-        , "let half m = m/2"
-        , "half 10" ]
-        `shouldBe`
-          [ "Just (Match \"LAM\" 7 [] {}) : Maybe Match"
-          , "hide : String -> String"
-          , "\"call ***-****-5432 or ***-****-5678\" : String"
-          , "\"22-11 33-44\" : String"
-          , "\"a{1}b{2}\" : String"
-          , "[\"a b\", \"c d\"] : [String]"
-          , "(true, false) : (Bool, Bool)"
-          , "true : Bool"
-          , "half : Int -> Int"
-          , "5 : Int" ]
-    -- ANCHOR_END: perlValues
-
-    -- ANCHOR: perlDelimiters
-    -- 「/ のかわりに ! # % でもはさめる。( や { は、いままでどおり」
-    it "takes ! # and % in place of /" $
-      runLines
-        [ "m!/usr/bin!"
-        , "s#/usr/local#/opt#g \"/usr/local/bin:/usr/local/lib\""
-        , "s!a!\\!!g \"banana\""
-        , "s%(\\d+)%<{1}>%g \"a1b22\""
-        , "let m x = x"
-        , "(m(1), m[2], m{a: 3})" ]
-        `shouldBe`
-          [ "re\"/usr/bin\" : Regex"
-          , "\"/opt/bin:/opt/lib\" : String"
-          , "\"b!n!n!\" : String"
-          , "\"a<1>b<22>\" : String"
-          , "m : a -> a"
-          , "(1, [2], {\"a\": 3}) : (Int, [Int], Map Int)" ]
-    -- ANCHOR_END: perlDelimiters
-
-    -- ANCHOR: perlErrors
-    -- 「ないグループ、知らないフラグ、コンパイルできない正規表現は、
-    --   動かす前にパーサーが見つける」
-    it "finds a missing group, an unknown flag and a bad regex first" $
-      runLines ["s/(?<y>\\d+)/{yy}/ \"1\"", "s/x/y/q \"x\"", "m/a(b/"]
-        `shouldBe`
-          [ "<repl>:1:14:\n  |\n1 | s/(?<y>\\d+)/{yy}/ \"1\"\n\
-            \  |              ^\n\
-            \this regex has no group yy\n"
-          , "<repl>:1:7:\n  |\n1 | s/x/y/q \"x\"\n  |       ^\n\
-            \unknown flag 'q' (use gimsx)\n"
-          , "<repl>:1:3:\n  |\n1 | m/a(b/\n  |   ^\n\
-            \this regex does not compile: missing closing parenthesis\n" ]
-    -- ANCHOR_END: perlErrors
-
-    -- ANCHOR: regexCompile
-    -- 「動かしてから作る正規表現は、Result で返る」
-    it "compiles a regex while running, giving a Result" $
-      runLines
-        [ ":type Regex.compile"
-        , "Regex.compile \"a(b\""
-        , "Regex.compile \"a(b)\""
-        , "let n = 3"
-        , "Regex.compile f\"^\\\\d{{{n}}}$\"" ]
-        `shouldBe`
-          [ "String -> Result String Regex"
-          , "Err \"missing closing parenthesis\" : Result String Regex"
-          , "Ok re\"a(b)\" : Result String Regex"
-          , "n : Int"
-          , "Ok re\"^\\d{3}$\" : Result String Regex" ]
-    -- ANCHOR_END: regexCompile
-
-    -- ANCHOR: regexTypes
-    -- 「Regex は比べられず、埋めこめない。関数を渡す型も確かめる」
-    it "gives types to regexes and their functions" $
-      runLines
-        [ ":type Regex.replaceWith"
-        , "re\"x\" == re\"x\""
-        , "f\"{re\"x\"}\""
-        , "Regex.replaceWith re\"x\" (\\m -> Match.start m) \"x\"" ]
-        `shouldBe`
-          [ "Regex -> (Match -> String) -> String -> String"
-          , "type error: Regex is not in the class Comparable"
-          , "type error: Regex is not in the class Showable"
-          , "type error: the types do not fit: Int where String is needed" ]
-    -- ANCHOR_END: regexTypes
-
-    -- ANCHOR: regexLimit
-    -- 「試す道が多すぎると、PCRE2 はあきらめて、エラーにする」
-    it "gives up on a regex that would try too many ways" $
-      runLines
-        [ "Regex.matches re\"(a+)+$\" \"" <> T.replicate 40 "a" <> "b\"" ]
-        `shouldBe` ["error: Regex.matches: match limit exceeded"]
-    -- ANCHOR_END: regexLimit
-
-    -- ANCHOR: cutProps
-    -- 「切れ端と見つかったものを順に並べると、もとの文字列に戻る」
-    it "cuts a text into pieces that sew back into it" $
-      forAll ((,) <$> elements regexes <*> genRegexText) $ \(source, t) ->
-        case compileRegex source of
-          Left err -> counterexample (T.unpack err) False
-          Right r  -> case regexSearch r t of
-            Left err -> counterexample (T.unpack err) False
-            Right (Cut pieces found) ->
-              let sewn = T.concat (zipLonger pieces
-                           [ w | w :| _ <- found ])
-              in  length pieces === length found + 1
-             .&&. sewn === t
-    -- ANCHOR_END: cutProps
-
-    -- 「名前付きのグループの番号を、PCRE2 から読む」
-    it "knows the numbers of the named groups" $
-      fmap regexNames (compileRegex "(?<y>\\d+)-(x)-(?<z>.)")
-        `shouldBe` Right [("y", 1), ("z", 3)]
-
-  -- 「パーサー」
-  describe "parsers" $ do
-    -- ANCHOR: parserSugar
-    -- 「Parser.do は Parser.bind に開く。値が先」
-    it "opens Parser.do into Parser.bind, with the value first" $
-      fmap render (parseExpr "Parser.do\n  x <- p\n  _ <- q\n  Parser.pure x")
+    -- ANCHOR: parseModule
+    -- 「module と import の行を読む」
+    it "reads the module line and the import lines" $
+      fmap (\(Program h is _ _) -> (h, is))
+        (runLamParser program "m.lam" (T.unlines
+          [ "module Shapes exposing (Shape (..), area, Describe (describe))"
+          , "import Json"
+          , "import Json as J (get, Json (JInt, JStr))" ]))
         `shouldBe` Right
-          "Parser.bind p (\\x -> Parser.bind q (\\_ -> Parser.pure x))"
-    -- 「Maybe.do も同じ形。ただの do は、名前のない bind に開く」
-    it "opens any Name.do the same way, and do into plain bind" $
-      map (fmap render . parseExpr)
-        [ "Maybe.do\n  x <- m\n  Just x", "do\n  x <- m\n  pure x" ]
-        `shouldBe` map Right
-          [ "Maybe.bind m (\\x -> Just x)", "bind m (\\x -> pure x)" ]
-    -- 「Parser.do は名前ではない」
-    it "does not read Parser.do as a name" $
-      runLines ["let Parser.do = 1"]
-        `shouldSatisfy` all ("cannot end a name" `T.isInfixOf`)
-    -- ANCHOR_END: parserSugar
-    -- 「Parser.bind はパーサーが先、Parser.andThen は関数が先」
-    it "has Parser.bind with the parser first, and Parser.andThen" $
+          ( Just (Header (Loc "m.lam" 1 1) "Shapes" (ExposeSome
+              [ ExposeType "Shape" AllConstructors, ExposeValue "area"
+              , ExposeType "Describe" (TheseConstructors ["describe"]) ]))
+          , [ Import (Loc "m.lam" 2 1) "Json" Nothing Nothing
+            , Import (Loc "m.lam" 3 1) "Json" (Just "J")
+                (Just (ExposeSome
+                  [ ExposeValue "get"
+                  , ExposeType "Json" (TheseConstructors ["JInt", "JStr"])
+                  ])) ] )
+    -- ANCHOR_END: parseModule
+
+    -- ANCHOR: importNames
+    -- 「import した名前の付き方：前にモジュールの名前、as なら別名だけ、
+    --   かっこの一覧なら名前なしでも」
+    it "names what it imports: with the module, the alias, or bare" $ do
+      withShapes "import Shapes\nShapes.area (Shapes.square 3)"
+        `shouldBe` Right "9 : Int"
+      withShapes "import Shapes as S\nS.area (S.Circle 2)"
+        `shouldBe` Right "12 : Int"
+      -- Unlike Haskell, as takes the place of the name: Shapes. is gone.
+      -- Haskell とちがい、as は名前の代わり。Shapes. は使えない
+      withShapes "import Shapes as S\nShapes.area (S.Circle 2)"
+        `shouldBe` Left "type error: unknown name: Shapes.area"
+      withShapes "import Shapes (area, Shape (..))\narea (Rect 2 5)"
+        `shouldBe` Right "10 : Int"
+      withShapes "import Shapes (area)\nsquare 3"
+        `shouldBe` Left "type error: unknown name: square"
+      withShapes (T.unlines [ "import Shapes as S (area)"
+                            , "(area (S.Circle 1), S.area (S.square 2))" ])
+        `shouldBe` Right "(3, 4) : (Int, Int)"
+      -- A ( at column 1 is the expression at the end, not the list.
+      -- 1桁目の ( は、一覧ではなく、最後の式
+      withShapes "import Shapes\n(Shapes.area (Shapes.square 2), 1)"
+        `shouldBe` Right "(4, 1) : (Int, Int)"
+    -- ANCHOR_END: importNames
+
+    -- ANCHOR: hiding
+    -- 「見せていない名前は、ほかのファイルからは見えない」
+    it "keeps the names a module does not expose" $ do
+      withShapes "import Shapes\nShapes.secret"
+        `shouldBe` Left "type error: unknown name: Shapes.secret"
+      withShapes "import Shapes (secret)\n1"
+        `shouldBe` Left
+          "main.lam:1:1: error: the module Shapes does not expose secret"
+      -- A constructor hidden by Json: written bare or with Json.
+      -- Json が隠した構成子。名前なしでも、Json. を付けても
       runLines
-        [ ":type Parser.bind", ":type Parser.andThen"
-        , "Parser.run (Parser.bind Parser.int (\\n -> Parser.pure (n + 1))) \"41\""
-        , "Parser.run (Parser.andThen (\\n -> Parser.pure (n + 1)) Parser.int) \"41\"" ]
-        `shouldBe`
-          [ "Parser a -> (a -> Parser b) -> Parser b"
-          , "(a -> Parser b) -> Parser a -> Parser b"
-          , "Ok 42 : Result String Int", "Ok 42 : Result String Int" ]
+        [ "JDec 1 2", "Json.JDec 1 2", "case JInt 1 of | JDec c d -> c" ]
+        `shouldBe` map (\c -> "type error: " <> c
+                          <> " is hidden by the module Json"
+                          <> " (it is not in its exposing list)")
+          [ "JDec", "Json.JDec", "JDec" ]
+      -- The values still show as JDec: only writing it is not allowed.
+      -- 値の見せ方は JDec のまま。書くことだけができない
+      runLines [ "Json.mkDec 1999 2", "Json.decimal (Json.mkDec 19990 3)" ]
+        `shouldBe` [ "JDec 1999 2 : Json"
+                   , "Just (1999, 2) : Maybe (Int, Int)" ]
+    -- ANCHOR_END: hiding
 
-    -- ANCHOR: parserValues
-    -- 「小さなパーサーと、その組み合わせ」
-    it "reads with small parsers, put together" $
-      runLines
-        [ "Parser.run Parser.int \"42\""
-        , "Parser.run (Parser.map (\\n -> n * 2) Parser.int) \"21\""
-        , "Parser.run (Parser.many (Parser.string \"ab\")) \"ababab\""
-        , "Parser.run (Parser.some Parser.int) \"\" == Ok []"
-        , "Parser.run (Parser.sepBy Parser.int (Parser.symbol \",\"))\
-          \ \"1, 2,3\""
-        , "Parser.run (Parser.optional (Parser.string \"-\")) \"\""
-        , "Parser.run (Parser.oneOf [Parser.string \"ab\",\
-          \ Parser.string \"ac\"]) \"ac\""
-        , "Parser.run (Parser.between \"(\" \")\" (Parser.token Parser.int))\
-          \ \"( 7 )\""
-        , "Parser.run (Parser.regex re\"\\d+\") \"123\""
-        ]
-        `shouldBe`
-          [ "Ok 42 : Result String Int"
-          , "Ok 42 : Result String Int"
-          , "Ok [\"ab\", \"ab\", \"ab\"] : Result String [String]"
-          , "false : Bool"
-          , "Ok [1, 2, 3] : Result String [Int]"
-          , "Ok Nothing : Result String (Maybe String)"
-          , "Ok \"ac\" : Result String String"
-          , "Ok 7 : Result String Int"
-          , "Ok (Match \"123\" 0 [] {}) : Result String Match" ]
-    -- 「Parser.regex は、その場所でしか合わない。start は全体から数える」
-    it "matches a regex only right here, and counts from the whole text" $
-      runLines
-        [ "let p = Parser.andThen (\\_ -> Parser.regex re\"\\d+\")\
-          \ (Parser.string \"ab\")"
-        , "Result.map Match.start (Parser.run p \"ab12\")"
-        , "Result.map Match.text\
-          \ (Parser.run (Parser.regex re\"\\d+\") \"x1\") == Ok \"1\"" ]
-        `shouldBe`
-          [ "p : Parser Match"
-          , "Ok 2 : Result String Int"
-          , "false : Bool" ]
-    -- ANCHOR_END: parserValues
+    -- ANCHOR: patterns
+    -- 「別名の付いた構成子も、パターンに書ける」
+    it "matches constructors written with the module's name" $ do
+      withShapes (T.unlines
+        [ "import Shapes as S"
+        , "name s = case s of"
+        , "  | S.Circle _ -> \"circle\""
+        , "  | S.Rect _ _ -> \"rect\""
+        , "(name (S.Circle 1), name (S.square 2))" ])
+        `shouldBe` Right "(\"circle\", \"rect\") : (String, String)"
+      runLines [ "case Json.mkDec 1 1 of | Json.JInt n -> n | _ -> -1" ]
+        `shouldBe` [ "-1 : Int" ]
+    -- ANCHOR_END: patterns
 
-    -- ANCHOR: parserErrors
-    -- 「エラーは、いちばん遠くまで読めたところを指す」
-    it "points at the place that was read the farthest" $
-      runLines
-        [ "Parser.run (Parser.oneOf [Parser.int,\
-          \ Parser.between \"(\" \")\" Parser.int]) \"(1\"" ]
-        `shouldBe`
-          [ "Err \"1:3:\\n  |\\n1 | (1\\n  |   ^\\nunexpected end of input\\n\
-            \expecting ')' or digit\" : Result String Int" ]
-    -- 「Parser.label で、欲しかったものに名前を付ける」
-    it "names what was wanted, with Parser.label" $
-      runLines
-        [ "Parser.run (Parser.label \"a price\" Parser.int) \"x\"" ]
-        `shouldBe`
-          [ "Err \"1:1:\\n  |\\n1 | x\\n  | ^\\nunexpected 'x'\\n\
-            \expecting a price\" : Result String Int" ]
-    -- 「何も読まずに合うものをくり返すと、止まらずにエラーになる」
-    it "stops many with an error, if the parser reads nothing" $
-      runLines [ "Parser.run (Parser.many (Parser.pure 1)) \"\"" ]
-        `shouldBe`
-          [ "error: Parser.many: the parser read nothing, \
-            \so it would go on forever" ]
-    -- 「Lam の関数のまちがいは、プログラムを止める」
-    it "stops the program when a Lam function fails" $
-      runLines [ "Parser.run (Parser.map (\\n -> n / 0) Parser.int) \"1\"" ]
-        `shouldBe` [ "error: divided by zero" ]
-    -- 「型のまちがいは、動かす前に」
-    it "finds a parser of the wrong type before running" $
-      runLines
-        [ "Parser.run Parser.int \"1\" == Ok \"1\""
-        , "Parser.many 3" ]
-        `shouldSatisfy` all ("type error" `T.isInfixOf`)
-    -- ANCHOR_END: parserErrors
+    -- ANCHOR: classTests
+    -- 「クラスとメソッドを見せる。インスタンスは、どこへでも付いていく」
+    it "shows a class with its methods, and takes the instances along" $ do
+      withShapes "import Shapes\nShapes.describe (Shapes.Circle 2)"
+        `shouldBe` Right "\"circle 2\" : String"
+      withShapes "import Shapes (Describe (..))\ndescribe (Shapes.Rect 1 2)"
+        `shouldBe` Right "\"rect 1 2\" : String"
+      -- Our own type in the class of Shapes.
+      -- Shapes のクラスに、自分の型を入れる
+      withShapes (T.unlines
+        [ "import Shapes (Describe (..))"
+        , "data Dot = Dot"
+        , "instance Describe Dot where"
+        , "  describe d = \"a dot\""
+        , "describe Dot" ])
+        `shouldBe` Right "\"a dot\" : String"
+      -- Describe without (..): the class, but not its method.
+      -- (..) のない Describe：クラスだけで、メソッドは見えない
+      runModules
+        [ ("Shapes.lam", T.replace "Describe (..)" "Describe" shapes) ]
+        "import Shapes\nShapes.describe (Shapes.Circle 2)"
+        `shouldBe` Left
+          "type error: Shapes.describe is hidden by the module Shapes \
+          \(it is not in its exposing list)"
+      -- The instance comes with the type, with no word in the list.
+      -- インスタンスは、一覧に何も書かなくても、型と一緒に来る
+      withShapes "import Shapes (Shape (..))\nf\"{Circle 2}\""
+        `shouldBe` Right "\"(circle 2)\" : String"
+    -- ANCHOR_END: classTests
 
-    -- ANCHOR: parserLazy
-    -- 「自分を指すパーサーは、Parser.lazy で」
-    it "reads nested parentheses, with Parser.lazy" $
-      runLines
-        [ "let depth = Parser.oneOf\
-          \ [ Parser.map (\\d -> d + 1)\
-          \     (Parser.between \"(\" \")\" (Parser.lazy (\\_ -> depth)))\
-          \ , Parser.pure 0 ]"
-        , "Parser.run depth \"((()))\"" ]
-        `shouldBe`
-          [ "depth : Parser Int", "Ok 3 : Result String Int" ]
-    -- ANCHOR_END: parserLazy
+    -- ANCHOR: instanceClash
+    -- 「同じインスタンスが2つのモジュールから来たら、エラーにする」
+    it "stops when two modules declare the same instance" $ do
+      let shown m how = T.unlines
+            [ "module " <> m <> " exposing (..)"
+            , "import Box (Box (..))"
+            , "instance Display Box where"
+            , "  display b = " <> how
+            , "tag = 1" ]
+          go = runModules
+            [ ("Box.lam", "module Box exposing (Box (..))\ndata Box = Box")
+            , ("A.lam", shown "A" "\"a\""), ("B.lam", shown "B" "\"b\"") ]
+      go "import A\nimport B\n1" `shouldBe` Left
+        "main.lam:2:1: error: the instance Display Box comes from both \
+        \A and B"
+      go "import A\nimport Box\nf\"{Box.Box}\""
+        `shouldBe` Right "\"a\" : String"
+    -- ANCHOR_END: instanceClash
 
-    -- ANCHOR: parserProps
-    -- 「どんな文字のフィールドでも、引用符で囲んだ CSV から読み戻せる」
-    it "reads back any fields, written as CSV in quotes" $
-      withNumTests 200 $ forAll (listOf1 genText) $ \fields ->
-        ioProperty $ do
-          source <- Utf8.readFile "examples/csv.lam"
-          let quote f = "\"" <> T.replace "\"" "\"\"" f <> "\""
-              line = T.intercalate "," (map quote fields)
-          pure $ inProgram source ["Parser.run row " <> renderString line]
-            === [ "Ok [" <> T.intercalate ", " (map renderString fields)
-                  <> "] : Result String [String]" ]
-    -- 「電卓の答えは、Haskell で計算した答えと同じ」
-    it "computes what Haskell computes" $
-      withNumTests 200 $ forAll genCalc $ \(text, value) -> ioProperty $ do
-        source <- Utf8.readFile "examples/calc.lam"
-        pure $ inProgram source ["calc " <> renderString text]
-          === ["Ok " <> okArgument value <> " : Result String Int"]
-    -- ANCHOR_END: parserProps
+    -- ANCHOR: fmtNames
+    -- 「f"..." は隠した名前を呼ぶので、import や自分の定義に左右されない」
+    it "calls hidden names from f\"...\", whatever is imported" $ do
+      fmap render (parseExpr "f\"{x:>5}\"")
+        `shouldBe` Right "$fmt.padLeft 5 ($fmt.display x)"
+      -- Our own display, padLeft and show do not change f"...".
+      -- 自分の display・padLeft・show は、f"..." を変えない
+      runModules []
+        "display x = \"own\"\n\
+        \padLeft n s = \"own\"\n\
+        \show = 0\n\
+        \(f\"{12:>4}|{[1]=}\", display 1)"
+        `shouldBe` Right "(\"  12|[1]=[1]\", \"own\") : (String, String)"
+    -- ANCHOR_END: fmtNames
 
-  -- 「スクリプトとして動かす」
-  describe "scripts" $ do
-    -- ANCHOR: pipeTests
-    -- 「x |> f は f x。いちばん弱く、左に寄る」
-    it "reads x |> f as f x, the loosest, leaning left" $
-      map (fmap render . parseExpr)
-        [ "x |> f |> g"
-        , "1 + 2 |> showInt"
-        , "a || b |> not"
-        , "xs |> map f |> take 3"
-        , "f\"{xs |> length}\"" ]
-        `shouldBe` map Right
-          [ "g (f x)"
-          , "showInt (1 + 2)"
-          , "not (a || b)"
-          , "take 3 (map f xs)"
-          , "display (length xs)" ]
+    -- ANCHOR: standardTests
+    -- 「標準のモジュール：別名を付けられ、中の組み込みも見せる」
+    it "makes the standard library into modules" $ do
+      out <- replImporting []
+        [ "import Map as M"
+        , "M.insertWith (+) \"a\" 1 (M.fromList [(\"a\", 2)])"
+        , "import Float as F (isNaN)"
+        , "(F.pow 2.0 3.0, isNaN (0.0 / 0.0))"
+        , "Prelude.map (\\x -> x + 1) [1, 2]"
+        , "List.sortBy (\\a b -> a > b) [1, 3, 2]" ]
+      out `shouldBe`
+          [ "", "{\"a\": 3} : Map String Int", ""
+          , "(8, true) : (Float, Bool)"
+          , "[2, 3] : [Int]", "[3, 2, 1] : [Int]" ]
+      Map.keys (sessionModules preludeSession) `shouldBe`
+        [ "Float", "Json", "List", "Map", "Maybe", "Prelude", "Result"
+        , "Set", "String" ]
+    -- ANCHOR_END: standardTests
 
-    -- 「|> は || とも、case の | とも、ぶつからない」
-    it "does not mix |> up with || or the | of case" $
-      runLines
-        [ "true || false |> not"
-        , "case 3 of | 3 -> \"three\" |> toUpper | _ -> \"other\""
-        , "[3, 1, 2] |> sort |> map (\\n -> n * 10)" ]
-        `shouldBe`
-          [ "false : Bool"
-          , "\"THREE\" : String"
-          , "[10, 20, 30] : [Int]" ]
+    -- ANCHOR: finding
+    -- 「探す順：まず隣、それから LAM_PATH のフォルダーを順に」
+    it "looks next to the file first, then in LAM_PATH" $ do
+      let next  = "module Greet exposing (hi)\nhi = \"next to it\""
+          inLib = "module Greet exposing (hi)\nhi = \"in lib\""
+          go files = fmap (fromMaybe "" . snd) $ runIdentity $
+            loadProgram (mapFiles (Map.fromList files) ["lib", "more"])
+              preludeSession preludeSession "app/main.lam"
+              "import Greet\nGreet.hi"
+      go [("app/Greet.lam", next), ("lib/Greet.lam", inLib)]
+        `shouldBe` Right "\"next to it\" : String"
+      go [("more/Greet.lam", next), ("lib/Greet.lam", inLib)]
+        `shouldBe` Right "\"in lib\" : String"
+      go [] `shouldBe` Left ("app/main.lam:1:1: error: no module Greet "
+        <> "(looked for app/Greet.lam, lib/Greet.lam, more/Greet.lam)")
+    -- ANCHOR_END: finding
 
-    -- 「x |> f と f x は、いつも同じ値」
-    it "gives the same value as calling the function" $
-      property $ \(ns :: [NonNegative Integer]) ->
-        -- Lam has no literal for a negative number (it is 0 - 5).
-        -- Lam には負の数のリテラルがない（0 - 5 と書く）
-        let list = renderList (map getNonNegative ns)
-        in runLines [list <> " |> map (\\n -> n * 2) |> sum"]
-             === runLines ["sum (map (\\n -> n * 2) " <> list <> ")"]
-    -- ANCHOR_END: pipeTests
+    -- ANCHOR: once
+    -- 「2つのファイルが import しても、モジュールのファイルは1度だけ読む」
+    it "reads a module file only once, even if two files import it" $ do
+      let files = Map.fromList
+            [ ("A.lam", "module A exposing (a)\nimport C\na = C.c + 1")
+            , ("B.lam", "module B exposing (b)\nimport C\nb = C.c + 2")
+            , ("C.lam", "module C exposing (c)\nc = 10") ]
+          logging = Files
+            { readSource = \path -> do
+                modify (path :)
+                pure (Map.lookup path files)
+            , searchPath = [] }
+          (loaded, readLog) = runState
+            (loadProgram logging preludeSession preludeSession "main.lam"
+               "import A\nimport B\nA.a + B.b") []
+      fmap snd loaded `shouldBe` Right (Just "23 : Int")
+      reverse readLog `shouldBe` ["A.lam", "C.lam", "B.lam"]
+    -- ANCHOR_END: once
 
-    -- ANCHOR: wordTests
-    -- 「行と単語に切り、並べ替える。sortOn は同じキーの順を変えない」
-    it "cuts lines and words, and sorts (keeping ties in order)" $
-      runLines
-        [ "lines \"a\\nb c\\n\\nd\""
-        , "words \"  a  b\\tc\\n\""
-        , "sort [3, 1, 2]"
-        , "sortOn (\\p -> 0 - snd p) [(\"a\", 1), (\"b\", 2), (\"c\", 1)]"
-        , "take 2 [1, 2, 3]"
-        , "sortOn (\\f -> 1) [\\x -> x]"
-        , "sort [\\x -> x]" ]
-        `shouldBe`
-          [ "[\"a\", \"b c\", \"\", \"d\"] : [String]"
-          , "[\"a\", \"b\", \"c\"] : [String]"
-          , "[1, 2, 3] : [Int]"
-          , "[(\"b\", 2), (\"a\", 1), (\"c\", 1)] : [(String, Int)]"
-          , "[1, 2] : [Int]"
-          , "[<function of x>] : [a -> a]"
-          , "type error: a -> a is not in the class Comparable" ]
-    -- ANCHOR_END: wordTests
+    -- ANCHOR: moduleErrors
+    -- 「モジュールのファイルのまちがいを、場所と一緒に教える」
+    it "tells what is wrong with a module file, and where" $ do
+      let with m = runModules [("M.lam", m)]
+      with "x = 1" "import M\n1" `shouldBe` Left
+        ("M.lam:1:1: error: a module starts with the line  "
+         <> "module M exposing (...)")
+      with "module N exposing (x)\nx = 1" "import M\n1" `shouldBe`
+        Left "M.lam:1:1: error: the file M.lam must be the module M, not N"
+      with "module M exposing (y)\nx = 1" "import M\n1" `shouldBe`
+        Left ("M.lam:1:1: error: the module M exposes y, "
+              <> "but does not define it")
+      with "module M exposing (x)\nx = 1\nx" "import M\n1" `shouldBe`
+        Left ("M.lam: error: a module cannot end with an expression"
+              <> " (only a program can)")
+      with "module M exposing (x)\nx = 1 // 0" "import M\n1" `shouldBe`
+        Left "in the definition of x: error: divided by zero"
+    -- ANCHOR_END: moduleErrors
 
-    -- ANCHOR: argsTests
-    -- 「引数と環境変数：getArgs と lookupEnv、main の3つの形」
-    it "gives the arguments and the environment, in three ways" $ do
-      let world = emptyWorld
-            { worldArgs = ["a", "b"]
-            , worldEnv  = Map.fromList [("HOME", "/home/lam")] }
-          outOf src = outputOf (snd (script world src))
-      outOf "let main = getArgs |> IO.andThen (\\xs -> putStrLn (join \",\" xs))"
-        `shouldBe` "a,b\n"
-      outOf "let main args = putStrLn (showInt (length args))"
-        `shouldBe` "2\n"
-      outOf (T.unlines
-        [ "let main args env = do"
-        , "  home <- lookupEnv \"HOME\""
-        , "  putStrLn (fromMaybe \"?\" home)"
-        , "  putStrLn (fromMaybe \"?\" (Map.lookup \"HOME\" env))"
-        , "  user <- lookupEnv \"USER\""
-        , "  putStrLn (fromMaybe \"nobody\" user)" ])
-        `shouldBe` "/home/lam\n/home/lam\nnobody\n"
-    -- ANCHOR_END: argsTests
+    -- ANCHOR: clashTests
+    -- 「2つのモジュールの同じ名前・同じ型は、エラーにする」
+    it "stops when two modules give the same name or the same type" $ do
+      let box m n = T.unlines
+            [ "module " <> m <> " exposing (Box (..), size)"
+            , "data Box = Box Int", "size = " <> n ]
+          go = runModules [("A.lam", box "A" "1"), ("B.lam", box "B" "2")]
+      go "import A (size)\nimport B (size)\n1"
+        `shouldBe` Left
+          "main.lam:2:1: error: the name size comes from both A and B"
+      go "import A\nimport B\n1" `shouldBe` Left
+        "main.lam:2:1: error: the type Box comes from both A and B"
+      -- Only the names in front differ: A.size and B.size are fine.
+      -- 前の名前だけがちがうなら、A.size と B.size は大丈夫
+      go "import A as X\nX.size" `shouldBe` Right "1 : Int"
+      runModules [] "data Maybe a = Nope\n1" `shouldBe` Left
+        ("in the data type Maybe: type error: "
+         <> "the type Maybe belongs to the module Maybe")
+      runModules [] "class Display a where\n  display : a -> String\n1"
+        `shouldBe` Left ("in the class Display: type error: "
+                         <> "the class Display belongs to the module Prelude")
+    -- ANCHOR_END: clashTests
 
-    -- ANCHOR: exitTests
-    -- 「exit は、そこで止まる。続きの頼みごとはやらない」
-    it "stops at exit, and does not do the rest" $ do
-      let (ending, world) = script emptyWorld (T.unlines
-            [ "let main = do"
-            , "  putStrLn \"before\""
-            , "  ePutStrLn \"something went wrong\""
-            , "  exit 3"
-            , "  putStrLn \"after\"" ])
-      ending `shouldBe` ExitedWith 3
-      outputOf world `shouldBe` "before\n"
-      errorsOf world `shouldBe` "something went wrong\n"
+    -- ANCHOR: ringTest
+    -- 「import の輪は、ぐるぐる回らずにエラーにする」
+    it "finds imports that go around in a ring" $
+      runModules
+        [ ("A.lam", "module A exposing (a)\nimport B\na = 1")
+        , ("B.lam", "module B exposing (b)\nimport A\nb = 2") ]
+        "import A\n1"
+        `shouldBe` Left ("B.lam:2:1: error: the imports go around in a "
+                         <> "ring: main.lam -> A.lam -> B.lam -> A.lam")
+    -- ANCHOR_END: ringTest
 
-    -- 「exit は IO a：if のどちらの側にも置ける。REPL は終わらない」
-    it "has the type IO a, and does not end the REPL" $
-      runLines
-        [ ":type exit"
-        , "if true then exit 0 else pure 3"
-        , "exit 2" ]
-        `shouldBe`
-          [ "Int -> IO a"
-          , "(exit 0; the REPL goes on)"
-          , "(exit 2; the REPL goes on)" ]
+    -- ANCHOR: replImport
+    -- 「REPL の import と :browse」
+    it "imports and browses in the REPL" $ do
+      out <- replImporting [("Shapes.lam", shapes)]
+        [ "import Shapes as S (area)", "area (S.square 3)", ":browse Shapes"
+        , "import Nope" ]
+      out `shouldBe`
+        [ "", "9 : Int"
+        , T.intercalate "\n"
+            [ "Shapes.Circle : Int -> Shape"
+            , "Shapes.Rect : Int -> Int -> Shape"
+            , "Shapes.area : Shape -> Int"
+            , "Shapes.describe : Describe a => a -> String"
+            , "Shapes.square : Int -> Shape"
+            , "(instances: Describe Shape, Display Shape)" ]
+        , "<repl>:1:1: error: no module Nope (looked for Nope.lam)" ]
+    -- ANCHOR_END: replImport
 
-    -- 「getContents は、残りの入力を全部読む」
-    it "reads the rest of the standard input with getContents" $ do
-      let world = emptyWorld { worldInput = ["one", "two", "three"] }
-          (_, after) = script world (T.unlines
-            [ "let main = do"
-            , "  first <- getLine"
-            , "  rest <- getContents"
-            , "  putStrLn (showInt (length (lines rest)))" ])
-      outputOf after `shouldBe` "2\n"
-    -- ANCHOR_END: exitTests
+    -- ANCHOR: exposedProp
+    -- 「exposing に書いた名前だけが、ほかのファイルから見える」
+    it "shows exactly the names in the exposing list" $
+      property $ forAll (sublistOf ["one", "two", "three"]) $ \shown ->
+        let header =
+              "module Nums exposing (" <> T.intercalate ", " shown <> ")"
+            nums = T.unlines [ header, "one = 1", "two = 2", "three = 3" ]
+            seen n = runModules [("Nums.lam", nums)]
+                       ("import Nums\nNums." <> n)
+                       /= Left ("type error: unknown name: Nums." <> n)
+        in not (null shown) ==>
+             [ n | n <- ["one", "two", "three"], seen n ] === shown
+    -- ANCHOR_END: exposedProp
 
-    -- ANCHOR: shebangTests
-    -- 「#! の行は読み飛ばす。行の番号はずれない」
-    it "skips the #! line, and keeps the line numbers" $ do
-      let source = "#!/usr/bin/env lam\n\nlet main = putStrLn (showInt (1 / 0))\n"
-      fst (script emptyWorld source)
-        `shouldBe` Errored
-          "script.lam:3:33: in the definition of main: error: divided by zero"
-    -- ANCHOR_END: shebangTests
+    -- ANCHOR: answerGraph
+    -- 「トレーニングのステップ3：import の図。ファイルごとに1度、
+    --   輪でも止まる」
+    it "draws the imports, each file once, even in a ring" $ do
+      let files = Map.fromList
+            [ ("A.lam", "module A exposing (a)\nimport B\nimport C\na = 1")
+            , ("B.lam", "module B exposing (b)\nimport C\nimport Json\nb = 2")
+            , ("C.lam", "module C exposing (c)\nimport A\nc = 3") ]
+          graph = runIdentity
+            (importGraph (mapFiles files []) preludeSession "main.lam"
+               "import A\n1")
+      graph `shouldBe` Right
+        [ ("main.lam", ["A"]), ("A", ["B", "C"]), ("B", ["C", "Json"])
+        , ("C", ["A"]) ]
+      fmap toDot graph `shouldBe` Right (T.unlines
+        [ "digraph imports {", "  \"main.lam\" -> \"A\";"
+        , "  \"A\" -> \"B\";", "  \"A\" -> \"C\";", "  \"B\" -> \"C\";"
+        , "  \"B\" -> \"Json\";", "  \"C\" -> \"A\";", "}" ])
+    -- ANCHOR_END: answerGraph
 
-    -- ANCHOR: placeTests
-    -- 「エラーは、いちばん内側の場所を指す。定義の中なら、その定義の場所」
-    it "points at the innermost place of an error" $ do
-      let source = T.unlines
-            [ "let average xs ="
-            , "  sum xs / length xs"
-            , "let main = do"
-            , "  putStrLn \"start\""
-            , "  putStrLn (showInt (average []))" ]
-      fst (script emptyWorld source)
-        `shouldBe` Errored "script.lam:2:10: error: divided by zero"
-
-    -- 「型のエラーにも、場所と定義の名前が付く」
-    it "puts the place and the definition on a type error" $ do
-      let source = "let a = 1\nlet b =\n  a ++ \"!\"\n"
-      fst (script emptyWorld source)
-        `shouldBe` Errored ("script.lam:3:5: in the definition of b: "
-                            <> "type error: Int is not in the class Semigroup")
-
-    -- 「head [] の場所は、呼び出した所」
-    it "points at the call of a builtin that fails" $
-      fst (script emptyWorld "let main = putStrLn (head (tail [\"x\"]))\n")
-        `shouldBe` Errored
-          ("script.lam:1:22: in the definition of main: "
-             <> "error: head: the list is empty")
-    -- ANCHOR_END: placeTests
-
-    -- ANCHOR: wordfreqProp
-    -- 「wordfreq.lam は、Haskell で数えたトップ10と同じものを見せる」
-    it "shows the same top 10 as Haskell does" $
-      forAll genWords $ \ls -> ioProperty $ do
-        source <- Utf8.readFile "examples/wordfreq.lam"
-        let world = emptyWorld { worldInput = ls }
-        pure (outputOf (snd (script world source)) === haskellTop10 ls)
-    -- ANCHOR_END: wordfreqProp
-
-  -- 「トレーニングの解答」
-  describe "answers" $ do
-    -- 「getContents と appendFile を Lam で」
-    golden "contents"
-    golden "append"
-    -- 「cat と、オプションのある head」
-    golden "cat"
-    golden "head"
-    -- ANCHOR: answerDialog
-    -- 「名前を打たずに終わる。打った行より多くは読まない」
-    it "says goodbye at the end of input, and reads only one line" $ do
-      source <- Utf8.readFile "examples/hello.lam"
-      let run ls = runFake emptyWorld { worldInput = ls }
-                     (runProgram fakeWorld noFiles preludeSession
-                        "hello" source)
-          (_, quiet) = run []
-          (_, twice) = run ["Lam", "Haskell"]
-      outputOf quiet `shouldBe` "What is your name? Goodbye!\n"
-      outputOf twice `shouldBe`
-        "What is your name? Hello, Lam!\nYour name has 3 letters.\n"
-      worldInput twice `shouldBe` ["Haskell"]
-    -- ANCHOR_END: answerDialog
-
-    -- ANCHOR: answerExit
-    -- 「ステップ3：終了コードを確かめる」
-    it "gives the exit codes of cat and head" $ do
-      cat  <- Utf8.readFile "examples/cat.lam"
-      hd   <- Utf8.readFile "examples/head.lam"
-      let files = Map.fromList [("a.txt", "1\n2\n3\n")]
-          run src args = fst (script emptyWorld
-            { worldArgs = args, worldFiles = files } src)
-      run cat ["a.txt"]                 `shouldBe` Finished ""
-      run cat ["a.txt", "nope", "a.txt"] `shouldBe` ExitedWith 1
-      run hd  ["-n", "2", "a.txt"]       `shouldBe` Finished ""
-      run hd  ["--help"]                 `shouldBe` Finished ""
-      run hd  ["-n", "x", "a.txt"]       `shouldBe` ExitedWith 2
-      run hd  []                         `shouldBe` ExitedWith 2
-      run hd  ["nope"]                   `shouldBe` ExitedWith 1
-    -- ANCHOR_END: answerExit
-
-  -- 「複数行」
   describe "program" $
     -- ANCHOR: layout
     -- 「1桁目から始まる行は、新しい定義（か、最後の式）」
     it "starts a new definition at column 1" $
-      fmap (\(Program _ _ decls final) ->
+      fmap (\(decls, final) ->
               ([ x | DefValue x _ <- decls ], fmap render final))
-        (runLamParser program "" "let a = 1\nlet b =\n  a + 1\nb\n")
+        (runLamParser programParts "" "let a = 1\nlet b =\n  a + 1\nb\n")
         `shouldBe` Right (["a", "b"], Just "b")
     -- ANCHOR_END: layout
 
--- ANCHOR: runModules
--- 🗂️ Run main.lam in a fake world that has these files (the modules).
--- この（モジュールの）ファイルがある偽物の世界で、main.lam を動かす
-runModules :: [(Text, Text)] -> Text -> (Ending, FakeWorld)
-runModules files source =
-  runFake world
-    (runProgram fakeWorld (fakeFiles world) preludeSession "main.lam" source)
-  where
-    world = emptyWorld { worldFiles = Map.fromList files }
+-- 📜 A program as its declarations and its last expression.
+-- プログラムを、宣言と最後の式の組に
+programParts :: Parser ([Decl], Maybe Expr)
+programParts = (\p -> (programDecls p, programFinal p)) <$> program
 
--- 🗂️ The same, with Shapes.lam, and only how it ended.
--- 同じく、Shapes.lam を置いて。どう終わったかだけ
-withShapes :: Text -> Ending
-withShapes = fst . runModules [("Shapes.lam", shapes)]
-  where
-    shapes = T.unlines
-      [ "module Shapes exposing (Shape (..), area, square)"
-      , "data Shape = Circle Int | Rect Int Int"
-      , "let area s = case s of | Circle r -> 3 * r * r | Rect w h -> w * h"
-      , "let square n = Rect n n"
-      , "let secret = 42" ]
+-- ANCHOR: runModules
+-- 🗂️ Load main.lam with these files (the modules) around it: what
+--    the expression at the end shows, or the error.
+-- この（モジュールの）ファイルを置いて、main.lam を読みこむ。最後の式が
+-- 見せるものか、エラー
+runModules :: [(FilePath, Text)] -> Text -> Either Text Text
+runModules files source =
+  fmap (fromMaybe "" . snd) $ runIdentity $
+    loadProgram (mapFiles (Map.fromList files) []) preludeSession
+      preludeSession "main.lam" source
+
+-- 🗂️ The same, with Shapes.lam.
+-- 同じく、Shapes.lam を置いて
+withShapes :: Text -> Either Text Text
+withShapes = runModules [("Shapes.lam", shapes)]
+
+-- 🔷 A module with a type, a class, two instances, and a secret.
+-- 型、クラス、インスタンス2つ、それに秘密のあるモジュール
+shapes :: Text
+shapes = T.unlines
+  [ "module Shapes exposing (Shape (..), Describe (..), area, square)"
+  , "data Shape = Circle Int | Rect Int Int"
+  , "class Describe a where"
+  , "  describe : a -> String"
+  , "instance Describe Shape where"
+  , "  describe s = case s of | Circle r -> f\"circle {r}\""
+  , "    | Rect w h -> f\"rect {w} {h}\""
+  , "instance Display Shape where"
+  , "  display s = f\"({describe s})\""
+  , "area s = case s of | Circle r -> 3 * r * r | Rect w h -> w * h"
+  , "square n = Rect n n"
+  , "secret = 42" ]
 -- ANCHOR_END: runModules
 
--- ANCHOR: script
--- 🎭 Run a script in a fake world: how it ended, and the world after.
--- 偽物の世界でスクリプトを動かす：どう終わったかと、あとの世界
-script :: FakeWorld -> Text -> (Ending, FakeWorld)
-script world source =
-  runFake world
-    (runProgram fakeWorld (fakeFiles world) preludeSession
-       "script.lam" source)
--- ANCHOR_END: script
-
--- ANCHOR: genWords
--- 🎲 Lines of words: a few words (so that some come again), with
---    capitals, signs and spaces between them.
--- 単語の行。単語は少しだけ（何度も出てくるように）。大文字・記号・
--- 空白を、あいだに混ぜる
-genWords :: Gen [Text]
-genWords = listOf line
+-- ⌨️ REPL lines, where an import line looks in these files.
+-- REPL の行。import の行は、このファイルから探す
+replImporting :: [(FilePath, Text)] -> [Text] -> IO [Text]
+replImporting files inputs = pure (snd (foldl go (preludeSession, []) inputs))
   where
-    line = T.concat <$> listOf piece
-    piece = frequency
-      [ (4, elements ["lam", "Lam", "haskell", "type", "ラムダ", "λ", "é"])
-      , (3, elements [" ", ", ", ". ", "!", "  ", "1", "-"]) ]
+    go (s, outs) line = case parseInput line of
+      Right (ImportLine imp) ->
+        case runIdentity (importAt (mapFiles (Map.fromList files) [])
+                            preludeSession s imp) of
+          Left err -> (s, outs <> [err])
+          Right s' -> (s', outs <> [""])
+      _ -> let (s', out) = step s line in (s', outs <> [out])
 
--- 🏆 The top 10 in Haskell, as the first chapter counts them.
--- Haskell で数えたトップ10。最初の章と同じ数え方
-haskellTop10 :: [Text] -> Text
-haskellTop10 ls = T.concat
-  [ w <> T.replicate (12 - T.length w) " " <> T.pack (show n) <> "\n"
-  | (w, n) <- take 10 (sortOn (Down . snd) (Map.toList counts)) ]
-  where
-    text   = T.unlines ls
-    ws     = T.words (T.map (\c -> if isAlpha c then toLower c else ' ') text)
-    counts = Map.fromListWith (+) [ (w, 1 :: Int) | w <- ws ]
--- ANCHOR_END: genWords
+-- ANCHOR: replAfter
+-- 📂 :load a file, then answer some REPL lines.
+-- ファイルを :load してから、REPL の行に答える
+replAfter :: FilePath -> [Text] -> IO [Text]
+replAfter file inputs = do
+  source <- Utf8.readFile file
+  let loaded = case loadPlain preludeSession file source of
+        Right (s, _) -> s
+        Left err     -> error (T.unpack err)
+      go (s, outs) line = let (s', out) = step s line in (s', outs <> [out])
+  pure (snd (foldl go (loaded, []) inputs))
 
--- ANCHOR: genCalc
--- 🎲 A calculation and its value, written with spaces here and there,
---    and ( ) around some of the parts. No / (Haskell's div and Lam's
---    / are the same, but 0 would stop the test).
--- 計算と、その値。空白をところどころに入れ、部品のいくつかを ( ) で
--- 包む。/ は使わない（0 で割ると止まるため）
-genCalc :: Gen (Text, Integer)
-genCalc = sized (\n -> go (min n 6))
-  where
-    go :: Int -> Gen (Text, Integer)
-    go 0 = number
-    go n = frequency
-      [ (1, number)
-      , (3, do
-          (a, x) <- go (n `div` 2)
-          (b, y) <- go (n `div` 2)
-          (o, f) <- elements [("+", (+)), ("-", (-)), ("*", (*))]
-          sp <- elements ["", " ", "  "]
-          pure ("(" <> a <> sp <> o <> sp <> b <> ")", f x y)) ]
-    number = do
-      k <- choose (0, 99)
-      pure (T.pack (show k), k)
-
--- 🖨️ A number as an argument of Ok: Ok 3, Ok (-3).
--- Ok の引数としての数
-okArgument :: Integer -> Text
-okArgument v
-  | v < 0     = "(" <> T.pack (show v) <> ")"
-  | otherwise = T.pack (show v)
-
--- 📜 Load a program, then type lines into it.
--- プログラムを読みこんでから、行を打ちこむ
-inProgram :: Text -> [Text] -> [Text]
-inProgram source inputs =
-  case runIdentity (loadProgram noFiles preludeSession "example" source) of
-  Left err -> [err]
-  Right (s, _) -> fst (runFake emptyWorld (go s inputs))
-  where
-    go _ [] = pure []
-    go s (line : rest) = do
-      (s', out) <- step fakeWorld s line
-      (out :) <$> go s' rest
-
--- ANCHOR_END: genCalc
-
--- ANCHOR: genRegexText
--- 🎲 Some regexes, and texts made of the letters they look for (and of
---    U+E000, the first letter the cutting could use as its mark).
--- いくつかの正規表現と、それが探す文字でできた文字列（切るときの印の
--- 候補 U+E000 も混ぜる）
-regexes :: [Text]
-regexes =
-  ["\\d+", "a*", "[λラ]", "\\s", "(?<=a)b", "", "(a)|(b)", "^", "$", "b+?"]
-
-genRegexText :: Gen Text
-genRegexText = T.pack <$> listOf (elements "ab1 λラ\n\xE000\xE001")
-
--- 🪡 a1 b1 a2 b2 ... an (one more a than b).
--- 交互に並べる（a のほうが1つ多い）
-zipLonger :: [Text] -> [Text] -> [Text]
-zipLonger as bs = case (as, bs) of
-  (a : as', b : bs') -> a : b : zipLonger as' bs'
-  _                  -> as
--- ANCHOR_END: genRegexText
+-- 🖨️ A list of numbers as Lam source (negative ones in brackets).
+-- 数のリストを Lam のソースに（負の数は括弧で）
+lamList :: [Integer] -> Text
+lamList xs = "[" <> T.intercalate ", " (map num xs) <> "]"
+-- ANCHOR_END: replAfter
 
 -- ANCHOR: genMaybe
--- 🎲 Nothing, or Just a small number (Lam has no negative numbers).
--- Nothing か、小さな数の Just（Lam には負の数がない）
+-- 🎲 Nothing, or Just a small number (a negative one, too).
+-- Nothing か、小さな数の Just（負の数も）
 genMaybe :: Gen (Maybe Integer)
-genMaybe = oneof [pure Nothing, Just <$> choose (0, 3)]
+genMaybe = oneof [pure Nothing, Just <$> choose (-3, 3)]
 
 -- 🖨️ Maybe and Bool, as Lam writes them.
 -- Maybe と Bool を、Lam の書き方で
 lamMaybe :: Maybe Integer -> Text
-lamMaybe m = maybe "Nothing" (\n -> "Just " <> T.pack (show n)) m
+lamMaybe m = maybe "Nothing" (\n -> "Just " <> num n) m
 
 lamBool :: Bool -> Text
 lamBool b = if b then "true" else "false"
 -- ANCHOR_END: genMaybe
 
--- ANCHOR: genPair
--- 🎲 A key and a value. The keys are few, so the same key comes often.
--- キーと値。キーは少しだけなので、同じキーがよく出る
-genPair :: Gen (Text, Integer)
-genPair = (,) <$> elements ["a", "b", "λ", "\"q\""] <*> choose (0, 9)
-
--- 🖨️ Pairs, as Lam writes them: [("a", 1), ("b", 2)]
--- 組のリストを、Lam の書き方で
-lamPairs :: [(Text, Integer)] -> Text
-lamPairs kvs = "[" <> T.intercalate ", "
-  [ "(" <> renderString k <> ", " <> T.pack (show v) <> ")" | (k, v) <- kvs ]
-  <> "]"
--- ANCHOR_END: genPair
-
--- ANCHOR: genAeson
--- 🎲 Any JSON value of aeson, not too big. The numbers are made of
---    two whole numbers, as aeson keeps them: 1999 and -2 is 19.99.
--- aeson の JSON の値（大きすぎないもの）。数は、aeson と同じく、
--- 2つの整数から作る
-genAeson :: Gen A.Value
-genAeson = sized go
-  where
-    go n = oneof $
-      [ pure A.Null
-      , A.Bool <$> arbitrary
-      , A.Number <$> (scientific <$> arbitrary <*> choose (-30, 30))
-      , A.String <$> genText ]
-      <> if n <= 0 then [] else
-           [ A.Array . V.fromList <$> few (go (n `div` 3))
-           , A.object <$> few
-               ((\k v -> (Key.fromText k, v))
-                  <$> genText <*> go (n `div` 3)) ]
-    -- 0 to 4 of them, so that the value does not grow too big.
-    -- 0〜4個。値が大きくなりすぎないように
-    few g = do
-      k <- choose (0, 4)
-      vectorOf k g
--- ANCHOR_END: genAeson
-
 -- 🖨️ A list of numbers, as Lam writes it: [1, 2, 3]
 -- 数のリストを、Lam の書き方で
 renderList :: [Integer] -> Text
 renderList xs = "[" <> T.intercalate ", " (map (T.pack . show) xs) <> "]"
+
+-- ANCHOR: inRecord
+-- 📇 let r = <record> in <expression>, for the REPL.
+-- REPL のため
+inRecord :: Text -> Text -> Text
+inRecord r e = "let r = " <> r <> " in " <> e
+
+-- 🔢 A number as Lam source code (a negative one is (-5): the minus
+--    right before the number), and the value part of an answer.
+-- 数を Lam のソースに（負の数は (-5)）。答えから、値の部分を取り出す
+num :: Integer -> Text
+num n
+  | n < 0     = "(" <> T.pack (show n) <> ")"
+  | otherwise = T.pack (show n)
+
+valuePart :: Text -> Text
+valuePart = T.strip . fst . T.breakOn " : "
+-- ANCHOR_END: inRecord

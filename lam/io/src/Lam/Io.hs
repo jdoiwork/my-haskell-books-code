@@ -18,33 +18,39 @@ import Lam.Types
 -- ANCHOR_END: head
 
 -- ANCHOR: table
--- 📋 The rows to add to the table of builtins.
--- 組み込みの関数の表に足す行
+-- 📋 The rows to add to the table of builtins. Their names start with
+--    IO., so they belong to the module IO (made in Lam.Prelude).
+-- 組み込みの関数の表に足す行。名前が IO. で始まるので、モジュール IO
+-- のもの（Lam.Prelude で作る）
 ioBuiltins :: [Builtin]
 ioBuiltins =
-  -- The two that every IO is made of
-  -- どの IO も、この2つでつなぐ
-  [ prim1 "pure" (a ~> tIO a) $ \v ->
+  -- ANCHOR: returnBind
+  -- The two that every IO is made of. The instance Monad IO uses
+  -- them, under the names GHC's base uses for the same job.
+  -- どの IO も、この2つでつなぐ。instance Monad IO が使う。名前は、
+  -- GHC の base が同じ仕事に付けている名前
+  [ prim1 "IO.returnIO" (a ~> tIO a) $ \v ->
       Right (VIO (Pure v))
-  , prim2 "bind" (tIO a ~> (a ~> tIO b) ~> tIO b) $ \m f -> do
+  , prim2 "IO.bindIO" (tIO a ~> (a ~> tIO b) ~> tIO b) $ \m f -> do
       action <- ioOf m
       -- The rest: call the Lam function f, and it gives the next IO.
       -- 続き：Lam の関数 f を呼ぶと、次の IO が返ってくる
       Right (VIO (Bind action (\x -> apply f x >>= ioOf)))
+  -- ANCHOR_END: returnBind
 
   -- The screen and the keyboard
   -- 画面とキーボード
-  , prim1 "putStr" (tString ~> tIO tUnit) $ \v ->
+  , prim1 "IO.putStr" (tString ~> tIO tUnit) $ \v ->
       ask . PutStr <$> string v
-  , prim1 "putStrLn" (tString ~> tIO tUnit) $ \v ->
+  , prim1 "IO.putStrLn" (tString ~> tIO tUnit) $ \v ->
       ask . PutStr . (<> "\n") <$> string v
-  , Builtin "getLine" (closeOver (tIO (tMaybe tString))) (ask GetLine)
+  , Builtin "IO.getLine" (closeOver (tIO (tMaybe tString))) (ask GetLine)
 
   -- Files: a failure is a value (Err), not a crash
   -- ファイル：失敗は値（Err）で返す。止まらない
-  , prim1 "readFile" (tString ~> tIO (tResult tString tString)) $ \v ->
+  , prim1 "IO.readFile" (tString ~> tIO (tResult tString tString)) $ \v ->
       ask . ReadFile <$> string v
-  , prim2 "writeFile"
+  , prim2 "IO.writeFile"
       (tString ~> tString ~> tIO (tResult tString tUnit)) $ \p t ->
       ask <$> (WriteFile <$> string p <*> string t)
   ]
@@ -52,7 +58,6 @@ ioBuiltins =
     a = TVar 0
     b = TVar 1
     ask = VIO . Ask
-    tMaybe t = TCon "Maybe" [t]
     tResult e x = TCon "Result" [e, x]
 -- ANCHOR_END: table
 
@@ -62,7 +67,7 @@ ioBuiltins =
 ioOf :: Value -> Either EvalError Action
 ioOf v = case v of
   VIO action -> Right action
-  _          -> Left (BuiltinFailed "bind" "got a value that is not IO")
+  _          -> Left (BuiltinFailed "IO.bindIO" "got a value that is not IO")
 -- ANCHOR_END: ioOf
 
 -- ANCHOR: runAction
@@ -85,4 +90,3 @@ runAction handle action = case action of
       Right next -> runAction handle next
 -- ANCHOR_END: runAction
 -- ANCHOR_END: all
-

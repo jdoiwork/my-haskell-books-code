@@ -1,0 +1,8 @@
+-- 🐛 days -1 gives -1 to days, as if days were a function.
+-- days -1 は、days が関数であるかのように、-1 を渡す
+--   lam examples/float/broken/called.lam
+
+days : Int
+days = 7
+
+days -1

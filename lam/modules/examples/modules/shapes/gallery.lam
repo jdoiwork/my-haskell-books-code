@@ -1,0 +1,15 @@
+-- ANCHOR: all
+-- 🖼️ The class Describe of Shapes, with a type of our own.
+-- Shapes のクラス Describe に、自分の型も入れる
+import Shapes as S (Describe (..))
+
+data Fruit = Apple | Lemon
+
+instance Describe Fruit where
+  describe f =
+    case f of
+      | Apple -> "an apple"
+      | Lemon -> "a lemon"
+
+[describe (S.Circle 2), describe Lemon, S.describe (S.Rect 3 4)]
+-- ANCHOR_END: all

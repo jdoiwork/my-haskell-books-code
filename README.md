@@ -233,6 +233,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 設計：使う側から決めて、パターンを型で描く | [`miniregex/design/`](miniregex/design/)、[`langs/regex-design/`](langs/regex-design/)、[`langs/cargo/`](langs/cargo/) |
 | パターンを読む：パーサー | [`miniregex/parser/`](miniregex/parser/)、[`miniregex/design/`](miniregex/design/)、[`langs/regex-parser/`](langs/regex-parser/)、[`langs/cargo/`](langs/cargo/) |
 | 最初のマッチャー：バックトラックで全部試す | [`miniregex/backtrack/`](miniregex/backtrack/)、[`miniregex/parser/`](miniregex/parser/)、[`langs/regex-backtrack/`](langs/regex-backtrack/)、[`langs/cargo/`](langs/cargo/) |
+| グループとキャプチャ：使いやすい顔を仕上げる | [`miniregex/captures/`](miniregex/captures/)、[`miniregex/backtrack/`](miniregex/backtrack/)、[`langs/regex-captures/`](langs/regex-captures/)、[`langs/cargo/`](langs/cargo/) |
 
 ### 第14部 Lam を育てる：言語の機能
 
@@ -247,13 +248,13 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | Map と JSON | [`lam/json/`](lam/json/)、[`lam/classes/`](lam/classes/)、[`langs/interp-map-json/`](langs/interp-map-json/) |
 | 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/json/`](lam/json/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |
 | 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/stdlib/`](lam/stdlib/)、[`langs/interp-format/`](langs/interp-format/) |
-| ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/script/`](lam/script/)、[`langs/interp-modules/`](langs/interp-modules/) |
+| ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/format/`](lam/format/)、[`langs/interp-modules/`](langs/interp-modules/) |
 
 ### 第15部 Lam でスクリプトを書く
 
 | 章 | コード |
 |---|---|
-| 入出力：IO 型と do | [`lam/io/`](lam/io/)、[`lam/json/`](lam/json/)、[`langs/interp-io/`](langs/interp-io/) |
+| 入出力：IO 型と do | [`lam/io/`](lam/io/)、[`lam/modules/`](lam/modules/)、[`langs/interp-io/`](langs/interp-io/) |
 | スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-script/`](langs/interp-script/) |
 | ファイルとコマンドと時計：スクリプトの道具 | [`lam/files/`](lam/files/)、[`lam/stdlib/`](lam/stdlib/)、[`langs/interp-files/`](langs/interp-files/) |
 | 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/format/`](lam/format/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |

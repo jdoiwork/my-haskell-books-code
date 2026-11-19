@@ -1,9 +1,9 @@
 cabal-version: 3.0
 name:          lam
-version:       0.14.0.0
+version:       0.13.10.0
 build-type:    Simple
 
--- 第8部 プログラミング言語を作る（14. ファイルを分ける：モジュール）
+-- 第14部 Lam を育てる：言語の機能（10. ファイルを分ける）
 
 common shared
   default-language: GHC2024
@@ -23,42 +23,33 @@ library
                     Lam.Eval
                     Lam.Types
                     Lam.Program
-                    Lam.Module
                     Lam.Data
                     Lam.Builtins
-                    Lam.Json
-                    Lam.Io
-                    Lam.Format
-                    Lam.Pcre
-                    Lam.Regex
-                    Lam.Parsing
-                    Lam.World
                     Lam.Prelude
                     Lam.Repl
-                    -- The answers of the training
-                    -- トレーニングの解答
+                    Lam.Sugar
+                    Lam.Float
+                    Lam.Class
+                    Lam.Json
+                    Lam.Stdlib
+                    Lam.Format
+                    Lam.Module
                     Lam.Answers
   hs-source-dirs:   src answers
   -- ANCHOR: deps
   build-depends:
     , megaparsec         ^>=9.8
     , parser-combinators ^>=1.3
+    , mtl                ^>=2.3
     , aeson              ^>=2.3
     , attoparsec         ^>=0.14
     , attoparsec-aeson   ^>=2.2
     , scientific         ^>=0.3
     , vector             ^>=0.13
-    -- For the State of the fake world, and the Reader of the parser
-    -- 偽物の世界の State と、パーサーの Reader のため
-    , mtl                ^>=2.3
-    -- Regular expressions (PCRE2, the C library comes inside)
-    -- 正規表現（PCRE2。C のライブラリが中に入っている）
-    , pcre2              ^>=2.3
-    -- To search to the end at once, and catch a mistake there
-    -- 探すのを一度に最後までやり、そこで起きたまちがいを受け止めるため
-    , deepseq            ^>=1.5
-    -- To find the files of modules, and to load each once
-    -- モジュールのファイルを探し、それぞれ1度だけ読むため
+    -- Json.pretty
+    , aeson-pretty       ^>=0.8
+    -- import: the files of modules, and LAM_PATH
+    -- import：モジュールのファイルと、LAM_PATH
     , filepath           ^>=1.5
     , directory          ^>=1.3
     , transformers       ^>=0.6
@@ -73,6 +64,7 @@ executable lam
   build-depends:
     , lam
     , haskeline        ^>=0.8
+    , filepath         ^>=1.5
 -- ANCHOR_END: exe
 
 test-suite lam-test
@@ -88,5 +80,6 @@ test-suite lam-test
     , aeson            ^>=2.3
     , scientific       ^>=0.3
     , vector           ^>=0.13
+    , filepath         ^>=1.5
     , directory        ^>=1.3
     , mtl              ^>=2.3

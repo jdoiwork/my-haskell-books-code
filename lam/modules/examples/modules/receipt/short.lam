@@ -1,0 +1,12 @@
+-- ANCHOR: all
+-- ✂️ Step 1 of the training: Receipt as R, and total without a name
+--    in front.
+-- トレーニングのステップ1：Receipt に R という別名、total は名前なしで
+import Receipt as R (total)
+
+prices = {sticker: 300, mug: 1200}
+
+orders = [("mug", 2), ("sticker", 1)]
+
+(R.line prices ("mug", 2), total prices orders)
+-- ANCHOR_END: all

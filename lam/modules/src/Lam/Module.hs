@@ -8,13 +8,12 @@
 module Lam.Module
   ( Files (..)
   , noFiles
+  , diskFiles
   , makeModule
   , importInto
   , standardModule
-  , addDecls
   , loadProgram
   , importAt
-  , runProgram
   ) where
 
 import Control.Monad (foldM, unless, when)
@@ -28,11 +27,12 @@ import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.IO.Utf8 as Utf8
+import System.Directory (doesFileExist)
 import System.FilePath (normalise, takeDirectory, (<.>), (</>))
 import Text.Megaparsec (errorBundlePretty)
 
 import Lam.Builtins (Builtin (..))
-import Lam.Io (Handler)
 import Lam.Parser (program, runLamParser)
 import Lam.Program
 import Lam.Syntax
@@ -41,10 +41,10 @@ import Lam.Types
 
 -- ANCHOR: makeModule
 -- 📦 Make a module from a file that has been checked and computed:
---    pick, from what it defined, the names its exposing list shows.
+--    pick, from what it declared, the names its exposing list shows.
 --    builtins are the names written in Haskell that belong to it
 --    (insert, for Map).
--- 型を確かめて計算し終えたファイルから、モジュールを作る：定義した
+-- 型を確かめて計算し終えたファイルから、モジュールを作る：宣言した
 -- もののうち、exposing の一覧が見せる名前を選ぶ。builtins は、Haskell で
 -- 書いた、そのモジュールの名前（Map なら insert）
 makeModule
@@ -52,40 +52,58 @@ makeModule
   -> Either Text Module
 makeModule standard file (Header loc m exposing) builtin decls inside = do
   let ownValues = [ x | DefValue x _ <- decls ] <> builtin
+      -- Its types, aliases and classes, each with what (..) shows:
+      -- the constructors of a type, the methods of a class.
+      -- 型・型の別名・クラスと、(..) が見せるもの（型なら構成子、
+      -- クラスならメソッド）
       ownTypes  = [ (dataName d, map fst (dataCons d)) | DefData d <- decls ]
+               <> [ (aliasName a, []) | DefAlias a <- decls ]
+               <> [ (classDeclName c, map fst (classMethods c))
+                  | DefClass c <- decls ]
   (values, shown) <- case exposing of
     ExposeAll -> Right (ownValues, Map.fromList ownTypes)
     ExposeSome items -> do
       picked <- traverse (pick ownValues ownTypes) items
       Right ( [ x | Left x <- picked ]
             , Map.fromList [ tc | Right tc <- picked ] )
-  let shownCons = concat (Map.elems shown)
-      exports   = Map.fromList
+  let shownParts = concat (Map.elems shown)
+      exports    = Map.fromList
         [ (x, (sc, v))
-        | x <- nub (values <> shownCons)
+        | x <- nub (values <> shownParts)
         , Just sc <- [Map.lookup x (sessionTypes inside)]
         , Just v  <- [Map.lookup x (sessionValues inside)] ]
+      table      = sessionData inside
+      -- The instances declared here are the ones nobody else declared.
+      -- ここで宣言したインスタンスは、ほかの誰も宣言していないもの
+      known      = sessionInstanceHomes inside
+      own        = Map.fromList
+        [ (k, m) | k <- Map.keys (instances table)
+                 , not (Map.member k known) ]
   Right Module
-    { moduleName     = m
-    , moduleFile     = file
-    , moduleStandard = standard
-    , moduleExports  = exports
-    , moduleCons     = Map.restrictKeys (constructors (sessionData inside))
-                         (Set.fromList shownCons)
-    , moduleShown    = Map.fromList
+    { moduleName      = m
+    , moduleFile      = file
+    , moduleStandard  = standard
+    , moduleExports   = exports
+    , moduleCons      = Map.restrictKeys (constructors table)
+                          (Set.fromList shownParts)
+    , moduleShown     = Map.fromList
         [ (t, (cs, filter (`notElem` cs) all'))
         | (t, cs) <- Map.toList shown
         , Just all' <- [lookup t ownTypes] ]
-    , moduleTypes    = map fst ownTypes
-    , moduleData     = sessionData inside
+    , moduleTypes     = map fst ownTypes
+    , moduleData      = table
+    , moduleInstances = own `Map.union` known
+    , moduleDicts     = Map.filterWithKey (\x _ -> "$" `T.isPrefixOf` x)
+                          (sessionValues inside)
     }
   where
-    -- One item of the list: a value (Left), or a type with the
-    -- constructors it shows (Right).
-    -- 一覧の1つ：値（Left）か、型と見せる構成子（Right）
+    -- One item of the list: a value (Left), or a type or a class with
+    -- the parts it shows (Right).
+    -- 一覧の1つ：値（Left）か、型かクラスと、見せる部品（Right）
     pick ownValues ownTypes item = case item of
       ExposeValue x
         | x `elem` ownValues -> Right (Left x)
+        | x `elem` concatMap snd ownTypes -> Right (Left x)
         | otherwise          -> notDefined x
       ExposeType t which -> case lookup t ownTypes of
         Nothing -> notDefined t
@@ -95,7 +113,7 @@ makeModule standard file (Header loc m exposing) builtin decls inside = do
           TheseConstructors ds -> case filter (`notElem` cs) ds of
             []    -> Right (Right (t, ds))
             d : _ -> notDefined d
-    -- 「Shapes は area を見せると言っていますが、area を決めていません」
+    -- 「Receipt は total を見せると言っていますが、total を決めていません」
     notDefined x = Left (renderLoc loc <> ": error: the module " <> m
                          <> " exposes " <> x <> ", but does not define it")
 -- ANCHOR_END: makeModule
@@ -126,39 +144,36 @@ importInto session imp m = do
         <> [ (c, moduleName m)
            | (_, (shownCs, cs)) <- Map.toList (moduleShown m)
            , any (`elem` bare) shownCs, c <- cs ]
-  -- ANCHOR: clashes
-  -- The same name from two modules: say so, instead of picking one.
-  -- 2つのモジュールから同じ名前：どちらかを選ばずに、エラーにする
-  case [ (v, o) | (v, _) <- visible
-                , Just o <- [Map.lookup v (sessionOrigins session)]
-                , o /= moduleName m ] of
-    (v, o) : _ -> Left $ errorAt ("the name " <> v <> " comes from both "
-                          <> o <> " and " <> moduleName m)
-    [] -> Right ()
-  case [ (t, h) | t <- moduleTypes m
-                , Just h <- [Map.lookup t (sessionHomes session)]
-                , h /= moduleName m ] of
-    (t, h) : _ -> Left $ errorAt ("the type " <> t <> " comes from both "
-                          <> h <> " and " <> moduleName m)
-    [] -> Right ()
-  -- ANCHOR_END: clashes
+  checkClashes session imp m visible
   let table = sessionData session
+      inner = moduleData m
   Right session
     { sessionTypes   = withEach (fmap fst . (`Map.lookup` exports))
                          `Map.union` sessionTypes session
     , sessionValues  = withEach (fmap snd . (`Map.lookup` exports))
+                         `Map.union` moduleDicts m
                          `Map.union` sessionValues session
+    -- ANCHOR: importTables
+    -- The types, aliases, classes and instances go in whole: they have
+    -- no module's name in front, and an instance works everywhere.
+    -- 型・型の別名・クラス・インスタンスは、まるごと入れる。前に
+    -- モジュールの名前が付かず、インスタンスはどこでも効くから
     , sessionData    = table
-        { dataTypes    = dataTypes table
-                           `Map.union` dataTypes (moduleData m)
+        { dataTypes    = dataTypes table `Map.union` dataTypes inner
+        , aliases      = aliases table `Map.union` aliases inner
+        , classes      = classes table `Map.union` classes inner
+        , instances    = instances table `Map.union` instances inner
         , constructors = withEach (`Map.lookup` moduleCons m)
                            `Map.union` constructors table }
+    -- ANCHOR_END: importTables
     , sessionModules = Map.insert (moduleName m) m (sessionModules session)
     , sessionOrigins = Map.fromList [ (v, moduleName m) | (v, _) <- visible ]
                          `Map.union` sessionOrigins session
     , sessionHidden  = Map.fromList hidden `Map.union` sessionHidden session
     , sessionHomes   = Map.fromList [ (t, moduleName m) | t <- moduleTypes m ]
                          `Map.union` sessionHomes session
+    , sessionInstanceHomes = sessionInstanceHomes session
+                               `Map.union` moduleInstances m
     }
   where
     exports = moduleExports m
@@ -177,9 +192,8 @@ importInto session imp m = do
             []    -> Right ds
             d : _ -> notShown d
     -- 「モジュール Json は JDec を見せていません」
-    notShown x = Left $ errorAt ("the module " <> moduleName m
-                                 <> " does not expose " <> x)
-    errorAt msg = renderLoc (importLoc imp) <> ": error: " <> msg
+    notShown x = Left $ errorAt imp ("the module " <> moduleName m
+                                     <> " does not expose " <> x)
 
 -- 👀 Each visible name (as written, the name inside the module), with
 --    what look finds for it.
@@ -187,7 +201,47 @@ importInto session imp m = do
 eachVisible :: [(Name, Name)] -> (Name -> Maybe a) -> Map Name a
 eachVisible visible look =
   Map.fromList [ (v, a) | (v, x) <- visible, Just a <- [look x] ]
+
+-- 🚩 file.lam:3:1: error: ...
+errorAt :: Import -> Text -> Text
+errorAt imp msg = renderLoc (importLoc imp) <> ": error: " <> msg
 -- ANCHOR_END: importInto
+
+-- ANCHOR: clashes
+-- 💥 The same name, type or instance from two modules: say so,
+--    instead of picking one.
+-- 2つのモジュールから同じ名前・型・インスタンス：どちらかを選ばずに、
+-- エラーにする
+checkClashes
+  :: Session -> Import -> Module -> [(Name, Name)] -> Either Text ()
+checkClashes session imp m visible = do
+  case [ (v, o) | (v, _) <- visible
+                , Just o <- [Map.lookup v (sessionOrigins session)]
+                , o /= moduleName m ] of
+    (v, o) : _ -> Left $ errorAt imp ("the name " <> v <> " comes from both "
+                          <> o <> " and " <> moduleName m)
+    [] -> Right ()
+  case [ (t, h) | t <- moduleTypes m
+                , Just h <- [Map.lookup t (sessionHomes session)]
+                , h /= moduleName m ] of
+    (t, h) : _ -> Left $ errorAt imp ("the type " <> t <> " comes from both "
+                          <> h <> " and " <> moduleName m)
+    [] -> Right ()
+  -- ANCHOR: instanceClash
+  -- An instance known here already, from another place.
+  -- ここで知っているインスタンスが、別のところから来た
+  case [ (c, t, home)
+       | ((c, t), home) <- Map.toList (moduleInstances m)
+       , Map.member (c, t) (instances (sessionData session))
+       , Map.lookup (c, t) (sessionInstanceHomes session) /= Just home ] of
+    (c, t, home) : _ ->
+      let first = fromMaybe "this file"
+                    (Map.lookup (c, t) (sessionInstanceHomes session))
+      in Left $ errorAt imp ("the instance " <> c <> " " <> t
+                             <> " comes from both " <> first <> " and " <> home)
+    [] -> Right ()
+  -- ANCHOR_END: instanceClash
+-- ANCHOR_END: clashes
 
 -- ANCHOR: standardModule
 -- 📚 A module of the standard library, from its Lam source. Its
@@ -216,22 +270,11 @@ standardModule session m source = do
   makeModule True file header (map fst mine) (programDecls prog) inside
 -- ANCHOR_END: standardModule
 
--- ANCHOR: addDecls
--- 📜 Add declarations to a session, in order.
--- 宣言を、順にセッションに足す
-addDecls :: Session -> [Decl] -> Either Text Session
-addDecls = foldM addOne
-  where
-    addOne s decl = fst <$> case decl of
-      DefValue x e -> define s x e
-      DefData d    -> defineData s d
--- ANCHOR_END: addDecls
-
 -- ANCHOR: files
--- 📂 How to read the files of modules: the real disk, or the fake
---    world's files in the tests. searchPath is the folders of LAM_PATH.
--- モジュールのファイルの読み方：本物のディスクか、テストなら偽物の世界
--- のファイル。searchPath は LAM_PATH のフォルダー
+-- 📂 How to read the files of modules: the real disk, or a Map of
+--    files in the tests. searchPath is the folders of LAM_PATH.
+-- モジュールのファイルの読み方：本物のディスクか、テストなら Map の
+-- ファイル。searchPath は LAM_PATH のフォルダー
 data Files m = Files
   { readSource :: FilePath -> m (Maybe Text)
   , searchPath :: [FilePath]
@@ -241,6 +284,15 @@ data Files m = Files
 -- ファイルは1つもない（自分の import がないプログラム）
 noFiles :: Applicative m => Files m
 noFiles = Files (const (pure Nothing)) []
+
+-- 💽 The real disk, with the folders of LAM_PATH.
+-- 本物のディスク。LAM_PATH のフォルダーも探す
+diskFiles :: [FilePath] -> Files IO
+diskFiles folders = Files readIfThere folders
+  where
+    readIfThere path = do
+      there <- doesFileExist path
+      if there then Just <$> Utf8.readFile path else pure Nothing
 -- ANCHOR_END: files
 
 -- ANCHOR: loading
@@ -250,35 +302,42 @@ noFiles = Files (const (pure Nothing)) []
 -- ファイルは、それぞれ1度だけ読む（道で引く Map）
 type Loading m = ExceptT Text (StateT (Map FilePath Module) m)
 
--- 📜 Load a program: its imports (and theirs), then its declarations.
---    The last expression (if there is one) is given back, not
---    computed yet: it may be IO.
--- プログラムを読みこむ：import（とその先の import）、それから宣言。
--- 最後の式（あれば）は、計算せずに返す（IO かもしれないので）
+-- 📜 Load a program into a session: its imports (and theirs), then
+--    its declarations, then the expression at the end (if any).
+--    base is what each module file starts from: the prelude.
+-- プログラムをセッションに読みこむ：import（とその先の import）、宣言、
+-- 最後の式（あれば）。base は、モジュールのファイルが始まるところ
+-- （プレリュード）
 loadProgram
   :: Monad m
-  => Files m -> Session -> FilePath -> Text
-  -> m (Either Text (Session, Maybe Expr))
-loadProgram files base file source =
+  => Files m -> Session -> Session -> FilePath -> Text
+  -> m (Either Text (Session, Maybe Text))
+loadProgram files base session file source =
   evalStateT (runExceptT go) Map.empty
   where
     go = do
-      (prog, session) <- loadFile files base [file] file source
-      pure (session, programFinal prog)
+      (prog, done) <- loadFile files base session [file] file source
+      case programFinal prog of
+        Nothing -> pure (done, Nothing)
+        Just e  -> do
+          out <- liftEither (evaluate done e)
+          pure (done, Just out)
 
--- 📄 Read one file, and bring in what it imports. stack is the files
---    being loaded now (to find imports that go around).
--- ファイルを1つ読み、import するものを持ってくる。stack は、いま読んで
--- いる途中のファイル（ぐるりと回る import を見つけるため）
+-- 📄 Read one file into a session, and bring in what it imports.
+--    stack is the files being loaded now (to find imports that go
+--    around).
+-- ファイルを1つセッションに読み、import するものを持ってくる。stack は、
+-- いま読んでいる途中のファイル（ぐるりと回る import を見つけるため）
 loadFile
   :: Monad m
-  => Files m -> Session -> [FilePath] -> FilePath -> Text
+  => Files m -> Session -> Session -> [FilePath] -> FilePath -> Text
   -> Loading m (Program, Session)
-loadFile files base stack file source = do
+loadFile files base session stack file source = do
   prog <- liftEither $ either (Left . T.pack . errorBundlePretty) Right
             (runLamParser program file source)
-  session <- foldM (bringIn files base stack file) base (programImports prog)
-  done <- liftEither (addDecls session (programDecls prog))
+  withImports <-
+    foldM (bringIn files base stack file) session (programImports prog)
+  done <- liftEither (addDecls withImports (programDecls prog))
   pure (prog, done)
 
 -- 📥 One import line: find the module, then import it.
@@ -309,8 +368,9 @@ findModule files base stack from imp =
     name   = importName imp
     places = [ normalise (dir </> T.unpack name <.> "lam")
              | dir <- takeDirectory from : searchPath files ]
-    look [] = throwError $ errorAt ("no module " <> name <> " (looked for "
-                      <> T.intercalate ", " (map T.pack places) <> ")")
+    look [] = throwError $ errorAt imp
+      ("no module " <> name <> " (looked for "
+       <> T.intercalate ", " (map T.pack places) <> ")")
     look (path : rest) = do
       cached <- lift (gets (Map.lookup path))
       case cached of
@@ -324,26 +384,25 @@ findModule files base stack from imp =
               -- Already being loaded: the imports go around in a ring.
               -- もう読んでいる途中：import が輪になっている
               when (path `elem` stack) $
-                throwError $ errorAt ("the imports go around in a ring: "
+                throwError $ errorAt imp ("the imports go around in a ring: "
                         <> T.intercalate " -> "
                              (map T.pack (reverse (path : stack))))
               -- ANCHOR_END: cycle
               m <- loadModule files base (path : stack) path name source
               lift (modify (Map.insert path m))
               pure m
-    errorAt msg = renderLoc (importLoc imp) <> ": error: " <> msg
 
--- 📦 Load a module file: the same as a program, but it must start
---    with  module Name exposing (...), and must not end with an
---    expression.
--- モジュールのファイルを読む：プログラムと同じだが、module Name
--- exposing (...) で始め、最後に式を置かない
+-- 📦 Load a module file: the same as a program, but it starts from
+--    the prelude, it must start with  module Name exposing (...), and
+--    must not end with an expression.
+-- モジュールのファイルを読む：プログラムと同じだが、プレリュードから
+-- 始め、module Name exposing (...) で始め、最後に式を置かない
 loadModule
   :: Monad m
   => Files m -> Session -> [FilePath] -> FilePath -> Name -> Text
   -> Loading m Module
 loadModule files base stack path name source = do
-  (prog, inside) <- loadFile files base stack path source
+  (prog, inside) <- loadFile files base base stack path source
   header <- case programHeader prog of
     Nothing -> throwError
       (T.pack path <> ":1:1: error: a module starts with the line  module "
@@ -364,38 +423,10 @@ loadModule files base stack path name source = do
 --    the folder the REPL runs in.
 -- REPL に打った import の1行：ファイルは、REPL を動かしたフォルダーから探す
 importAt
-  :: Monad m => Files m -> Session -> Import -> m (Either Text Session)
-importAt files session imp =
-  evalStateT (runExceptT (bringIn files session [] "<repl>" session imp))
+  :: Monad m
+  => Files m -> Session -> Session -> Import -> m (Either Text Session)
+importAt files base session imp =
+  evalStateT (runExceptT (bringIn files base [] "<repl>" session imp))
              Map.empty
 -- ANCHOR_END: importAt
-
--- ANCHOR: runProgram
--- 🚪 Run a program file: load it (with its modules), show the last
---    expression (if there is one), then do main (if there is one), in
---    one of its three shapes (checkMain). The answer says how it ended.
--- プログラムのファイルを動かす：（モジュールも一緒に）読みこみ、最後の
--- 式（あれば）を見せ、それから main（あれば）を、3つの形のどれかでやる
--- （checkMain）。答えは、どう終わったか
-runProgram
-  :: Monad m
-  => Handler m -> Files m -> Session -> FilePath -> Text -> m Ending
-runProgram handle files session file source = do
-  loaded <- loadProgram files session file source
-  case loaded of
-    Left err -> pure (Errored err)
-    Right (s, final) -> do
-      shown <- maybe (pure (Finished "")) (evaluate handle s) final
-      case (shown, Map.lookup "main" (sessionTypes s)) of
-        (Finished out, Nothing) -> pure (Finished out)
-        (Finished out, Just sc) -> case checkMain sc of
-          Left err -> pure (Errored ("in main: type error: "
-                                       <> renderTypeError err))
-          Right shape -> do
-            ending <- evaluate handle s (startMain shape)
-            pure $ case ending of
-              Finished more -> Finished (out <> more)
-              other         -> other
-        (other, _) -> pure other
--- ANCHOR_END: runProgram
 -- ANCHOR_END: all

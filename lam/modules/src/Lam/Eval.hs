@@ -4,17 +4,14 @@
 -- 評価器：木をたどって、値を計算する。
 module Lam.Eval
   ( Value (..)
+  , Key (..)
   , Env
   , EvalError (..)
-  , Action (..)
-  , Request (..)
-  , LamParser
-  , Farthest
   , eval
   , apply
-  , compareValues
-  , located
   , binOp
+  , floatOf
+  , compareValues
   , match
   , renderValue
   , renderError
@@ -26,14 +23,12 @@ module Lam.Eval
 -- let の結び目には、これが要る（本文を参照）
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
-import Control.Monad.State.Strict (StateT)
-import Data.Void (Void)
-import Text.Megaparsec (ParseError, ParsecT)
 
-import Lam.Pcre (Regex (..))
-import Lam.Pretty (opSymbol, renderString)
+import Lam.Pretty (opSymbol, renderString, showFloat)
 import Lam.Syntax
 
 -- ANCHOR: value
@@ -41,14 +36,23 @@ import Lam.Syntax
 -- Lam のプログラムが計算するもの
 data Value
   = VInt Integer
+  -- ANCHOR: vfloat
+  -- A Float. A Float may also be held as a VInt: the 3 of  3 / 2  is
+  -- read as a number of any type, and the type checker said Float.
+  -- Float。Float が VInt のこともある：3 / 2 の 3 は、どの型にもなれる
+  -- 数として読み、型検査器が Float と決めたもの
+  | VFloat Double
+  -- ANCHOR_END: vfloat
   | VBool Bool
   | VString Text           -- "hello"
-  | VTuple [Value]         -- (1, "one"), and () (unit)
+  | VTuple [Value]         -- (1, "one")
   | VList [Value]          -- [1, 2, 3]
   -- ANCHOR: vmap
-  -- {"Python": 82, "TS": 75}: the keys are strings, kept in order.
-  -- キーは文字列。順に並べて持つ
-  | VMap (Map Text Value)
+  -- {"Python": 82, "TS": 75} and Set.fromList [1, 2]: the keys are
+  -- kept in order, inside a Key.
+  -- キーは順に並べて持つ。キーは Key に包む
+  | VMap (Map Key Value)
+  | VSet (Set Key)
   -- ANCHOR_END: vmap
   -- ANCHOR: vcon
   -- A value made with a constructor: Just 3, Circle 2, Nothing.
@@ -57,6 +61,11 @@ data Value
   -- 構成子で作った値。番号は、宣言の中での構成子の順番（比べるのに使う）
   | VCon Name Int [Value]
   -- ANCHOR_END: vcon
+  -- ANCHOR: vrecord
+  -- A record: each field's name and value.  { name = "Lam", age = 3 }
+  -- レコード：フィールドの名前と値
+  | VRecord (Map Name Value)
+  -- ANCHOR_END: vrecord
   -- A function, together with the variables it could see when it
   -- was made (a closure).
   -- 関数と、それが作られたときに見えていた変数たち（クロージャ）
@@ -65,76 +74,24 @@ data Value
   -- it needs, what it does, and the arguments given so far.
   -- Haskell で書いた関数：名前、要る引数の数、すること、ここまでの引数
   | VPrim Name Int ([Value] -> Either EvalError Value) [Value]
-  -- ANCHOR: vio
-  -- An IO action: a request to the outside world, not yet done.
-  -- IO の値：外の世界への頼みごと。まだ、やっていない
-  | VIO Action
-  -- ANCHOR_END: vio
-  -- ANCHOR: vregex
-  -- A compiled regular expression:  re"\d+".
-  -- コンパイルした正規表現
-  | VRegex Regex
-  -- ANCHOR_END: vregex
-  -- ANCHOR: vparser
-  -- A parser, made of megaparsec: it reads a string and gives a value.
-  -- パーサー。中身は megaparsec：文字列を読んで、値をくれる
-  | VParser LamParser
-  -- ANCHOR_END: vparser
 
--- ANCHOR: lamParser
--- 🧩 The parser inside a Parser value. It reads Text, and calls Lam
---    functions as it goes (Parser.map, Parser.andThen). Under it are
---    two more things:
---    - Farthest: the error that got the farthest so far. A choice
---      that failed is forgotten when the next one is tried, but its
---      error is kept here, for a better message at the end.
---    - Either EvalError: a Lam function can fail (1 / 0), and a Left
---      stops the whole run. It is an error of the program, not a
---      string that does not fit.
--- Parser の値の中のパーサー。Text を読みながら、Lam の関数を呼ぶ
--- （Parser.map、Parser.andThen）。下に、もう2つ重ねる：
--- ・Farthest：ここまでで、いちばん遠くまで読めたエラー。失敗した選択肢は、
---   次を試すときに忘れるが、エラーはここに残し、最後のエラーの文に使う
--- ・Either EvalError：Lam の関数は失敗しうる（1 / 0）。Left は、読むのを
---   丸ごと止める。文字列が合わないのではなく、プログラムのまちがいだから
-type LamParser = ParsecT Void Text (StateT Farthest (Either EvalError)) Value
+-- ANCHOR: key
+-- 🔑 A key of a Map or a Set. Data.Map needs Ord, but a Value has no
+--    Ord: a function cannot be compared. The type checker lets only a
+--    Comparable type be a key, so compareKeys always gives Right.
+-- Map や Set のキー。Data.Map には Ord が要るが、Value には Ord がない
+-- （関数は比べられない）。キーにできるのは Comparable の型だけだと
+-- 型検査器が確かめるので、compareKeys はいつも Right を返す
+newtype Key = Key Value
 
-type Farthest = Maybe (ParseError Text Void)
--- ANCHOR_END: lamParser
+instance Eq Key where
+  a == b = compare a b == EQ
 
--- ANCHOR: action
--- 📮 What an IO action asks for. Only the runner does it (Lam.Io).
--- IO の値が頼むこと。やるのは、実行役だけ（Lam.Io）
-data Action
-  = Pure Value              -- pure 3: ask for nothing, the answer is 3
-  | Ask Request             -- putStrLn "hi": one request
-  -- getLine, and then what to do with the line it gives.
-  -- getLine と、その行を受け取ってから、することの続き
-  | Bind Action (Value -> Either EvalError Action)
-  -- ANCHOR: exitAction
-  -- exit 2: not a request to the world, but a sign to the runner:
-  -- stop here, and do not do the rest.
-  -- exit 2：世界への頼みごとではなく、実行役への合図。ここで止まり、
-  -- 続きはやらない
-  | Exit Int
-  -- ANCHOR_END: exitAction
-
--- 📨 One request to the outside world.
--- 外の世界への、1つの頼みごと
-data Request
-  = PutStr Text             -- write to the screen
-  | GetLine                 -- read a line (Nothing at the end)
-  | ReadFile Text           -- read a file
-  | WriteFile Text Text     -- write a file
-  -- ANCHOR: scriptRequests
-  | GetArgs                 -- the arguments after the file name
-  | LookupEnv Text          -- one environment variable
-  | GetEnvironment          -- all the environment variables
-  | GetContents             -- read all of the standard input
-  | PutErr Text             -- write to the standard error
-  -- ANCHOR_END: scriptRequests
-  deriving (Eq, Show)
--- ANCHOR_END: action
+instance Ord Key where
+  compare (Key a) (Key b) = case compareKeys a b of
+    Right o -> o
+    Left _  -> error "a key that cannot be compared"
+-- ANCHOR_END: key
 
 -- 📒 The environment: the value of each variable.
 -- 環境：それぞれの変数の値
@@ -151,11 +108,11 @@ data EvalError
   | CannotCompare Text           -- a function cannot be compared
   | BuiltinFailed Name Text      -- head []
   | NoMatch Text                 -- no branch of case fits the value
-  -- ANCHOR: locatedError
-  -- The same error, and where it happened (the innermost place).
-  -- 同じエラーと、それが起きた場所（いちばん内側の場所）
-  | Located Loc EvalError
-  -- ANCHOR_END: locatedError
+  -- ANCHOR: noField
+  -- r.name, but r has no name (the type checker stops it before).
+  -- r.name なのに、r に name がない（型検査器が先に止める）
+  | NoField Name Text
+  -- ANCHOR_END: noField
   deriving (Eq, Show)
 -- ANCHOR_END: value
 
@@ -165,6 +122,7 @@ data EvalError
 eval :: Env -> Expr -> Either EvalError Value
 eval env expr = case expr of
   Lit (LInt n)    -> Right (VInt n)
+  Lit (LFloat x)  -> Right (VFloat x)
   Lit (LBool b)   -> Right (VBool b)
   Lit (LString s) -> Right (VString s)
 
@@ -215,6 +173,18 @@ eval env expr = case expr of
       other       -> Left (WrongOperand Or (renderValue other))
   -- ANCHOR_END: shortcut
 
+  -- ANCHOR: orElse
+  -- m ?: d looks at d only when m has no value: Nothing or Err.
+  -- m ?: d は、m に値がないとき（Nothing か Err）だけ d を見る
+  BinOp OrElse l r -> do
+    lv <- eval env l
+    case lv of
+      VCon "Just" _ [v] -> Right v           -- Just v ?: d  is v
+      VCon "Ok"   _ [v] -> Right v           -- Ok v ?: d    is v
+      VCon _      _ _   -> eval env r        -- Nothing, Err e: d
+      other             -> Left (WrongOperand OrElse (renderValue other))
+  -- ANCHOR_END: orElse
+
   -- The other operators need both sides.
   -- ほかの演算子は、両側とも要る
   BinOp op l r -> do
@@ -235,13 +205,6 @@ eval env expr = case expr of
     eval env' body
   -- ANCHOR_END: let
 
-  -- ANCHOR: evalAt
-  -- A mark of a place: the value of the expression inside. If it
-  -- fails, the error remembers this place.
-  -- 場所の印：中の式の値。失敗したら、エラーにこの場所を覚えさせる
-  At loc e -> located loc (eval env e)
-  -- ANCHOR_END: evalAt
-
   -- ANCHOR: case
   -- Try the branches from the top. The first pattern that fits the
   -- value wins, and its names are added to the environment.
@@ -256,19 +219,32 @@ eval env expr = case expr of
             Nothing    -> firstFit rest
     firstFit branches
   -- ANCHOR_END: case
--- ANCHOR_END: eval
 
--- ANCHOR: located
--- 📍 Put the place on an error. An error that already has a place
---    keeps it: the innermost place is the most exact.
--- エラーに場所を付ける。もう場所のあるエラーは、そのまま。
--- いちばん内側の場所が、いちばんくわしいから
-located :: Loc -> Either EvalError a -> Either EvalError a
-located loc result = case result of
-  Left err@(Located _ _) -> Left err
-  Left err               -> Left (Located loc err)
-  Right v                -> Right v
--- ANCHOR_END: located
+  -- ANCHOR: evalRecord
+  -- Compute the fields from left to right, and keep them by name.
+  -- フィールドを左から計算し、名前で引けるようにしておく
+  Record fields -> do
+    vs <- traverse (eval env . snd) fields
+    Right (VRecord (Map.fromList (zip (map fst fields) vs)))
+
+  Field e x -> do
+    v <- eval env e
+    field x v
+
+  -- A new record: the old one, with some fields changed. The old one
+  -- stays as it was.
+  -- 新しいレコード：古いもののフィールドをいくつか変えたもの。
+  -- 古いものは、そのまま
+  Update e fields -> do
+    v  <- eval env e
+    vs <- traverse (eval env . snd) fields
+    case v of
+      VRecord old -> Right (VRecord (Map.union
+                       (Map.fromList (zip (map fst fields) vs)) old))
+      other -> Left (NoField (T.intercalate ", " (map fst fields))
+                             (renderValue other))
+  -- ANCHOR_END: evalRecord
+-- ANCHOR_END: eval
 
 -- ANCHOR: match
 -- 🧩 Does the value fit the pattern? If so, the names and their values.
@@ -283,16 +259,21 @@ match p v = case (p, v) of
   (PLit (LBool a), VBool b)   -> if a == b then Just [] else Nothing
   (PLit (LString a), VString b) -> if a == b then Just [] else Nothing
   -- ANCHOR: matchCon
-  -- Json.JInt and JInt are the same constructor: look at the name
-  -- without the module (the type checker made sure of the type).
-  -- Json.JInt と JInt は同じ構成子。モジュールを取った名前を見る
-  -- （型は、型検査器が確かめてある）
+  -- S.Circle r  fits  Circle 2: the value knows only the name inside
+  -- its module.
+  -- S.Circle r は Circle 2 に合う。値が知っているのは、モジュールの中の
+  -- 名前だけ
   (PCon c ps, VCon c' _ vs)
     | baseName c == c'        -> matchAll ps vs
   -- ANCHOR_END: matchCon
   (PTuple ps, VTuple vs)      -> matchAll ps vs
   (PList ps, VList vs)        -> matchAll ps vs
   (PCons h t, VList (x : xs)) -> (<>) <$> match h x <*> match t (VList xs)
+  -- ANCHOR: matchRecord
+  -- { name, age }: each name gets the value of its field.
+  -- それぞれの名前に、そのフィールドの値を付ける
+  (PRecord xs, VRecord m)     -> traverse (\x -> (,) x <$> Map.lookup x m) xs
+  -- ANCHOR_END: matchRecord
   _                           -> Nothing
 
 -- 🧩 Every pattern fits its value, side by side (and as many of each).
@@ -307,6 +288,15 @@ matchAll ps vs = case (ps, vs) of
   (p : ps', v : vs') -> (<>) <$> match p v <*> matchAll ps' vs'
   _                  -> Nothing
 -- ANCHOR_END: match
+
+-- ANCHOR: fieldOf
+-- 🔎 The value of one field.
+-- フィールド1つの値
+field :: Name -> Value -> Either EvalError Value
+field x v = case v of
+  VRecord m | Just fv <- Map.lookup x m -> Right fv
+  _ -> Left (NoField x (renderValue v))
+-- ANCHOR_END: fieldOf
 
 -- ANCHOR: apply
 -- 📞 Call a function: the body runs in the function's OWN environment,
@@ -332,9 +322,32 @@ binOp op lv rv = case (op, lv, rv) of
   (Add, VInt a, VInt b) -> Right (VInt (a + b))
   (Sub, VInt a, VInt b) -> Right (VInt (a - b))
   (Mul, VInt a, VInt b) -> Right (VInt (a * b))
-  (Div, VInt a, VInt b)
+  -- ANCHOR: binOpFloat
+  -- A Float on either side: both are Floats (the type checker said
+  -- so), so a VInt there is turned into a Float first.
+  -- どちらかが Float なら、両方とも Float（型検査器が決めた）。
+  -- そこにある VInt は、先に Float にする
+  (Add, _, _) | Just (a, b) <- floats -> Right (VFloat (a + b))
+  (Sub, _, _) | Just (a, b) <- floats -> Right (VFloat (a - b))
+  (Mul, _, _) | Just (a, b) <- floats -> Right (VFloat (a * b))
+  -- / is always for Floats: 7 / 2 is 3.5, and 1 / 0 is Infinity.
+  -- / はいつも Float の割り算。7 / 2 は 3.5、1 / 0 は Infinity
+  (Div, _, _) | Just (a, b) <- numbers -> Right (VFloat (a / b))
+  (DivMaybe, _, _) | Just (a, b) <- numbers ->
+    Right (if b == 0 then nothing else just (VFloat (a / b)))
+  -- // is for Ints, rounded down as Haskell's div and Python's //.
+  -- // は Int の割り算。Haskell の div、Python の // と同じく下へ丸める
+  (IntDiv, VInt a, VInt b)
     | b == 0            -> Left DivideByZero
     | otherwise         -> Right (VInt (a `div` b))
+  (IntDivMaybe, VInt a, VInt b) ->
+    Right (if b == 0 then nothing else just (VInt (a `div` b)))
+  -- == < ... on two numbers, one of them a Float: as IEEE 754 says
+  -- (NaN == NaN is false, and NaN < 1 is false, too).
+  -- 片方が Float の2つの数を比べる：IEEE 754 のとおり
+  (_, _, _) | Just test <- floatComparison op
+            , Just (a, b) <- floats -> Right (VBool (test a b))
+  -- ANCHOR_END: binOpFloat
   -- ANCHOR: concat
   (Concat, VString a, VString b) -> Right (VString (a <> b))
   (Concat, VList a,   VList b)   -> Right (VList (a <> b))
@@ -344,6 +357,41 @@ binOp op lv rv = case (op, lv, rv) of
         o <- compareValues lv rv
         Right (VBool (test o))
     | otherwise -> Left (WrongOperand op (renderValue rv))
+  where
+    -- Both numbers, at least one a Float.
+    -- 両方とも数で、少なくとも1つが Float
+    floats = case (lv, rv) of
+      (VInt _, VInt _) -> Nothing
+      _                -> numbers
+    -- Both numbers, as Doubles.
+    -- 両方とも数。Double にして
+    numbers = (,) <$> floatOf lv <*> floatOf rv
+    -- Maybe, made here (Nothing is 0, Just is 1, as in the prelude).
+    -- ここで作る Maybe（番号はプレリュードと同じ）
+    nothing = VCon "Nothing" 0 []
+    just v  = VCon "Just" 1 [v]
+
+-- ANCHOR: floatOf
+-- 🔢 A number as a Double: a Float, or an Int that is a Float here.
+-- 数を Double にする。Float か、ここでは Float の Int
+floatOf :: Value -> Maybe Double
+floatOf v = case v of
+  VFloat x -> Just x
+  VInt n   -> Just (fromInteger n)
+  _        -> Nothing
+-- ANCHOR_END: floatOf
+
+-- 🔍 The comparing operators on Doubles, as IEEE 754 has them.
+-- Double を比べる演算子。IEEE 754 のとおり
+floatComparison :: Op -> Maybe (Double -> Double -> Bool)
+floatComparison op = case op of
+  Eq -> Just (==)
+  Ne -> Just (/=)
+  Lt -> Just (<)
+  Le -> Just (<=)
+  Gt -> Just (>)
+  Ge -> Just (>=)
+  _  -> Nothing
 
 -- 🔍 What each comparing operator wants to see.
 -- 比べる演算子が、それぞれ見たい答え
@@ -365,16 +413,46 @@ comparison op = case op of
 -- 同じ型の2つの値を比べる。リストとタプルは、辞書の言葉のように
 -- 左から比べる。関数は比べられない
 compareValues :: Value -> Value -> Either EvalError Ordering
-compareValues a b = case (a, b) of
+compareValues = compareWith compare
+
+-- ANCHOR: compareKeys
+-- 🔑 Compare two keys of a Map or a Set. The same as compareValues,
+--    but NaN is equal to NaN and larger than every other number, so
+--    that a NaN key can be found again (NaN == NaN is false).
+-- Map や Set のキーを比べる。compareValues と同じだが、NaN は NaN と
+-- 等しく、ほかのどの数よりも大きい。NaN のキーをまた引けるように
+-- （NaN == NaN は false なので）
+compareKeys :: Value -> Value -> Either EvalError Ordering
+compareKeys = compareWith keyOrder
+  where
+    keyOrder x y
+      | isNaN x && isNaN y = EQ
+      | isNaN x            = GT
+      | isNaN y            = LT
+      | otherwise          = compare x y
+-- ANCHOR_END: compareKeys
+
+-- ⚖️ Compare, with num as the way to compare two Floats.
+-- 比べる。num は、2つの Float の比べ方
+compareWith
+  :: (Double -> Double -> Ordering)
+  -> Value -> Value -> Either EvalError Ordering
+compareWith num a b = case (a, b) of
   (VInt x,    VInt y)    -> Right (compare x y)
+  -- Two numbers, one of them a Float (in a list, a tuple, a record).
+  -- 片方が Float の2つの数（リストやタプル、レコードの中）
+  _ | Just x <- floatOf a, Just y <- floatOf b -> Right (num x y)
   (VBool x,   VBool y)   -> Right (compare x y)
   (VString x, VString y) -> Right (compare x y)
-  (VTuple xs, VTuple ys) -> compareLists xs ys
-  (VList xs,  VList ys)  -> compareLists xs ys
+  (VTuple xs, VTuple ys) -> compareLists num xs ys
+  (VList xs,  VList ys)  -> compareLists num xs ys
   -- ANCHOR: compareMap
   -- Two maps: compare their (key, value) pairs, in the order of keys.
-  -- 2つの Map は、（キー, 値）の組を、キーの順に比べる
-  (VMap xs,   VMap ys)   -> compareLists (pairs xs) (pairs ys)
+  -- Two sets: their values, in order.
+  -- 2つの Map は、（キー, 値）の組を、キーの順に比べる。
+  -- 2つの Set は、値を順に比べる
+  (VMap xs,   VMap ys)   -> compareLists num (pairs xs) (pairs ys)
+  (VSet xs,   VSet ys)   -> compareLists num (keys xs) (keys ys)
   -- ANCHOR_END: compareMap
   -- ANCHOR: compareCon
   -- The constructor written first is the smaller one. With the same
@@ -382,25 +460,35 @@ compareValues a b = case (a, b) of
   -- 先に書いた構成子のほうが小さい。同じ構成子なら、引数を左から比べる
   (VCon _ i xs, VCon _ j ys)
     | i /= j    -> Right (compare i j)
-    | otherwise -> compareLists xs ys
+    | otherwise -> compareLists num xs ys
   -- ANCHOR_END: compareCon
+  -- ANCHOR: compareRecord
+  -- Two records of the same type: the fields in the order of names.
+  -- 同じ型の2つのレコード：フィールドを名前の順に比べる
+  (VRecord xs, VRecord ys) -> compareLists num (Map.elems xs) (Map.elems ys)
+  -- ANCHOR_END: compareRecord
   _                      -> Left (CannotCompare (renderValue a))
 
 -- ANCHOR: pairs
--- 🔑 The pairs of a map, as Lam tuples.
--- Map の組を、Lam のタプルにする
-pairs :: Map Text Value -> [Value]
-pairs m = [ VTuple [VString k, v] | (k, v) <- Map.toList m ]
+-- 🔑 The pairs of a map, as Lam tuples, and the values of a set.
+-- Map の組を Lam のタプルに。Set の値を並べる
+pairs :: Map Key Value -> [Value]
+pairs m = [ VTuple [k, v] | (Key k, v) <- Map.toList m ]
+
+keys :: Set Key -> [Value]
+keys s = [ k | Key k <- Set.toList s ]
 -- ANCHOR_END: pairs
 
-compareLists :: [Value] -> [Value] -> Either EvalError Ordering
-compareLists xs ys = case (xs, ys) of
+compareLists
+  :: (Double -> Double -> Ordering)
+  -> [Value] -> [Value] -> Either EvalError Ordering
+compareLists num xs ys = case (xs, ys) of
   ([],      [])      -> Right EQ
   ([],      _)       -> Right LT
   (_,       [])      -> Right GT
   (x : xs', y : ys') -> do
-    o <- compareValues x y
-    if o == EQ then compareLists xs' ys' else Right o
+    o <- compareWith num x y
+    if o == EQ then compareLists num xs' ys' else Right o
 -- ANCHOR_END: compare
 
 -- ANCHOR: render
@@ -409,17 +497,24 @@ compareLists xs ys = case (xs, ys) of
 renderValue :: Value -> Text
 renderValue v = case v of
   VInt n         -> T.pack (show n)
+  -- 1.5, 0.30000000000000004, 1e+21, as JavaScript and Elm show them
+  -- JavaScript や Elm と同じ形
+  VFloat x       -> showFloat x
   VBool True     -> "true"
   VBool False    -> "false"
   VString s      -> renderString s
   VTuple vs      -> "(" <> T.intercalate ", " (map renderValue vs) <> ")"
   VList vs       -> "[" <> T.intercalate ", " (map renderValue vs) <> "]"
   -- ANCHOR: renderMap
-  -- {"Python": 82, "TS": 75}, the same as it is written.
-  -- 書くときと同じ形
+  -- {"Python": 82, "TS": 75}, the same as it is written. A key that
+  -- is not a string or a number is put in [ ]:  {[(1, 2)]: "a"}
+  -- 書くときと同じ形。文字列でも数でもないキーは [ ] で包む
   VMap m         -> "{" <> T.intercalate ", "
-                      [ renderString k <> ": " <> renderValue x
-                      | (k, x) <- Map.toList m ] <> "}"
+                      [ renderKey k <> ": " <> renderValue x
+                      | (Key k, x) <- Map.toList m ] <> "}"
+  -- Set.fromList [1, 2], as Haskell and Elm show a set.
+  -- Haskell や Elm と同じ形
+  VSet s         -> "Set.fromList " <> renderValue (VList (keys s))
   -- ANCHOR_END: renderMap
   -- ANCHOR: renderCon
   -- Just (Just 3): an argument with arguments of its own needs ( ).
@@ -427,26 +522,35 @@ renderValue v = case v of
   VCon c _ []    -> c
   VCon c _ vs    -> T.unwords (c : map argument vs)
   -- ANCHOR_END: renderCon
+  -- ANCHOR: renderRecord
+  -- { age = 3, name = "Lam" }, the same as it is written (by name).
+  -- 書くときと同じ形（名前の順）
+  VRecord m      -> "{ " <> T.intercalate ", "
+                      [ k <> " = " <> renderValue x | (k, x) <- Map.toList m ]
+                      <> " }"
+  -- ANCHOR_END: renderRecord
   VClosure x _ _ -> "<function of " <> x <> ">"
   VPrim n _ _ _  -> "<builtin " <> n <> ">"
-  -- ANCHOR: renderIO
-  VIO _          -> "<IO action>"
-  -- ANCHOR_END: renderIO
-  -- ANCHOR: renderRegex
-  -- re"\d+", the same as it is written.
-  -- 書くときと同じ形
-  VRegex p       -> "re\"" <> regexSource p <> "\""
-  -- ANCHOR_END: renderRegex
-  VParser _      -> "<parser>"
-  -- ANCHOR: argument
   where
     argument a = case a of
       VCon _ _ (_ : _) -> "(" <> renderValue a <> ")"
-      -- JInt (-5), as Haskell shows it.
+      VSet _           -> "(" <> renderValue a <> ")"
+      -- Just (-3), as Haskell shows it.
       -- Haskell と同じく、負の数も括弧で包む
       VInt n | n < 0   -> "(" <> renderValue a <> ")"
+      VFloat x | x < 0 -> "(" <> renderValue a <> ")"
       _                -> renderValue a
-  -- ANCHOR_END: argument
+
+-- ANCHOR: renderKey
+-- 🔑 A key of a map: a string or a number as it is, others in [ ].
+-- Map のキー。文字列と数はそのまま、ほかは [ ] で包む
+renderKey :: Value -> Text
+renderKey k = case k of
+  VString s -> renderString s
+  VInt n    -> T.pack (show n)
+  VFloat x  -> showFloat x
+  _         -> "[" <> renderValue k <> "]"
+-- ANCHOR_END: renderKey
 
 -- 📣 An error, as people read it.
 -- 人が読むエラー
@@ -468,7 +572,7 @@ renderError err = case err of
   BuiltinFailed n m  -> n <> ": " <> m
   -- 「case のどの枝にも合いません」
   NoMatch v          -> "no branch of case fits " <> v
-  -- 「場所：……」
-  Located loc e      -> renderLoc loc <> ": " <> renderError e
+  -- 「{ age = 3 } には、フィールド name がありません」
+  NoField x v        -> v <> " has no field " <> x
 -- ANCHOR_END: render
 -- ANCHOR_END: all

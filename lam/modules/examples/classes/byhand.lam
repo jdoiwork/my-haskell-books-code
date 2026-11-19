@@ -1,0 +1,35 @@
+-- 🖐️ Dictionaries by hand: a record of the methods, passed as the first
+--    argument. This is what Lam does inside, for every class.
+-- 手で書く辞書：メソッドを並べたレコードを、最初の引数で渡す。
+-- Lam が、どのクラスにも、中でしていること
+--   lam examples/classes/byhand.lam
+
+data Shape
+  = Circle { radius : Int }
+  | Rect { width : Int, height : Int }
+
+data Money = Yen Int
+
+-- ANCHOR: dicts
+shapeDict =
+  { describe = \s ->
+      case s of
+        | Circle { radius } -> "a circle of radius " ++ showInt radius
+        | Rect { width, height } ->
+            "a " ++ showInt width ++ "x" ++ showInt height ++ " rect" }
+
+moneyDict =
+  { describe = \m ->
+      case m of
+        | Yen n -> showInt n ++ " yen" }
+-- ANCHOR_END: dicts
+
+-- ANCHOR: twice
+-- 🔁 The dictionary comes first, and describe is taken out of it.
+-- 辞書が先に来て、describe はそこから取り出す
+twice d x = d.describe x ++ ", " ++ d.describe x
+-- ANCHOR_END: twice
+
+-- ANCHOR: main
+(twice shapeDict (Circle { radius = 2 }), twice moneyDict (Yen 80))
+-- ANCHOR_END: main
