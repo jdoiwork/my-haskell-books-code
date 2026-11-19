@@ -1,0 +1,38 @@
+-- ✅ Step 3: pairs put together, the left with the left and the right
+--    with the right.
+-- ステップ3：組を合わせる。左は左どうし、右は右どうし
+--   lam examples/classes/answers/pairs.lam
+
+data Money = Yen Int
+data Minutes = Minutes Int
+
+class Combine a where
+  empty : a
+  combine : a -> a -> a
+
+instance Combine Money where
+  empty = Yen 0
+  combine a b =
+    case (a, b) of
+      | (Yen x, Yen y) -> Yen (x + y)
+
+instance Combine Minutes where
+  empty = Minutes 0
+  combine a b =
+    case (a, b) of
+      | (Minutes x, Minutes y) -> Minutes (x + y)
+
+total : Combine a => [a] -> a
+total xs = foldr combine empty xs
+
+-- ANCHOR: pair
+instance (Combine a, Combine b) => Combine (a, b) where
+  empty = (empty, empty)
+  combine p q =
+    case (p, q) of
+      | ((a1, b1), (a2, b2)) -> (combine a1 a2, combine b1 b2)
+
+orders = [(Yen 300, Minutes 25), (Yen 450, Minutes 40)]
+
+total orders
+-- ANCHOR_END: pair

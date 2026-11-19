@@ -1,0 +1,16 @@
+-- ✅ Step 1: true and false, described.
+-- ステップ1：真偽値を説明する
+--   lam examples/classes/answers/yesno.lam
+
+class Describe a where
+  describe : a -> String
+
+twice : Describe a => a -> String
+twice x = describe x ++ ", " ++ describe x
+
+-- ANCHOR: bool
+instance Describe Bool where
+  describe b = if b then "yes" else "no"
+
+(describe true, describe false, twice true)
+-- ANCHOR_END: bool

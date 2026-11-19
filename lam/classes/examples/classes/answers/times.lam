@@ -1,0 +1,30 @@
+-- ✅ Step 2: a default method that puts n copies together.
+-- ステップ2：n 個を合わせる、既定のメソッド
+--   lam examples/classes/answers/times.lam
+
+data Money = Yen Int
+data Minutes = Minutes Int
+
+-- ANCHOR: class
+class Combine a where
+  empty : a
+  combine : a -> a -> a
+  times : Int -> a -> a
+  -- No copies are empty; n copies are one more than n - 1 copies.
+  -- 0 個なら empty。n 個は、n - 1 個に1つ合わせたもの
+  times n x = if n <= 0 then empty else combine x (times (n - 1) x)
+
+instance Combine Money where
+  empty = Yen 0
+  combine a b =
+    case (a, b) of
+      | (Yen x, Yen y) -> Yen (x + y)
+
+instance Combine Minutes where
+  empty = Minutes 0
+  combine a b =
+    case (a, b) of
+      | (Minutes x, Minutes y) -> Minutes (x + y)
+
+(times 3 (Yen 100), times 2 (Minutes 45), times 0 (Yen 100))
+-- ANCHOR_END: class
