@@ -1,0 +1,22 @@
+/^(\w+\s?)+$/
+    Mira Ruby
+ 0: Mira Ruby
+ 1: Ruby
+    Mira Ruby!
+No match
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!
+Failed: error -47: match limit exceeded
+    Mira Ruby!\=find_limits
+Minimum heap limit = 3
+Minimum match limit = 360
+Minimum depth limit = 20
+No match
+    Mira Ruby Lam GHC Perl!\=find_limits
+Minimum heap limit = 6
+Minimum match limit = 47720
+Minimum depth limit = 43
+No match
+
+/^\w+(?:\s\w+)*$/
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!
+No match

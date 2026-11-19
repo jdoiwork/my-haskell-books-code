@@ -1,0 +1,9 @@
+/^(\w+\s?)+$/
+    Mira Ruby
+    Mira Ruby!
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!
+    Mira Ruby!\=find_limits
+    Mira Ruby Lam GHC Perl!\=find_limits
+
+/^\w+(?:\s\w+)*$/
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!

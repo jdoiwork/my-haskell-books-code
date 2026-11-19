@@ -1,1 +1,0 @@
---print-script --json --path=orders -pe 'Json.get "user" json |> fromMaybe JNull'

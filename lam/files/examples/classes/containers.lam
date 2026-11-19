@@ -1,0 +1,50 @@
+-- 📦 describe for what is inside: Maybe and lists of anything in
+--    Describe, and the builtin Int and String.
+-- 中身を説明する：Describe に入るものの Maybe とリスト。それに、
+-- 組み込みの Int と String
+--   lam examples/classes/containers.lam
+
+data Shape
+  = Circle { radius : Int }
+  | Rect { width : Int, height : Int }
+
+class Describe a where
+  describe : a -> String
+
+instance Describe Shape where
+  describe s =
+    case s of
+      | Circle { radius } -> "a circle of radius " ++ showInt radius
+      | Rect { width, height } ->
+          "a " ++ showInt width ++ "x" ++ showInt height ++ " rect"
+
+-- ANCHOR: builtin
+-- The types the language has by itself can be in a class, too.
+-- 言語がはじめから持つ型も、クラスに入れる
+instance Describe Int where
+  describe n = showInt n
+
+instance Describe String where
+  describe s = "\"" ++ s ++ "\""
+-- ANCHOR_END: builtin
+
+-- ANCHOR: maybe
+-- A Maybe a is in Describe when a is: describe x needs Describe a.
+-- a が Describe に入るなら、Maybe a も入る。describe x に Describe a が要る
+instance Describe a => Describe (Maybe a) where
+  describe m =
+    case m of
+      | Nothing -> "nothing"
+      | Just x -> "just " ++ describe x
+-- ANCHOR_END: maybe
+
+-- ANCHOR: list
+instance Describe a => Describe [a] where
+  describe xs = "[" ++ join ", " (map describe xs) ++ "]"
+-- ANCHOR_END: list
+
+-- ANCHOR: main
+( describe [Just (Circle { radius = 1 }), Nothing]
+, describe (Just [3, 4])
+, describe ["tea", "cake"] )
+-- ANCHOR_END: main

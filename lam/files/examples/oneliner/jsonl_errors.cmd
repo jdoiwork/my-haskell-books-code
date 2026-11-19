@@ -1,1 +1,0 @@
---jsonl -ne 'when (Json.get "level" json == Just (JStr "error")) (putStrLn (Json.show json))' examples/oneliner/events.jsonl

@@ -1,0 +1,135 @@
+-- ANCHOR: all
+-- | The types the user sees: a compiled pattern, what was found,
+--   the flags, and what can go wrong.
+-- 使う人が目にする型：コンパイルしたパターン、見つけたもの、
+-- フラグ、うまくいかなかったとき
+module MiniRegex.Types
+  ( Regex (..)
+  , Match (..)
+  , Span (..)
+  , Option (..)
+  , RegexError (..)
+  , errorOffset
+  , GaveUp (..)
+  , defaultLimit
+  ) where
+
+-- ANCHOR: imports
+import Control.Exception (Exception)
+import Data.Map.Strict (Map)
+import Data.Text (Text)
+
+import MiniRegex.Program (Program)
+import MiniRegex.Syntax (Pattern)
+-- ANCHOR_END: imports
+
+-- ANCHOR: regex
+-- 🧭 A compiled pattern: what was written, the flags, the tree, and
+--    the program for the VM. Made only by `compile`, so a Regex is
+--    always a good one.
+-- コンパイルしたパターン：書いた文字列、フラグ、木、VM のプログラム。
+-- compile だけが作るので、Regex はいつも正しいパターン
+data Regex = Regex
+  { source  :: Text
+  , options :: [Option]
+  , tree    :: Pattern
+  , program :: Program
+  }
+
+-- Show what was written, not the whole tree.
+-- 木の全体ではなく、書いたパターンを見せる
+instance Show Regex where
+  show r = "<regex " ++ show (source r) ++ ">"
+-- ANCHOR_END: regex
+
+-- ANCHOR: match
+-- 🔍 What was found: the text, and where it was (counted in
+--    characters, from 0; the end is not included). Then what each
+--    group found (group 1 first; Nothing for a group that took no
+--    part), and the numbers of the named groups.
+-- 見つけたもの：その文字列と、場所（0 から数えた文字の位置。
+-- 終わりの位置の文字は含まない）。そのあとに、グループごとに見つけた
+-- もの（1番から。使われなかったグループは Nothing）と、名前付きの
+-- グループの番号
+data Match = Match
+  { matchText   :: Text
+  , matchStart  :: Int
+  , matchEnd    :: Int
+  , matchGroups :: [Maybe Span]
+  , matchNames  :: Map Text Int
+  }
+  deriving (Show, Eq)
+
+-- 📏 What one group found, and where.
+-- グループ1つが見つけたものと、その場所
+data Span = Span
+  { spanText  :: Text
+  , spanStart :: Int
+  , spanEnd   :: Int
+  }
+  deriving (Show, Eq)
+-- ANCHOR_END: match
+
+-- ANCHOR: option
+-- 🚩 The flags, the same as PCRE2's i, m, s, x and a. They can be set
+--    in the pattern, too: (?i), (?m), (?s), (?x), (?a).
+-- フラグ。PCRE2 の i・m・s・x・a と同じ。パターンの中でも
+-- (?i)・(?m)・(?s)・(?x)・(?a) で付けられる
+data Option
+  -- (?i) A and a are the same.
+  -- 大文字と小文字を区別しない
+  = Caseless
+  -- (?m) ^ and $ match at the start and end of each line.
+  -- ^ と $ が、行ごとの頭と終わりに合う
+  | Multiline
+  -- (?s) . matches a newline, too.
+  -- . が改行にも合う
+  | DotAll
+  -- (?x) Spaces and # comments in the pattern are skipped.
+  -- パターンの中の空白と # のコメントを読み飛ばす
+  | Extended
+  -- (?a) \d, \s, \w and [:alpha:] ... are ASCII only (MiniRegex's
+  -- default is Unicode, as Python's and Rust's).
+  -- \d・\s・\w・[:alpha:] などを ASCII だけにする（MiniRegex の
+  -- 既定は、Python・Rust と同じく Unicode）
+  | Ascii
+  deriving (Show, Eq, Ord, Enum, Bounded)
+-- ANCHOR_END: option
+
+-- ANCHOR: error
+-- 🚧 A pattern that cannot be compiled, and where (the character
+--    position in the pattern). A wrong pattern, and a pattern that is
+--    fine but that MiniRegex cannot run yet, are told apart.
+-- コンパイルできなかったパターンと、その場所（パターンの何文字目か）。
+-- まちがったパターンと、正しいけれど MiniRegex がまだ扱えないパターンを
+-- 分けておく
+data RegexError
+  = Invalid     Int Text
+  | Unsupported Int Text
+  deriving (Show, Eq, Ord)
+
+-- 📍 Where the trouble is.
+-- どこでつまずいたか
+errorOffset :: RegexError -> Int
+errorOffset (Invalid     at _) = at
+errorOffset (Unsupported at _) = at
+-- ANCHOR_END: error
+
+-- ANCHOR: gaveup
+-- 🏳️ The VM gave up: it took this many steps and had not finished.
+--    PCRE2's error -47, "match limit exceeded".
+-- VM があきらめた：この手数を使っても、終わらなかった。
+-- PCRE2 の error -47「match limit exceeded」にあたる
+newtype GaveUp = GaveUp Int
+  deriving (Show, Eq)
+
+instance Exception GaveUp
+
+-- 🔟 The steps a search may take, unless told otherwise: ten million,
+--    the same number as PCRE2's default match limit.
+-- ことわりがなければ、1回の探しものに使ってよい手数：1000万。PCRE2 の
+-- 手数の上限の既定値と同じ数
+defaultLimit :: Int
+defaultLimit = 10_000_000
+-- ANCHOR_END: gaveup
+-- ANCHOR_END: all

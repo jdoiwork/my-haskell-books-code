@@ -1,0 +1,5 @@
+/colou?r|gr(a|e)y/bincode
+
+/^(\w+\s?)+$/bincode
+
+/a*b/bincode

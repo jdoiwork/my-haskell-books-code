@@ -1,0 +1,12 @@
+-- ANCHOR: all
+-- 📊 Stats: the sum and the mean of a list of numbers.
+-- Stats：数のリストの合計と平均
+module Stats exposing (sum, mean)
+
+sum : [Int] -> Int
+sum xs = List.foldl (\total x -> total + x) 0 xs
+
+mean : [Int] -> Float
+mean xs =
+  if length xs == 0 then 0.0 else toFloat (sum xs) / toFloat (length xs)
+-- ANCHOR_END: all

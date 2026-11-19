@@ -1,3 +1,4 @@
+-- ANCHOR: all
 -- 👯 Step 3: find the files with the same contents, in a folder and
 --    the folders inside it (the ** of File.glob).
 -- ステップ3：中身が同じファイルを、フォルダーとその中のフォルダーから
@@ -7,7 +8,8 @@
 -- 📖 A file and its contents ([] for a folder, or one that cannot be
 --    read).
 -- ファイルとその中身（フォルダーや読めないものは []）
-let contentsOf path = do
+contentsOf : String -> IO [(String, String)]
+contentsOf path = do
   folder <- File.isDir path
   if folder then pure [] else do
     text <- readFile path
@@ -15,19 +17,17 @@ let contentsOf path = do
       | Ok t -> [(t, path)]
       | Err _ -> [])
 
-let main = do
-  args <- getArgs
+main : [String] -> IO (Result String ())
+main args = do
   let dir = case args of | d : _ -> d | [] -> "."
-  found <- File.glob (Path.join dir "**/*")
-  case found of
-    | Err e -> ePutStrLn e
-    | Ok paths -> do
-        pairs <- IO.mapM contentsOf paths
-        -- The paths for each contents.
-        -- 中身ごとの道
-        let groups = foldl
-              (\m p -> case p of
-                 | (t, path) -> Map.insertWith (\a b -> b ++ a) t [path] m)
-              Map.empty (concat pairs)
-        forEach (filter (\g -> length g > 1) (Map.values groups)) (\g ->
-          putStrLn (join " = " g))
+  paths <- File.glob (Path.join dir "**/*") ?
+  pairs <- mapM contentsOf paths
+  -- The paths for each contents.
+  -- 中身ごとの道
+  let groups = foldl
+        (\m (t, path) -> Map.insertWith (\a b -> b ++ a) t [path] m)
+        Map.empty (concat pairs)
+  forEach (filter (\g -> length g > 1) (Map.values groups)) (\g ->
+    putStrLn (join " = " g))
+  pure (Ok ())
+-- ANCHOR_END: all

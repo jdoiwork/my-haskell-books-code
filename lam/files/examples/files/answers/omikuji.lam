@@ -1,10 +1,13 @@
+-- ANCHOR: all
 -- 🎴 Step 1: a fortune, picked at random. The same seed gives the
---    same fortune: lam --seed=7 omikuji.lam
+--    same fortune:  lam --seed=618 omikuji.lam
 -- ステップ1：おみくじを、でたらめに1つ。同じ種なら同じおみくじ
 
-let fortunes = ["great luck", "good luck", "small luck", "bad luck"]
+fortunes : [String]
+fortunes = ["great luck", "good luck", "small luck", "bad luck"]
 
-let main = do
+main : IO ()
+main = do
   picked <- Random.pick fortunes
   -- The lucky number: from 1 to 9.
   -- ラッキーナンバー：1 から 9
@@ -12,3 +15,4 @@ let main = do
   case picked of
     | Just f -> putStrLn f"{f}! (lucky number: {number})"
     | Nothing -> putStrLn "no fortunes today"
+-- ANCHOR_END: all

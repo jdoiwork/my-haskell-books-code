@@ -1,8 +1,0 @@
-# name, mail, language
-  Python , python@lam.test , Python
-TS,ts@lam.test,TypeScript
-# Rust came late
- Rust ,   rust@lam.test,Rust
-Ruby, ruby-at-lam.test, Ruby
-
-Erlang , erlang@lam.test

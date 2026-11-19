@@ -1,35 +1,44 @@
+-- ANCHOR: all
 -- 📷 Step 2: put the photos in a folder for each month they were
 --    taken (changed), like photos/2026-10/a.jpg. Look first with
 --    --dry-run.
 -- ステップ2：写真を、撮った（変えた）月ごとのフォルダーに分ける
---   lam --dry-run photos.lam photos
+--   lam photos.lam --dry-run photos
 
 -- ANCHOR: monthOf
 -- 📅 "2026-10": the first 7 letters of the day, here.
 -- ここでの日付の、はじめの7文字
-let monthOf zone info = take 7 (Time.toDate zone (File.modified info))
+monthOf : Zone -> FileInfo -> String
+monthOf zone info = take 7 (Time.toDate zone info.modified)
 -- ANCHOR_END: monthOf
 
--- 🚚 Move one photo into the folder of its month.
--- 写真を1枚、その月のフォルダーへ動かす
-let moveOne zone dir path = do
-  found <- File.info path
-  case found of
-    | Err e -> ePutStrLn e
-    | Ok info -> do
-        let folder = Path.join dir (monthOf zone info)
-        let target = Path.join folder (Path.basename path)
-        _ <- File.makeDir folder
-        moved <- File.rename path target
-        case moved of
-          | Ok _ -> putStrLn f"{path} -> {target}"
-          | Err e -> ePutStrLn e
+-- 🚚 Move one photo into the folder of its month (or only tell).
+-- 写真を1枚、その月のフォルダーへ動かす（か、知らせるだけ）
+moveOne : Bool -> Zone -> String -> String -> IO (Result String ())
+moveOne dry zone dir path = do
+  info <- File.info path ?
+  let folder = Path.join dir (monthOf zone info)
+  let target = Path.join folder (Path.basename path)
+  if dry then do
+    putStrLn f"would move {path} -> {target}"
+    pure (Ok ())
+  else do
+    File.makeDir folder ?
+    File.rename path target ?
+    putStrLn f"{path} -> {target}"
+    pure (Ok ())
 
-let main = do
-  args <- getArgs
-  let dir = case args of | d : _ -> d | [] -> "photos"
-  zone <- Time.here
-  found <- File.glob (Path.join dir "*.jpg")
-  case found of
-    | Ok paths -> forEach paths (moveOne zone dir)
-    | Err e -> ePutStrLn e
+-- 🚪 [--dry-run] [the folder]
+main : [String] -> IO (Result String ())
+main args = do
+  let dry  = elem "--dry-run" args
+  let rest = filter (\a -> a /= "--dry-run") args
+  let dir  = case rest of | d : _ -> d | [] -> "photos"
+  zone  <- Time.here
+  paths <- File.glob (Path.join dir "*.jpg") ?
+  results <- mapM (moveOne dry zone dir) paths
+  -- The first Err, if there is one (mapM in Result stops there).
+  -- 最初の Err（あれば。Result の mapM は、そこで止まる）
+  _ <- pure (mapM (\r -> r) results) ?
+  pure (Ok ())
+-- ANCHOR_END: all

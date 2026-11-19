@@ -1,1 +1,0 @@
--ne 'putStrLn line' examples/oneliner/nope.txt

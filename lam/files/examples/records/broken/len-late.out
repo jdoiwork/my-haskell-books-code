@@ -1,0 +1,1 @@
+examples/records/broken/len-late.lam:6:7: in the definition of len: type error: the types do not fit: String where Int is needed

@@ -11,32 +11,33 @@ module Lam.Files
   ( filesBuiltins
   , timeValue
   , zoneValue
-  , millisOf
   , fileInfoValue
   , outcomeValue
-  , globRoot
   ) where
 
+import qualified Data.Map as Map
+import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time (Day, UTCTime (..), ZonedTime, LocalTime (..),
                   TimeOfDay (..), toGregorian, utcToLocalTime,
                   minutesToTimeZone, zonedTimeToUTC, formatTime,
                   defaultTimeLocale)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Time.Format.ISO8601 (iso8601ParseM)
-import Data.Text (Text)
-import qualified Data.Text as T
-import System.FilePath (joinPath, splitDirectories, takeBaseName,
-                        takeDirectory, takeExtension, takeFileName,
-                        replaceExtension, (</>))
+import System.FilePath (takeBaseName, takeDirectory, takeExtension,
+                        takeFileName, replaceExtension, (</>))
 
 import Lam.Builtins
+import Lam.Clock (isoOf, millisOf, offsetText, utcOf)
 import Lam.Eval
 import Lam.Types
 -- ANCHOR_END: head
 
 -- ANCHOR: table
--- 📋 The rows to add to the table of builtins.
--- 組み込みの関数の表に足す行
+-- 📋 The rows to add to the table of builtins. Their names start with
+--    Path., File., Process., Time. and Random., so each belongs to its
+--    module (made in Lam.Prelude).
+-- 組み込みの関数の表に足す行。名前の頭で、それぞれのモジュールのもの
+-- になる（モジュールは Lam.Prelude で作る）
 filesBuiltins :: [Builtin]
 filesBuiltins =
   pathBuiltins <> fileBuiltins <> processBuiltins <> timeBuiltins
@@ -82,7 +83,12 @@ fileBuiltins =
   , ask2 "File.append" (tResult tString tUnit) AppendFile
   ]
   where
-    tFileInfo = TCon "FileInfo" []
+    -- ANCHOR: fileInfoType
+    -- A record: { modified : Time, size : Int }
+    -- レコード
+    tFileInfo = TRecord (Map.fromList [("size", TInt), ("modified", tTime)])
+                  Nothing
+    -- ANCHOR_END: fileInfoType
     ask1 n t request = prim1 n (tString ~> tIO t) $ \v ->
       VIO . Ask . request <$> string v
     ask2 n t request = prim2 n (tString ~> tString ~> tIO t) $ \a b ->
@@ -139,8 +145,6 @@ timeBuiltins =
   , part "Time.toSecond" (\_ tod -> floor (todSec tod))
   ]
   where
-    tTime = TCon "Time" []
-    tZone = TCon "Zone" []
     -- Turn the Time into the clock on the wall of the zone.
     -- Time を、そのゾーンの壁の時計に直す
     inZone n t f = prim2 n (tZone ~> tTime ~> t) $ \z v -> do
@@ -150,24 +154,6 @@ timeBuiltins =
       Right (f local offset)
     part n f = inZone n TInt $ \local _ ->
       VInt (f (toGregorian (localDay local)) (localTimeOfDay local))
-    offsetText m =
-      let sign = if m < 0 then "-" else "+"
-          (h, mm) = abs m `divMod` 60
-      in sign <> two h <> ":" <> two mm
-    two n = T.justifyRight 2 '0' (T.pack (show n))
-
--- 🕰️ The ISO 8601 text of a time, in UTC, with the milliseconds only
---    when there are some.
--- 時刻の ISO 8601 の文字。UTC で。ミリ秒は、あるときだけ
-isoOf :: Integer -> Text
-isoOf ms =
-  let utc = utcOf ms
-      main = formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S" utc
-      rest = ms `mod` 1000
-  in T.pack main
-       <> (if rest == 0 then ""
-           else "." <> T.justifyRight 3 '0' (T.pack (show rest)))
-       <> "Z"
 
 -- 📖 Read "2026-11-17T03:04:05Z", "2026-11-17T12:04:05+09:00", or a
 --    day alone ("2026-11-17", the start of the day in UTC).
@@ -202,27 +188,25 @@ timeValue ms = con "Time" [VInt ms]
 zoneValue :: Int -> Value
 zoneValue m = con "Zone" [VInt (toInteger m)]
 
--- 🧱 FileInfo size modified.
+-- 🧱 { size = 66, modified = <time> }
 fileInfoValue :: Integer -> Integer -> Value
-fileInfoValue size ms = con "FileInfo" [VInt size, timeValue ms]
+fileInfoValue size ms = VRecord (Map.fromList
+  [("size", VInt size), ("modified", timeValue ms)])
 
--- 🧱 How a command ended: the exit code, the output, the errors.
---    Nothing: it could not start, and why.
--- コマンドの終わり方：終了コード、出力、エラー。
+-- 🧱 How a command ended: it could not start (and why), or the exit
+--    code with the output and the errors.
+-- コマンドの終わり方：始まれなかった（とそのわけ）か、終了コードと、
+-- 出力とエラー
 outcomeValue :: Either Text (Int, Text, Text) -> Value
 outcomeValue r = case r of
-  Left why              -> con "CannotStart" [VString why]
-  Right (0, out, err)   -> con "Succeeded" [VString out, VString err]
+  Left why -> con "CannotStart" [VString why]
+  Right (0, out, err) ->
+    con "Succeeded" [record [("out", VString out), ("err", VString err)]]
   Right (code, out, err) ->
-    con "Failed" [VInt (toInteger code), VString out, VString err]
-
--- ⏱️ The milliseconds since 1970 of a UTC time (cut down to the ms).
--- 1970年からのミリ秒（ミリ秒より細かいところは切り捨て）
-millisOf :: UTCTime -> Integer
-millisOf t = floor (utcTimeToPOSIXSeconds t * 1000)
-
-utcOf :: Integer -> UTCTime
-utcOf ms = posixSecondsToUTCTime (fromInteger ms / 1000)
+    con "Failed" [record [ ("code", VInt (toInteger code))
+                         , ("out", VString out), ("err", VString err) ]]
+  where
+    record = VRecord . Map.fromList
 
 millis :: Value -> Either EvalError Integer
 millis v = case v of
@@ -233,21 +217,12 @@ minutes :: Value -> Either EvalError Int
 minutes v = case v of
   VCon "Zone" _ [VInt m] -> Right (fromInteger m)
   _ -> Left (BuiltinFailed "Time" "needs a Zone")
--- ANCHOR_END: values
 
--- ANCHOR: globRoot
--- 🌳 The folder a glob pattern looks in: the pieces before the first
---    one with * ? or [. "logs/2026-*/*.log" looks in "logs". It is
---    what --allow-read must cover.
--- glob の型が探すフォルダー：* ? [ のある最初のかけらより前。
--- --allow-read が及ばなければならないのは、ここ
-globRoot :: Text -> Text
-globRoot pattern =
-  let fixed = takeWhile (not . any (`elem` ("*?[" :: String)))
-                (splitDirectories (T.unpack pattern))
-  in if null fixed then "." else T.pack (joinPath fixed)
--- ANCHOR_END: globRoot
+tTime, tZone :: Type
+tTime = TCon "Time" []
+tZone = TCon "Zone" []
 
 tResult :: Type -> Type -> Type
 tResult e x = TCon "Result" [e, x]
+-- ANCHOR_END: values
 -- ANCHOR_END: all
