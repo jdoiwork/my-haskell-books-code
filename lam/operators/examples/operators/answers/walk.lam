@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- 🚶 Three steps east and two north, from home.
+-- 家から、東に3歩、北に2歩
+import Vec (Vec, (|+|), (*|))
+
+home  = { x = 10, y = 20 }
+east  = { x = 1, y = 0 }
+north = { x = 0, y = 1 }
+
+home |+| 3 *| east |+| 2 *| north
+-- ANCHOR_END: all

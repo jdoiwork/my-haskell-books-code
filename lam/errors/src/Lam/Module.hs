@@ -15,6 +15,7 @@ module Lam.Module
   , loadProgram
   , runProgram
   , importAt
+  , readProgram
   ) where
 
 import Control.Monad (foldM, unless, when)
@@ -36,7 +37,8 @@ import Text.Megaparsec (errorBundlePretty)
 import Lam.Builtins (Builtin (..))
 import Lam.Eval (Request (..))
 import Lam.Io (Handler)
-import Lam.Parser (program, runLamParser)
+import Lam.Parser (fixitiesOf, program, programHead, runLamParser)
+import Lam.Sugar (builtinOperator, operatorFunction)
 import Lam.Program
 import Lam.Syntax
 import Lam.Types
@@ -67,7 +69,7 @@ makeModule standard file (Header loc m exposing) builtin decls inside = do
     ExposeAll -> Right (ownValues, Map.fromList ownTypes)
     ExposeSome items -> do
       picked <- traverse (pick ownValues ownTypes) items
-      Right ( [ x | Left x <- picked ]
+      Right ( [ x | Left x <- picked, not (T.null x) ]
             , Map.fromList [ tc | Right tc <- picked ] )
   let shownParts = concat (Map.elems shown)
       exports    = Map.fromList
@@ -82,6 +84,7 @@ makeModule standard file (Header loc m exposing) builtin decls inside = do
       own        = Map.fromList
         [ (k, m) | k <- Map.keys (instances table)
                  , not (Map.member k known) ]
+  operators <- shownOperators exposing (values <> shownParts)
   Right Module
     { moduleName      = m
     , moduleFile      = file
@@ -98,8 +101,35 @@ makeModule standard file (Header loc m exposing) builtin decls inside = do
     , moduleInstances = own `Map.union` known
     , moduleDicts     = Map.filterWithKey (\x _ -> "$" `T.isPrefixOf` x)
                           (sessionValues inside)
+    , moduleOperators = operators
     }
   where
+    -- ANCHOR: shownOperators
+    -- The operators it shows: all with (..), or the ones in the list.
+    -- An operator of your own goes with its function: a file that
+    -- uses <+> calls Receipt.addPrice, so addPrice must be shown too.
+    -- 見せる演算子：(..) なら全部、そうでなければ一覧にあるもの。自分の
+    -- 演算子は、関数と一緒に行く。<+> を使うファイルは Receipt.addPrice
+    -- を呼ぶので、addPrice も見せないといけない
+    declared = Map.fromList [ (o, f) | DefInfix _ o f <- decls ]
+    shownOperators exposing' values = do
+      picked <- case exposing' of
+        ExposeAll        -> Right declared
+        ExposeSome items -> Map.fromList <$> traverse pickOperator
+                              [ o | ExposeOperator o <- items ]
+      case [ (o, f) | (o, f) <- Map.toList picked, not (fixityBuiltin f)
+                    , fixityTarget f `notElem` values ] of
+        -- 「Receipt は <+> を見せますが、呼ぶ関数 addPrice を見せていません」
+        (o, f) : _ -> Left (renderLoc loc <> ": error: the module " <> m
+                            <> " exposes (" <> o <> "), but not "
+                            <> fixityTarget f <> ", the function it calls")
+        [] -> Right picked
+    pickOperator o = case Map.lookup o declared of
+      Just f  -> Right (o, f)
+      -- 「Receipt は (<+>) を見せると言っていますが、宣言していません」
+      Nothing -> Left (renderLoc loc <> ": error: the module " <> m
+                       <> " exposes (" <> o <> "), but does not declare it")
+    -- ANCHOR_END: shownOperators
     -- One item of the list: a value (Left), or a type or a class with
     -- the parts it shows (Right).
     -- 一覧の1つ：値（Left）か、型かクラスと、見せる部品（Right）
@@ -116,6 +146,9 @@ makeModule standard file (Header loc m exposing) builtin decls inside = do
           TheseConstructors ds -> case filter (`notElem` cs) ds of
             []    -> Right (Right (t, ds))
             d : _ -> notDefined d
+      -- Operators are picked by shownOperators.
+      -- 演算子は shownOperators が選ぶ
+      ExposeOperator _ -> Right (Left "")
     -- 「Receipt は total を見せると言っていますが、total を決めていません」
     notDefined x = Left (renderLoc loc <> ": error: the module " <> m
                          <> " exposes " <> x <> ", but does not define it")
@@ -148,6 +181,7 @@ importInto session imp m = do
            | (_, (shownCs, cs)) <- Map.toList (moduleShown m)
            , any (`elem` bare) shownCs, c <- cs ]
   checkClashes session imp m visible
+  operators <- importedOperators
   let table = sessionData session
       inner = moduleData m
   Right session
@@ -171,15 +205,48 @@ importInto session imp m = do
     -- ANCHOR_END: importTables
     , sessionModules = Map.insert (moduleName m) m (sessionModules session)
     , sessionOrigins = Map.fromList [ (v, moduleName m) | (v, _) <- visible ]
+                         `Map.union` Map.fromList
+                           [ ("(" <> o <> ")", moduleName m)
+                           | o <- Map.keys operators ]
                          `Map.union` sessionOrigins session
     , sessionHidden  = Map.fromList hidden `Map.union` sessionHidden session
     , sessionHomes   = Map.fromList [ (t, moduleName m) | t <- moduleTypes m ]
                          `Map.union` sessionHomes session
     , sessionInstanceHomes = sessionInstanceHomes session
                                `Map.union` moduleInstances m
+    , sessionOperators = operators `Map.union` sessionOperators session
     }
   where
     exports = moduleExports m
+    -- ANCHOR: importedOperators
+    -- The operators in the list, (<+>), or all of them with (..).
+    -- Each calls its function by the name the file sees:
+    -- Receipt.addPrice (or R.addPrice, with as R).
+    -- 一覧にある演算子（(<+>)）か、(..) なら全部。どれも、ファイルから
+    -- 見える名前で関数を呼ぶ：Receipt.addPrice（as R なら R.addPrice）
+    importedOperators = do
+      picked <- case importList imp of
+        Nothing                 -> Right []
+        Just ExposeAll          -> Right (Map.toList (moduleOperators m))
+        Just (ExposeSome items) -> traverse pickOperator
+                                     [ o | ExposeOperator o <- items ]
+      let seen = fromMaybe (moduleName m) (importAlias imp)
+          renamed f
+            | fixityBuiltin f = f
+            | otherwise = f { fixityTarget = seen <> "." <> fixityTarget f }
+      case [ (o, h) | (o, _) <- picked
+                    , Just h <- [Map.lookup ("(" <> o <> ")")
+                                   (sessionOrigins session)]
+                    , h /= moduleName m ] of
+        -- 「演算子 <+> が、Money と Receipt の両方から来ています」
+        (o, h) : _ -> Left $ errorAt imp
+          ("the operator " <> o <> " comes from both " <> h <> " and "
+           <> moduleName m)
+        [] -> Right (Map.fromList [ (o, renamed f) | (o, f) <- picked ])
+    pickOperator o = case Map.lookup o (moduleOperators m) of
+      Just f  -> Right (o, f)
+      Nothing -> notShown ("(" <> o <> ")")
+    -- ANCHOR_END: importedOperators
     -- The names one item of the list takes, without the module's name.
     -- 一覧の1つが、名前を付けずに持ってくる名前
     pick item = case item of
@@ -194,7 +261,9 @@ importInto session imp m = do
           TheseConstructors ds -> case filter (`notElem` cs) ds of
             []    -> Right ds
             d : _ -> notShown d
+      ExposeOperator _ -> Right []
     -- 「モジュール Json は JDec を見せていません」
+    notShown :: Name -> Either Text a
     notShown x = Left $ errorAt imp ("the module " <> moduleName m
                                      <> " does not expose " <> x)
 
@@ -265,13 +334,47 @@ standardModule session m source = do
         , sessionValues = Map.fromList
                             [ (x, builtinValue b) | (x, b) <- mine ]
                             `Map.union` sessionValues session }
-  prog <- either (Left . T.pack . errorBundlePretty) Right
-            (runLamParser program file source)
+  prog <- readProgram True (sessionOperators start) file source
   header <- maybe (Left (T.pack file <> ": no module line")) Right
               (programHeader prog)
-  inside <- addDecls start (programDecls prog)
-  makeModule True file header (map fst mine) (programDecls prog) inside
+  -- ANCHOR: namedOperators
+  -- Each builtin operator gets its function, made from its own tree:
+  -- add is \$l $r -> $l + $r. (and, or, compose are written in Lam.)
+  -- 組み込みの演算子には、その木から作った関数を付ける。add は
+  -- \$l $r -> $l + $r（and・or・compose は Lam で書いてある）
+  let decls   = programDecls prog
+      defined = [ x | DefValue x _ <- decls ]
+      named   = [ DefValue t (operatorFunction o)
+                | DefInfix _ _ f <- decls, fixityBuiltin f
+                , let t = fixityTarget f, t `notElem` defined
+                , Just o <- [builtinOperator t] ]
+  -- ANCHOR_END: namedOperators
+  inside <- addDecls start (decls <> named)
+  makeModule True file header (map fst mine) (decls <> named) inside
 -- ANCHOR_END: standardModule
+
+-- ANCHOR: readProgram
+-- 📖 Read a file, knowing the operators it imported. The first
+--    reading collects its infix lines, the second reads it all with
+--    every operator. In a standard module, an operator whose function
+--    has a tree of its own (+ is add) is a builtin one.
+-- import した演算子を知っていて、ファイルを読む。1回目に infix の行を
+-- 集め、2回目に、全部の演算子でファイル全体を読む。標準のモジュールで、
+-- 呼ぶ関数が自分の木を持つ演算子（+ は add）は、組み込みのもの
+readProgram :: Bool -> Operators -> FilePath -> Text -> Either Text Program
+readProgram standard known file source = do
+  own <- fixitiesOf file source
+  let ops = Map.fromList [ (o, mark f) | (_, o, f) <- own ] `Map.union` known
+  prog <- either (Left . T.pack . errorBundlePretty) Right
+            (runLamParser ops program file source)
+  pure prog { programDecls = map markDecl (programDecls prog) }
+  where
+    mark f = f { fixityBuiltin = standard
+                   && isJust (builtinOperator (fixityTarget f)) }
+    markDecl d = case d of
+      DefInfix loc o f -> DefInfix loc o (mark f)
+      _                -> d
+-- ANCHOR_END: readProgram
 
 -- ANCHOR: files
 -- 📂 How to read the files of modules: the real disk, or a Map of
@@ -335,12 +438,30 @@ loadFile
   => Files m -> Session -> Session -> [FilePath] -> FilePath -> Text
   -> Loading m (Program, Session)
 loadFile files base session stack file source = do
-  prog <- liftEither $ either (Left . T.pack . errorBundlePretty) Right
-            (runLamParser program file source)
-  withImports <-
-    foldM (bringIn files base stack file) session (programImports prog)
+  (_, imports) <- liftEither $
+    either (Left . T.pack . errorBundlePretty) Right
+      (runLamParser Map.empty programHead file source)
+  withImports <- foldM (bringIn files base stack file) session imports
+  prog <- liftEither
+            (readProgram False (sessionOperators withImports) file source)
   done <- liftEither (addDecls withImports (programDecls prog))
+  liftEither (checkTargets done (programDecls prog))
   pure (prog, done)
+
+-- ANCHOR: checkTargets
+-- 🎯 Each infix line of the file calls a function the file knows.
+-- ファイルの infix の行は、どれもファイルが知っている関数を呼ぶ
+checkTargets :: Session -> [Decl] -> Either Text ()
+checkTargets session decls =
+  case [ (loc, o, f) | DefInfix loc o f <- decls, not (fixityBuiltin f)
+                     , not (Map.member (fixityTarget f)
+                                       (sessionTypes session)) ] of
+    -- 「<+> は addPrice を呼びますが、addPrice はありません」
+    (loc, o, f) : _ -> Left (renderLoc loc <> ": error: " <> o <> " calls "
+                             <> fixityTarget f <> ", but there is no "
+                             <> fixityTarget f)
+    [] -> Right ()
+-- ANCHOR_END: checkTargets
 
 -- 📥 One import line: find the module, then import it.
 -- import の1行：モジュールを見つけ、import する

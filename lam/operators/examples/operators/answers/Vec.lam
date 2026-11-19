@@ -1,0 +1,16 @@
+-- ANCHOR: all
+-- 🧭 Vec: a point on a map, and its operators.
+-- Vec：地図の上の点と、その演算子
+module Vec exposing (Vec, plus, scale, (|+|), (*|))
+
+type alias Vec = { x : Int, y : Int }
+
+plus : Vec -> Vec -> Vec
+plus a b = { x = a.x + b.x, y = a.y + b.y }
+
+scale : Int -> Vec -> Vec
+scale n v = { x = n * v.x, y = n * v.y }
+
+infixl 7 plus as |+|
+infixl 8 scale as *|
+-- ANCHOR_END: all

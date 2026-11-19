@@ -1,0 +1,8 @@
+-- ANCHOR: all
+-- 🚫 -> belongs to the language (\x -> and case): it cannot be an
+--    operator.
+-- -> は言語のもの（\x -> と case）。演算子にはできない
+andThen f g x = g (f x)
+
+infixr 9 andThen as ->
+-- ANCHOR_END: all

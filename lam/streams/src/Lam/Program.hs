@@ -16,6 +16,7 @@ module Lam.Program
   , defineAlias
   , defineClass
   , defineInstance
+  , defineInfix
   , Ending (..)
   , placedEval
   , placedType
@@ -80,6 +81,13 @@ data Session = Session
   -- 知っているインスタンス（Display と Json）と、それを宣言したモジュール
   , sessionInstanceHomes :: Map (Name, Name) Name
   -- ANCHOR_END: moduleFields
+  -- ANCHOR: operatorsField
+  -- The operators it knows: its own (infixl ...), and the imported
+  -- ones. The parser reads the file with them.
+  -- 知っている演算子：自分のもの（infixl ...）と、import したもの。
+  -- パーサーは、これでファイルを読む
+  , sessionOperators :: Operators
+  -- ANCHOR_END: operatorsField
   }
 
 -- ANCHOR: module
@@ -113,6 +121,12 @@ data Module = Module
     -- モジュールと一緒に、どこへでも行く
   , moduleInstances :: Map (Name, Name) Name
   , moduleDicts     :: Env
+    -- ANCHOR: moduleOperators
+    -- The operators it shows, with the names inside the module:
+    --   <+>  is  infixl 7 addPrice
+    -- 見せる演算子。呼ぶ関数は、モジュールの中の名前のまま
+  , moduleOperators :: Operators
+    -- ANCHOR_END: moduleOperators
   }
 -- ANCHOR_END: module
 
@@ -130,6 +144,7 @@ emptySession = Session
   , sessionHidden  = Map.empty
   , sessionHomes   = Map.empty
   , sessionInstanceHomes = Map.empty
+  , sessionOperators = Map.empty
   }
 
 -- ANCHOR: allBuiltins
@@ -572,10 +587,21 @@ addDecls s decls = case decls of
   DefClass c : rest   -> next (defineClass s c) rest
   DefInstance i : rest -> next (defineInstance s i) rest
   -- ANCHOR_END: addClasses
+  -- ANCHOR: addInfix
+  DefInfix _ o f : rest -> next (Right (defineInfix s o f, "")) rest
+  -- ANCHOR_END: addInfix
   where
     next done rest = do
       (s', _) <- done
       addDecls s' rest
 -- ANCHOR_END: addDecls
+
+-- ANCHOR: defineInfix
+-- ➕ infixl 7 addPrice as <+>: from now on, the parser reads <+>.
+-- これからは、パーサーが <+> を読む
+defineInfix :: Session -> Text -> Fixity -> Session
+defineInfix s o f =
+  s { sessionOperators = Map.insert o f (sessionOperators s) }
+-- ANCHOR_END: defineInfix
 -- ANCHOR_END: load
 -- ANCHOR_END: all

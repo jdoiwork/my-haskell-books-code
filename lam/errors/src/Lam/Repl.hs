@@ -8,8 +8,10 @@ module Lam.Repl
   , parseInput
   , step
   , helpText
+  , showFixity
   ) where
 
+import Data.List (sortOn)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -39,6 +41,9 @@ data Input
   | DefineClass ClassDecl        -- class Describe a where describe : a -> String
   | DefineInstance InstanceDecl  -- instance Describe Int where describe n = ...
   -- ANCHOR_END: replClasses
+  -- ANCHOR: replInfix
+  | DefineInfix Text Fixity      -- infixl 7 addPrice as <+>
+  -- ANCHOR_END: replInfix
   | Evaluate Expr        -- double 21
   | ShowType Expr        -- :type double
   -- ANCHOR: replDicts
@@ -58,9 +63,9 @@ data Input
 
 -- 📖 A definition, a command, or an expression.
 -- 定義、コマンド、または式
-parseInput :: Text -> Either Text Input
-parseInput line =
-  case runLamParser (spaces *> input <* eof) "<repl>" line of
+parseInput :: Operators -> Text -> Either Text Input
+parseInput ops line =
+  case runLamParser ops (spaces *> input <* eof) "<repl>" line of
     Left err -> Left (T.pack (errorBundlePretty err))
     Right i  -> Right i
   where
@@ -77,9 +82,15 @@ parseInput line =
       , DefineAlias <$> aliasDecl
       , DefineClass <$> classDecl
       , DefineInstance <$> instanceDecl
+      , infixInput
       , typed
       , try (uncurry Define <$> topDefinition <* eof)
       , Evaluate <$> expr ]
+    infixInput = do
+      d <- infixDecl
+      case d of
+        DefInfix _ o f -> pure (DefineInfix o f)
+        _              -> empty
     typed = do
       sig <- try (signatureHead <* symbol ";")
       (x, e) <- topDefinition
@@ -97,7 +108,7 @@ parseInput line =
 -- ハンドラーがやるので、step はそのモナドの中で動く。ほかは前と同じ
 step :: Monad m => Handler m -> Session -> Text -> m (Session, Text)
 step handle session line =
-  case parseInput line of
+  case parseInput (sessionOperators session) line of
     Right (Evaluate e) -> do
       out <- evaluate handle session e
       pure (session, either id id out)
@@ -151,6 +162,10 @@ answer session input =
       Left err           -> (session, err)
       Right (s', shown)  -> (s', shown)
     -- ANCHOR_END: stepClasses
+    -- ANCHOR: stepInfix
+    Right (DefineInfix o f) ->
+      (defineInfix session o f, showFixity o f)
+    -- ANCHOR_END: stepInfix
     Right (Load file) ->
       (session, "(:load " <> T.pack file <> " is handled by the REPL)")
     Right (ImportLine _) ->
@@ -172,6 +187,9 @@ browse :: Module -> [Text]
 browse md =
   [ moduleName md <> "." <> x <> " : " <> renderUsual sc
   | (x, (sc, _)) <- Map.toList (moduleExports md) ]
+  <> [ showFixity o f
+     | (o, f) <- sortOn (\(o, f) -> (negate (fixityLevel f), o))
+                   (Map.toList (moduleOperators md)) ]
   <> [ "(hidden: " <> T.intercalate ", " secret <> ")"
      | let secret = concatMap snd (Map.elems (moduleShown md))
      , not (null secret) ]
@@ -182,6 +200,19 @@ browse md =
      , not (null own) ]
 -- ANCHOR_END: browseLines
 
+-- ANCHOR: showFixity
+-- ➕ infixl 7 addPrice as <+>
+showFixity :: Text -> Fixity -> Text
+showFixity o f =
+  word (fixityAssoc f) <> " " <> T.pack (show (fixityLevel f)) <> " "
+    <> fixityTarget f <> " as " <> o
+  where
+    word a = case a of
+      LeftA  -> "infixl"
+      RightA -> "infixr"
+      NoneA  -> "infix"
+-- ANCHOR_END: showFixity
+
 -- 📖 :help
 helpText :: Text
 helpText = T.intercalate "\n"
@@ -191,6 +222,7 @@ helpText = T.intercalate "\n"
   , "type alias R = { x : Int }   give a type another name"
   , "class C a where m : a -> T    declare a class (one line here)"
   , "instance C T where m x = e    give a type to a class"
+  , "infixl 7 f as <+>      make <+> another name for f (0 to 9)"
   , "{\"key\": expr, ...}     a Map: {\"Python\": 82}, {1: \"one\"}"
   , "expr                   compute an expression"
   , ":type expr             show the type of an expression"

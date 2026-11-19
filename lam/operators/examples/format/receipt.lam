@@ -1,0 +1,44 @@
+-- 🧾 The receipt of the shop: the names to the left, the numbers to
+--    the right, with a comma every 3 digits.
+-- お店のレシート：名前は左に、数は右にそろえ、3桁ごとにカンマを打つ
+--   lam> :load examples/format/receipt.lam
+--   lam> :print receipt
+
+-- ANCHOR: data
+-- 🏷️ The price of each item, in yen.
+-- 品物ごとの値段（円）
+prices = {sticker: 300, mug: 1200, tshirt: 2500}
+
+-- 🛒 What was sold today: the item, and how many.
+-- 今日売れたもの：品物と、いくつ
+orders = [("sticker", 4), ("mug", 1), ("tshirt", 3)]
+
+priceOf item = Map.lookup item prices ?: 0
+-- ANCHOR_END: data
+
+-- ANCHOR: line
+-- 📏 One line of the receipt.
+-- レシートの1行
+line (item, n) =
+  f"{item:<10}{n:>3} x {priceOf item:>6,} = {n * priceOf item:>9,}"
+-- ANCHOR_END: line
+
+-- ANCHOR: receipt
+-- 🧮 The total, and the price of one item on average.
+-- 合計と、品物1つあたりの値段の平均
+total = sum (map (\(item, n) -> n * priceOf item) orders)
+
+count = sum (map snd orders)
+
+average = toFloat total / toFloat count
+
+-- 🧾 The whole receipt, one line a string.
+-- レシート全体。1行が1つの文字列
+receipt =
+  [f"{"RECEIPT":^34}"]
+    ++ map line orders
+    ++ [ "----------------------------------"
+       -- 「合計」「1つあたり」
+       , f"{"total":<10}{total:>24,}"
+       , f"{"per item":<10}{average:>24,.1}" ]
+-- ANCHOR_END: receipt

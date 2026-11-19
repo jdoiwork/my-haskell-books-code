@@ -26,6 +26,8 @@ import System.Timeout (timeout)
 import Data.Either (isLeft, isRight)
 
 import Lam.Module
+import Data.Void (Void)
+import Text.Megaparsec (ParseErrorBundle, eof)
 import Data.Functor.Identity (Identity, runIdentity)
 import Control.Monad.State.Strict (modify, runState)
 import Data.Maybe (fromMaybe)
@@ -40,11 +42,13 @@ import Lam.Format (groupDigits, padLeft, padRight, center, zeroPad)
 import Lam.Builtins (preludeConstructors)
 import Lam.Stdlib (splitOn)
 import Lam.Json (fromAeson, toAeson)
-import Lam.Parser
+import Lam.Parser hiding (parseExpr)
+import qualified Lam.Parser as P
 import Lam.Prelude
 import Lam.Pretty
 import Lam.Program
 import Lam.Repl
+import Lam.Sugar (builtinOperators)
 import Lam.Syntax
 import Lam.Types
 import Lam.World
@@ -59,6 +63,16 @@ import Data.IORef (modifyIORef', newIORef, readIORef)
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.IO (hClose, openTempFile)
 -- ANCHOR_END: head
+
+-- 📋 The operators of the Prelude (every file starts with them).
+-- プレリュードの演算子（どのファイルも、これから始まる）
+ops :: Operators
+ops = sessionOperators preludeSession
+
+-- 📖 Read an expression with the operators of the Prelude.
+-- プレリュードの演算子で、式を読む
+parseExpr :: Text -> Either (ParseErrorBundle Text Void) Expr
+parseExpr = P.parseExpr ops
 
 -- ANCHOR: run
 -- 🔁 Type the lines into a REPL with the prelude, one by one.
@@ -926,7 +940,7 @@ main = hspec $ do
                   _            -> "?"
               | d <- ds ]
             , fmap render final ))
-            (runLamParser programParts "" src)
+            (runLamParser ops programParts "" src)
       decls "add : Int -> Int -> Int\nadd x y = x + y\n"
         `shouldBe` Right (["add : ...", "add = \\x -> \\y -> x + y"], Nothing)
       decls "f x = a * b\n  where\n    a = x + 1\n    b = 2\n"
@@ -1222,7 +1236,7 @@ main = hspec $ do
               [ (classDeclName c, classVar c, map fst (classMethods c)
                 , map fst (classDefaults c))
               | DefClass c <- decls ])
-        (runLamParser programParts ""
+        (runLamParser ops programParts ""
            "class Describe a where\n\
            \  describe : a -> String\n\
            \  describeAll : [a] -> String\n\
@@ -2286,7 +2300,7 @@ main = hspec $ do
     -- 「module と import の行を読む」
     it "reads the module line and the import lines" $
       fmap (\(Program h is _ _) -> (h, is))
-        (runLamParser program "m.lam" (T.unlines
+        (runLamParser ops program "m.lam" (T.unlines
           [ "module Shapes exposing (Shape (..), area, Describe (describe))"
           , "import Json"
           , "import Json as J (get, Json (JInt, JStr))" ]))
@@ -2570,6 +2584,152 @@ main = hspec $ do
         in not (null shown) ==>
              [ n | n <- ["one", "two", "three"], seen n ] === shown
     -- ANCHOR_END: exposedProp
+
+  -- 「演算子を作る」
+  describe "operators" $ do
+    -- ANCHOR: operatorGolden
+    mapM_ (golden . ("operators/" <>))
+      [ "basket", "strength", "price/today", "price/short"
+      , "broken/unknown", "broken/mixed", "broken/typo", "broken/arrow"
+      , "broken/peek" ]
+    -- ANCHOR_END: operatorGolden
+
+    -- ANCHOR: infixTests
+    -- 「infixl の行を、宣言に読む」
+    it "reads an infixl line into a declaration" $
+      runLamParser ops (infixDecl <* eof) "m.lam" "infixl 7 addPrice as <+>"
+        `shouldBe` Right (DefInfix (Loc "m.lam" 1 1) "<+>"
+                            (Fixity LeftA 7 "addPrice" False))
+
+    -- 「1回目の読みこみは、infix の行だけを、どこにあっても集める」
+    it "finds the infix lines first, wherever they are" $ do
+      fmap (map (\(_, o, f) -> (o, fixityTarget f)))
+        (fixitiesOf "m.lam" (T.unlines
+           [ "x = 1 <+> 2", "-- infixl 1 no as <->", "infixr 5 add as <+>"
+           , "y = \"infixl 1 no as <->\"" ]))
+        `shouldBe` Right [("<+>", "add")]
+      runModules [] (T.unlines
+        [ "plus a b = a + b", "x = 1 <+> 2", "infixl 6 plus as <+>", "x" ])
+        `shouldBe` Right "3 : Int"
+
+    -- 「自分の演算子は、関数の呼び出しに開く」
+    it "opens an operator of your own into a call of its function" $
+      fmap render (runLamParser
+        (Map.insert "<+>" (Fixity LeftA 7 "addPrice" False) ops)
+        (expr <* eof) "" "a <+> b <+> c")
+        `shouldBe` Right "addPrice (addPrice a b) c"
+    -- ANCHOR_END: infixTests
+
+    -- ANCHOR: levelTests
+    -- 「強さと寄る向き」
+    it "reads the levels and the leaning of the operators" $ do
+      let with decl e = runModules []
+            (T.unlines [ "minus a b = a - b", decl, e ])
+      with "infixl 6 minus as <->" "10 <-> 3 <-> 2" `shouldBe` Right "5 : Int"
+      with "infixr 6 minus as <->" "10 <-> 3 <-> 2" `shouldBe` Right "9 : Int"
+      -- tighter than *, looser than +
+      -- * より強い、+ より弱い
+      with "infixl 9 minus as <->" "2 * 10 <-> 3" `shouldBe` Right "14 : Int"
+      with "infixl 6 minus as <->" "10 <-> 3 + 2" `shouldBe` Right "5 : Int"
+
+    -- 「続けて書けない鎖と、混ぜられない鎖」
+    it "says so for a chain of == and for a mixed chain" $ do
+      runLines ["1 == 1 == 1"]
+        `shouldSatisfy` all ("== cannot be chained" `T.isInfixOf`)
+      runLines ["(\\x -> x) |> (\\x -> x) <| 1"]
+        `shouldSatisfy` all ("cannot mix |> and <|" `T.isInfixOf`)
+      runLines ["x = 1 <+> 2"]
+        `shouldSatisfy` all ("unknown operator <+>" `T.isInfixOf`)
+    -- ANCHOR_END: levelTests
+
+    -- ANCHOR: chainProp
+    -- 「1つの段の鎖は、左に寄れば foldl、右に寄れば foldr」
+    it "folds a chain from the left or from the right" $
+      property $ forAll (choose (1, 6)) $ \n ->
+        forAll (vectorOf n (choose (0, 99 :: Integer))) $ \xs ->
+        forAll (elements [("infixl", True), ("infixr", False)]) $
+          \(word, left) ->
+            let first : rest = xs
+                source = T.unlines
+                  [ "minus a b = a - b", word <> " 5 minus as <->"
+                  , T.intercalate " <-> " (map (T.pack . show) xs) ]
+                expected
+                  | left      = foldl (-) first rest
+                  | otherwise = foldr1 (-) xs
+            in runModules [] source
+                 === Right (T.pack (show expected) <> " : Int")
+    -- ANCHOR_END: chainProp
+
+    -- ANCHOR: preludeTests
+    -- 「組み込みの演算子は、どれもプレリュードで1度だけ宣言する」
+    it "declares every builtin operator once, in the Prelude" $ do
+      let declared = Map.elems ops
+      sortOn id [ fixityTarget f | f <- declared, fixityBuiltin f ]
+        `shouldBe` Map.keys builtinOperators
+      all (\f -> fixityLevel f >= 0 && fixityLevel f <= 9) declared
+        `shouldBe` True
+
+    -- 「組み込みの演算子の関数も、名前で呼べる」
+    it "calls the functions of the builtin operators by name" $
+      runLines [ "add 2 3", "cons 1 [2]", "pipe 3 (add 1)"
+               , ":type lessThan", "and true false" ]
+        `shouldBe` [ "5 : Int", "[1, 2] : [Int]", "4 : Int"
+                   , "Comparable a => a -> a -> Bool", "false : Bool" ]
+    -- ANCHOR_END: preludeTests
+
+    -- ANCHOR: reservedTests
+    -- 「言語の記号と、0〜9 でない強さ」
+    it "refuses the symbols of the language and a level over 9" $
+      runLines [ "infixl 5 f as =", "infixl 5 f as <-", "infixl 5 f as |"
+               , "infixl 10 f as <+>" ]
+        `shouldSatisfy` \outs ->
+          and (zipWith T.isInfixOf
+                [ "= belongs to the language", "<- belongs to the language"
+                , "| belongs to the language", "the level of an operator is"
+                ] outs)
+    -- ANCHOR_END: reservedTests
+
+    -- ANCHOR: operatorModules
+    -- 「演算子を見せて、import する」
+    it "shows operators from a module, and imports them" $ do
+      let money = T.unlines
+            [ "module Money exposing (plus, (<+>))"
+            , "plus a b = a + b", "infixl 6 plus as <+>" ]
+          other = T.unlines
+            [ "module Other exposing (also, (<+>))"
+            , "also a b = a * b", "infixl 6 also as <+>" ]
+          run = runModules [("Money.lam", money), ("Other.lam", other)]
+      run "import Money ((<+>))\n1 <+> 2" `shouldBe` Right "3 : Int"
+      -- as M: <+> calls M.plus
+      -- as M なら、<+> は M.plus を呼ぶ
+      run "import Money as M ((<+>))\n(\\x -> x <+> 1)"
+        `shouldBe` Right "<function of x> : Int -> Int"
+      -- Without the list, the operator does not come.
+      -- 一覧がなければ、演算子は来ない
+      run "import Money\n1 <+> 2"
+        `shouldSatisfy` either ("unknown operator <+>" `T.isInfixOf`)
+                               (const False)
+      run "import Money ((<->))\n1"
+        `shouldBe` Left "main.lam:1:1: error: the module Money does not \
+                        \expose (<->)"
+      run "import Money ((<+>))\nimport Other ((<+>))\n1"
+        `shouldBe` Left "main.lam:2:1: error: the operator <+> comes from \
+                        \both Money and Other"
+    -- ANCHOR_END: operatorModules
+
+    -- ANCHOR: replInfix
+    -- 「REPL で演算子を作り、:browse で見る」
+    it "makes an operator in the REPL, and shows them in :browse" $ do
+      runLines [ "infixr 5 max as <^>", "1 <^> 5 <^> 3" ]
+        `shouldBe` ["infixr 5 max as <^>", "5 : Int"]
+      outs <- replImporting [("Money.lam", T.unlines
+                [ "module Money exposing (plus, (<+>))"
+                , "plus a b = a + b", "infixl 6 plus as <+>" ])]
+                [ "import Money ((<+>))", ":browse Money" ]
+      outs `shouldBe`
+        [ "", "Money.plus : Number a => a -> a -> a\ninfixl 6 plus as <+>" ]
+    -- ANCHOR_END: replInfix
+
 
   -- 「IO と do」
   describe "IO and do" $ do
@@ -3506,7 +3666,7 @@ main = hspec $ do
           , "$re.replace re\"\\d+\" \"#\""
           , "$re.replaceWith re\"(?<y>\\d+)-(\\d+)\" \
             \(\\$m -> $group \"2\" $m ++ \".\" ++ $group \"y\" $m)"
-          , "$re.matches re\"ERROR\" line"
+          , "Regex.matchedBy line re\"ERROR\""
           , "m / 2"
           , "s / 2 / 1" ]
     -- ANCHOR_END: perlSugar
@@ -4212,7 +4372,7 @@ main = hspec $ do
     it "starts a new definition at column 1" $
       fmap (\(decls, final) ->
               ([ x | DefValue x _ <- decls ], fmap render final))
-        (runLamParser programParts "" "let a = 1\nlet b =\n  a + 1\nb\n")
+        (runLamParser ops programParts "" "let a = 1\nlet b =\n  a + 1\nb\n")
         `shouldBe` Right (["a", "b"], Just "b")
     -- ANCHOR_END: layout
 
@@ -4339,7 +4499,7 @@ shapes = T.unlines
 replImporting :: [(FilePath, Text)] -> [Text] -> IO [Text]
 replImporting files inputs = pure (snd (foldl go (preludeSession, []) inputs))
   where
-    go (s, outs) line = case parseInput line of
+    go (s, outs) line = case parseInput (sessionOperators s) line of
       Right (ImportLine imp) ->
         case runIdentity (importAt (mapFiles (Map.fromList files) [])
                             preludeSession s imp) of

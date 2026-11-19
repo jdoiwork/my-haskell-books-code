@@ -243,6 +243,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 止まらないパターンと戦う：線形時間の Pike VM | [`miniregex/linear/`](miniregex/linear/)、[`miniregex/recursion/`](miniregex/recursion/)、[`langs/regex-linear/`](langs/regex-linear/)、[`langs/cargo/`](langs/cargo/) |
 | 先に探す：探す場所を絞る | [`miniregex/prefilter/`](miniregex/prefilter/)、[`miniregex/linear/`](miniregex/linear/)、[`langs/regex-prefilter/`](langs/regex-prefilter/) |
 | しおりと命令を磨く：バイトの場所と1文字のくり返し | [`miniregex/cursor/`](miniregex/cursor/)、[`miniregex/prefilter/`](miniregex/prefilter/)、[`langs/regex-cursor/`](langs/regex-cursor/) |
+| エンジンを乗り換える：バックトラックと Pike VM | [`miniregex/engines/`](miniregex/engines/)、[`miniregex/cursor/`](miniregex/cursor/)、[`langs/cargo/`](langs/cargo/) |
 
 ### 第14部 Lam を育てる：言語の機能
 
@@ -263,7 +264,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 
 | 章 | コード |
 |---|---|
-| 入出力：IO 型と do | [`lam/io/`](lam/io/)、[`lam/modules/`](lam/modules/)、[`langs/interp-io/`](langs/interp-io/) |
+| 演算子を作る：infixl と as | [`lam/operators/`](lam/operators/)、[`lam/modules/`](lam/modules/)、[`langs/interp-operators/`](langs/interp-operators/) |
+| 入出力：IO 型と do | [`lam/io/`](lam/io/)、[`lam/operators/`](lam/operators/)、[`langs/interp-io/`](langs/interp-io/) |
 | 失敗を早めに返す：`?` と後始末 | [`lam/errors/`](lam/errors/)、[`lam/io/`](lam/io/)、[`langs/interp-errors/`](langs/interp-errors/) |
 | スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/errors/`](lam/errors/)、[`langs/interp-script/`](langs/interp-script/) |
 | ファイルとコマンドと時計：スクリプトの道具 | [`lam/files/`](lam/files/)、[`lam/script/`](lam/script/)、[`langs/interp-files/`](langs/interp-files/) |

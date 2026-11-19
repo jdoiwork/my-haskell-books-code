@@ -1,0 +1,18 @@
+-- ANCHOR: all
+-- 🛒 Today's sale, with the operators of Price.lam (next to this file).
+--    The operators come only when the import line lists them.
+-- 今日の売り上げ。演算子は、隣の Price.lam のもの。import の一覧に
+-- 書いたときだけ、演算子が来る
+import Price (Price, (<+>), (*$), (-%))
+
+prices = map Price.fromYen [300, 1200, 2500]
+
+-- ANCHOR: sale
+sale sticker mug tshirt =
+  (4 *$ sticker <+> mug <+> 3 *$ tshirt) -% 10
+-- ANCHOR_END: sale
+
+case prices of
+  | [Just s, Just m, Just t] -> f"{sale s m t}"
+  | _ -> "not a price"
+-- ANCHOR_END: all

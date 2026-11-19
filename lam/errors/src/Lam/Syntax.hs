@@ -21,6 +21,9 @@ module Lam.Syntax
   , Exposing (..)
   , Exposed (..)
   , Shown (..)
+  , Assoc (..)
+  , Fixity (..)
+  , Operators
   , Loc (..)
   , renderLoc
   , baseName
@@ -28,6 +31,7 @@ module Lam.Syntax
   , patternVars
   ) where
 
+import Data.Map (Map)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -198,7 +202,38 @@ data Decl
   | DefClass ClassDecl       -- class Describe a where ...
   | DefInstance InstanceDecl -- instance Describe Shape where ...
   -- ANCHOR_END: declClass
+  -- ANCHOR: declInfix
+  | DefInfix Loc Text Fixity -- infixl 7 addPrice as <+>
+  -- ANCHOR_END: declInfix
   deriving (Eq, Show)
+
+-- ANCHOR: fixity
+-- ➕ How an operator is read: which way it leans, how tight it is
+--    (0 to 9, 9 is the tightest), and the function it calls.
+--    LeftA:  1 - 2 - 3  is  (1 - 2) - 3.
+--    RightA: 1 : 2 : xs  is  1 : (2 : xs).
+--    NoneA:  a == b == c  is an error.
+-- 演算子の読み方：どちらに寄るか、強さ（0〜9。9 がいちばん強い）、
+-- 呼ぶ関数
+data Assoc = LeftA | RightA | NoneA
+  deriving (Eq, Show)
+
+data Fixity = Fixity
+  { fixityAssoc   :: Assoc
+  , fixityLevel   :: Int
+  , fixityTarget  :: Name   -- addPrice: the function it calls
+  -- True for the operators of the Prelude that build their own tree
+  -- (+ is BinOp Add, |> is App): see builtinOperator in Lam.Sugar.
+  -- Prelude の演算子のうち、自分の木を作るもの（+ は BinOp Add、
+  -- |> は App）なら True。Lam.Sugar の builtinOperator を参照
+  , fixityBuiltin :: Bool
+  }
+  deriving (Eq, Show)
+
+-- 📋 The operators a file can use: each symbol, and how it is read.
+-- ファイルが使える演算子：記号ごとに、その読み方
+type Operators = Map Text Fixity
+-- ANCHOR_END: fixity
 -- ANCHOR_END: decl
 
 -- ANCHOR: program
@@ -256,6 +291,9 @@ data Exposing
 data Exposed
   = ExposeValue Name          -- area
   | ExposeType Name Shown     -- Shape, Shape (..), Json (JInt, JStr)
+  -- ANCHOR: exposeOperator
+  | ExposeOperator Text       -- (<+>)
+  -- ANCHOR_END: exposeOperator
   deriving (Eq, Show)
 
 -- 🧱 Which constructors of a type (or methods of a class) are shown.

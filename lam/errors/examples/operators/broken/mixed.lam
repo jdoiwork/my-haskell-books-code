@@ -1,0 +1,7 @@
+-- ANCHOR: all
+-- 🔀 |> leans left and <| leans right, at the same level 0.
+-- |> は左に、<| は右に寄る。強さはどちらも 0
+double x = x * 2
+
+3 |> double <| 4
+-- ANCHOR_END: all

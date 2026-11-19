@@ -24,9 +24,13 @@ import qualified Data.Text as T
 import Text.Megaparsec (errorBundlePretty, eof)
 
 import Lam.Module (importInto, standardModule)
-import Lam.Parser (importLine, runLamParser, spaces, fmtName, reName)
+import Data.Maybe (isJust)
+
+import Lam.Parser
+  (fixitiesOf, importLine, runLamParser, spaces, fmtName, reName)
 import Lam.Program
-import Lam.Sugar (doAp, doBind, doFinally, doMap, doPure, tryBranch)
+import Lam.Sugar
+  (builtinOperator, doAp, doBind, doFinally, doMap, doPure, tryBranch)
 import Lam.Syntax
 -- ANCHOR_END: head
 
@@ -104,7 +108,7 @@ defaultImports m = case m of
   "Hash"    -> "import Hash (Hasher)"
   -- ANCHOR_END: importBytes
   -- ANCHOR: importRegex
-  "Regex"   -> "import Regex (Match)"
+  "Regex"   -> "import Regex (Match, (=~))"
   -- ANCHOR_END: importRegex
   -- ANCHOR: importParser
   "Parser"  -> "import Parser (ParseError)"
@@ -269,6 +273,37 @@ basicsSource :: Text
 basicsSource = """
   module Prelude exposing (..)
 
+  -- ANCHOR: preludeOperators
+  -- The operators of Lam: each one is another name for a function.
+  -- 9 is the tightest, 0 the loosest. infixl leans left (1 - 2 - 3 is
+  -- (1 - 2) - 3), infixr leans right, infix does not chain (a == b == c
+  -- is an error).
+  -- Lam の演算子：どれも、関数の別名。9 がいちばん強く、0 がいちばん弱い。
+  -- infixl は左に寄り、infixr は右に寄り、infix は続けて書けない
+  infixr 9 composeRight as >>
+  infixl 9 compose as <<
+  infixl 8 mul as *
+  infixl 8 div as /
+  infixl 8 intDiv as //
+  infixl 8 divMaybe as /?
+  infixl 8 intDivMaybe as //?
+  infixl 7 add as +
+  infixl 7 sub as -
+  infixr 6 append as ++
+  infixr 6 cons as :
+  infixr 5 orElse as ?:
+  infix  3 eq as ==
+  infix  3 notEq as /=
+  infix  3 lessThan as <
+  infix  3 lessThanOrEq as <=
+  infix  3 greaterThan as >
+  infix  3 greaterThanOrEq as >=
+  infixr 2 and as &&
+  infixr 1 or as ||
+  infixl 0 pipe as |>
+  infixr 0 apply as <|
+  -- ANCHOR_END: preludeOperators
+
   -- Functions about functions
   -- 関数についての関数
   let id x = x
@@ -382,6 +417,15 @@ basicsSource = """
     pure : a -> f a
     ap : f (a -> b) -> f a -> f b
   -- ANCHOR_END: applicative
+
+  -- ANCHOR: applicativeOperators
+  -- f <$> a is map f a, and ff <*> a is ap ff a. Both lean left, at
+  -- level 4: looser than ?:, tighter than ==.
+  -- f <$> a は map f a、ff <*> a は ap ff a。どちらも左に寄り、強さは 4
+  -- （?: より弱く、== より強い）
+  infixl 4 map as <$>
+  infixl 4 ap as <*>
+  -- ANCHOR_END: applicativeOperators
 
   -- 🔗 Monad: bind takes the value out, and gives it to what comes
   --    next. A do is opened into bind, so a do works for each of
@@ -1136,7 +1180,7 @@ regexSource = """
   module Regex exposing
     ( Match, compile, matches, find, findAll, split
     , replace, replaceAll, replaceWith, replaceFirstWith
-    , group, named )
+    , group, named, matchedBy, (=~) )
 
   -- ANCHOR: matchAlias
   -- 🎁 What a regex found: the text, where it starts (in letters, from
@@ -1173,6 +1217,18 @@ regexSource = """
   named : String -> Match -> Maybe String
   named k m = Map.lookup k m.named
   -- ANCHOR_END: group
+
+  -- ANCHOR: matchedBy
+  -- 🐪 line =~ re: does re match somewhere in line? The same as
+  --    matches re line, with the text first, as Perl writes it. =~ is
+  --    as strong as ==, and comes in by the default import.
+  -- line =~ re：re が line のどこかに合うか。matches re line と同じだが、
+  -- Perl と同じく文字が先。=~ は == と同じ強さで、はじめの import で来る
+  matchedBy : String -> Regex -> Bool
+  matchedBy text regex = matches regex text
+
+  infix 3 matchedBy as =~
+  -- ANCHOR_END: matchedBy
   """
 -- ANCHOR_END: regexModule
 
@@ -1720,12 +1776,24 @@ tomlSource = """
 -- 1つごとに入れるので、Prelude より後ろのモジュールは do も f"..." も
 -- 使える
 buildPrelude :: Either Text Session
-buildPrelude = foldM addModule emptySession standardSources
+buildPrelude = do
+  -- ANCHOR: earlyOperators
+  -- The builtin operators of the Prelude (+, :, &&) are read first:
+  -- Maybe and List, made before the Prelude, use them too.
+  -- プレリュードの組み込みの演算子（+、:、&&）は、先に読んでおく。
+  -- プレリュードより前に作る Maybe や List も使うから
+  early <- fixitiesOf "<Prelude>" basicsSource
+  let builtin = Map.fromList
+        [ (o, f { fixityBuiltin = True }) | (_, o, f) <- early
+        , isJust (builtinOperator (fixityTarget f)) ]
+      start = emptySession { sessionOperators = builtin }
+  -- ANCHOR_END: earlyOperators
+  foldM addModule start standardSources
   where
     addModule session (m, source) = do
       made <- standardModule session m source
       imp  <- either (Left . T.pack . errorBundlePretty) Right
-                (runLamParser (spaces *> importLine <* eof)
+                (runLamParser Map.empty (spaces *> importLine <* eof)
                    "<default imports>" (defaultImports m))
       withHiddenNames <$> importInto session imp made
 -- ANCHOR_END: build

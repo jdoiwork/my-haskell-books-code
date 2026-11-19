@@ -1,0 +1,1 @@
+examples/operators/broken/typo.lam:6:1: error: <+> calls addPrise, but there is no addPrise

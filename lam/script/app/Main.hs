@@ -19,7 +19,7 @@ import System.IO (stderr)
 
 import Lam.Module (Files, diskFiles, importAt, loadProgram, runProgram)
 import Lam.Prelude (preludeSession)
-import Lam.Program (Ending (..), Session)
+import Lam.Program (Ending (..), Session (..))
 import qualified Lam.Program as Program
 import Lam.Repl (Input (..), endingText, parseInput, step)
 import Lam.World (realWorld)
@@ -47,7 +47,7 @@ loop session = do
     Nothing       -> pure ()
     Just ":quit"  -> pure ()
     Just ""       -> loop session
-    Just text     -> case parseInput text of
+    Just text     -> case parseInput (sessionOperators session) text of
       Right (Load file) -> do
         loaded <- liftIO (loadFile session file)
         loop loaded

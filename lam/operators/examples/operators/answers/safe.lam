@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- 🛟 >>= for Maybe: go on with the value, or stop at Nothing.
+-- Maybe の >>=：値で続けるか、Nothing で止まる
+bindMaybe : Maybe a -> (a -> Maybe b) -> Maybe b
+bindMaybe m f = Maybe.bind m f
+
+-- Level 1 leaning left: m >>= f >>= g is (m >>= f) >>= g.
+-- 強さ 1 で左に寄る
+infixl 1 bindMaybe as >>=
+
+-- ✂️ Half of an even number; Nothing for an odd one.
+-- 偶数なら半分。奇数なら Nothing
+half : Int -> Maybe Int
+half n = if even n then Just (n // 2) else Nothing
+
+[ Just 12 >>= half >>= half
+, Just 12 >>= half >>= half >>= half
+, Just (10 + 2) >>= half ]
+-- ANCHOR_END: all

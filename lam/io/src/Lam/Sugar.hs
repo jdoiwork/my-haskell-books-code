@@ -18,8 +18,6 @@ module Lam.Sugar
   , pipeLeft
   , composeRight
   , composeLeft
-  , mapOver
-  , apply
   , Statement (..)
   , doBind
   , doBlock
@@ -27,7 +25,13 @@ module Lam.Sugar
   , doMap
   , doAp
   , doPure
+  , builtinOperator
+  , builtinOperators
+  , operatorOf
   ) where
+
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 import Lam.Syntax
 
@@ -162,17 +166,56 @@ composeLeft :: Expr -> Expr -> Expr
 composeLeft g f = composeRight f g
 -- ANCHOR_END: compose
 
--- ANCHOR: applicativeOps
--- 🧩 f <$> a  is  map f a,  and  ff <*> a  is  ap ff a  (the map and
---    ap of the classes, under the hidden names an ado uses too).
--- f <$> a は map f a、ff <*> a は ap ff a（クラスの map と ap。ado と
--- 同じ隠した名前で呼ぶ）
-mapOver :: Expr -> Expr -> Expr
-mapOver f a = App (App (Var doMap) f) a
+-- ANCHOR: operatorOf
+-- 🔧 The tree an operator builds. One of your own calls its function:
+--      a <+> b  is  addPrice a b.
+--    A builtin one of the Prelude keeps its own tree (a + b is
+--    BinOp Add): && must stop early, and the type checker knows +.
+-- 演算子が作る木。自分の演算子は、その関数を呼ぶ。プレリュードの
+-- 組み込みのものは、自分の木のまま（&& は打ち切るし、型検査器は +
+-- を知っている）
+operatorOf :: Fixity -> Operator
+operatorOf fixity
+  | fixityBuiltin fixity
+  , Just o <- builtinOperator (fixityTarget fixity) = o
+  | otherwise = Operator (\l r -> App (App (Var (fixityTarget fixity)) l) r)
+-- ANCHOR_END: operatorOf
 
-apply :: Expr -> Expr -> Expr
-apply ff a = App (App (Var doAp) ff) a
--- ANCHOR_END: applicativeOps
+-- ANCHOR: builtinOperators
+
+-- 🧱 The functions the Prelude names for its builtin operators, and
+--    the trees they build.
+-- プレリュードが組み込みの演算子に付ける関数の名前と、作る木
+builtinOperator :: Name -> Maybe Operator
+builtinOperator f = Map.lookup f builtinOperators
+
+builtinOperators :: Map Name Operator
+builtinOperators = Map.fromList
+  [ ("composeRight", Operator composeRight)  -- >>
+  , ("compose",      Operator composeLeft)   -- <<
+  , ("mul",          binary Mul)             -- *
+  , ("div",          binary Div)             -- /
+  , ("intDiv",       binary IntDiv)          -- //
+  , ("divMaybe",     binary DivMaybe)        -- /?
+  , ("intDivMaybe",  binary IntDivMaybe)     -- //?
+  , ("add",          binary Add)             -- +
+  , ("sub",          binary Sub)             -- -
+  , ("append",       binary Concat)          -- ++
+  , ("cons",         binary Cons)            -- :
+  , ("orElse",       binary OrElse)          -- ?:
+  , ("eq",           binary Eq)              -- ==
+  , ("notEq",        binary Ne)              -- /=
+  , ("lessThan",     binary Lt)              -- <
+  , ("lessThanOrEq", binary Le)              -- <=
+  , ("greaterThan",  binary Gt)              -- >
+  , ("greaterThanOrEq", binary Ge)           -- >=
+  , ("and",          binary And)             -- &&
+  , ("or",           binary Or)              -- ||
+  , ("pipe",         Operator pipe)          -- |>
+  , ("apply",        Operator pipeLeft) ]    -- <|
+  where
+    binary o = Operator (BinOp o)
+-- ANCHOR_END: builtinOperators
 
 -- ANCHOR: statement
 -- 📝 One line of a do.

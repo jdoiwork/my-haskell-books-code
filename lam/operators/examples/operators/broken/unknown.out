@@ -1,0 +1,6 @@
+examples/operators/broken/unknown.lam:8:25:
+  |
+8 | both a b = Price.yen (a <+> b)
+  |                         ^
+unknown operator <+> (declare it with infixl, infixr or infix, or import it)
+

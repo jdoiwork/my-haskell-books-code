@@ -4,6 +4,7 @@
 -- Lam のソースコードを、megaparsec で AST に読む。
 module Lam.Parser
   ( Parser
+  , Context (..)
   , runLamParser
   , parseExpr
   , parseLam
@@ -38,6 +39,11 @@ module Lam.Parser
   , bar
   , branchesOf
   , declaration
+  , infixDecl
+  , programHead
+  , fixitiesOf
+  , operatorText
+  , opLetters
   , spaces
   , symbol
   , keyword
@@ -59,11 +65,12 @@ module Lam.Parser
   , call
   ) where
 
-import Control.Monad.Combinators.Expr (makeExprParser)
-import Control.Monad.Reader (Reader, ask, local, runReader)
-import qualified Control.Monad.Combinators.Expr as E
+import Control.Monad.Reader (Reader, asks, local, runReader)
 import Data.Char (isAlpha, isDigit, isSpace)
+import Data.List (nub)
+import qualified Data.Map as Map
 import Data.Maybe (fromMaybe, isJust)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Void (Void)
@@ -81,14 +88,26 @@ import Lam.Syntax
 -- Text を読むパーサー。自分のエラーの型はなし（Void）。
 -- 列（Pos）を1つ読める：式は、それより右の行にだけ続く（continuing）
 -- ANCHOR: parserType
-type Parser = ParsecT Void Text (Reader Pos)
+type Parser = ParsecT Void Text (Reader Context)
 
--- ▶️ Run a parser. At first, the column is 1: a word at column 1
---    starts a new definition.
--- パーサーを動かす。はじめの列は 1：1桁目の言葉は新しい定義の始まり
+-- 📚 What a parser can read (ask): the column, and the operators of
+--    the file (its own, and the ones it imported).
+-- パーサーが読めるもの：列と、ファイルの演算子（自分のものと、import
+-- したもの）
+data Context = Context
+  { contextColumn    :: Pos
+  , contextOperators :: Operators
+  }
+
+-- ▶️ Run a parser with these operators. At first, the column is 1:
+--    a word at column 1 starts a new definition.
+-- この演算子でパーサーを動かす。はじめの列は 1：1桁目の言葉は新しい
+-- 定義の始まり
 runLamParser
-  :: Parser a -> FilePath -> Text -> Either (ParseErrorBundle Text Void) a
-runLamParser p file source = runReader (runParserT p file source) pos1
+  :: Operators -> Parser a -> FilePath -> Text
+  -> Either (ParseErrorBundle Text Void) a
+runLamParser ops p file source =
+  runReader (runParserT p file source) (Context pos1 ops)
 -- ANCHOR_END: parserType
 
 -- 🫧 Skip spaces, line breaks, and comments from -- to the end.
@@ -128,8 +147,11 @@ keywords =
   , "do", "ado"
   -- ANCHOR_END: keywordsDo
   -- ANCHOR: keywordsDefer
-  , "defer" ]
+  , "defer"
   -- ANCHOR_END: keywordsDefer
+  -- ANCHOR: keywordsInfix
+  , "infixl", "infixr", "infix" ]
+  -- ANCHOR_END: keywordsInfix
 -- ANCHOR_END: keywordList
 
 -- ANCHOR: keyword
@@ -514,9 +536,13 @@ operatorSymbol :: Parser (Text, Operator)
 operatorSymbol = lexeme bareOperator
 
 bareOperator :: Parser (Text, Operator)
-bareOperator = choice
-  [ (s, o) <$ try (string s <* notFollowedBy (oneOf opLetters))
-  | (_, s, o) <- concat operatorRows ]
+bareOperator = do
+  o  <- getOffset
+  s  <- operatorText
+  ops <- asks contextOperators
+  case Map.lookup s ops of
+    Just fixity -> pure (s, operatorOf fixity)
+    Nothing     -> (,) s . operatorOf <$> unknownOperatorAt o s
 -- ANCHOR_END: operatorSymbol
 
 -- ANCHOR: application
@@ -575,99 +601,155 @@ withSpaceAfter p = do
 continuing :: Parser ()
 continuing = do
   column <- L.indentLevel
-  limit  <- ask
+  limit  <- asks contextColumn
   if column > limit then pure () else empty
 -- ANCHOR_END: continuing
 -- ANCHOR_END: atom
 
 -- ANCHOR: operators
--- ➕ Operators, from the tightest to the loosest (the same order
---    as Haskell, and >> << |> <| as in Elm). LeftA: 1 - 2 - 3 is
---    (1 - 2) - 3.  RightA: 1 : 2 : xs is 1 : (2 : xs).
---    NoneA: a == b == c is an error.
--- 演算子。強いものから順に（Haskell と同じ順番。>> << |> <| は Elm と同じ）
-data Assoc = LeftA | RightA | NoneA
-
-operatorRows :: [[(Assoc, Text, Operator)]]
-operatorRows =
-  [ [ (RightA, ">>", Operator composeRight) ]
-  , [ (LeftA,  "<<", Operator composeLeft) ]
-  , [ (LeftA, "*", binary Mul), (LeftA, "/", binary Div)
-    -- ANCHOR: divRow
-    -- Dividing whole numbers, and the two that give Nothing for 0.
-    -- 整数の割り算と、0 で割ると Nothing になる2つ
-    , (LeftA, "//", binary IntDiv)
-    , (LeftA, "/?", binary DivMaybe), (LeftA, "//?", binary IntDivMaybe) ]
-    -- ANCHOR_END: divRow
-  , [ (LeftA, "+", binary Add), (LeftA, "-", binary Sub) ]
-  , [ (RightA, "++", binary Concat), (RightA, ":", binary Cons) ]
-  -- ANCHOR: orElseRow
-  -- m ?: 0: the value in m, or 0 for Nothing and Err. Leaning right,
-  -- a ?: b ?: 0 tries a, then b. Looser than ++, tighter than ==.
-  -- m の中の値か、Nothing・Err なら 0。右に寄るので、a ?: b ?: 0 は
-  -- a、次に b を試す。++ より弱く、== より強い
-  , [ (RightA, "?:", binary OrElse) ]
-  -- ANCHOR_END: orElseRow
-  -- ANCHOR: applicativeRow
-  -- f <$> a <*> b: map, then ap. Leaning left, as in Haskell; looser
-  -- than ?:, tighter than ==.
-  -- map してから ap。Haskell と同じく左に寄る。?: より弱く、== より強い
-  , [ (LeftA, "<$>", Operator mapOver), (LeftA, "<*>", Operator apply) ]
-  -- ANCHOR_END: applicativeRow
-  , [ (NoneA, "==", binary Eq), (NoneA, "/=", binary Ne)
-    , (NoneA, "<",  binary Lt), (NoneA, "<=", binary Le)
-    , (NoneA, ">",  binary Gt), (NoneA, ">=", binary Ge) ]
-  , [ (RightA, "&&", binary And) ]
-  , [ (RightA, "||", binary Or) ]
-  , [ (LeftA,  "|>", Operator pipe) ]
-  , [ (RightA, "<|", Operator pipeLeft) ]
-  ]
-  where
-    binary o = Operator (BinOp o)
-
--- The letters that operators are made of.
--- 演算子を作る文字
+-- ANCHOR: opLetters
+-- 🔣 The letters that operators are made of. An operator is the
+--    longest run of them: <+> is one operator, not < and +>.
+-- 演算子を作る文字。演算子は、この文字が続くかぎりの長さ。<+> は
+-- 1つの演算子で、< と +> ではない
 opLetters :: String
-opLetters = "+-*/=<>:&|?$"
+opLetters = "!$%&*+-/:<=>?^|~"
 
--- 🧮 Calls and operators together. An operator is not followed by
---    more operator letters ("+" is not the start of "++", "<" not of
---    "<=", "-" not of "->"), nor by ")" (that is a section: (10 -)).
--- 関数の呼び出しと、演算子。演算子のあとに、演算子の文字は続かない。
--- ) も続かない（それはセクションの (10 -)）
+operatorText :: Parser Text
+operatorText = takeWhile1P (Just "an operator") (`elem` opLetters)
+-- ANCHOR_END: opLetters
+
+-- ANCHOR: reserved
+-- 🚫 Runs of operator letters that belong to the language itself.
+--    They end an expression: = in let, | and -> in case, <- in a
+--    comprehension and a do, ? at the end of a line of a do. No file
+--    can declare them.
+-- 言語そのものが使う、演算子の文字の並び。式はここで終わる（let の
+-- =、case の | と ->、内包表記と do の <-、do の行の終わりの ?）。
+-- どのファイルも宣言できない
+reservedSymbols :: [Text]
+reservedSymbols = ["=", "|", "->", "<-", "?"]
+-- ANCHOR_END: reserved
+
+-- 🧮 Calls and operators together, with all the operators the file
+--    knows.
+-- 関数の呼び出しと、演算子。ファイルが知っている演算子を全部使う
 operatorExpr :: Parser Expr
-operatorExpr = operatorExprWith operatorRows
+operatorExpr = operatorExprWith (const True)
 
 -- ANCHOR: formatOperators
 -- 🪡 Inside { } of f"...", a : ends the expression (the format comes
---    after it), so : (an item in front of a list) is left out there.
+--    after it), so the operators that start with : are left out there.
 --    Write (x : xs) in parentheses, as Python wants lambda in them.
 -- f"..." の { } の中では、: で式が終わる（後ろに書式が来る）ので、
--- :（リストの前に足す）は外す。Python の lambda と同じく、括弧で包む
-formatOperatorRows :: [[(Assoc, Text, Operator)]]
-formatOperatorRows = map (filter (\(_, s, _) -> s /= ":")) operatorRows
+-- : で始まる演算子は外す。Python の lambda と同じく、括弧で包む
+formatOperators :: Text -> Bool
+formatOperators s = not (":" `T.isPrefixOf` s)
 -- ANCHOR_END: formatOperators
 
--- 🧮 The same, with the rows of operators given.
--- 同じだが、演算子の表を渡す
-operatorExprWith :: [[(Assoc, Text, Operator)]] -> Parser Expr
-operatorExprWith rows = makeExprParser application (map (map toInfix) rows)
+-- ANCHOR: operatorLevels
+-- 🪜 Read the operators level by level, from the loosest (0) to the
+--    tightest (9): each level is a chain  x op y op z  whose parts
+--    are made of the tighter levels. The operators of a chain must
+--    lean the same way; a NoneA one (==) is never chained.
+-- 演算子を、弱い段（0）から強い段（9）へ読む。どの段も
+-- x op y op z の鎖で、部品はもっと強い段でできている。鎖の演算子は、
+-- 同じ向きに寄っていないといけない。NoneA のもの（==）は鎖にならない
+operatorExprWith :: (Text -> Bool) -> Parser Expr
+operatorExprWith usable = do
+  ops <- Map.filterWithKey (\s _ -> usable s) <$> asks contextOperators
+  foldl (level ops) application [9, 8 .. 0 :: Int]
   where
-    -- ANCHOR: toInfix
-    -- An operator gets the mark of the place of its symbol: the
-    -- error of 10 // 0 points at the //.
-    -- 演算子には、記号の場所の印を付ける。10 // 0 のエラーは // を指す
-    toInfix (assoc, s, Operator build) =
-      let symbolOnly = marked build <$> here <* op s <?> "an operator"
-      in case assoc of
-           LeftA  -> E.InfixL symbolOnly
-           RightA -> E.InfixR symbolOnly
-           NoneA  -> E.InfixN symbolOnly
-    op s = try (lexeme (continuing *> string s
-                          <* notFollowedBy (oneOf opLetters))
-                  <* notFollowedBy (char ')'))
-    marked build loc l r = At loc (build l r)
-    -- ANCHOR_END: toInfix
+    level ops tighter n = do
+      first <- tighter
+      rest  <- many ((,) <$> operatorAt ops n <*> tighter)
+      chain first rest
+    -- One operator of level n. An operator followed by ) is not
+    -- read here: that is a section (10 -). One nobody declared is
+    -- read at level 9, after noting the error (see unknownOperatorAt).
+    -- The letters of the language (=, ->, ...) and the ones left out
+    -- (: in f"...") end the expression.
+    -- 段 n の演算子を1つ。) が続くものは読まない（セクションの (10 -)）。
+    -- 誰も宣言していないものは、エラーを書き留めてから、段 9 で読む。
+    -- 言語の文字（=、-> など）と、外したもの（f"..." の :）は、式の終わり
+    -- ANCHOR: operatorPlace
+    -- The operator keeps the place of its symbol (loc): the error of
+    -- 10 // 0 points at the //.
+    -- 演算子は、記号の場所（loc）を持っておく。10 // 0 のエラーは // を指す
+    operatorAt ops n = try $ do
+      _ <- continuing
+      loc <- here
+      o <- getOffset
+      s <- lexeme operatorText
+      notFollowedBy (char ')')
+      case Map.lookup s ops of
+        Just f | fixityLevel f == n -> pure (o, s, f, loc)
+        Nothing | n == 9, usable s, s `notElem` reservedSymbols ->
+          (\f -> (o, s, f, loc)) <$> unknownOperatorAt o s
+        _ -> empty
+    -- ANCHOR_END: operatorPlace
+-- ANCHOR_END: operatorLevels
+
+-- ANCHOR: chain
+-- 🔗 Build the tree of one chain.
+-- 鎖を1つ、木にする
+chain :: Expr -> [((Int, Text, Fixity, Loc), Expr)] -> Parser Expr
+chain first rest = case nub [ fixityAssoc f | ((_, _, f, _), _) <- rest ] of
+  []       -> pure first
+  [LeftA]  -> pure (foldl (\l (link, r) -> build link l r) first rest)
+  [RightA] -> pure (foldRight first rest)
+  [NoneA] | [(link, r)] <- rest -> pure (build link first r)
+  [NoneA] | _ : ((o, s, _, _), _) : _ <- rest -> do
+    -- 「== は続けて書けません。括弧を使ってください」
+    noteErrorAt o (T.unpack s <> " cannot be chained (it is infix):"
+                   <> " use parentheses")
+    pure (foldl (\l (link, r) -> build link l r) first rest)
+  _ | ((_, s1, f1, _), _) : more <- rest
+    , (o, s) : _ <- [ (o, s) | ((o, s, f, _), _) <- more
+                             , fixityAssoc f /= fixityAssoc f1 ] -> do
+    -- 「>> と << は、寄る向きがちがうので、括弧なしでは混ぜられません」
+    noteErrorAt o ("cannot mix " <> T.unpack s1 <> " and " <> T.unpack s
+                   <> " without parentheses (they lean different ways)")
+    pure (foldl (\l (link, r) -> build link l r) first rest)
+  _ -> pure first
+  where
+    -- The tree, with the mark of the place of the symbol.
+    -- 木に、記号の場所の印を付ける
+    build (_, _, f, loc) l r = let Operator b = operatorOf f in At loc (b l r)
+    foldRight x []                 = x
+    foldRight x ((link, y) : more) = build link x (foldRight y more)
+
+-- ANCHOR_END: chain
+
+-- ANCHOR: noteError
+-- 🚩 An error at an offset of the input: stop here.
+-- 入力の、ある場所のエラー。ここで止まる
+stopAt :: Int -> String -> Parser a
+stopAt o msg = parseError (FancyError o (Set.singleton (ErrorFail msg)))
+
+-- 📝 An error at an offset, noted down: the parser reads on, and says
+--    it at the end. Stopping here would not do: a definition is read
+--    with try, so its error would be thrown away, and the parser would
+--    say something else ("unexpected =").
+-- 入力の、ある場所のエラーを書き留める。パーサーは読み続け、最後に
+-- 知らせる。ここで止まるのではだめ：定義は try で読むので、そのエラーは
+-- 捨てられ、別のこと（「= は予想外」）を言ってしまう
+noteErrorAt :: Int -> String -> Parser ()
+noteErrorAt o msg =
+  registerParseError (FancyError o (Set.singleton (ErrorFail msg)))
+
+-- ❓ An operator nobody declared: note it, and read it on as one at
+--    level 9 (it never runs: the file has an error).
+-- 誰も宣言していない演算子：書き留めて、段 9 のものとして読み続ける
+-- （ファイルにはエラーがあるので、動くことはない）
+-- 「演算子 <+> は知りません（infixl の行で宣言するか、import します）」
+unknownOperatorAt :: Int -> Text -> Parser Fixity
+unknownOperatorAt o s = do
+  noteErrorAt o ("unknown operator " <> T.unpack s
+                 <> " (declare it with infixl, infixr or infix,"
+                 <> " or import it)")
+  pure (Fixity LeftA 9 "$unknown" False)
+-- ANCHOR_END: noteError
 -- ANCHOR_END: operators
 
 -- ANCHOR: expr
@@ -686,7 +768,8 @@ doExpr :: Parser Expr
 doExpr = do
   keyword "do"
   column <- L.indentLevel
-  lines' <- local (const column) (statement `sepBy1` nextLine column)
+  lines' <- local (\c -> c { contextColumn = column })
+              (statement `sepBy1` nextLine column)
   case last lines' of
     DoRun _    -> pure (doBlock lines')
     -- 「do の最後の行は答えそのものなので、? なしで書きます」
@@ -708,7 +791,8 @@ adoExpr :: Parser Expr
 adoExpr = do
   keyword "ado"
   column <- L.indentLevel
-  lines' <- local (const column) (statement `sepBy1` nextLine column)
+  lines' <- local (\c -> c { contextColumn = column })
+              (statement `sepBy1` nextLine column)
   either (fail . T.unpack) pure (adoBlock lines')
   where
     nextLine column = (() <$ symbol ";") <|> do
@@ -865,7 +949,8 @@ block :: Parser a -> Parser [a]
 block item = do
   try (continuing *> keyword "where")
   column <- L.indentLevel
-  local (const column) (item `sepBy1` atColumn column)
+  local (\c -> c { contextColumn = column })
+        (item `sepBy1` atColumn column)
   where
     atColumn column = do
       now <- L.indentLevel
@@ -1268,7 +1353,7 @@ formatExpr = do
       setOffset o
       -- 「{ } の中では、\ let if case を ( ) で包みます」
       fail "inside { }, put \\, let, if and case in ( )"
-    Nothing -> operatorExprWith formatOperatorRows
+    Nothing -> operatorExprWith formatOperators
 -- ANCHOR_END: field
 
 -- ANCHOR: formatSpec
@@ -1389,15 +1474,15 @@ fmtName f = "$fmt." <> f
 -- プログラム全体を読む（先頭の空白から、最後まで読みきる）。
 -- 場所の印は取る。木を見るため（テスト、GHCi）のもので、そこでは
 -- 場所はじゃまなだけだから
-parseExpr :: Text -> Either (ParseErrorBundle Text Void) Expr
-parseExpr =
-  runLamParser (stripLocations <$> (spaces *> expr <* eof)) "<input>"
+parseExpr :: Operators -> Text -> Either (ParseErrorBundle Text Void) Expr
+parseExpr ops =
+  runLamParser ops (stripLocations <$> (spaces *> expr <* eof)) "<input>"
 
 -- 📣 The same, with an error message for people.
 -- 同じだが、人に読めるエラーの文にする
-parseLam :: FilePath -> Text -> Either Text Expr
-parseLam file source =
-  case runLamParser (spaces *> expr <* eof) file source of
+parseLam :: Operators -> FilePath -> Text -> Either Text Expr
+parseLam ops file source =
+  case runLamParser ops (spaces *> expr <* eof) file source of
     Left err -> Left (T.pack (errorBundlePretty err))
     Right e  -> Right e
 
@@ -1433,6 +1518,62 @@ shebang = do
   pure ()
 -- ANCHOR_END: shebang
 
+-- ANCHOR: programHead
+-- 🪪 Only the module line and the imports: they need no operators,
+--    so they can be read first, to know what the file imports.
+-- module の行と import だけ。演算子が要らないので、先に読んで、
+-- ファイルが何を import するかを知る
+programHead :: Parser (Maybe Header, [Import])
+programHead = do
+  _ <- optional shebang
+  spaces
+  header  <- optional moduleHeader
+  imports <- many importLine
+  pure (header, imports)
+-- ANCHOR_END: programHead
+
+-- ANCHOR: fixitiesOf
+-- 🔍 The first reading: only the lines  infixl 7 addPrice as <+>.
+--    Every other line is skipped. With them, the second reading knows
+--    every operator of the file, even one used above its line.
+-- 1回目の読みこみ：infixl 7 addPrice as <+> の行だけ。ほかの行は飛ばす。
+-- これで、2回目の読みこみは、ファイルの演算子を全部知っている（宣言の
+-- 行より上で使っていても）
+fixitiesOf :: FilePath -> Text -> Either Text [(Loc, Text, Fixity)]
+fixitiesOf file source =
+  case runLamParser Map.empty (spaces *> many line <* eof) file source of
+    Left err    -> Left (T.pack (errorBundlePretty err))
+    Right found -> Right [ (loc, s, f) | Just (DefInfix loc s f) <- found ]
+  where
+    line = (Just <$> infixDecl) <|> (Nothing <$ skipLine)
+    skipLine = (takeWhile1P Nothing (/= '\n') <|> T.singleton <$> newline)
+                 *> spaces
+-- ANCHOR_END: fixitiesOf
+
+-- ANCHOR: infixDecl
+-- ➕ infixl 7 addPrice as <+>:  <+> is another name for addPrice,
+--    leaning left, at level 7.
+-- <+> は addPrice の別名で、左に寄り、強さは 7
+infixDecl :: Parser Decl
+infixDecl = do
+  loc <- here
+  assoc <- choice [ LeftA <$ keyword "infixl", RightA <$ keyword "infixr"
+                  , NoneA <$ keyword "infix" ]
+  o <- getOffset
+  level <- lexeme L.decimal
+  -- 「強さは 0 から 9 までです」
+  if level > 9 then stopAt o "the level of an operator is 0 to 9" else pure ()
+  f <- name
+  keyword "as"
+  o' <- getOffset
+  s <- lexeme operatorText
+  -- 「= は言語が使う記号なので、演算子にできません」
+  if s `elem` reservedSymbols
+    then stopAt o' (T.unpack s <> " belongs to the language:"
+                    <> " it cannot be an operator")
+    else pure (DefInfix loc s (Fixity assoc level f False))
+-- ANCHOR_END: infixDecl
+
 -- ANCHOR: moduleHeader
 -- 🪧 module Shapes exposing (Shape (..), area)
 -- module の行
@@ -1466,7 +1607,9 @@ exposingList :: Parser Exposing
 exposingList = between (symbol "(") (symbol ")") $
   (ExposeAll <$ symbol "..") <|> (ExposeSome <$> (item `sepBy1` symbol ","))
   where
-    item = (ExposeValue <$> name) <|> (ExposeType <$> conName <*> shown)
+    item = (ExposeOperator <$> try (symbol "(" *> lexeme operatorText
+                                      <* symbol ")"))
+       <|> (ExposeValue <$> name) <|> (ExposeType <$> conName <*> shown)
     shown = option NoConstructors $ between (symbol "(") (symbol ")") $
       (AllConstructors <$ symbol "..")
         <|> (TheseConstructors <$> ((conName <|> name) `sepBy1` symbol ","))
@@ -1496,6 +1639,9 @@ declaration = choice
   , DefClass <$> classDecl
   , DefInstance <$> instanceDecl
   -- ANCHOR_END: declarationClass
+  -- ANCHOR: declarationInfix
+  , infixDecl
+  -- ANCHOR_END: declarationInfix
   , signature
   -- ANCHOR_END: declarationMore
   , try (uncurry DefValue <$> topDefinition <* notFollowedBy (keyword "in")) ]

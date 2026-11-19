@@ -1,0 +1,7 @@
+-- ANCHOR: all
+-- 🚫 The constructor is hidden: Price.Price cannot be written here.
+-- 構成子は隠れているので、ここでは Price.Price と書けない
+import Price
+
+cheat = Price.Price (-5)
+-- ANCHOR_END: all

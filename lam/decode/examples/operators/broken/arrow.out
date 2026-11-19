@@ -1,0 +1,6 @@
+examples/operators/broken/arrow.lam:7:21:
+  |
+7 | infixr 9 andThen as ->
+  |                     ^
+-> belongs to the language: it cannot be an operator
+
