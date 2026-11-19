@@ -1,0 +1,1 @@
+examples/records/broken/len.lam:6:11: in the definition of len: type error: String is not in the class Number

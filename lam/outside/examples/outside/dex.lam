@@ -8,101 +8,117 @@
 -- 聞く。ポケモンの高さと重さは変わらないので、貯めたものは古くならない
 
 -- ANCHOR: settings
-let api = "https://pokeapi.co/api/v2/"
-let dbFile = "dex.db"
+api : String
+api = "https://pokeapi.co/api/v2/"
 
-let schema =
+schema : String
+schema =
   "CREATE TABLE IF NOT EXISTS dex (name TEXT PRIMARY KEY,"
     ++ " id INTEGER, ja TEXT, height INTEGER, weight INTEGER, types TEXT)"
+
+-- 📕 One Pokémon, as the table keeps it. height and weight are in
+--    tenths (decimetres and hectograms), as PokeAPI gives them.
+-- ポケモン1匹。表に入れる形。高さと重さは、PokeAPI と同じく 10 分の 1
+-- の単位（デシメートルとヘクトグラム）
+type alias Mon =
+  { name : String, id : Int, ja : String
+  , height : Int, weight : Int, types : String }
 -- ANCHOR_END: settings
 
 -- ANCHOR: read
+-- 🔍 The Pokémon from PokeAPI: its types are joined, "grass/poison".
+--    It has no Japanese name yet: that is in the species.
+-- PokeAPI のポケモン。タイプはつなぐ。日本語の名前はまだない（種族の
+-- ほうにある）
+pokemon : Decoder Mon
+pokemon = do
+  name <- Decode.field "name" Decode.string
+  id <- Decode.field "id" Decode.int
+  height <- Decode.field "height" Decode.int
+  weight <- Decode.field "weight" Decode.int
+  types <- Decode.field "types"
+             (Decode.list (Decode.at ["type", "name"] Decode.string))
+  pure { name = name, id = id, ja = name
+       , height = height, weight = weight, types = join "/" types }
+
 -- 🔤 The Japanese name, from the names of the species.
 -- 種族の名前の一覧から、日本語の名前を
-let japaneseName species = Maybe.do
-  names <- Maybe.andThen Json.array (Json.get "names" species)
-  ja <- find (\n -> Json.at ["language", "name"] n == Just (JStr "ja")) names
-  Maybe.andThen Json.string (Json.get "name" ja)
+japanese : Decoder String
+japanese =
+  Decode.field "names" (Decode.list named)
+    |> Decode.andThen (\names ->
+         case [ n | (lang, n) <- names, lang == "ja" ] of
+           | n : _ -> Decode.succeed n
+           | [] -> Decode.fail "no name in Japanese")
+  where
+    named =
+      Decode.map2 (\lang n -> (lang, n))
+        (Decode.at ["language", "name"] Decode.string)
+        (Decode.field "name" Decode.string)
 
--- 🏷️ The types, joined: "grass/poison"
--- タイプをつなぐ
-let typesOf pokemon =
-  case Maybe.andThen Json.array (Json.get "types" pokemon) of
-    | Nothing -> ""
-    | Just ts ->
-        let name t = Maybe.andThen Json.string (Json.at ["type", "name"] t)
-        in join "/" (map (\t -> fromMaybe "?" (name t)) ts)
-
--- 🌐 Ask PokeAPI twice (the Pokémon, and its species), and make the
---    cells of one row.
--- PokeAPI に2回聞き（ポケモンと、その種族）、1行分のマスを作る
-let fetch name = do
-  pokemon <- Http.get f"{api}pokemon/{name}"
-  species <- Http.get f"{api}pokemon-species/{name}"
-  let field k j = fromMaybe JNull (Json.get k j)
-  pure (Result.do
-    p <- pokemon
-    s <- species
-    Ok [ JStr name, field "id" p, JStr (fromMaybe name (japaneseName s))
-       , field "height" p, field "weight" p, JStr (typesOf p) ])
+-- 🌐 Ask PokeAPI twice (the Pokémon, and its species).
+-- PokeAPI に2回聞く（ポケモンと、その種族）
+fetch : String -> IO (Result String Mon)
+fetch name = do
+  p <- Http.getAs pokemon f"{api}pokemon/{name}" ?
+  ja <- Http.getAs japanese f"{api}pokemon-species/{name}" ?
+  pure (Ok { p | ja = ja })
 -- ANCHOR_END: read
 
 -- ANCHOR: lookUp
--- 🔎 The row of a Pokémon, and where it came from: the cache (dex.db)
---    or the web. Only the web costs a request.
--- ポケモンの行と、出どころ：キャッシュ（dex.db）か Web か。
--- 頼みごとがかかるのは Web だけ
-let find1 db name =
-  Sql.query db "SELECT * FROM dex WHERE name = ?" [JStr name]
+-- 🗃️ A row of the table, read back: the same decoder as the web's?
+--    No: the columns are flat. But it is the same record, Mon.
+-- 表の行を読み戻す。Web と同じ Decoder？ いいえ、列は平らなので別。
+-- でも、できるのは同じレコード Mon
+row : Decoder Mon
+row = do
+  name <- Decode.field "name" Decode.string
+  id <- Decode.field "id" Decode.int
+  ja <- Decode.field "ja" Decode.string
+  height <- Decode.field "height" Decode.int
+  weight <- Decode.field "weight" Decode.int
+  types <- Decode.field "types" Decode.string
+  pure { name = name, id = id, ja = ja
+       , height = height, weight = weight, types = types }
 
-let lookUp db name = do
-  found <- find1 db name
+-- 🔎 A Pokémon, and where it came from: the cache (dex.db) or the web.
+--    Only the web costs a request.
+-- ポケモンと、出どころ：キャッシュ（dex.db）か Web か。
+-- 頼みごとがかかるのは Web だけ
+lookUp : Db -> String -> IO (Result String (Mon, String))
+lookUp db name = do
+  found <- Sql.queryAs row db "SELECT * FROM dex WHERE name = ?"
+             [JStr name] ?
   case found of
-    | Err e -> pure (Err e)
-    | Ok (row : _) -> pure (Ok (row, "cache"))
-    | Ok [] -> do
-        fetched <- fetch name
-        case fetched of
-          | Err e -> pure (Err e)
-          | Ok cells -> do
-              _ <- Sql.exec db
-                     "INSERT INTO dex VALUES (?, ?, ?, ?, ?, ?)" cells
-              again <- find1 db name
-              pure (case again of
-                | Ok (row : _) -> Ok (row, "web")
-                | Ok [] -> Err "not saved (is it --dry-run?)"
-                | Err e -> Err e)
+    | m : _ -> pure (Ok (m, "cache"))
+    | [] -> do
+        m <- fetch name ?
+        Sql.exec db "INSERT INTO dex VALUES (?, ?, ?, ?, ?, ?)"
+          [ JStr m.name, JInt m.id, JStr m.ja
+          , JInt m.height, JInt m.weight, JStr m.types ] ?
+        pure (Ok (m, "web"))
 -- ANCHOR_END: lookUp
 
 -- ANCHOR: show
--- 📏 4 -> "0.4". PokeAPI gives tenths: decimetres and hectograms.
--- PokeAPI の数は 10 分の 1 の単位（デシメートルとヘクトグラム）
-let tenths j =
-  case Json.int j of
-    | Just n -> f"{n / 10}.{mod n 10}"
-    | Nothing -> "?"
-
 -- 🖨️ "#25  ピカチュウ  0.4 m  6.0 kg  electric  (web)"
-let line row from =
-  let get k = fromMaybe JNull (Sql.column k row) in
-  let text k = fromMaybe "?" (Json.string (get k)) in
-  f"#{Json.show (get "id")}  {text "ja"}  {tenths (get "height")} m  "
-    ++ f"{tenths (get "weight")} kg  {text "types"}  ({from})"
+line : Mon -> String -> String
+line m from =
+  f"#{m.id}  {m.ja}  {tenths m.height} m  {tenths m.weight} kg  "
+    ++ f"{m.types}  ({from})"
+  where
+    tenths n = f"{toFloat n / 10:.1}"
 -- ANCHOR_END: show
 
 -- ANCHOR: main
-let main args = do
-  opened <- Sql.open dbFile
-  case opened of
-    | Err e -> do
-        ePutStrLn f"dex: {e}"
-        exit 1
-    | Ok db -> do
-        _ <- Sql.exec db schema []
-        forEach args (\name -> do
-          answer <- lookUp db (toLower name)
-          case answer of
-            | Ok (row, from) -> putStrLn (line row from)
-            | Err e -> ePutStrLn f"dex: {name}: {e}")
+main : [String] -> IO (Result String ())
+main args =
+  Sql.withDb "dex.db" (\db -> do
+    Sql.exec db schema [] ?
+    forEach args (\name -> do
+      answer <- lookUp db (toLower name)
+      case answer of
+        | Ok (m, from) -> putStrLn (line m from)
+        | Err e -> ePutStrLn f"dex: {name}: {e}")
+    pure (Ok ()))
 -- ANCHOR_END: main
 -- ANCHOR_END: all

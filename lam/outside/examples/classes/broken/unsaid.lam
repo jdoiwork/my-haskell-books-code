@@ -1,0 +1,11 @@
+-- 🚨 An annotation that does not say Describe a.
+-- Describe a を書いていない注釈
+--   lam examples/classes/broken/unsaid.lam
+
+class Describe a where
+  describe : a -> String
+
+-- ANCHOR: twice
+twice : a -> String
+twice x = describe x ++ ", " ++ describe x
+-- ANCHOR_END: twice

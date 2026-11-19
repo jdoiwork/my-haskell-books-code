@@ -1,0 +1,43 @@
+-- ANCHOR: all
+-- 📊 Step 2: what weather.lam kept, summed up by SQL, and read with a
+--    decoder. Run it after weather.lam: it only reads weather.db.
+-- ステップ2：weather.lam が貯めたものを SQL でまとめ、Decoder で読む。
+-- weather.lam のあとに動かす。weather.db を読むだけ
+
+-- ANCHOR: summary
+-- 📊 One row of the summary.
+-- まとめの1行
+type alias Summary =
+  { days : Int, rainy : Int, hot : Maybe Float, cold : Maybe Float }
+
+summary : Decoder Summary
+summary =
+  Decode.map4 (\d r h c -> { days = d, rainy = r, hot = h, cold = c })
+    (Decode.field "days" Decode.int)
+    (Decode.field "rainy" Decode.int)
+    (Decode.field "hot" (Decode.nullable Decode.float))
+    (Decode.field "cold" (Decode.nullable Decode.float))
+
+sql : String
+sql =
+  "SELECT count(*) AS days,"
+    ++ " sum(CASE WHEN pop >= 30 THEN 1 ELSE 0 END) AS rainy,"
+    ++ " avg(tmax) AS hot, avg(tmin) AS cold"
+    ++ " FROM weather"
+-- ANCHOR_END: summary
+
+temp : Maybe Float -> String
+temp t = case t of | Just x -> f"{x:.1}" | Nothing -> "-"
+
+main : IO (Result String ())
+main = do
+  db <- Sql.openReadOnly "weather.db" ?
+  defer Sql.close db
+  rows <- Sql.queryAs summary db sql [] ?
+  case rows of
+    | [s] -> do
+        putStrLn f"{s.days} days, {s.rainy} rainy"
+        putStrLn f"max {temp s.hot} on average, min {temp s.cold}"
+        pure (Ok ())
+    | _ -> pure (Err "no rows")
+-- ANCHOR_END: all

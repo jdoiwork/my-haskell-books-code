@@ -1,0 +1,44 @@
+-- ANCHOR: all
+-- 📖 Step 1: readers of our own. A good answer is read as one number,
+--    and a bad one (404) as a record, both with decoders.
+-- ステップ1：自分の読み方。よい答えは数1つに、悪い答え（404）は
+-- レコードに、どちらも Decoder で読む
+
+-- ANCHOR: readers
+-- 🚫 What PokeAPI says when it has no such Pokémon.
+-- そのポケモンがいないときに、PokeAPI が言うこと
+type alias ApiError = { status : Int, message : String }
+
+apiError : Decoder ApiError
+apiError =
+  Decode.map2 (\s m -> { status = s, message = m })
+    (Decode.field "status" Decode.int)
+    (Decode.field "message" Decode.string)
+
+-- ⚖️ The weight of a Pokémon, in hectograms.
+-- ポケモンの重さ（ヘクトグラム）
+weightOf : String -> IO (Result (HttpError ApiError) Int)
+weightOf name =
+  Http.request
+    (Http.expectJson (Decode.field "weight" Decode.int))
+    (Http.expectJson apiError)
+    "GET" f"https://pokeapi.co/api/v2/pokemon/{name}" {} ""
+-- ANCHOR_END: readers
+
+-- ANCHOR: main
+main : IO ()
+main = do
+  forEach ["pikachu", "nosuchmon"] (\name -> do
+    answer <- weightOf name
+    case answer of
+      | Ok w -> putStrLn f"{name}: {w}"
+      | Err (BadStatus _ e) -> putStrLn f"{name}: {e.status} {e.message}"
+      | Err (NoAnswer m) -> putStrLn f"{name}: no answer: {m}"
+      | Err (BadBody m) -> putStrLn f"{name}: a bad body: {m}")
+  color <- Http.request
+             (Http.expectJson (Decode.field "color" Decode.string))
+             (Http.expectJson apiError)
+             "GET" "https://pokeapi.co/api/v2/pokemon/pikachu" {} ""
+  putStrLn (show color)
+-- ANCHOR_END: main
+-- ANCHOR_END: all

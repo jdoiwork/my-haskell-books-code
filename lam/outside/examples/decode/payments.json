@@ -1,0 +1,6 @@
+[
+  {"id": 1, "pay": {"kind": "cash"}},
+  {"id": 2, "pay": {"kind": "card", "last4": "4242"}, "gift": true},
+  {"id": 3, "pay": {"kind": "points", "points": 500}, "note": null},
+  {"id": 4, "pay": {"kind": "cash"}, "note": "ask at the counter"}
+]

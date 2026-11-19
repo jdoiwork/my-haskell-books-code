@@ -1,0 +1,2 @@
+error: .orders[0].count: expected an Int, got "four"
+.orders[2]: missing field "item"

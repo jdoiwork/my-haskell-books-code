@@ -1,0 +1,73 @@
+-- ANCHOR: all
+-- 💳 How each order was paid. The shape of "pay" depends on its kind,
+--    "gift" may be missing, and "note" may be null.
+--   lam examples/decode/payments.lam examples/decode/payments.json
+-- 注文ごとの払い方。"pay" の形は種類しだい。"gift" はないこともあり、
+-- "note" は null のこともある
+
+-- ANCHOR: payment
+-- 💴 Three ways to pay.
+-- 3つの払い方
+data Payment = Cash | Card String | Points Int
+
+-- 🏷️ Read "kind" first, then choose the decoder for the rest.
+-- まず "kind" を読み、それから残りの読み方を選ぶ
+payment : Decoder Payment
+payment =
+  Decode.field "kind" Decode.string
+    |> Decode.andThen (\kind ->
+         case kind of
+           | "cash" -> Decode.succeed Cash
+           | "card" -> map Card (Decode.field "last4" Decode.string)
+           | "points" -> map Points (Decode.field "points" Decode.int)
+           | _ -> Decode.fail f"unknown kind of payment: {show kind}")
+-- ANCHOR_END: payment
+
+-- ANCHOR: paid
+type alias Paid =
+  { id : Int, pay : Payment, gift : Bool, note : Maybe String }
+
+-- 🎁 "gift" may be missing (false then); "note" may be missing or null.
+-- "gift" はなくてもよい（そのときは false）。"note" はなくても null でもよい
+paid : Decoder Paid
+paid =
+  Decode.map4
+    (\id pay gift note -> { id = id, pay = pay, gift = gift, note = note })
+    (Decode.field "id" Decode.int)
+    (Decode.field "pay" payment)
+    (map (\g -> g ?: false) (Decode.optionalField "gift" Decode.bool))
+    (Decode.optionalField "note" Decode.string)
+-- ANCHOR_END: paid
+
+-- ANCHOR: main
+describe : Payment -> String
+describe p =
+  case p of
+    | Cash -> "cash"
+    | Card last4 -> f"card ****{last4}"
+    | Points n -> f"{n} points"
+
+-- 🖨️ One order in a line, with its gift and note if it has them.
+-- 注文1つを1行に。贈り物とメモがあれば、それも
+line : Paid -> String
+line p =
+  f"{p.id}: {describe p.pay}" ++ gift ++ note
+  where
+    gift = if p.gift then " (gift)" else ""
+    note = case p.note of
+             | Just n -> f" - {n}"
+             | Nothing -> ""
+
+-- 📂 Each file named on the command line, one after another.
+-- コマンドの行に並べたファイルを、1つずつ
+main : [String] -> IO ()
+main paths =
+  forEach paths (\path -> do
+    putStrLn f"== {path}"
+    read <- readFile path
+    case read |> Result.mapError (\e -> [{ path = "", message = e }])
+              |> Result.andThen (Decode.fromString (Decode.list paid)) of
+      | Ok ps -> forEach ps (\p -> putStrLn (line p))
+      | Err problems -> putStrLn (Decode.explain problems))
+-- ANCHOR_END: main
+-- ANCHOR_END: all

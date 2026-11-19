@@ -7,6 +7,7 @@
 -- 同じく、頼みごとを作るだけ。やるのは実行役
 module Lam.Outside
   ( outsideBuiltins
+  , responseValue
   , cellOf
   , cellValue
   ) where
@@ -32,13 +33,15 @@ outsideBuiltins =
   -- Err only when no answer came (no network, a wrong host).
   -- 頼みごと1つで、Response 1つ。Err は答えが来なかったときだけ
   [ prim4 "Http.send"
-      (tString ~> tString ~> tMap tString ~> tString
+      (tString ~> tString ~> tMap tString tString ~> tString
          ~> tIO (tResult tString tResponse)) $ \m u hs b -> do
       method  <- string m
       url     <- string u
       headers <- mapOf hs >>= traverse string
       body    <- string b
-      Right (ask (HttpSend method url (Map.toList headers) body))
+      Right (ask (HttpSend method url
+                   [ (k, v) | (Key (VString k), v) <- Map.toList headers ]
+                   body))
   -- ANCHOR_END: httpRow
   -- ANCHOR: sqlRows
   -- Sql.open "weather.db": a Db, to give to query and exec.
@@ -51,7 +54,7 @@ outsideBuiltins =
   -- SELECT の行：どれも、列の名前から引く Map
   , prim3 "Sql.query"
       (tDb ~> tString ~> tList tJson
-         ~> tIO (tResult tString (tList (tMap tJson)))) $
+         ~> tIO (tResult tString (tList (tMap tString tJson)))) $
       withCells SqlQuery
   -- CREATE, INSERT, UPDATE, DELETE: the answer is how many rows changed.
   -- CREATE・INSERT・UPDATE・DELETE：答えは、変わった行の数
@@ -65,10 +68,28 @@ outsideBuiltins =
   where
     ask = VIO . Ask
     tResult e x = TCon "Result" [e, x]
-    tResponse = TCon "Response" []
     tDb = TCon "Db" []
     tJson = TCon "Json" []
+    -- ANCHOR: responseType
+    -- An answer is a record: the status (200, 404, ...), the headers
+    -- (their names in small letters), and the body.
+    -- 答えはレコード：状態コード（200、404 など）、ヘッダー（名前は
+    -- 小文字）、本文
+    tResponse = TRecord (Map.fromList
+      [ ("status", TInt)
+      , ("headers", tMap tString tString)
+      , ("body", tString) ]) Nothing
+    -- ANCHOR_END: responseType
 -- ANCHOR_END: table
+
+-- 🧱 The record of an answer, as the runner makes it.
+-- 答えのレコード。実行役が作る
+responseValue :: Int -> [(Text, Text)] -> Text -> Value
+responseValue status headers body = VRecord (Map.fromList
+  [ ("status", VInt (toInteger status))
+  , ("headers", VMap (Map.fromList
+      [ (Key (VString k), VString v) | (k, v) <- headers ]))
+  , ("body", VString body) ])
 
 -- ANCHOR: withCells
 -- 🧱 The SQL and its arguments, as a request. A Json that cannot be a

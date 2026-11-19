@@ -28,7 +28,8 @@ import qualified Data.Attoparsec.ByteString.Char8 as P
 -- ぴったりの小数と、ほかの入れ物
 import qualified Data.Map as Map
 import Data.Scientific
-  (Scientific, base10Exponent, coefficient, normalize, scientific)
+  ( Scientific, base10Exponent, coefficient, normalize, scientific
+  , fromFloatDigits, toRealFloat )
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -53,6 +54,22 @@ jsonBuiltins =
   , prim1 "Json.show" (tJson ~> tString) $ \v -> do
       j <- toAeson v
       Right (VString (TL.toStrict (encodeToLazyText j)))
+  -- ANCHOR: float
+  -- JSON and Float. A number of JSON (JInt or JDec) is a Float; a
+  -- Float is the shortest number of JSON that stands for it. NaN and
+  -- the infinities have no JSON number: null, as JSON.stringify does.
+  -- JSON と Float。JSON の数（JInt か JDec）は Float に。Float は、
+  -- それを表すいちばん短い JSON の数に。NaN と無限大は null
+  , prim1 "Json.toFloat" (tJson ~> tMaybe tFloat) $ \v ->
+      Right $ maybeValue $ case toAeson v of
+        Right (A.Number n) -> Just (VFloat (toRealFloat n))
+        _                  -> Nothing
+  , prim1 "Json.fromFloat" (tFloat ~> tJson) $ \v -> do
+      x <- maybe (wrong "a number") Right (floatOf v)
+      Right $ if isNaN x || isInfinite x
+        then con "JNull" []
+        else fromScientific (fromFloatDigits x)
+  -- ANCHOR_END: float
   ]
   where
     tJson = TCon "Json" []
@@ -89,22 +106,23 @@ fromAeson j = case j of
   A.String s -> con "JStr" [VString s]
   A.Array xs -> con "JArr" [VList (map fromAeson (V.toList xs))]
   A.Object o -> con "JObj" [VMap (Map.fromList
-    [ (Key.toText k, fromAeson x) | (k, x) <- KeyMap.toList o ])]
+    [ (Key (VString (Key.toText k)), fromAeson x)
+    | (k, x) <- KeyMap.toList o ])]
 -- ANCHOR_END: fromAeson
 
 -- ANCHOR: fromScientific
 -- 🔢 A number of JSON. aeson keeps it as two whole numbers, c and e:
---    c times 10 to the e (19.99 is 1999 and -2). Lam has no fractions, so:
+--    c times 10 to the e (19.99 is 1999 and -2). We keep it exact:
 --      a whole number   ->  JInt 42
 --      a fraction       ->  JDec 1999 2   (1999 divided by 10 to the 2)
 --    A whole number with a very large e (1e1000000000) is not made
 --    into its digits: it stays JDec 1 (-1000000000). aeson draws the
 --    same line, 1024, when it writes numbers out.
 -- JSON の数。aeson は、2つの整数 c と e（c かける 10 の e 乗）で持つ。
--- Lam には小数がないので、整数は JInt、小数は JDec にする。JDec c d は、
--- c を 10 の d 乗で割った数。e がとても大きい整数（1e1000000000）は、
--- 桁を並べずに JDec のままにする。aeson も、書き出すときに同じ 1024 で
--- 分けている
+-- ぴったり持つので、整数は JInt、小数は JDec にする（Float にはしない）。
+-- JDec c d は、c を 10 の d 乗で割った数。e がとても大きい整数
+-- （1e1000000000）は、桁を並べずに JDec のままにする。aeson も、
+-- 書き出すときに同じ 1024 で分けている
 fromScientific :: Scientific -> Value
 fromScientific n
   | e >= 0 && e <= 1024 = con "JInt" [VInt (c * 10 ^ e)]
@@ -131,9 +149,10 @@ toAeson v = case v of
     A.Object . KeyMap.fromList <$> traverse field (Map.toList m)
   _ -> Left (BuiltinFailed "Json.show" "not a Json value")
   where
-    field (k, x) = do
-      j <- toAeson x
-      Right (Key.fromText k, j)
+    field (Key k, x) = do
+      key <- string k
+      j   <- toAeson x
+      Right (Key.fromText key, j)
     -- c divided by 10 to the d. The exponent of aeson is an Int.
     -- c を 10 の d 乗で割った数。aeson の指数は Int
     decimal c d

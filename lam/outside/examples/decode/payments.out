@@ -1,0 +1,10 @@
+== examples/decode/payments.json
+1: cash
+2: card ****4242 (gift)
+3: 500 points
+4: cash - ask at the counter
+== examples/decode/payments-bad.json
+.[0].pay: unknown kind of payment: "coupon"
+.[1].id: expected an Int, got "2"
+.[1].pay: missing field "last4"
+.[1].gift: expected a Bool, got "yes"

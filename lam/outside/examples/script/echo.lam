@@ -1,0 +1,9 @@
+-- 📣 echo in Lam: show the arguments, one per line, with their numbers.
+--      lam examples/script/echo.lam "Hello, Lam" again
+-- Lam で書いた echo：引数を、番号を付けて1行ずつ見せる
+
+main : IO ()
+main = do
+  args <- getArgs
+  putStrLn f"{length args} arguments"
+  forEach (indexed args) (\(i, arg) -> putStrLn f"{i + 1}: {arg}")

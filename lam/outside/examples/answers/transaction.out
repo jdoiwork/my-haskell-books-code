@@ -1,6 +1,0 @@
-give 3:  Ok 1
-lam 2, rust 4
-give 9:  Err "UPDATE bag SET balls = balls - ? WHERE owner = ?: CHECK constraint failed: balls >= 0"
-lam 2, rust 4
-careless: Err "UPDATE bag SET balls = balls - ? WHERE owner = ?: CHECK constraint failed: balls >= 0"
-lam 2, rust 13

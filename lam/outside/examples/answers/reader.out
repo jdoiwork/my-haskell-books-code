@@ -1,3 +1,0 @@
-Ok (JInt 60)
-Err (BadStatus 404 "{\"status\":404,\"message\":\"Not Found\"}")
-Err (BadBody "no field color")

@@ -1,0 +1,75 @@
+-- ANCHOR: all
+-- ⏳ Step 3: a cache that grows old. The Japanese names of Pokémon are
+--    kept with the time they were fetched, and fetched again after 30
+--    days (a name could be fixed on the web).
+--      lam fresh.lam pikachu
+-- ステップ3：古くなるキャッシュ。ポケモンの日本語の名前を、取ってきた
+-- 時刻と一緒にしまい、30 日たったら取り直す（Web で名前が直ることも
+-- あるので）
+
+-- ANCHOR: settings
+schema : String
+schema =
+  "CREATE TABLE IF NOT EXISTS names (name TEXT PRIMARY KEY,"
+    ++ " ja TEXT, fetched TEXT)"
+
+-- 📕 A row: the name in Japanese, and when it was fetched.
+-- 行：日本語の名前と、取ってきた時刻
+type alias Kept = { ja : String, fetched : Time }
+
+kept : Decoder Kept
+kept =
+  Decode.map2 (\ja t -> { ja = ja, fetched = t })
+    (Decode.field "ja" Decode.string)
+    (Decode.field "fetched" Decode.string
+       |> Decode.andThen (\s ->
+            case Time.fromIso s of
+              | Ok t -> Decode.succeed t
+              | Err e -> Decode.fail e))
+-- ANCHOR_END: settings
+
+-- 🔤 The Japanese name, from the names of the species.
+-- 種族の名前の一覧から、日本語の名前を
+japanese : Decoder String
+japanese =
+  Decode.field "names" (Decode.list named)
+    |> Decode.andThen (\names ->
+         case [ n | (lang, n) <- names, lang == "ja" ] of
+           | n : _ -> Decode.succeed n
+           | [] -> Decode.fail "no name in Japanese")
+  where
+    named =
+      Decode.map2 (\lang n -> (lang, n))
+        (Decode.at ["language", "name"] Decode.string)
+        (Decode.field "name" Decode.string)
+
+-- ANCHOR: lookUp
+-- 🔎 The name, and where it came from. A row older than 30 days is
+--    not used: it is fetched again, and the row is written over.
+-- 名前と、出どころ。30 日より古い行は使わず、取り直して書きかえる
+lookUp : Db -> Time -> String -> IO (Result String (String, String))
+lookUp db now name = do
+  found <- Sql.queryAs kept db "SELECT * FROM names WHERE name = ?"
+             [JStr name] ?
+  case [ k | k <- found, Time.diffDays now k.fetched < 30 ] of
+    | k : _ -> pure (Ok (k.ja, "cache"))
+    | [] -> do
+        ja <- Http.getAs japanese
+                f"https://pokeapi.co/api/v2/pokemon-species/{name}" ?
+        Sql.exec db "INSERT OR REPLACE INTO names VALUES (?, ?, ?)"
+          [JStr name, JStr ja, JStr (Time.toIso now)] ?
+        pure (Ok (ja, "web"))
+-- ANCHOR_END: lookUp
+
+main : [String] -> IO (Result String ())
+main args =
+  Sql.withDb "names.db" (\db -> do
+    Sql.exec db schema [] ?
+    now <- Time.now
+    forEach args (\name -> do
+      answer <- lookUp db now name
+      case answer of
+        | Ok (ja, from) -> putStrLn f"{name}: {ja} ({from})"
+        | Err e -> ePutStrLn f"fresh: {name}: {e}")
+    pure (Ok ()))
+-- ANCHOR_END: all

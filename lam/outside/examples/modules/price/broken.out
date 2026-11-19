@@ -1,0 +1,1 @@
+examples/modules/price/broken.lam:6:9: in the definition of cheat: type error: Price.Price is hidden by the module Price (it is not in its exposing list)

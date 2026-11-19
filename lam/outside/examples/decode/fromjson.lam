@@ -1,0 +1,134 @@
+-- ANCHOR: all
+-- 📥 Any type from JSON with one name, fromJson: a class of our own,
+--    the other way of ToJson (the chapter on Map and JSON). Each
+--    instance gives a decoder, and the type chooses which one.
+--   lam examples/decode/fromjson.lam
+-- どんな型も、1つの名前 fromJson で JSON から。自分で作るクラスで、
+-- ToJson（Map と JSON の章）の逆向き。インスタンスは Decoder をくれて、
+-- どれを使うかは型が選ぶ
+
+-- ANCHOR: class
+-- What a type needs to be read from JSON: a decoder for it.
+-- JSON から読める型が持つもの：その型の Decoder
+class FromJson a where
+  decoder : Decoder a
+
+instance FromJson Int where
+  decoder = Decode.int
+
+instance FromJson Float where
+  decoder = Decode.float
+
+instance FromJson String where
+  decoder = Decode.string
+
+instance FromJson Bool where
+  decoder = Decode.bool
+-- ANCHOR_END: class
+
+-- ANCHOR: containers
+-- 📦 A list and a Maybe (null is Nothing): each one reads its insides
+--    with the decoder of their type.
+-- リストと Maybe（null は Nothing）。どちらも、中身をその型の Decoder
+-- で読む
+instance FromJson a => FromJson [a] where
+  decoder = Decode.list decoder
+
+instance FromJson a => FromJson (Maybe a) where
+  decoder = Decode.nullable decoder
+-- ANCHOR_END: containers
+
+-- ANCHOR: keys
+-- 🔑 A key of a JSON object is always a string. A Map can be read
+--    from JSON when its keys can be read from strings (the other way
+--    of ToKey).
+-- JSON のオブジェクトのキーは、いつも文字列。文字列からキーを読める
+-- なら、Map を JSON から読める（ToKey の逆向き）
+class FromKey k where
+  fromKey : String -> Maybe k
+
+instance FromKey String where
+  fromKey s = Just s
+
+instance FromKey Int where
+  fromKey s = String.toInt s
+
+-- Read each key; the first one that does not fit stops it.
+-- キーを1つずつ読む。合わないキーがあれば、そこで止まる
+keysOf : FromKey k => [(String, v)] -> Decoder [(k, v)]
+keysOf kvs =
+  case kvs of
+    | [] -> pure []
+    | (s, v) : rest ->
+        case fromKey s of
+          | Just k -> map (\more -> (k, v) : more) (keysOf rest)
+          | Nothing -> Decode.fail f"not a key: {show s}"
+
+instance (Comparable k, FromKey k, FromJson v)
+    => FromJson (Map k v) where
+  decoder = do
+    m <- Decode.dict decoder
+    kvs <- keysOf (Map.toList m)
+    pure (Map.fromList kvs)
+-- ANCHOR_END: keys
+
+-- ANCHOR: fromJson
+-- 🎯 Read JSON text as any type that has a decoder.
+-- Decoder のある型なら、どれにでも JSON の文字を読む
+fromJson : FromJson a => String -> Result [Problem] a
+fromJson text = Decode.fromString decoder text
+-- ANCHOR_END: fromJson
+
+-- ANCHOR: shape
+-- 🔷 A type of our own: the kind of shape is in "kind", as ToJson
+--    wrote it.
+-- 自分の型。図形の種類は、ToJson が書いたのと同じく "kind" に
+data Shape
+  = Circle { radius : Float }
+  | Rect { width : Float, height : Float }
+
+instance FromJson Shape where
+  decoder = do
+    kind <- Decode.field "kind" Decode.string
+    case kind of
+      | "circle" ->
+          map (\r -> Circle { radius = r }) (Decode.field "radius" decoder)
+      | "rect" ->
+          Decode.map2 (\w h -> Rect { width = w, height = h })
+            (Decode.field "width" decoder)
+            (Decode.field "height" decoder)
+      | _ -> Decode.fail f"unknown kind: {show kind}"
+-- ANCHOR_END: shape
+
+-- ANCHOR: use
+-- The type says what to read.
+-- 何を読むかは、型が言う
+stock : Result [Problem] (Map String Int)
+stock = fromJson "{\"mug\": 12, \"sticker\": 0}"
+
+notes : Result [Problem] [Maybe String]
+notes = fromJson "[\"wrap it\", null]"
+
+shapes : Result [Problem] [Shape]
+shapes =
+  fromJson ("[{\"kind\": \"circle\", \"radius\": 1.5},"
+            ++ " {\"kind\": \"rect\", \"width\": 2, \"height\": 0.5}]")
+
+floors : Result [Problem] (Map Int [String])
+floors =
+  fromJson "{\"1\": [\"shop\"], \"2\": [\"workshop\", \"library\"]}"
+
+wrong : Result [Problem] (Map String Int)
+wrong = fromJson "{\"mug\": 12, \"sticker\": \"none\", \"cup\": true}"
+
+main : IO ()
+main = do
+  putStrLn f"{stock}"
+  putStrLn f"{notes}"
+  putStrLn f"{floors}"
+  putStrLn f"{shapes}"
+  case wrong of
+    | Ok m -> putStrLn f"{m}"
+    | Err ps -> putStrLn (Decode.explain ps)
+-- ANCHOR_END: use
+-- ANCHOR_END: all

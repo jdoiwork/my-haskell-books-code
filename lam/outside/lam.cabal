@@ -1,9 +1,9 @@
 cabal-version: 3.0
 name:          lam
-version:       0.15.0.0
+version:       0.21.0.0
 build-type:    Simple
 
--- 第8部 プログラミング言語を作る（15. 外の世界とつなぐ：HTTP と SQLite）
+-- 第15部 Lam でスクリプトを書く（9. 外の世界とつなぐ：HTTP と SQLite）
 
 common shared
   default-language: GHC2024
@@ -23,52 +23,86 @@ library
                     Lam.Eval
                     Lam.Types
                     Lam.Program
-                    Lam.Module
                     Lam.Data
                     Lam.Builtins
+                    Lam.Prelude
+                    Lam.Repl
+                    Lam.Sugar
+                    Lam.Float
+                    Lam.Class
                     Lam.Json
-                    Lam.Io
+                    Lam.Stdlib
                     Lam.Format
+                    Lam.Module
+                    Lam.Io
+                    Lam.World
+                    Lam.Clock
+                    Lam.Files
+                    Lam.Utf8
+                    Lam.Bytes
                     Lam.Pcre
                     Lam.Regex
                     Lam.Parsing
+                    Lam.Decode
                     Lam.Outside
                     Lam.Sqlite
-                    Lam.World
-                    Lam.Prelude
-                    Lam.Repl
   hs-source-dirs:   src
   -- ANCHOR: deps
   build-depends:
     , megaparsec         ^>=9.8
     , parser-combinators ^>=1.3
+    , mtl                ^>=2.3
     , aeson              ^>=2.3
     , attoparsec         ^>=0.14
     , attoparsec-aeson   ^>=2.2
     , scientific         ^>=0.3
     , vector             ^>=0.13
-    -- For the State of the fake world, and the Reader of the parser
-    -- 偽物の世界の State と、パーサーの Reader のため
-    , mtl                ^>=2.3
+    -- Json.pretty
+    , aeson-pretty       ^>=0.8
+    -- import: the files of modules, and LAM_PATH
+    -- import：モジュールのファイルと、LAM_PATH
+    , filepath           ^>=1.5
+    , directory          ^>=1.3
+    , transformers       ^>=0.6
+    -- ANCHOR: filesDeps
+    -- The clock, commands, globs (logs/*.log), and dice.
+    -- 時計、コマンド、glob（logs/*.log）、さいころ
+    , time               ^>=1.15
+    , process            ^>=1.6
+    , Glob               ^>=0.10
+    , random             ^>=1.3
+    -- ANCHOR_END: filesDeps
+    -- ANCHOR: bytesDeps
+    -- Bytes, SHA-256, and base64.
+    -- バイト列、SHA-256、base64
+    , bytestring         ^>=0.12
+    , cryptohash-sha256  ^>=0.11.102
+    , base64-bytestring  ^>=1.2
+    , base16-bytestring  ^>=1.0
+    -- ANCHOR_END: bytesDeps
+    -- ANCHOR: regexDeps
     -- Regular expressions (PCRE2, the C library comes inside)
     -- 正規表現（PCRE2。C のライブラリが中に入っている）
     , pcre2              ^>=2.3
     -- To search to the end at once, and catch a mistake there
     -- 探すのを一度に最後までやり、そこで起きたまちがいを受け止めるため
     , deepseq            ^>=1.5
-    -- To find the files of modules, and to load each once
-    -- モジュールのファイルを探し、それぞれ1度だけ読むため
-    , filepath           ^>=1.5
-    , directory          ^>=1.3
-    , transformers       ^>=0.6
+    -- ANCHOR_END: regexDeps
+    -- ANCHOR: decodeDeps
+    -- CSV (RFC 4180) and TOML (1.1)
+    -- CSV（RFC 4180）と TOML（1.1）
+    , cassava            ^>=0.5
+    , toml-parser        ^>=2.0
+    -- ANCHOR_END: decodeDeps
+    -- ANCHOR: outsideDeps
     -- HTTP (with TLS for https), and SQLite
     -- HTTP（https のための TLS も）と SQLite
     , http-client        ^>=0.7.19
     , http-client-tls    ^>=0.3.6
     , http-types         ^>=0.12
     , case-insensitive   ^>=1.2
-    , bytestring         ^>=0.12
     , direct-sqlite      ^>=2.3.29
+    -- ANCHOR_END: outsideDeps
   -- ANCHOR_END: deps
 -- ANCHOR_END: lib
 
@@ -77,9 +111,13 @@ executable lam
   import:           shared
   main-is:          Main.hs
   hs-source-dirs:   app
+  -- +RTS -s: how much memory a script took (see the morning's log).
+  -- +RTS -s：スクリプトがどれだけメモリを使ったか（朝のログで見る）
+  ghc-options:      -rtsopts
   build-depends:
     , lam
     , haskeline        ^>=0.8
+    , filepath         ^>=1.5
 -- ANCHOR_END: exe
 
 test-suite lam-test
@@ -95,6 +133,10 @@ test-suite lam-test
     , aeson            ^>=2.3
     , scientific       ^>=0.3
     , vector           ^>=0.13
-    , directory        ^>=1.3
     , filepath         ^>=1.5
+    , directory        ^>=1.3
     , mtl              ^>=2.3
+    , time             ^>=1.15
+    , random           ^>=1.3
+    , bytestring       ^>=0.12
+    , cryptohash-sha256 ^>=0.11.102

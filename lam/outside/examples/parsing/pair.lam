@@ -1,0 +1,43 @@
+-- ANCHOR: all
+-- The first parsers of the chapter: load them into the REPL with
+--   :load examples/parsing/pair.lam
+-- 章の最初のパーサー。REPL に :load で読みこんで使う
+
+-- ANCHOR: check
+-- Read the text with p, and show the value, or where it stopped.
+-- p で読み、値か、止まった場所を見せる
+check : Showable a => Parser a -> String -> IO ()
+check p text =
+  case Parser.run p text of
+    | Ok v -> putStrLn (show v)
+    | Err e -> putStrLn e.pretty
+-- ANCHOR_END: check
+
+-- ANCHOR: pair
+-- (12, 34): a pair of numbers, with spaces after the comma.
+-- 数の組。カンマのあとに空白があってもよい
+pair : Parser (Int, Int)
+pair = do
+  Parser.string "("
+  a <- Parser.int
+  Parser.string ","
+  Parser.spaces
+  b <- Parser.int
+  Parser.string ")"
+  pure (a, b)
+-- ANCHOR_END: pair
+
+-- ANCHOR: dated
+-- date: 2026-11-22, with the date read by a regex.
+-- 日付を正規表現で読む
+dated : Parser (Maybe String)
+dated = do
+  Parser.string "date: "
+  m <- Parser.regex re"(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)"
+  pure (Regex.named "m" m)
+-- ANCHOR_END: dated
+
+-- The message is enough here, so the Err keeps only it.
+-- ここでは文だけで十分なので、Err には文だけを残す
+Parser.run pair "(12, 34)" |> Result.mapError .message
+-- ANCHOR_END: all

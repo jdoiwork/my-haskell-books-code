@@ -270,7 +270,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/streams/`](lam/streams/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |
 | 文字列を読み解く：パーサーを組み合わせる | [`lam/parsing/`](lam/parsing/)、[`lam/regex/`](lam/regex/)、[`langs/interp-parsing/`](langs/interp-parsing/)、[`langs/cargo/`](langs/cargo/) |
 | データを読む：JSON の Decoder・CSV・TOML | [`lam/decode/`](lam/decode/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-decode/`](langs/interp-decode/)、[`langs/cargo/`](langs/cargo/) |
-| 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/modules/`](lam/modules/)、[`langs/interp-outside/`](langs/interp-outside/) |
+| 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/decode/`](lam/decode/)、[`langs/interp-outside/`](langs/interp-outside/) |
 | 鍵をかける：権限のフラグと見張り | [`lam/guard/`](lam/guard/)、[`lam/outside/`](lam/outside/)、[`langs/interp-guard/`](langs/interp-guard/) |
 | CLI を手軽に作る：型から作る Typer 風のオプション | [`lam/cli/`](lam/cli/)、[`lam/float/`](lam/float/)、[`langs/interp-cli/`](langs/interp-cli/)、[`langs/cargo/`](langs/cargo/) |
 | ワンライナーで動かす：Perl のように | [`lam/oneliner/`](lam/oneliner/)、[`lam/guard/`](lam/guard/)、[`langs/interp-oneliner/`](langs/interp-oneliner/) |
