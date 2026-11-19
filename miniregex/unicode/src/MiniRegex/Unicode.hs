@@ -26,7 +26,6 @@ import Unicode.Char.General.Scripts (Script, script, scriptExtensions,
 
 -- Tables
 -- 表
-import Data.List (sort)
 import Data.IntMap.Strict (IntMap)
 import Data.IntMap.Strict qualified as IntMap
 import Data.Map.Strict (Map)
@@ -72,7 +71,7 @@ caseVariants c = IntMap.findWithDefault [c] (ord (fold c)) caseSets
 -- 2文字以上の組を、代表の文字ごとに。いちばん最初に要ったときに1回だけ、
 -- 全部の文字を見て作る
 caseSets :: IntMap [Char]
-caseSets = IntMap.mapWithKey (\k cs -> sort (chr k : cs)) others
+caseSets = IntMap.mapWithKey (\k cs -> chr k : cs) others
   where
     -- every character whose fold is another one, under that one
     -- 代表がほかの文字である文字を、その代表の下に
@@ -93,8 +92,8 @@ hasType t c = case t of
   WhiteSpace AsciiOnly  -> c `elem` asciiSpaces
   WhiteSpace AllUnicode -> isSeparator || hasType HSpace c || hasType VSpace c
   Word AsciiOnly   -> isAsciiWord c
-  Word AllUnicode  -> isLetter || isNumber || category `elem`
-                        [NonSpacingMark, ConnectorPunctuation]
+  Word AllUnicode  -> isLetter || isNumber
+                        || category `elem` [NonSpacingMark, ConnectorPunctuation]
   HSpace           -> c `elem` horizontalSpaces
   VSpace           -> c `elem` verticalSpaces
   Posix reach name -> posix reach name c
@@ -190,15 +189,11 @@ hasProperty :: Property -> Char -> Bool
 hasProperty p c = case p of
   Category name   -> generalCategory c `elem` categoriesOf name
   Script s        -> script c == s
-  ScriptExt s     -> script c == s || s `elem` scriptExtensions c
+  ScriptExt s     -> s `elem` scriptExtensions c
   AnyCode         -> True
   Special "Xan"   -> letter || number
-  -- (the manual says "tab ... CR and Z", but PCRE2 10.49 takes \x85
-  -- and U+180E too: the same as \s with Unicode)
-  -- （説明書は「タブから CR までと Z」と言うが、PCRE2 10.49 は \x85 と
-  -- U+180E も取る。Unicode の \s と同じ）
-  Special "Xps"   -> hasType (WhiteSpace AllUnicode) c
-  Special "Xsp"   -> hasType (WhiteSpace AllUnicode) c
+  Special "Xps"   -> c `elem` asciiSpaces || separator
+  Special "Xsp"   -> c `elem` asciiSpaces || separator
   Special "Xwd"   -> letter || number
                        || hasProperty (Category "Mn") c
                        || hasProperty (Category "Pc") c
@@ -206,6 +201,7 @@ hasProperty p c = case p of
   where
     letter    = hasProperty (Category "L") c
     number    = hasProperty (Category "N") c
+    separator = hasProperty (Category "Z") c
 
 -- 📇 The general categories, by their two-letter names. A name of one
 --    letter is all the categories that start with it; Lc (or L&) is
@@ -251,9 +247,8 @@ propertyNamed written = case T.breakOn ":" loose of
   where
     loose = T.toLower (T.filter (`notElem` (" \t\n\v\f\r-_" :: String))
                                 (T.replace "=" ":" written))
-    categories = [ (T.toLower n, n)
-                 | n <- map fst categoryNames
-                          ++ ["C", "L", "M", "N", "P", "S", "Z"] ]
+    categories = [(T.toLower n, n) | n <- map fst categoryNames
+                                         ++ ["C", "L", "M", "N", "P", "S", "Z"]]
     specials = [(T.toLower n, n) | n <- ["Xan", "Xps", "Xsp", "Xwd"]]
 
 -- 📜 A script, by its long name (Hiragana) or its four letters (Hira).
@@ -275,7 +270,6 @@ scriptsByName = Map.fromList
 -- Pattern_White_Space（UTF のある PCRE2 と同じ）。ノーブレークスペースは
 -- 入らない
 isPatternSpace :: Char -> Bool
-isPatternSpace c =
-  c `elem` ("\t\n\v\f\r \x85\x200E\x200F\x2028\x2029" :: String)
+isPatternSpace c = c `elem` ("\t\n\v\f\r \x85\x200E\x200F\x2028\x2029" :: String)
 -- ANCHOR_END: space
 -- ANCHOR_END: all

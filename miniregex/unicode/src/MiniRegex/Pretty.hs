@@ -55,15 +55,15 @@ anchor :: Anchor -> Writer Text
 anchor a = case a of
   LineStart   -> (<> "^") <$> need [(M, True)]
   LineEnd     -> (<> "$") <$> need [(M, True)]
-  TextStart   -> (<> "^") <$> need [(M, False)]
+  TextStart   -> pure "\\A"
   TextEnd     -> pure "\\z"
-  LastLineEnd -> (<> "$") <$> need [(M, False)]
+  LastLineEnd -> pure "\\Z"
 
 atom :: Atom -> Writer Text
 atom a = case a of
   Lit c                    -> (<> escapeOutside c) <$> need (caseOf False c)
   NoCase (Lit c)           -> (<> escapeOutside c) <$> need (caseOf True c)
-  AnyChar                  -> (<> ".") <$> need [(S, False)]
+  AnyChar                  -> pure "\\N"
   Anything                 -> (<> ".") <$> need [(S, True)]
   Class cls                -> classWith False cls
   NoCase (Class cls)       -> classWith True cls
@@ -103,9 +103,7 @@ itemNeeds (Builtin _ t) = case t of
   Digit r   -> [(AD, r == AsciiOnly)]
   WhiteSpace r -> [(AS, r == AsciiOnly)]
   Word r    -> [(AW, r == AsciiOnly)]
-  Posix AsciiOnly n
-    | n `elem` ["digit", "xdigit"] -> [(AT, True)]
-    | otherwise                    -> [(AP, True)]
+  Posix AsciiOnly _ -> [(AP, True)]
   Posix AllUnicode n
     | n `elem` ["digit", "xdigit"] -> [(AP, False), (AT, False)]
     | otherwise                    -> [(AP, False)]

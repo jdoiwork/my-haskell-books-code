@@ -294,11 +294,11 @@ caseAware a = do
   i <- on I
   pure (if i then noCase a else a)
   where
-    noCase x = case x of
-      Lit c | length (caseVariants c) > 1 -> NoCase x
+    noCase atom = case atom of
+      Lit c | length (caseVariants c) > 1 -> NoCase atom
       Class cls -> NoCase (Class cls { items = fmap item (items cls) })
-      Backref _ -> NoCase x
-      _         -> x
+      Backref _ -> NoCase atom
+      _         -> atom
     item (Builtin b (Posix AsciiOnly n))
       | n `elem` ["upper", "lower"] = Builtin b (Posix AsciiOnly "alpha")
     item (Builtin b (Property (Category n)))
@@ -464,8 +464,7 @@ typeEscape = do
     -- \N{2,3} is \N, repeated; \N{U+263a} is a character
     -- \N{2,3} は \N のくり返し。\N{U+263a} は文字
     ['\\', 'N', '{'] -> do
-      repeated <- option False
-        (True <$ try (lookAhead (string "\\N" *> braces)))
+      repeated <- option False (True <$ try (lookAhead (string "\\N" *> braces)))
       if repeated then AnyChar <$ string "\\N" else fail "a character"
     '\\' : 'N' : _   -> AnyChar <$ string "\\N"
     '\\' : c : _ | c `elem` typeLetters -> do
@@ -489,8 +488,7 @@ typeItem = do
   let opposite = isUpperAscii c
   case c of
     _ | c `elem` ("dD" :: String) -> Builtin opposite . Digit <$> reachOf AD
-      | c `elem` ("sS" :: String) ->
-          Builtin opposite . WhiteSpace <$> reachOf AS
+      | c `elem` ("sS" :: String) -> Builtin opposite . WhiteSpace <$> reachOf AS
       | c `elem` ("wW" :: String) -> Builtin opposite . Word  <$> reachOf AW
       | c `elem` ("hH" :: String) -> pure (Builtin opposite HSpace)
       | c `elem` ("vV" :: String) -> pure (Builtin opposite VSpace)
@@ -516,25 +514,21 @@ property at opposite = do
       closed <- option False (True <$ char '}')
       unless closed malformed
       let trimmed = T.dropWhile (`elem` (" \t\n\v\f\r" :: String)) body
-          (hat, written) = case T.stripPrefix "^" trimmed of
+          (hat, name) = case T.stripPrefix "^" trimmed of
             Just rest -> (True, rest)
             Nothing   -> (False, body)
-      named (opposite /= hat) written
-    -- \pL: one ASCII letter, without braces
-    -- \pL：かっこなしの、ASCII の文字1つ
-    Just c
-      | isAscii c && isLetter c -> named opposite (T.singleton c)
-      | otherwise               -> malformed
+      named (opposite /= hat) name
+    Just c   -> named opposite (T.singleton c)
   where
     malformed = do
       end <- getOffset
       invalid end "malformed \\P or \\p sequence"  -- 146
-    named neg written = do
+    named neg name = do
       end <- getOffset
-      case propertyNamed written of
+      case propertyNamed name of
         Just p -> pure (Builtin neg (Property p))
         Nothing
-          | pcre2Knows written -> unsupported at "\\p{binary property}"
+          | pcre2Knows name -> unsupported at "\\p{binary property}"
           | otherwise ->
               invalid end "unknown property after \\P or \\p"  -- 147
 
@@ -789,22 +783,22 @@ classSpace = do
 -- 文字の [
 posixItem :: Parser ClassItem
 posixItem = do
-  (neg, posixName) <- try shape
+  (neg, name) <- try shape
   at <- getOffset
-  unless (posixName `elem` posixNames) $
+  unless (name `elem` posixNames) $
     invalid at "unknown POSIX class name"  -- 130
   asciiP <- on AP
   asciiT <- on AT
-  let ascii = asciiP || (asciiT && posixName `elem` ["digit", "xdigit"])
+  let ascii = asciiP || (asciiT && name `elem` ["digit", "xdigit"])
       reach = if ascii then AsciiOnly else AllUnicode
-  pure (Builtin neg (Posix reach posixName))
+  pure (Builtin neg (Posix reach name))
   where
     shape = do
       _ <- string "[:"
       neg <- option False (True <$ char '^')
-      written <- takeWhileP Nothing isAsciiLetter
+      name <- takeWhileP Nothing isAsciiLetter
       _ <- string ":]"
-      pure (neg, written)
+      pure (neg, name)
     isAsciiLetter c = isAscii c && isLetter c
 
 -- 🔤 One character in [ ... ]: itself, or a \ that means one.
@@ -945,8 +939,7 @@ optionLetters at = do
           two <- option False (True <$ char 'x')
           pure (if two then [X, XX] else [X])
         'a' -> do
-          which <- option Nothing
-                     (Just <$> satisfy (`elem` ("DSWPT" :: String)))
+          which <- option Nothing (Just <$> satisfy (`elem` ("DSWPT" :: String)))
           pure $ case which of
             Just 'D' -> [AD]
             Just 'S' -> [AS]

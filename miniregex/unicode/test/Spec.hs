@@ -6,7 +6,6 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
 import Data.Text qualified as T
-import Numeric (showHex)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck hiding (once)
@@ -22,7 +21,6 @@ import MiniRegex.Groups (groupCount)
 import MiniRegex.Parser
 import MiniRegex.Pretty
 import MiniRegex.Syntax
-import MiniRegex.Unicode (caseVariants, fold)
 import RegexAnswers
 -- ANCHOR_END: imports
 
@@ -68,64 +66,14 @@ placesOf needle = go 0
       | otherwise                = go (at + 1) (T.drop 1 t)
     n = T.length needle
 
--- 🚩 Our flags, as the pcre2 library's options. MiniRegex's \d and \w
---    are Unicode: that is PCRE2's Ucp.
--- MiniRegex のフラグを、pcre2 のライブラリのオプションに。MiniRegex の
--- \d・\w は Unicode なので、PCRE2 の Ucp を付ける
+-- 🚩 Our flags m and s, as the pcre2 library's options.
+-- MiniRegex のフラグ m と s を、pcre2 のライブラリのオプションに
 pcre2Options :: [Option] -> Pcre2.Option
-pcre2Options opts = Pcre2.Ucp <> foldMap one opts
+pcre2Options = foldMap one
   where
     one Multiline = Pcre2.Multiline
     one DotAll    = Pcre2.DotAll
-    one Caseless  = Pcre2.Caseless
     one _         = mempty
-
--- 🎲 Characters from blocks that Unicode 16 and 17 agree on (the pcre2
---    library has PCRE2 10.47, of Unicode 16; GHC and PCRE2 10.49 are
---    Unicode 17): letters with and without case, digits of many
---    kinds, spaces, signs, kana and kanji.
--- Unicode 16 と 17 で変わっていない区画の文字（pcre2 のライブラリの
--- 中は PCRE2 10.47 で Unicode 16。GHC と PCRE2 10.49 は Unicode 17）：
--- 大文字と小文字のある文字とない文字、いろいろな数字、空白、記号、
--- かなと漢字
-genUnicodeChar :: Gen Char
-genUnicodeChar = frequency
-  [ (3, chooseEnum (' ', '~'))
-  , (2, chooseEnum ('\xA0', '\x24F'))     -- Latin-1, Latin Extended
-  , (2, chooseEnum ('\x370', '\x4FF'))    -- Greek, Cyrillic
-  , (1, chooseEnum ('\x10A0', '\x10FF'))  -- Georgian
-  , (1, chooseEnum ('\x13A0', '\x13F5'))  -- Cherokee
-  , (1, chooseEnum ('\x1E00', '\x1FFF'))  -- Latin and Greek extended
-  , (1, chooseEnum ('\x2000', '\x215F'))  -- spaces, signs, numbers
-  , (1, chooseEnum ('\x3000', '\x30FF'))  -- CJK signs, kana
-  , (1, chooseEnum ('\x4E00', '\x4E80'))  -- kanji
-  , (1, chooseEnum ('\xFF00', '\xFF5E'))  -- full width
-  , (1, elements "\x1D7CE\x1D7CF\x10400\x10428\x212A\x17F\x130\x131")
-  ]
-
--- 🎲 Short texts of letters with other cases, digits, kana and \n.
--- ほかの形のある文字、数字、かな、改行の短い文字列
-genUnicodeLines :: Gen Text
-genUnicodeLines = T.pack <$> listOf (elements "aAbBkK\x212Asſé É1１日の \n_")
-
--- 🧺 The classes to try one character on.
--- 1文字ずつ試す、文字の集まり
-unicodeClasses :: [Text]
-unicodeClasses =
-  [ "\\d", "\\w", "\\s", "\\h", "\\v", "\\D", "\\W"
-  , "[[:alpha:]]", "[[:alnum:]]", "[[:punct:]]", "[[:graph:]]"
-  , "[[:print:]]", "[[:xdigit:]]", "[[:space:]]", "[[:word:]]"
-  , "[[:cntrl:]]", "[[:upper:]]", "[[:lower:]]", "[[:blank:]]"
-  , "\\p{L}", "\\p{Lu}", "\\p{Lc}", "\\p{N}", "\\p{P}", "\\p{S}"
-  , "\\p{Zs}", "\\p{Han}", "\\p{Greek}", "\\p{sc:Latin}"
-  , "\\p{Hiragana}", "\\p{Katakana}", "\\p{Common}"
-  , "\\p{Xan}", "\\p{Xwd}", "\\p{Xps}", "\\p{Xsp}"
-  , "(?i)\\p{Lu}", "(?i)[[:upper:]]", "(?a)\\w", "(?aP)[[:alpha:]]" ]
-
--- ✍️ One character as a pattern: \x{...}.
--- 1文字をパターンに：\x{...}
-charPattern :: Char -> Text
-charPattern c = "\\x{" <> T.pack (showHex (fromEnum c) "") <> "}"
 
 -- 🧵 a, x, b, y, c ...: one from each, in turn.
 -- 交互に1つずつ並べる
@@ -197,48 +145,29 @@ genTree greeds depth = do
   where
     genBranch = Branch <$> resize 4 (listOf genPiece)
     genPiece = frequency
-      [ (1, Anchor <$> elements
-              [LineStart, LineEnd, TextStart, TextEnd, LastLineEnd])
+      [ (1, Anchor <$> elements [LineStart, LineEnd])
       , (6, Quantified <$> genAtom <*> genQuantifier)
       ]
     genAtom = frequency $
       [ (6, Lit <$> genChar)
       , (1, pure AnyChar)
-      , (1, pure Anything)
       , (2, Class <$> genClass)
-      -- (?i): only what the parser would wrap
-      -- (?i)：パーサーが包むものだけ
-      , (2, NoCase . Lit <$> elements "abkKsé")
-      , (1, NoCase . Class <$> genClass)
       ] ++
-      [ (2, Group <$> elements [Numbered, NonCapturing, BranchReset]
+      [ (2, Group <$> elements [Numbered, NonCapturing]
                   <*> genTree greeds (depth - 1))
       | depth > 0 ] ++
-      [ (1, Backref <$> chooseInt (1, 3))
-      , (1, NoCase . Backref <$> chooseInt (1, 3)) ]
-    -- one reach for a whole class: (?aD) cannot be on and off at once
-    -- 集まり1つに、届く範囲は1つ：(?aD) を付けて、同時に外すことはできない
+      [ (1, Backref <$> chooseInt (1, 3)) ]
     genClass = do
       neg <- arbitrary
-      reach <- elements [AsciiOnly, AllUnicode]
-      first <- genItem reach
-      rest <- resize 3 (listOf (genItem reach))
+      first <- genItem
+      rest <- resize 3 (listOf genItem)
       pure (CharClass neg (first :| rest))
-    genItem reach = frequency
-      [ (3, Single <$> genChar)
-      , (2, do a <- genChar
-               b <- genChar
-               pure (Range (min a b) (max a b)))
-      , (2, Builtin <$> arbitrary <*> genType reach)
+    genItem = oneof
+      [ Single <$> genChar
+      , do a <- genChar
+           b <- genChar
+           pure (Range (min a b) (max a b))
       ]
-    -- (no [:upper:], [:lower:], \p{Lu}: (?i) turns them into others)
-    -- （[:upper:]・[:lower:]・\p{Lu} は入れない。(?i) がほかのものにする）
-    genType reach =
-      elements
-        [ Digit reach, WhiteSpace reach, Word reach, HSpace, VSpace
-        , Posix reach "alpha", Posix reach "digit", Posix reach "punct"
-        , Property (Category "L"), Property (Category "Nd")
-        , Property (Category "Lc"), Property AnyCode ]
     genQuantifier = do
       c <- frequency
         [ (4, pure (Count 1 (Just 0)))
@@ -263,9 +192,6 @@ fixRefs tr = goP tr
     goA (Backref n)
       | count == 0 = Lit 'a'
       | otherwise  = Backref ((n - 1) `mod` count + 1)
-    goA (NoCase (Backref n))
-      | count == 0 = Lit 'a'
-      | otherwise  = NoCase (Backref ((n - 1) `mod` count + 1))
     goA a = a
 
 -- 🌳 Random trees whose references are all right.
@@ -287,30 +213,6 @@ genTreeForPcre2 = genTreeRefs [Greedy, Lazy] 2 `suchThat` noZeroGroup
     pieceOk (Quantified (Group _ p) q) =
       count q /= Count 0 (Just 0) && noZeroGroup p
     pieceOk _ = True
-
--- 🐛 A range that reaches U+3000 or further, with (?i) somewhere: the
---    pcre2 library's PCRE2 10.47 gets those wrong.
--- U+3000 より先まで届く範囲と、どこかの (?i)：pcre2 のライブラリの中の
--- PCRE2 10.47 は、これをまちがえる
-wideRangeNoCase :: [Option] -> Pattern -> Bool
-wideRangeNoCase opts tr =
-  any wide (rangesOf tr) && (Caseless `elem` opts || hasNoCase tr)
-  where
-    wide (_, hi) = hi >= '\x3000'
-    rangesOf (Pattern bs) = concatMap branchRanges (NE.toList bs)
-    branchRanges (Branch ps) = concatMap pieceRanges ps
-    pieceRanges (Quantified a _) = atomRanges a
-    pieceRanges _                = []
-    atomRanges (Class c)    = [(a, b) | Range a b <- NE.toList (items c)]
-    atomRanges (NoCase a)   = atomRanges a
-    atomRanges (Group _ p)  = rangesOf p
-    atomRanges _            = []
-    hasNoCase (Pattern bs) = any (\(Branch ps) -> any pieceNoCase ps) bs
-    pieceNoCase (Quantified a _) = atomNoCase a
-    pieceNoCase _                = False
-    atomNoCase (NoCase _)  = True
-    atomNoCase (Group _ p) = hasNoCase p
-    atomNoCase _           = False
 
 -- 🎲 The characters of the trees: plain ones, and every sign.
 -- 木の文字：ふつうの文字と、記号の全部
@@ -347,13 +249,14 @@ main = hspec $ do
     -- 記号の前の \ は、その記号そのもの
     it "takes \\ before a sign" $
       fmap matchText (find (surely "1\\+1") "1+1=2") `shouldBe` Just "1+1"
-    -- the matcher runs *, and the flag i too; only a*+ waits
-    -- マッチャーは * も、フラグ i も動かせる。待つのは a*+ だけ
-    it "stops only a*+" $ do
+    -- the matcher runs *; only a*+ and the flag i wait
+    -- マッチャーは * を動かせる。待つのは a*+ とフラグ i だけ
+    it "stops only a*+ and the flag i" $ do
       fmap source (compile "ab*c") `shouldBe` Right "ab*c"
       fmap source (compile "a(?:b*+)c")
         `shouldBe` Left (Unsupported 0 "matcher: possessive")
-      fmap source (compileWith [Caseless] "a") `shouldBe` Right "a"
+      fmap source (compileWith [Caseless] "a")
+        `shouldBe` Left (Unsupported 0 "matcher: flag i")
       fmap source (compileWith [Multiline, DotAll] "^a.")
         `shouldBe` Right "^a."
     -- a \ at the end is wrong, at the same place as PCRE2
@@ -447,7 +350,6 @@ main = hspec $ do
     it "decodes a subject" $ do
       decodeSubject "a\\tb\\x41\\x{263a}\\101\\0" `shouldBe`
         Just "a\tbA\x263a\&A\0"
-      decodeSubject "\\o{11064}\\N{U+1234}" `shouldBe` Just "\x1234\x1234"
       decodeSubject "abc\\=notbol" `shouldBe` Nothing
     -- a line of only spaces ends a group (it is not a subject)
     -- 空白だけの行で、ひとまとまりが終わる（入力ではない）
@@ -468,9 +370,8 @@ main = hspec $ do
     -- answers are written like pcre2test, with the groups
     -- 答えは、pcre2test と同じ形で、グループの行も書く
     it "shows an answer like pcre2test" $ do
-      let plain = Modifiers [] False False False False
-          withAfter = Modifiers [] False True False False
-          utf = Modifiers [] False False True False
+      let plain = Modifiers [] False False
+          withAfter = Modifiers [] False True
       showFound plain "" (findAll (surely "a\tb\xe9") "a\tb\xe9")
         `shouldBe` [" 0: a\\x09b\\xe9"]
       showFound plain "" (findAll (surely "(a)(x)?(c)?") "ab")
@@ -480,35 +381,21 @@ main = hspec $ do
       showFound withAfter "xaybz" (findAll (surely "(a)") "xaybz")
         `shouldBe` [" 0: a", " 0+ ybz", " 1: a"]
       showFound plain "" [] `shouldBe` ["No match"]
-      -- with utf, as \x{...}
-      -- utf なら \x{...} で
-      showFound utf "" (findAll (surely "\\w+") "日\x7fé")
-        `shouldBe` [" 0: \\x{65e5}", " 0: \\x{e9}"]
-    -- utf, ucp and xx are known now; without ucp, the flag Ascii
-    -- utf・ucp・xx も、わかるようになった。ucp がなければ、フラグ Ascii
+    -- the modifiers g and aftertext are known now
+    -- 修飾子 g と aftertext も、わかるようになった
     it "reads the modifiers" $ do
       flagsOf "g,aftertext,im"
-        `shouldBe` Right (Modifiers [Caseless, Multiline, Ascii]
-                                    True True False False)
-      flagsOf "utf,ucp" `shouldBe` Right (Modifiers [] False False True False)
-      flagsOf "xx" `shouldBe` Right (Modifiers [Ascii] False False False True)
+        `shouldBe` Right (Modifiers [Caseless, Multiline] True True)
       flagsOf "mark" `shouldBe` Left "mark"
     -- the whole of testoutput1: no wrong answers, and the parser
     -- calls no right pattern wrong
     -- testoutput1 の全部：ちがう答えは1つもなく、パーサーは正しい
     -- パターンを「まちがい」と言わない
-    it "reads 1432 patterns and passes 1364 tests, and fails none" $ do
-      tests <- readTestFile Latin1 "testdata/testoutput1"
-      tally (map readable tests) `shouldBe` Tally 1432 0 1216
+    it "reads 939 patterns and passes 747 tests, and fails none" $ do
+      tests <- readTestFile "testdata/testoutput1"
+      tally (map readable tests) `shouldBe` Tally 939 0 1709
       verdicts <- mapM (judgeWithin 1000000) tests
-      tally verdicts `shouldBe` Tally 1364 0 1284
-    -- the second book, with UTF: no wrong answers either
-    -- 2冊目（UTF あり）も、ちがう答えは1つもない
-    it "passes 1125 tests of testoutput4, and fails none" $ do
-      tests <- readTestFile Utf8 "testdata/testoutput4"
-      tally (map readable tests) `shouldBe` Tally 1136 0 397
-      verdicts <- mapM (judgeWithin 1000000) tests
-      tally verdicts `shouldBe` Tally 1125 0 408
+      tally verdicts `shouldBe` Tally 747 0 1901
     -- every line counts now: the groups', too
     -- いまは全部の行をくらべる。グループの行も
     it "compares the groups' lines too" $ do
@@ -760,176 +647,6 @@ main = hspec $ do
         `shouldBe` Right "<><b>"
   -- ANCHOR_END: templates
 
-  -- ANCHOR: unicode
-  describe "Unicode and flags / Unicode とフラグ" $ do
-    -- each answer was checked with pcre2test 10.49 (utf, and ucp unless
-    -- Ascii)
-    -- 答えは、どれも pcre2test 10.49 で確かめた（utf と、Ascii でなければ
-    -- ucp）
-    let cases =
-          [ ("\\d+", [], "記録 ２０２６年と2026年", (Just "２０２６"))
-          , ("\\d+", [Ascii], "記録 ２０２６年と2026年", (Just "2026"))
-          , ("\\w+", [], "名前:ラムダ_1", (Just "名前"))
-          , ("\\w+", [Ascii], "名前:ラムダ_1", (Just "_1"))
-          , ("\\s+", [], "a\x3000\&\xa0\&b", (Just "\x3000\&\xa0\&"))
-          , ("\\s+", [Ascii], "a\x3000\&\xa0\&\tb", (Just "\t"))
-          , ("\\h+", [Ascii], "x\x3000\&\xa0\&y", (Just "\x3000\&\xa0\&"))
-          , ("\\v", [], "a\x2028\&b", (Just "\x2028\&"))
-          , ("\\D+", [], "２０ab", (Just "ab"))
-          , ("\\W+", [], "名前 !?x", (Just " !?"))
-          , ("(?a)\\d+", [], "２０２６と2026", (Just "2026"))
-          , ("(?aD)\\d+\\w+", [], "２０２６と2026x", (Just "2026x"))
-          , ("(*UCP)\\d+", [Ascii], "２０２６", (Just "２０２６"))
-          , ("\\N+", [DotAll], "ab\ncd", (Just "ab"))
-          , ("\\N{U+263a}", [], "x☺y", (Just "☺"))
-          , ("[[:alpha:]]+", [], "123élan", (Just "élan"))
-          , ("[[:alpha:]]+", [Ascii], "123élan", (Just "lan"))
-          , ("[[:digit:][:upper:]]+", [], "abCD12x", (Just "CD12"))
-          , ("[[:^digit:]]+", [], "12ab34", (Just "ab"))
-          , ("[[:punct:]]+", [], "a!?、。§b", (Just "!?、。§"))
-          , ("[[:punct:]]+", [], "a©¬b", Nothing)
-          , ("[[:xdigit:]]+", [], "xＡ０fg", (Just "Ａ０f"))
-          , ("[[:space:]]+", [], "a\x3000\&\x85\&b", (Just "\x3000\&\x85\&"))
-          , ("\\p{Han}+", [], "記録室のノート", (Just "記録室"))
-          , ("\\p{Hiragana}+", [], "記録室のノート", (Just "の"))
-          , ("\\p{Katakana}+", [], "記録室のノート", (Just "ノート"))
-          , ("\\p{sc:Katakana}+", [], "記録室のノート", (Just "ノ"))
-          , ("\\p{Lu}+", [], "abCDe", (Just "CD"))
-          , ("\\p{L}+", [], "123Ωmega!", (Just "Ωmega"))
-          , ("\\pN+", [], "x①②3y", (Just "①②3"))
-          , ("\\P{L}+", [], "ab12!c", (Just "12!"))
-          , ("\\p{^L}+", [], "ab12!c", (Just "12!"))
-          , ("\\p{ sc = greek }+", [], "abΩμc", (Just "Ωμ"))
-          , ("[\\p{Han}\\p{Hira}]+", [], "ノート記録のx", (Just "ー"))
-          , ("\\p{Any}", [DotAll], "\n", (Just "\n"))
-          , ("dragon", [Caseless], "a DRAGON", (Just "DRAGON"))
-          , ("é", [Caseless], "CAFÉ", (Just "É"))
-          , ("k", [Caseless], "K", (Just "K"))
-          , ("K", [Caseless], "k", (Just "k"))
-          , ("s", [Caseless], "ſ", (Just "ſ"))
-          , ("ß", [Caseless], "ẞ", (Just "ẞ"))
-          , ("ß", [Caseless], "SS", Nothing)
-          , ("i", [Caseless], "İ", Nothing)
-          , ("ı", [Caseless], "I", Nothing)
-          , ("σ+", [Caseless], "Σςσ", (Just "Σςσ"))
-          , ("[a-z]+", [Caseless], "MiniRegex", (Just "MiniRegex"))
-          , ("[^k]", [Caseless], "K", Nothing)
-          , ("[k-m]+", [Caseless], "KLM", (Just "KLM"))
-          , ("\\p{Lu}+", [Caseless], "abC", (Just "abC"))
-          , ("[[:upper:]]+", [Caseless], "abC", (Just "C"))
-          , ("(a)\\1", [Caseless], "aA", (Just "aA"))
-          , ("(\\w+) \\1", [Caseless], "Lam LAM", (Just "Lam LAM"))
-          , ("(?i)lam", [], "LAM", (Just "LAM"))
-          , ("a(?i)b", [], "aB", (Just "aB"))
-          , ("a(?i)b", [], "AB", Nothing)
-          , ("(a(?i)b|c)", [], "C", (Just "C"))
-          , ("(?i:a)b", [], "AB", Nothing)
-          , ("(?i:a)b", [], "Ab", (Just "Ab"))
-          , ("(?i)a(?-i)b", [], "AB", Nothing)
-          , ("(?i)a(?^)b", [], "Ab", (Just "Ab"))
-          , ("(?m)^b", [], "a\nb", (Just "b"))
-          , ("^b", [], "a\nb", Nothing)
-          , ("(?s).+", [], "a\nb", (Just "a\nb"))
-          , (".+", [], "a\nb", (Just "a"))
-          , ("(?s:.)\\N", [], "\nab", (Just "\na"))
-          , ("(?x) a b c # comment", [], "abc", (Just "abc"))
-          , ("(?x) a \\  b", [], "a b", (Just "a b"))
-          , ("(?x)[ ]", [], "a b", (Just " "))
-          , ("(?xx)[a b]+", [], "a b", (Just "a"))
-          , ("\\d+(?#year)-\\d+", [Extended], "2026 - 11", Nothing)
-          , ("(?n)(a)(?<n>b)", [], "ab", (Just "ab"))
-          , ("(?U)a+", [], "aaa", (Just "a"))
-          , ("(?U)a+?", [], "aaa", (Just "aaa"))
-          , ("(?|(a)|(b)(c))(d)", [], "bcd", (Just "bcd"))
-          , ("(?|(\\d+)年|(\\d+)/)", [], "11/19", (Just "11/"))
-          , ("\\Aab", [Multiline], "x\nab", Nothing)
-          , ("ab\\z", [], "ab\n", Nothing)
-          , ("ab\\Z", [], "ab\n", (Just "ab"))
-          , ("ab$", [], "ab\n", (Just "ab"))
-          ]
-    mapM_ (\(p, opts, t, answer) ->
-             it (show (p, opts, t)) $
-               fmap matchText (find (surelyWith opts p) t) `shouldBe` answer)
-      cases
-    -- the few characters whose fold is not lower(upper(c))
-    -- 代表が「大文字の小文字」でない、いくつかの文字
-    it "folds like CaseFolding.txt" $ do
-      map fold "aAK\x212Aſ\x130\x131\x1FD3\xFB06"
-        `shouldBe` "aakks\x130\x131\x390\xFB05"
-      caseVariants 'k' `shouldBe` "Kk\x212A"
-      caseVariants '日' `shouldBe` "日"
-    -- places in bytes: 名 and 前 are three bytes each in UTF-8
-    -- バイトで数えた場所：名と前は、UTF-8 でそれぞれ3バイト
-    it "gives places in bytes" $ do
-      let t = "名前: Lam"
-          m = maybe (error "no match") id (find (surely "Lam") t)
-      (matchStart m, matchEnd m) `shouldBe` (4, 7)
-      byteSpan t (matchSpan m) `shouldBe` (8, 11)
-      byteOffset t 2 `shouldBe` 6
-    -- names of groups, and in templates, may be Unicode letters
-    -- グループの名前とテンプレートの名前に、Unicode の文字を使える
-    it "takes ${年} in a template" $ do
-      let re = surely "(?<年>\\d+)年"
-      fmap (\x -> replaceAllTemplate re x "2026年") (template re "<${年}>")
-        `shouldBe` Right "<2026>"
-    -- the flags are in the tree: (?i) changes the atoms after it
-    -- フラグは木の中にある。(?i) は、うしろのアトムを変える
-    it "writes the flags into the tree" $
-      parsePattern [] "a(?i)b."
-        `shouldBe` Right (Pattern (Branch
-          [ Quantified (Lit 'a') once
-          , Quantified (NoCase (Lit 'b')) once
-          , Quantified AnyChar once ] :| []))
-    -- one character, against the real PCRE2 with Ucp: \d, \w ...
-    -- 1文字ずつ、Ucp を付けた本物の PCRE2 とくらべる：\d・\w など
-    prop "agrees with PCRE2 on the classes of one character" $
-      forAll genUnicodeChar $ \c ->
-        forAll (elements unicodeClasses) $ \p ->
-          counterexample (T.unpack p) $
-            isMatch (surely p) (T.singleton c)
-              === Pcre2.matchesOpt Pcre2.Ucp p (T.singleton c)
-    -- and the same, but for case: (?i) with one character
-    -- 大文字と小文字のちがいだけ：(?i) と1文字
-    prop "agrees with PCRE2 on which characters are the same but case" $
-      forAll genUnicodeChar $ \c ->
-        forAll (oneof [elements (caseVariants c), genUnicodeChar]) $ \d ->
-          let p = charPattern c
-          in  counterexample (T.unpack p) $
-                isMatch (surelyWith [Caseless] p) (T.singleton d)
-                  === Pcre2.matchesOpt (Pcre2.Ucp <> Pcre2.Caseless) p
-                        (T.singleton d)
-  -- ANCHOR_END: unicode
-
-  -- ANCHOR: unicodeerrors
-  describe "wrong patterns of this chapter, like PCRE2 10.49 / まちがい" $ do
-    -- each place and message was checked with pcre2test 10.49
-    -- 場所と文は、どれも pcre2test 10.49 で確かめた
-    let wrong p at m = it (T.unpack p) $
-          parsePattern [] p `shouldBe` Left (Invalid at m)
-    wrong "a(?z)b"        4 "unrecognized character after (? or (?-"  -- 111
-    wrong "a(?i)*"        6
-      "quantifier does not follow a repeatable item"  -- 109
-    wrong "(?i"           3 "missing closing parenthesis"  -- 114
-    wrong "(?i:a"         5 "missing closing parenthesis"  -- 114
-    wrong "(?"            2 "missing closing parenthesis"  -- 114
-    wrong "\\p{Letter}"  10 "unknown property after \\P or \\p"  -- 147
-    wrong "\\p{L"         4 "malformed \\P or \\p sequence"  -- 146
-    wrong "\\p"           2 "malformed \\P or \\p sequence"  -- 146
-    wrong "\\px"          3 "unknown property after \\P or \\p"  -- 147
-    wrong "[[:foo:]]"     8 "unknown POSIX class name"  -- 130
-    wrong "[\\d-z]"       4 "invalid range in character class"  -- 150
-    wrong "[a-\\d]"       5 "invalid range in character class"  -- 150
-    wrong "[\\N]"         3 "\\N is not supported in a class"  -- 171
-    wrong "[\\R]"         3
-      "escape sequence is invalid in character class"  -- 107
-    wrong "\\N{abc}"      3
-      "PCRE2 does not support \\F, \\L, \\l, \\N{name}, \\U, or \\u"  -- 137
-    wrong "(?i-m-s)a"     6 "invalid hyphen in option setting"  -- 194
-    wrong "(?^-i)a"       4 "invalid hyphen in option setting"  -- 194
-    wrong "\\N{U+}"       5
-      "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
-  -- ANCHOR_END: unicodeerrors
-
   -- ANCHOR: pcre2
   describe "the real PCRE2 / 本物の PCRE2" $ do
     -- when MiniRegex can run a pattern, it finds the first match that
@@ -960,16 +677,10 @@ main = hspec $ do
     -- （ライブラリは、何も見つけなかったグループを "" と書く）
     prop "finds what PCRE2 finds, groups too, on random trees" $
       forAll genTreeForPcre2 $ \tr ->
-        forAll (resize 12 genUnicodeLines) $ \t ->
-          forAll (sublistOf [Multiline, DotAll, Caseless]) $ \opts ->
+        forAll (resize 12 genLines) $ \t ->
+          forAll (sublistOf [Multiline, DotAll]) $ \opts ->
             let p = render tr
-            in  counterexample (T.unpack p) $ case compileWith opts p of
-                  -- PCRE2 10.47 (in the library) misses σ and K in
-                  -- (?i)[$-日]; 10.49 (pcre2test) finds them, as MiniRegex
-                  -- ライブラリの中の PCRE2 10.47 は (?i)[$-日] で σ や K を
-                  -- 見落とす。10.49（pcre2test）は、MiniRegex と同じく
-                  -- 見つける
-                  _ | wideRangeNoCase opts tr -> label "PCRE2 10.47 bug" True
+            in  case compileWith opts p of
                   Left e   -> counterexample (show e) False
                   Right re -> ioProperty $ do
                     -- PCRE2 may give up (its match limit): skip those
@@ -1050,11 +761,10 @@ main = hspec $ do
     -- what the tree has no place for yet
     -- 木に、まだ居場所のないもの
     it "says not yet to what is for later chapters" $ do
-      parsePattern [] "a\\b" `shouldBe` Left (Unsupported 1 "\\b")
+      parsePattern [] "a\\d" `shouldBe` Left (Unsupported 1 "\\d")
       parsePattern [] "x(?=y)" `shouldBe` Left (Unsupported 1 "(?=")
-      parsePattern [] "(?J)a" `shouldBe` Left (Unsupported 0 "(?J)")
-      parsePattern [] "\\p{Alphabetic}"
-        `shouldBe` Left (Unsupported 0 "\\p{binary property}")
+      parsePattern [] "(?i)a" `shouldBe` Left (Unsupported 0 "(?flags)")
+      parsePattern [Extended] "a b" `shouldBe` Left (Unsupported 0 "flag x")
   -- ANCHOR_END: parser
 
   -- ANCHOR: errors
