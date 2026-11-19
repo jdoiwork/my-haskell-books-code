@@ -33,6 +33,7 @@ module Lam.Types
   , tString
   , tFloat
   , defaultNumbers
+  , renderUsual
   , tList
   , tTuple
   , tMap
@@ -1612,6 +1613,27 @@ defaultNumbers (Forall vs ns t) =
             (foldr Map.delete ns numbers)
             (applyT s t)
 -- ANCHOR_END: defaultNumbers
+
+-- ANCHOR: renderUsual
+-- 🏷️ The type of a value that is not a function, and, when it has
+--    numbers of any type, the type it usually is (as an Int) on a
+--    second line:
+--      treasures : (Comparable a, Number a, ...) => Map (a, b) String
+--        -- usually Map (Int, Int) String
+--    A function stays on one line: double : Number a => a -> a really
+--    works for both Int and Float.
+-- 関数でない値の型。どの型にもなれる数があれば、ふつうの型（Int に
+-- したもの）を2行目に添える。関数は1行のまま（Int にも Float にも
+-- 本当に使えるので）
+renderUsual :: Scheme -> Text
+renderUsual sc@(Forall _ _ t) = case t of
+  TFun _ _ -> renderScheme sc
+  _ | usual /= shown -> shown <> "\n  -- usually " <> usual
+    | otherwise      -> shown
+  where
+    shown = renderScheme sc
+    usual = renderScheme (defaultNumbers sc)
+-- ANCHOR_END: renderUsual
 
 -- 📣 A type error, as people read it.
 -- 人が読む型のエラー

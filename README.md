@@ -226,6 +226,12 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/docker/`](tsundoku/docker/)、[`tsundoku/mantine/`](tsundoku/mantine/) |
 | 第12部のふりかえり | [`tsundoku/docker/`](tsundoku/docker/)、[`review-tsundoku/`](review-tsundoku/) |
 
+### 第13部 総合演習7：PCRE2 互換の正規表現エンジンを作る
+
+| 章 | コード |
+|---|---|
+| 設計：使う側から決めて、パターンを型で描く | [`miniregex/design/`](miniregex/design/)、[`langs/regex-design/`](langs/regex-design/)、[`langs/cargo/`](langs/cargo/) |
+
 ### 第14部 Lam を育てる：言語の機能
 
 | 章 | コード |

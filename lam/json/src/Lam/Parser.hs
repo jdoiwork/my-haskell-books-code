@@ -344,7 +344,7 @@ recordLiteral = lexeme $ do
   -- nothing is read if it is not one (the training adds { name, days }).
   -- レコードは { name = か { name | で始まる。先読みして、そうでなければ
   -- 何も読まない（トレーニングで { name, days } を足すため）
-  _ <- try (symbol "{" <* lookAhead (name *> (bar <|> equals)))
+  _ <- try (symbol "{" <* lookAhead (hidden name *> afterName))
   base <- optional (try (name <* bar))
   given <- recordField `sepBy1` symbol ","
   _ <- char '}'
@@ -355,6 +355,9 @@ recordLiteral = lexeme $ do
     []    -> fields
                (maybe (Record given) (\r -> Update (Var r) given) base)
   where
+    -- Named for error messages: {name} says "'=' (a record)".
+    -- エラーの文のための名前：{name} なら「'='（レコード）」
+    afterName = (bar <|> equals) <?> "'=' (a record)"
     recordField = do
       x <- name
       _ <- equals
@@ -387,7 +390,9 @@ mapLiteral = do
         , numberKey
         , Lit . LString <$> bareKey
         , between (symbol "[") (symbol "]") expr ]
-      _ <- symbol ":"
+      -- Named for error messages: "':' (a Map)".
+      -- エラーの文のための名前：「':'（Map）」
+      _ <- symbol ":" <?> "':' (a Map)"
       v <- expr
       pure (k, v)
     -- 1, 1.5 and -1, with no space after the minus.
@@ -405,7 +410,9 @@ mapLiteral = do
     -- ここでは、キーワードも使える
     bareKey = (<?> "a key") $ lexeme $ do
       first <- letterChar <|> char '_'
-      rest  <- many (alphaNumChar <|> char '_' <|> char '\'')
+      -- hidden: the letters that may go on are not listed in errors.
+      -- hidden：続けてよい文字は、エラーの文に並べない
+      rest  <- many (hidden (alphaNumChar <|> char '_' <|> char '\''))
       pure (T.pack (first : rest))
 -- ANCHOR_END: mapLiteral
 

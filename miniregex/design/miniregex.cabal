@@ -1,0 +1,49 @@
+cabal-version: 3.0
+name:          miniregex
+version:       0.1.0.0
+build-type:    Simple
+
+-- 総合演習：PCRE2 互換の正規表現エンジンを作る
+-- （1. 設計：使う側から決めて、パターンを型で描く）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  MiniRegex
+                    MiniRegex.Types
+                    MiniRegex.Syntax
+                    MiniRegex.Engine
+                    MiniRegex.Examples
+                    MiniRegex.Compat
+                    RegexAnswers
+  hs-source-dirs:   src answers
+
+-- The compatibility meter: how many of PCRE2's tests pass.
+-- 互換度メーター：PCRE2 のテストのうち、いくつ通るか
+executable compat-meter
+  import:           shared
+  main-is:          Meter.hs
+  hs-source-dirs:   app
+  build-depends:
+    , miniregex
+    , containers       ^>=0.8
+
+test-suite miniregex-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , miniregex
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19
+    -- The real PCRE2, to compare with (the C library comes inside)
+    -- くらべる相手の本物の PCRE2（C のライブラリが中に入っている）
+    , pcre2            ^>=2.3

@@ -92,7 +92,7 @@ step session line =
     Right (ShowType e) ->
       case inferType (sessionData session) (sessionTypes session) e of
         Left err -> (session, "type error: " <> renderTypeError err)
-        Right (t, _) -> (session, renderScheme t)
+        Right (t, _) -> (session, renderUsual t)
     -- ANCHOR: stepDicts
     -- The expression the evaluator gets: with the dictionaries put in.
     -- 評価器が受け取る式：辞書を入れたもの

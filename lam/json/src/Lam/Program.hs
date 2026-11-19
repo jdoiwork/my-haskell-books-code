@@ -93,7 +93,7 @@ defineWith session x _ checked =
              ( session
                  { sessionTypes  = Map.insert x sc (sessionTypes session)
                  , sessionValues = env' }
-             , x <> " : " <> renderScheme sc )
+             , x <> " : " <> renderUsual sc )
   where
     -- 「x の定義で：……」
     inDefinition msg = "in the definition of " <> x <> ": " <> msg
