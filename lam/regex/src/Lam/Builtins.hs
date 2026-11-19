@@ -12,18 +12,27 @@ module Lam.Builtins
   , prim2
   , prim3
   , requiring
+  , wrong
   , (~>)
   , string
   , list
   , mapOf
+  , setOf
     -- The constructors of the prelude, made from Haskell.
     -- プレリュードの構成子を、Haskell から作る
   , preludeConstructors
   , con
+  , maybeValue
+  , tMaybe
   ) where
 
+import qualified Data.ByteString as B
+import Data.Char (isAlpha, isDigit)
+import Data.Maybe (fromMaybe)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -71,13 +80,11 @@ builtins =
       case v of
         VString s -> Right (VInt (fromIntegral (T.length s)))
         VList xs  -> Right (VInt (fromIntegral (length xs)))
+        VBytes bs -> Right (VInt (fromIntegral (B.length bs)))
         _         -> wrong "length"
 
   -- Lists
   -- リスト
-  , prim1 "null" (tList a ~> TBool) $ \v -> do
-      xs <- list v
-      Right (VBool (null xs))
   , prim1 "head" (tList a ~> a) $ \v -> do
       xs <- list v
       case xs of
@@ -91,56 +98,122 @@ builtins =
         []       -> Left (BuiltinFailed "tail" "the list is empty")
   ]
   <> mapBuiltins
+  <> setBuiltins
+  <> wordBuiltins
   where
     a = TVar 0
     b = TVar 1
 -- ANCHOR_END: table
 
+-- ANCHOR: wordTable
+-- ✂️ For scripts: cut a text into lines and words, and tell a letter.
+-- スクリプトのため：文字列を行と単語に切る、文字かどうかを見分ける
+wordBuiltins :: [Builtin]
+wordBuiltins =
+  -- "a\nb\n" gives ["a", "b"], and words cuts at any spaces (the same
+  -- as Haskell's lines and words).
+  -- 行に切る・空白で単語に切る（Haskell の lines・words と同じ）
+  [ prim1 "lines" (tString ~> tList tString) (cutWith T.lines)
+  , prim1 "words" (tString ~> tList tString) (cutWith T.words)
+  -- "é" and "λ" are letters, "1" and "," are not. A string of many
+  -- letters is a letter only when all of them are (and "" is not).
+  -- "é" も "λ" も文字。"1" や "," はちがう。何文字かの文字列は、全部が
+  -- 文字のときだけ（"" はちがう）
+  , prim1 "String.isLetter" (tString ~> TBool) $ \v -> do
+      t <- string v
+      Right (VBool (not (T.null t) && T.all isAlpha t))
+  -- The arguments are strings: "42" and "-7" give Just, "4x" and ""
+  -- give Nothing (Elm's String.toInt).
+  -- 引数は文字列。"42" と "-7" は Just、"4x" と "" は Nothing
+  , prim1 "String.toInt" (tString ~> tMaybe TInt) $ \v -> do
+      t <- string v
+      let digits = fromMaybe t (T.stripPrefix "-" t)
+          sign   = if T.length digits < T.length t then negate else id
+      Right $ maybeValue $
+        if not (T.null digits) && T.all isDigit digits
+          then Just (VInt (sign (read (T.unpack digits))))
+          else Nothing
+  ]
+  where
+    cutWith f v = VList . map VString . f <$> string v
+-- ANCHOR_END: wordTable
+
 -- ANCHOR: mapTable
--- 🗺️ Maps from strings. Each name starts with Map., like Haskell's
---    qualified import (import qualified Data.Map as Map).
--- 文字列をキーにした Map。名前は、Haskell の qualified な import と
--- 同じく、Map. で始める
+-- 🗺️ Maps. Each name starts with Map., like Haskell's qualified import
+--    (import qualified Data.Map as Map). A key may be of any
+--    Comparable type k. Only the functions that compare keys say so,
+--    as in Haskell:  KeyComparable k => k -> v -> Map k v -> Map k v
+--    (KeyComparable: the Comparable types, compared so that NaN is
+--    found again)
+-- Map。名前は、Haskell の qualified な import と同じく、Map. で始める。
+-- キーは、Comparable な型 k なら何でもよい。Haskell と同じく、キーを
+-- 比べる関数だけが KeyComparable k を求める（KeyComparable：仲間は
+-- Comparable と同じ。NaN も引けるように比べる）
 mapBuiltins :: [Builtin]
 mapBuiltins =
-  [ Builtin "Map.empty" (closeOver (tMap a)) (VMap Map.empty)
-  , prim3 "Map.insert" (tString ~> a ~> tMap a ~> tMap a) $ \k v m -> do
-      key <- string k
-      VMap . Map.insert key v <$> mapOf m
-  , prim2 "Map.lookup" (tString ~> tMap a ~> tMaybe a) $ \k m -> do
-      key <- string k
-      found <- Map.lookup key <$> mapOf m
-      Right $ case found of
-        Just v  -> con "Just" [v]
-        Nothing -> con "Nothing" []
-  , prim2 "Map.delete" (tString ~> tMap a ~> tMap a) $ \k m -> do
-      key <- string k
-      VMap . Map.delete key <$> mapOf m
-  , prim2 "Map.member" (tString ~> tMap a ~> TBool) $ \k m -> do
-      key <- string k
-      VBool . Map.member key <$> mapOf m
-  , prim1 "Map.size" (tMap a ~> TInt) $ \m ->
+  [ Builtin "Map.empty" (closeOver (tMap k v)) (VMap Map.empty)
+  , keyed $ prim3 "Map.insert" (k ~> v ~> tMap k v ~> tMap k v) $ \key x m ->
+      VMap . Map.insert (Key key) x <$> mapOf m
+  , keyed $ prim2 "Map.lookup" (k ~> tMap k v ~> tMaybe v) $ \key m -> do
+      found <- Map.lookup (Key key) <$> mapOf m
+      Right (maybeValue found)
+  , keyed $ prim2 "Map.delete" (k ~> tMap k v ~> tMap k v) $ \key m ->
+      VMap . Map.delete (Key key) <$> mapOf m
+  , keyed $ prim2 "Map.member" (k ~> tMap k v ~> TBool) $ \key m ->
+      VBool . Map.member (Key key) <$> mapOf m
+  , prim1 "Map.size" (tMap k v ~> TInt) $ \m ->
       VInt . fromIntegral . Map.size <$> mapOf m
-  , prim1 "Map.toList" (tMap a ~> tList (tTuple [tString, a])) $ \m -> do
+  , prim1 "Map.toList" (tMap k v ~> tList (tTuple [k, v])) $ \m -> do
       kvs <- Map.toList <$> mapOf m
-      Right (VList [ VTuple [VString k, v] | (k, v) <- kvs ])
-  , prim1 "Map.fromList" (tList (tTuple [tString, a]) ~> tMap a) $ \v -> do
-      kvs <- list v >>= traverse keyValue
-      Right (VMap (Map.fromList kvs))
-  , prim1 "Map.keys" (tMap a ~> tList tString) $ \m ->
-      VList . map VString . Map.keys <$> mapOf m
-  , prim1 "Map.values" (tMap a ~> tList a) $ \m ->
+      Right (VList [ VTuple [key, x] | (Key key, x) <- kvs ])
+  , keyed $ prim1 "Map.fromList" (tList (tTuple [k, v]) ~> tMap k v) $
+      \pairs -> do
+        kvs <- list pairs >>= traverse keyValue
+        Right (VMap (Map.fromList kvs))
+  , prim1 "Map.keys" (tMap k v ~> tList k) $ \m ->
+      VList . map (\(Key key) -> key) . Map.keys <$> mapOf m
+  , prim1 "Map.values" (tMap k v ~> tList v) $ \m ->
       VList . Map.elems <$> mapOf m
+  , keyed $ prim2 "Map.union" (tMap k v ~> tMap k v ~> tMap k v) $ \m1 m2 ->
+      VMap <$> (Map.union <$> mapOf m1 <*> mapOf m2)
+  ]
+  where
+    k = TVar 0
+    v = TVar 1
+    keyed = requiring [(KeyComparable, 0)]
+    keyValue pair = case pair of
+      VTuple [key, x] -> Right (Key key, x)
+      _               -> wrong "a pair"
+-- ANCHOR_END: mapTable
+
+-- ANCHOR: setTable
+-- 🧺 Sets: each value once, kept in order.
+-- Set：どの値も1つずつ、順に並べて持つ
+setBuiltins :: [Builtin]
+setBuiltins =
+  [ Builtin "Set.empty" (closeOver (tSet a)) (VSet Set.empty)
+  , keyed $ prim1 "Set.fromList" (tList a ~> tSet a) $ \xs ->
+      VSet . Set.fromList . map Key <$> list xs
+  , prim1 "Set.toList" (tSet a ~> tList a) $ \s ->
+      VList . map (\(Key x) -> x) . Set.toList <$> setOf s
+  , keyed $ prim2 "Set.insert" (a ~> tSet a ~> tSet a) $ \x s ->
+      VSet . Set.insert (Key x) <$> setOf s
+  , keyed $ prim2 "Set.delete" (a ~> tSet a ~> tSet a) $ \x s ->
+      VSet . Set.delete (Key x) <$> setOf s
+  , keyed $ prim2 "Set.member" (a ~> tSet a ~> TBool) $ \x s ->
+      VBool . Set.member (Key x) <$> setOf s
+  , prim1 "Set.size" (tSet a ~> TInt) $ \s ->
+      VInt . fromIntegral . Set.size <$> setOf s
+  , keyed $ setOp "Set.union" Set.union
+  , keyed $ setOp "Set.intersection" Set.intersection
+  , keyed $ setOp "Set.difference" Set.difference
   ]
   where
     a = TVar 0
-    tMaybe t = TCon "Maybe" [t]
-    keyValue v = case v of
-      VTuple [k, x] -> do
-        key <- string k
-        Right (key, x)
-      _ -> wrong "a pair"
--- ANCHOR_END: mapTable
+    keyed = requiring [(KeyComparable, 0)]
+    setOp n f = prim2 n (tSet a ~> tSet a ~> tSet a) $ \s1 s2 ->
+      VSet <$> (f <$> setOf s1 <*> setOf s2)
+-- ANCHOR_END: setTable
 
 -- ANCHOR: preludeCons
 -- 🧱 The constructors of the prelude that the builtins make, with
@@ -156,7 +229,16 @@ preludeConstructors =
   , ("Ok", 0), ("Err", 1)                        -- Result e a
   , ("JNull", 0), ("JBool", 1), ("JInt", 2), ("JDec", 3)
   , ("JStr", 4), ("JArr", 5), ("JObj", 6)       -- Json
-  , ("Match", 0) ]                               -- Match
+  -- ANCHOR: filesCons
+  , ("Time", 0), ("Zone", 0)                     -- Time.Time, Time.Zone
+  , ("CannotStart", 0), ("Failed", 1)
+  , ("Succeeded", 2)                             -- Process.Outcome
+  -- ANCHOR_END: filesCons
+  -- ANCHOR: bytesCons
+  , ("Strict", 0), ("Replace", 1), ("Ignore", 2) -- Bytes.Decoding
+  , ("Handle", 0)                                -- File.Handle
+  , ("Hasher", 0) ]                              -- Hash.Hasher
+  -- ANCHOR_END: bytesCons
 
 -- 🧱 con "Just" [v] is the value Just v.
 -- con "Just" [v] は、値 Just v
@@ -164,6 +246,16 @@ con :: Name -> [Value] -> Value
 con c args = case lookup c preludeConstructors of
   Just i  -> VCon c i args
   Nothing -> error ("not a constructor of the prelude: " <> T.unpack c)
+
+-- 🧱 Haskell's Maybe, as Lam's Maybe, and its type.
+-- Haskell の Maybe を Lam の Maybe に。その型も
+maybeValue :: Maybe Value -> Value
+maybeValue m = case m of
+  Just x  -> con "Just" [x]
+  Nothing -> con "Nothing" []
+
+tMaybe :: Type -> Type
+tMaybe t = TCon "Maybe" [t]
 -- ANCHOR_END: preludeCons
 
 -- ANCHOR: helpers
@@ -216,10 +308,15 @@ list v = case v of
   VList xs -> Right xs
   _        -> wrong "a list"
 
-mapOf :: Value -> Either EvalError (Map Text Value)
+mapOf :: Value -> Either EvalError (Map Key Value)
 mapOf v = case v of
   VMap m -> Right m
   _      -> wrong "a map"
+
+setOf :: Value -> Either EvalError (Set Key)
+setOf v = case v of
+  VSet s -> Right s
+  _      -> wrong "a set"
 
 onString :: (Text -> Text) -> Value -> Either EvalError Value
 onString f v = VString . f <$> string v

@@ -1,0 +1,96 @@
+cabal-version: 3.0
+name:          miniregex
+version:       0.1.0.0
+build-type:    Simple
+
+-- 総合演習：PCRE2 互換の正規表現エンジンを作る
+-- （9. 自分を呼ぶ：再帰とサブルーチン）
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  MiniRegex
+                    MiniRegex.Types
+                    MiniRegex.Syntax
+                    MiniRegex.Parser
+                    MiniRegex.Pretty
+                    MiniRegex.Groups
+                    MiniRegex.Width
+                    MiniRegex.Cursor
+                    MiniRegex.Caps
+                    MiniRegex.Unicode
+                    MiniRegex.Rules
+                    MiniRegex.Candidates
+                    MiniRegex.Continuation
+                    MiniRegex.Program
+                    MiniRegex.Compile
+                    MiniRegex.VM
+                    MiniRegex.Stack
+                    MiniRegex.STVM
+                    MiniRegex.Engine
+                    MiniRegex.Template
+                    MiniRegex.Examples
+                    MiniRegex.Compat
+                    RegexAnswers
+  hs-source-dirs:   src answers
+  -- The parser, and the names of the groups it has read
+  -- パーサーと、読んだグループの名前の記録
+  build-depends:
+    , megaparsec       ^>=9.8
+    , containers       ^>=0.8
+    , mtl              ^>=2.3
+    -- The program of the VM: an array of instructions
+    -- VM のプログラム：命令の配列
+    , array            ^>=0.5
+    -- The VM with ST: mutable arrays
+    -- ST の VM：書き換えられる配列
+    , vector           ^>=0.13
+    -- The scripts of Unicode 17, the same version as PCRE2 10.49's
+    -- Unicode 17 の文字体系（PCRE2 10.49 と同じ版）
+    , unicode-data-scripts ^>=0.6
+    -- To see Japanese in GHCi (uprint)
+    -- GHCi で日本語を見るため（uprint）
+    , unicode-show     ^>=0.1
+
+-- The compatibility meter: how many of PCRE2's tests pass.
+-- 互換度メーター：PCRE2 のテストのうち、いくつ通るか
+executable compat-meter
+  import:           shared
+  main-is:          Meter.hs
+  hs-source-dirs:   app
+  build-depends:
+    , miniregex
+    , containers       ^>=0.8
+
+test-suite miniregex-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , miniregex
+    , containers       ^>=0.8
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19
+    -- The real PCRE2, to compare with (the C library comes inside)
+    -- くらべる相手の本物の PCRE2（C のライブラリが中に入っている）
+    , pcre2            ^>=2.3
+
+-- Measure the continuation matcher against the VM.
+-- 継続のマッチャーと VM を測りくらべる
+benchmark miniregex-bench
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Bench.hs
+  hs-source-dirs:   bench
+  ghc-options:      -O1
+  build-depends:
+    , miniregex
+    , tasty-bench      ^>=0.5

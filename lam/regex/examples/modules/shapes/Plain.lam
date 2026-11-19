@@ -1,0 +1,13 @@
+-- ANCHOR: all
+-- 🔷 Shapes in f"...", as show shows them: Circle 2.
+-- f"..." の図形を、show と同じ形で
+module Plain exposing (..)
+
+import Shapes
+
+instance Display Shape
+
+-- A shape and its area, in a line.
+-- 図形と面積を1行に
+label s = f"{s}: {Shapes.area s}"
+-- ANCHOR_END: all

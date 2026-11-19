@@ -1,0 +1,30 @@
+-- ANCHOR: all
+-- Step 1 of the training: read the lines of a settings file into a
+-- map, with named groups. Comments (#) and empty lines are skipped.
+-- トレーニングのステップ1：設定ファイルの行を、名前付きのグループで
+-- 読んで Map にする。コメント（#）と空の行は飛ばす
+
+settings : [String]
+settings =
+  [ "# the settings of the shop"
+  , "name = Lam Shop"
+  , "  open=9"
+  , ""
+  , "close   =  18  " ]
+
+-- key = value, with any spaces around the = and at both ends.
+-- 「キー = 値」。= のまわりと両端の空白は、いくつでもよい
+setting : Regex
+setting = m/^\s*(?<key>\w+)\s*=\s*(?<value>.*?)\s*$/
+
+add : Map String String -> String -> Map String String
+add found line =
+  case Regex.find setting line of
+    | Nothing -> found
+    | Just m ->
+        case (Regex.named "key" m, Regex.named "value" m) of
+          | (Just k, Just v) -> Map.insert k v found
+          | _ -> found
+
+foldl add Map.empty settings
+-- ANCHOR_END: all

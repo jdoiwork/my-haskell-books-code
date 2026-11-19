@@ -239,6 +239,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | まわりを見る：先読み・後読み・アトミックグループ | [`miniregex/lookaround/`](miniregex/lookaround/)、[`miniregex/unicode/`](miniregex/unicode/)、[`langs/regex-lookaround/`](langs/regex-lookaround/)、[`langs/cargo/`](langs/cargo/) |
 | 命令の列にコンパイルする：バックトラックの VM | [`miniregex/vm/`](miniregex/vm/)、[`miniregex/lookaround/`](miniregex/lookaround/)、[`langs/regex-vm/`](langs/regex-vm/) |
 | 書き換えて速くする：ST で VM を書き直す | [`miniregex/vm-st/`](miniregex/vm-st/)、[`miniregex/vm/`](miniregex/vm/)、[`langs/cargo/`](langs/cargo/) |
+| 自分を呼ぶ：再帰とサブルーチン | [`miniregex/recursion/`](miniregex/recursion/)、[`miniregex/vm-st/`](miniregex/vm-st/)、[`langs/regex-recursion/`](langs/regex-recursion/) |
 
 ### 第14部 Lam を育てる：言語の機能
 
@@ -264,7 +265,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/errors/`](lam/errors/)、[`langs/interp-script/`](langs/interp-script/) |
 | ファイルとコマンドと時計：スクリプトの道具 | [`lam/files/`](lam/files/)、[`lam/script/`](lam/script/)、[`langs/interp-files/`](langs/interp-files/) |
 | 大きいファイルとバイト列：1行ずつ読む・ハッシュ・base64 | [`lam/streams/`](lam/streams/)、[`lam/files/`](lam/files/)、[`langs/interp-streams/`](langs/interp-streams/) |
-| 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/format/`](lam/format/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |
+| 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/streams/`](lam/streams/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |
 | 文字列を読み解く：パーサーを組み合わせる | [`lam/parsing/`](lam/parsing/)、[`lam/regex/`](lam/regex/)、[`langs/interp-parsing/`](langs/interp-parsing/)、[`langs/cargo/`](langs/cargo/) |
 | 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/modules/`](lam/modules/)、[`langs/interp-outside/`](langs/interp-outside/) |
 | 鍵をかける：権限のフラグと見張り | [`lam/guard/`](lam/guard/)、[`lam/outside/`](lam/outside/)、[`langs/interp-guard/`](langs/interp-guard/) |

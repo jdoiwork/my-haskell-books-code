@@ -1,0 +1,27 @@
+-- ANCHOR: all
+-- Step 3 of the training: escape, written in Lam. Every letter that
+-- means something in a regex gets a \ in front, so the regex finds
+-- the text as it is (Python's re.escape).
+-- トレーニングのステップ3：escape を Lam で書く。正規表現で意味を持つ
+-- 文字の前に \ を付けて、文字そのものを探す正規表現にする
+-- （Python の re.escape）
+
+special : [String]
+special = chars "\\^$.|?*+()[]{}"
+
+escapeChar : String -> String
+escapeChar c = if any (\s -> s == c) special then "\\" ++ c else c
+
+escape : String -> String
+escape text = join "" (map escapeChar (chars text))
+
+-- How many times does the text appear, as it is?
+-- 文字そのものが、何回出てくるか
+countText : String -> String -> Int
+countText word text =
+  case Regex.compile (escape word) of
+    | Ok r -> length (Regex.findAll r text)
+    | Err _ -> 0
+
+(escape "1+1=2?", countText "1+1" "1+1=2, 1+1+1=3, 11=11")
+-- ANCHOR_END: all

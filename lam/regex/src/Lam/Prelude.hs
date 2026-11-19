@@ -2,23 +2,258 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultilineStrings #-}
 -- ANCHOR: all
--- | The prelude: Lam's standard library, written in Lam itself.
--- プレリュード：Lam で書いた、Lam の標準ライブラリ。
+-- | The prelude: Lam's standard library, written in Lam itself, now
+--   cut into modules (Maybe, List, Result, Prelude, String, Map, Set,
+--   Float, Json, IO, Time, Path, File, Process, Random). Every file
+--   starts with the default imports.
+-- プレリュード：Lam で書いた、Lam の標準ライブラリ。いまはモジュールに
+-- 分けてある。どのファイルも、はじめの import から始まる。
 module Lam.Prelude
-  ( preludeSource
+  ( standardSources
+  , defaultImports
+  , formatNames
+  , hiddenNames
+  , buildPrelude
   , preludeSession
   ) where
 
+import Control.Monad (foldM)
+import qualified Data.Map as Map
 import Data.Text (Text)
+import qualified Data.Text as T
+import Text.Megaparsec (errorBundlePretty, eof)
 
+import Lam.Module (importInto, standardModule)
+import Lam.Parser (importLine, runLamParser, spaces, fmtName, reName)
 import Lam.Program
+import Lam.Sugar (doBind, doFinally, doPure, tryBranch)
+import Lam.Syntax
 -- ANCHOR_END: head
 
--- ANCHOR: source
--- 📚 Every REPL and every program starts with these.
--- どの REPL も、どのプログラムも、これを読みこんでから始まる
-preludeSource :: Text
-preludeSource = """
+-- ANCHOR: sources
+-- 📚 The standard modules, in the order they are made. Each one can
+--    use the ones above it (with their default imports).
+-- 標準のモジュール。作る順に並べる。どれも、上にあるものを（はじめの
+-- import の形で）使える
+standardSources :: [(Name, Text)]
+standardSources =
+  [ ("Maybe",   maybeSource)
+  , ("List",    listSource)
+  , ("Result",  resultSource)
+  , ("Prelude", basicsSource)
+  , ("String",  stringSource)
+  , ("Map",     mapSource)
+  , ("Set",     setSource)
+  , ("Float",   floatSource)
+  , ("Json",    jsonSource)
+  , ("IO",      ioSource)
+  -- ANCHOR: filesSources
+  , ("Time",    timeSource)
+  , ("Path",    pathSource)
+  -- ANCHOR_END: filesSources
+  -- ANCHOR: streamsSources
+  , ("Bytes",   bytesSource)
+  -- ANCHOR_END: streamsSources
+  , ("File",    fileSource)
+  , ("Process", processSource)
+  , ("Random",  randomSource)
+  -- ANCHOR: streamsSourcesAfter
+  , ("Hash",    hashSource)
+  , ("Base64",  base64Source)
+  , ("Uuid",    uuidSource)
+  -- ANCHOR_END: streamsSourcesAfter
+  -- ANCHOR: regexSources
+  , ("Regex",   regexSource) ]
+  -- ANCHOR_END: regexSources
+-- ANCHOR_END: sources
+
+-- ANCHOR: defaultImports
+-- 📥 What every file has before its first line, one line for each
+--    standard module. A file writes its own import only for another
+--    name (as) or more names without the module (the list in
+--    parentheses).
+-- どのファイルにも、1行目の前にあるもの（標準のモジュールごとに1行）。
+-- 自分で import を書くのは、別の名前（as）や、モジュールの名前なしで
+-- 使う名前（かっこの一覧）がほしいときだけ
+defaultImports :: Name -> Text
+defaultImports m = case m of
+  "Maybe"   -> "import Maybe (Maybe (..))"
+  "Result"  -> "import Result (Result (..))"
+  "Prelude" -> "import Prelude (..)"
+  "Json"    -> "import Json (Json (..))"
+  -- ANCHOR: importIO
+  "IO"      -> "import IO (putStr, putStrLn, getLine, readFile, writeFile, "
+                 <> "getArgs, lookupEnv, getEnvironment, getContents, "
+                 <> "ePutStr, ePutStrLn, exit)"
+  -- ANCHOR_END: importIO
+  -- ANCHOR: importFiles
+  "Time"    -> "import Time (Time, Zone)"
+  "File"    -> "import File (FileInfo, Handle)"
+  "Process" -> "import Process (Outcome (..))"
+  -- ANCHOR_END: importFiles
+  -- ANCHOR: importBytes
+  "Bytes"   -> "import Bytes (Decoding (..))"
+  "Hash"    -> "import Hash (Hasher)"
+  -- ANCHOR_END: importBytes
+  -- ANCHOR: importRegex
+  "Regex"   -> "import Regex (Match)"
+  -- ANCHOR_END: importRegex
+  _         -> "import " <> m
+-- ANCHOR_END: defaultImports
+
+-- ANCHOR: maybe
+maybeSource :: Text
+maybeSource = """
+  module Maybe exposing (Maybe (..), map, bind, andThen)
+
+  -- A value that may be missing
+  -- ないかもしれない値
+  data Maybe a = Nothing | Just a
+
+  -- Go on with a value that may be missing
+  -- ないかもしれない値で、続きを計算する
+  let map f m =
+    case m of
+      | Nothing -> Nothing
+      | Just x -> Just (f x)
+  -- bind takes the value first (like >>= of Haskell); andThen is
+  -- the same with the function first (like Elm).
+  -- bind は値が先（Haskell の >>= と同じ）。andThen は、同じものの
+  -- 関数が先の形（Elm と同じ）
+  let bind m f =
+    case m of
+      | Nothing -> Nothing
+      | Just x -> f x
+  let andThen f m = bind m f
+  """
+-- ANCHOR_END: maybe
+
+-- ANCHOR: list
+listSource :: Text
+listSource = """
+  module List exposing (..)
+
+  -- ANCHOR: listBasics
+  -- Lists, taken apart with case. These are for lists only; outside,
+  -- their names start with  The classes of the Prelude make the
+  -- same names work on other containers too.
+  -- リスト。case で分ける。リストだけのもので、外からは名前が  で
+  -- 始まる。Prelude のクラスが、同じ名前をほかの入れ物にも効くようにする
+  let foldr f z xs =
+    case xs of
+      | [] -> z
+      | x : rest -> f x (foldr f z rest)
+  let foldl f z xs =
+    case xs of
+      | [] -> z
+      | x : rest -> foldl f (f z x) rest
+  let map f xs = foldr (\\x rest -> f x : rest) [] xs
+  let reverse xs = foldl (\\acc x -> x : acc) [] xs
+  let take n xs =
+    if n < 1 then [] else
+      case xs of
+        | [] -> []
+        | x : rest -> x : take (n - 1) rest
+  let drop n xs =
+    if n < 1 then xs else
+      case xs of
+        | [] -> []
+        | _ : rest -> drop (n - 1) rest
+  -- ANCHOR_END: listBasics
+  -- ANCHOR: listFolds
+  let null xs = case xs of | [] -> true | _ -> false
+  -- || and && stop early: any stops at the first item that passes.
+  -- || と && は打ち切るので、any は最初に合ったところで止まる
+  let any p xs =
+    case xs of
+      | [] -> false
+      | x : rest -> p x || any p rest
+  let all p xs =
+    case xs of
+      | [] -> true
+      | x : rest -> p x && all p rest
+  let sum xs = foldl (\\total x -> total + x) 0 xs
+  let product xs = foldl (\\total x -> total * x) 1 xs
+  -- An empty list has no biggest item: Nothing.
+  -- 空のリストには、いちばん大きいものがない：Nothing
+  let maximum xs =
+    case xs of
+      | [] -> Nothing
+      | x : rest -> Just (foldl (\\m y -> if y > m then y else m) x rest)
+  let minimum xs =
+    case xs of
+      | [] -> Nothing
+      | x : rest -> Just (foldl (\\m y -> if y < m then y else m) x rest)
+  let find p xs =
+    case xs of
+      | [] -> Nothing
+      | x : rest -> if p x then Just x else find p rest
+  -- ANCHOR_END: listFolds
+
+  -- ANCHOR: listSort
+  -- Merge sort: two sorted lists into one, then the whole list.
+  -- マージソート：並んだ2つのリストを1つに、それからリスト全体を
+  let merge before xs ys =
+    case (xs, ys) of
+      | ([], _) -> ys
+      | (_, []) -> xs
+      | (x : xr, y : yr) ->
+          if before y x then y : merge before xs yr
+          else x : merge before xr ys
+  let sortBy before xs =
+    if length xs < 2 then xs else
+      let half = length xs // 2 in
+      merge before (sortBy before (take half xs))
+        (sortBy before (drop half xs))
+  -- ANCHOR_END: listSort
+  """
+-- ANCHOR_END: list
+
+-- ANCHOR: result
+resultSource :: Text
+resultSource = """
+  module Result exposing
+    (Result (..), map, bind, andThen, fromMaybe, mapError)
+
+  -- A result that may be an error
+  -- エラーかもしれない結果
+  data Result e a = Ok a | Err e
+
+  -- ANCHOR: resultMore
+  -- The same three as Maybe: an Err goes on to the end as it is.
+  -- Maybe と同じ3つ。Err は、そのまま最後まで運ばれる
+  let map f r =
+    case r of
+      | Ok x -> Ok (f x)
+      | Err e -> Err e
+  let bind r f =
+    case r of
+      | Ok x -> f x
+      | Err e -> Err e
+  let andThen f r = bind r f
+  -- A Maybe as a Result: Nothing becomes Err e (as Elm's).
+  -- Maybe を Result に。Nothing は Err e になる（Elm と同じ）
+  let fromMaybe e m =
+    case m of
+      | Just x -> Ok x
+      | Nothing -> Err e
+  -- ANCHOR_END: resultMore
+  -- ANCHOR: mapError
+  -- Change the error, and leave an Ok as it is (as Elm's).
+  -- エラーのほうを変える。Ok はそのまま（Elm と同じ）
+  let mapError f r =
+    case r of
+      | Ok x -> Ok x
+      | Err e -> Err (f e)
+  -- ANCHOR_END: mapError
+  """
+-- ANCHOR_END: result
+
+-- ANCHOR: basics
+basicsSource :: Text
+basicsSource = """
+  module Prelude exposing (..)
+
   -- Functions about functions
   -- 関数についての関数
   let id x = x
@@ -37,112 +272,356 @@ preludeSource = """
   -- 数
   let max a b = if a < b then b else a
   let min a b = if a < b then a else b
-  let abs n = if n < 0 then 0 - n else n
-  let mod a b = a - a / b * b
+  let abs n = if n < 0 then -n else n
+  let mod a b = a - a // b * b
   let even n = mod n 2 == 0
   let pow b e = if e == 0 then 1 else b * pow b (e - 1)
   let gcd a b = if b == 0 then a else gcd b (mod a b)
 
-  -- Lists, taken apart with case
-  -- リスト。case で分ける
-  let foldr f z xs =
-    case xs of
-      | [] -> z
-      | x : rest -> f x (foldr f z rest)
-  let foldl f z xs =
-    case xs of
-      | [] -> z
-      | x : rest -> foldl f (f z x) rest
-  let map f xs = foldr (\\x rest -> f x : rest) [] xs
-  let filter p xs =
-    foldr (\\x rest -> if p x then x : rest else rest) [] xs
-  let sum xs = foldl (\\total x -> total + x) 0 xs
-  let reverse xs = foldl (\\acc x -> x : acc) [] xs
-  let range a b = if a > b then [] else a : range (a + 1) b
-  let drop n xs =
-    if n < 1 then xs
-    else case xs of
-      | [] -> []
-      | _ : rest -> drop (n - 1) rest
+  -- ANCHOR: foldable
+  -- 📦 Foldable: a container whose items can be folded, one by one.
+  --    The same class as Haskell's: f is a type with a hole (List,
+  --    Maybe, Map k, Set), and f a holds the items of type a.
+  -- Foldable：中身を1つずつたためる入れ物。Haskell と同じクラス。
+  -- f は穴のある型（List、Maybe、Map k、Set）で、f a が a の中身を持つ
+  class Foldable f where
+    foldr : (a -> b -> b) -> b -> f a -> b
+    toList : f a -> [a]
+    toList t = foldr (\\x xs -> x : xs) [] t
 
-  -- A value that may be missing, and a result that may be an error
-  -- ないかもしれない値と、エラーかもしれない結果
-  data Maybe a = Nothing | Just a
-  data Result e a = Ok a | Err e
+  instance Foldable List where
+    foldr f z xs = List.foldr f z xs
+    toList xs = xs
+
+  instance Foldable Maybe where
+    foldr f z m =
+      case m of
+        | Nothing -> z
+        | Just x -> f x z
+
+  -- A map folds its values, in the order of the keys (like Haskell).
+  -- Map は、値をキーの順にたたむ（Haskell と同じ）
+  instance Foldable (Map k) where
+    foldr f z m = List.foldr f z (Map.values m)
+    toList m = Map.values m
+
+  instance Foldable Set where
+    foldr f z s = List.foldr f z (Set.toList s)
+    toList s = Set.toList s
+  -- ANCHOR_END: foldable
+
+  -- ANCHOR: foldableTools
+  -- Any container: make it a list with toList, then ask the list
+  -- versions above.  sum (Just 3) is 3, and maximum m is the biggest
+  -- value of a map.
+  -- どんな入れ物でも、toList でリストにしてから、上のリストの版に頼む
+  let foldl f z t = List.foldl f z (toList t)
+  let null t = List.null (toList t)
+  let any p t = List.any p (toList t)
+  let all p t = List.all p (toList t)
+  let elem y t = List.any (\\x -> x == y) (toList t)
+  let sum t = List.sum (toList t)
+  let product t = List.product (toList t)
+  let maximum t = List.maximum (toList t)
+  let minimum t = List.minimum (toList t)
+  let find p t = List.find p (toList t)
+  let concatMap f t = List.foldr (\\x rest -> f x ++ rest) [] (toList t)
+  -- ANCHOR_END: foldableTools
+
+  -- ANCHOR: functor
+  -- 🎁 Functor: map changes each item, and keeps the shape of the
+  --    container (the keys of a map, the Err of a Result).
+  -- Functor：map は中身を1つずつ変え、入れ物の形はそのまま（Map の
+  -- キー、Result の Err）
+  class Functor f where
+    map : (a -> b) -> f a -> f b
+
+  instance Functor List where
+    map f xs = List.map f xs
+
+  instance Functor Maybe where
+    map f m =
+      case m of
+        | Nothing -> Nothing
+        | Just x -> Just (f x)
+
+  instance Functor (Result e) where
+    map f r =
+      case r of
+        | Ok x -> Ok (f x)
+        | Err e -> Err e
+
+  instance Functor (Map k) where
+    map f m = Map.map f m
+  -- ANCHOR_END: functor
+
+  -- ANCHOR: monad
+  -- 🔗 Monad: pure puts a value in, with nothing else; bind takes the
+  --    value out, and gives it to what comes next. A do is opened
+  --    into bind, so a do works for each of these.
+  -- Monad：pure は値を、ほかに何もせずに入れる。bind は値を取り出し、
+  -- 続きに渡す。do は bind に開くので、どの仲間にも do が使える
+  class Functor m => Monad m where
+    pure : a -> m a
+    bind : m a -> (a -> m b) -> m b
+
+  instance Monad Maybe where
+    pure x = Just x
+    bind m f = Maybe.bind m f
+
+  instance Monad (Result e) where
+    pure x = Ok x
+    bind r f = Result.bind r f
+
+  -- Each item, then each of its answers, in order.
+  -- 項目ごとに、その答えを全部、順に
+  instance Monad List where
+    pure x = [x]
+    bind xs f = concatMap f xs
+  -- ANCHOR_END: monad
+
+  -- ANCHOR: forEach
+  -- 🔁 Do f for each item, one after another, and give (). The list
+  --    comes first, as Haskell's forM_.
+  -- 項目ごとに f を、順にやる。答えは ()。Haskell の forM_ と同じく、
+  -- リストが先
+  let forEach xs f =
+    case xs of
+      | [] -> pure ()
+      | x : rest -> bind (f x) (\\_ -> forEach rest f)
+
+  -- 🔁 The same, but keep the answers, in a list in the monad. For
+  --    Maybe, one Nothing makes it all Nothing (Haskell's mapM).
+  -- 同じだが、答えをモナドの中のリストにして残す。Maybe なら、1つでも
+  -- Nothing なら全体が Nothing（Haskell の mapM）
+  let mapM f xs =
+    case xs of
+      | [] -> pure []
+      | x : rest ->
+          bind (f x) (\\y -> bind (mapM f rest) (\\ys -> pure (y : ys)))
+  -- ANCHOR_END: forEach
+
+  -- ANCHOR: fallible
+  -- 🛟 Fallible: a container that may be missing its value. toMaybe
+  --    says what is inside, as a Maybe. m ?: d asks it: the value
+  --    inside, or d (computed only then).
+  -- Fallible：値がないかもしれない入れ物。toMaybe は、中にあるものを
+  -- Maybe で言う。m ?: d はそれに聞く：中の値か、なければ d（そのとき
+  -- だけ計算する）
+  class Fallible f where
+    toMaybe : f a -> Maybe a
+    -- ANCHOR: branchMethod
+    -- The value inside (Ok), or the failure, as a container of any
+    -- type b (Err): a failure has no value, so it fits any b.
+    -- 中の値（Ok）か、失敗を、どんな型 b の入れ物にもして（Err）。
+    -- 失敗には値がないので、どの b にも合う
+    branch : f a -> Result (f b) a
+    -- ANCHOR_END: branchMethod
+
+  instance Fallible Maybe where
+    toMaybe m = m
+    branch m =
+      case m of
+        | Just x -> Ok x
+        | Nothing -> Err Nothing
+
+  instance Fallible (Result e) where
+    toMaybe r =
+      case r of
+        | Ok x -> Just x
+        | Err _ -> Nothing
+    branch r =
+      case r of
+        | Ok x -> Ok x
+        | Err e -> Err (Err e)
+  -- ANCHOR_END: fallible
+
+  -- ANCHOR: sequence
+  -- 🔤 Sequence: the same names for a string and a list. A string has
+  --    no hole (it holds letters, not any a), so this class is about s
+  --    itself, like Describe. slice is a default made of the others:
+  --    from "from" up to (not with) "to"; a negative number counts
+  --    from the end, as in Python.  slice 1 (-1) "Lam!" is "am".
+  -- Sequence：文字列にもリストにも、同じ名前で。文字列には穴がない
+  -- （どんな a でもなく文字を持つ）ので、Describe と同じく s そのものの
+  -- クラス。slice はほかのメソッドで作る既定のメソッド。from から to の
+  -- 手前まで。負の数は後ろから数える（Python と同じ）
+  class HasLength s => Sequence s where
+    reverse : s -> s
+    take : Int -> s -> s
+    drop : Int -> s -> s
+    slice : Int -> Int -> s -> s
+    slice from to s =
+      let n = length s in
+      let place k = max 0 (min n (if k < 0 then n + k else k)) in
+      drop (place from) (take (place to) s)
+
+  instance Sequence String where
+    reverse s = String.reverse s
+    take n s = String.take n s
+    drop n s = String.drop n s
+
+  instance Sequence [a] where
+    reverse xs = List.reverse xs
+    take n xs = List.take n xs
+    drop n xs = List.drop n xs
+  -- ANCHOR_END: sequence
+
+  -- ANCHOR: lists
+  -- Lists only
+  -- リストだけのもの
+  let filter p xs =
+    List.foldr (\\x rest -> if p x then x : rest else rest) [] xs
+  let range a b = if a > b then [] else a : range (a + 1) b
+  let concat xss = List.foldr (\\xs rest -> xs ++ rest) [] xss
+  let replicate n x = if n < 1 then [] else x : replicate (n - 1) x
+  -- Pairs, side by side; the longer list is cut:
+  --   zip [1, 2, 3] ["a", "b"] is [(1, "a"), (2, "b")]
+  -- 2つのリストを並べて組にする。長いほうは切る
+  let zipWith f xs ys =
+    case (xs, ys) of
+      | (x : xr, y : yr) -> f x y : zipWith f xr yr
+      | _ -> []
+  let zip xs ys = zipWith (\\x y -> (x, y)) xs ys
+  let unzip pairs = (List.map fst pairs, List.map snd pairs)
+  -- Each item with its number, from 0 (Python's enumerate)
+  -- 1つずつに、0 からの番号を付ける（Python の enumerate）
+  let indexed xs = zip (range 0 (length xs - 1)) xs
+  -- The items that pass, and those that do not
+  -- 合うものと、合わないもの
+  let partition p xs = (filter p xs, filter (\\x -> not (p x)) xs)
+  -- Each item once, in the order they first came
+  -- 同じものは1つだけ。最初に出てきた順
+  let unique xs =
+    List.foldl (\\seen x -> if elem x seen then seen else seen ++ [x])
+      [] xs
+  -- ANCHOR_END: lists
+
+  -- ANCHOR: sort
+  -- Sort by a key, the smallest first (List.sortBy, a merge sort). Two
+  -- items with the same key keep their order.
+  --   sortOn negate [3, 1, 2] is [3, 2, 1].
+  -- キーで並べる。小さいものから（List.sortBy、マージソート）。同じキーの
+  -- 2つは、元の順のまま
+  let sortOn key xs = List.sortBy (\\a b -> key a < key b) xs
+  let sort xs = sortOn id xs
+  -- ANCHOR_END: sort
 
   let fromMaybe d m =
     case m of
       | Nothing -> d
       | Just x -> x
-  let find p xs =
-    case xs of
-      | [] -> Nothing
-      | x : rest -> if p x then Just x else find p rest
   let lookup k pairs =
     case pairs of
       | [] -> Nothing
       | (k2, v) : rest -> if k == k2 then Just v else lookup k rest
 
-  -- ANCHOR: maybeMore
-  -- Go on with a value that may be missing
-  -- ないかもしれない値で、続きを計算する
-  let Maybe.map f m =
-    case m of
-      | Nothing -> Nothing
-      | Just x -> Just (f x)
-  -- bind takes the value first (like >>= of Haskell); andThen is
-  -- the same with the function first (like Elm).
-  -- bind は値が先（Haskell の >>= と同じ）。andThen は、同じものの
-  -- 関数が先の形（Elm と同じ）
-  let Maybe.bind m f =
-    case m of
-      | Nothing -> Nothing
-      | Just x -> f x
-  let Maybe.andThen f m = Maybe.bind m f
-  -- ANCHOR_END: maybeMore
+  -- ANCHOR: display
+  -- 🖨️ Display: a value as text for people. {x} of f"..." calls it.
+  --    Any type in Showable can join with one line (instance Display
+  --    Money), and then it is shown as show shows it. A type can say
+  --    how it wants to be shown, too: a string without its quotes,
+  --    and JSON as JSON
+  --    (in the module Json).
+  -- Display：人に見せる文字。f"..." の {x} が呼ぶ。Showable の型なら、
+  -- 1行（instance Display Money）で入れて、show と同じ形で見せる。
+  -- 見せ方を自分で決めてもよい：文字列は引用符なしに、JSON は JSON に
+  -- （モジュール Json で）
+  class Showable a => Display a where
+    display : a -> String
+    display x = show x
 
-  -- ANCHOR: resultMore
-  -- Go on with a result that may be an error
-  -- エラーかもしれない結果で、続きを計算する
-  let Result.map f r =
-    case r of
-      | Ok x -> Ok (f x)
-      | Err e -> Err e
-  let Result.bind r f =
-    case r of
-      | Ok x -> f x
-      | Err e -> Err e
-  let Result.andThen f r = Result.bind r f
-  -- ANCHOR_END: resultMore
+  instance Display Int
+  instance Display Float
+  instance Display Bool
+  instance Display String where
+    display s = s
+  instance Showable a => Display [a]
+  instance (Showable a, Showable b) => Display (a, b)
+  instance Showable a => Display (Maybe a)
+  instance (Showable e, Showable a) => Display (Result e a)
+  instance (Showable k, Showable v) => Display (Map k v)
+  instance Showable a => Display (Set a)
+  -- ANCHOR_END: display
+  """
+-- ANCHOR_END: basics
 
-  -- ANCHOR: ioAndThen
-  -- bind for IO, with the function first, like Result.andThen.
-  -- IO の bind の、関数が先の形。Result.andThen と同じ
-  let IO.andThen f m = bind m f
-  -- ANCHOR_END: ioAndThen
+-- ANCHOR: string
+stringSource :: Text
+stringSource = """
+  module String exposing (..)
 
-  -- ANCHOR: forEach
-  -- Do an action for each item of a list, in order
-  -- リストの1つずつに、順に頼みごとをする
-  let forEach xs f =
-    case xs of
-      | [] -> pure ()
-      | x : rest -> do
-          f x
-          forEach rest f
-  -- ANCHOR_END: forEach
+  -- Strings: trim, split, reverse, ... are builtins (Haskell's
+  -- Data.Text does the work). Here is one made of them.
+  -- 文字列：trim・split・reverse などは組み込み（中身は Haskell の
+  -- Data.Text）。ここには、それを組み合わせたものを書く
+  let isEmpty s = s == ""
+  """
+-- ANCHOR_END: string
+
+-- ANCHOR: map
+mapSource :: Text
+mapSource = """
+  module Map exposing (..)
 
   -- ANCHOR: insertWith
-  -- Maps from strings: functions that take a function, made of the
-  -- builtins
-  -- 文字列をキーにした Map：関数を受け取る関数を、組み込みの関数から作る
-  let Map.insertWith f k v m =
-    case Map.lookup k m of
-      | Nothing -> Map.insert k v m
-      | Just old -> Map.insert k (f v old) m
-  let Map.map f m =
-    Map.fromList (map (\\kv -> (fst kv, f (snd kv))) (Map.toList m))
+  -- Maps: functions that take a function, made of the builtins
+  -- Map：関数を受け取る関数を、組み込みの関数から作る
+  let insertWith f k v m =
+    case lookup k m of
+      | Nothing -> insert k v m
+      | Just old -> insert k (f v old) m
   -- ANCHOR_END: insertWith
+
+  -- ANCHOR: mapMore
+  -- Keep the values that pass (filterWithKey also sees the key)
+  -- 合う値だけを残す（filterWithKey はキーも見る）
+  let filterWithKey p m =
+    fromList (Prelude.filter (\\(k, v) -> p k v) (toList m))
+  let filter p m = filterWithKey (\\k v -> p v) m
+  -- Change the value at k with f, which sees Nothing when k is not
+  -- there, and gives Nothing to delete it (Elm's Dict.update).
+  -- k の値を f で変える。k がなければ f は Nothing を受け取る。
+  -- f が Nothing を返せば消す（Elm の Dict.update と同じ形）
+  let update k f m =
+    case f (lookup k m) of
+      | Nothing -> delete k m
+      | Just v -> insert k v m
+  -- Go through the keys in order, with the key and the value.
+  -- キーの順に、キーと値を見ながらたたむ
+  let foldWithKey f z m =
+    List.foldr (\\(k, v) acc -> f k v acc) z (toList m)
+  -- Two maps into one; f decides when both have the key.
+  -- 2つの Map を1つに。両方にあるキーは f で決める
+  let unionWith f a b =
+    foldWithKey
+      (\\k v acc -> insertWith (\\new old -> f old new) k v acc) a b
+  -- ANCHOR_END: mapMore
+  """
+-- ANCHOR_END: map
+
+-- ANCHOR: setFloat
+-- Set and Float are all builtins: their modules show them, and that
+-- is all.
+-- Set と Float は、どれも組み込み。モジュールは、それを見せるだけ
+setSource :: Text
+setSource = """
+  module Set exposing (..)
+  """
+
+floatSource :: Text
+floatSource = """
+  module Float exposing (..)
+  """
+-- ANCHOR_END: setFloat
+
+-- ANCHOR: json
+jsonSource :: Text
+jsonSource = """
+  module Json exposing
+    ( Json (JNull, JBool, JInt, JStr, JArr, JObj)
+    , get, at, int, string, bool, array, mkDec, decimal
+    , parse, show, pretty, toFloat, fromFloat )
 
   -- ANCHOR: json
   -- JSON, as a data type. A number with a fraction is JDec:
@@ -155,65 +634,567 @@ preludeSource = """
     | JDec Int Int
     | JStr String
     | JArr [Json]
-    | JObj (Map Json)
+    | JObj (Map String Json)
   -- ANCHOR_END: json
 
   -- ANCHOR: jsonTools
   -- Take values out of JSON. Each one gives Nothing when the JSON
   -- has another shape.
   -- JSON から値を取り出す。形がちがえば、どれも Nothing
-  let Json.get k j =
+  let get k j =
     case j of
       | JObj m -> Map.lookup k m
       | _ -> Nothing
-  let Json.at path j =
+  let at path j =
     case path of
       | [] -> Just j
-      | k : rest -> Maybe.andThen (Json.at rest) (Json.get k j)
-  let Json.int j = case j of | JInt n -> Just n | _ -> Nothing
-  let Json.string j = case j of | JStr s -> Just s | _ -> Nothing
-  let Json.bool j = case j of | JBool b -> Just b | _ -> Nothing
-  let Json.array j = case j of | JArr xs -> Just xs | _ -> Nothing
+      | k : rest -> Maybe.andThen (at rest) (get k j)
+  let int j = case j of | JInt n -> Just n | _ -> Nothing
+  let string j = case j of | JStr s -> Just s | _ -> Nothing
+  let bool j = case j of | JBool b -> Just b | _ -> Nothing
+  let array j = case j of | JArr xs -> Just xs | _ -> Nothing
   -- ANCHOR_END: jsonTools
 
   -- ANCHOR: mkDec
-  -- Make a number with a fraction, in the same shape as Json.parse
+  -- Make a number with a fraction, in the same shape as parse
   -- makes it: the 0s at the end of c move into d, and a whole number
-  -- is JInt.  Json.mkDec 19990 3 is JDec 1999 2, and
-  -- Json.mkDec 1900 2 is JInt 19.
-  -- 小数を、Json.parse と同じ形で作る。c の後ろの 0 は d へ移し、
+  -- is JInt.  mkDec 19990 3 is JDec 1999 2, and
+  -- mkDec 1900 2 is JInt 19.
+  -- 小数を、parse と同じ形で作る。c の後ろの 0 は d へ移し、
   -- 整数なら JInt にする
-  let Json.mkDec c d =
+  let mkDec c d =
     if c == 0 then JInt 0
-    else if mod c 10 == 0 then Json.mkDec (c / 10) (d - 1)
-    else if d > 0 || d < 0 - 1024 then JDec c d
-    else JInt (c * pow 10 (0 - d))
+    else if mod c 10 == 0 then mkDec (c // 10) (d - 1)
+    else if d > 0 || d < -1024 then JDec c d
+    else JInt (c * pow 10 (-d))
   -- ANCHOR_END: mkDec
 
-  -- ANCHOR: match
-  -- What a regex found: the whole text, where it starts (counted in
-  -- letters, from 0), the groups (1, 2, ...), and the named groups.
-  -- A group that took no part is "".
-  -- 正規表現が見つけたもの：全体の文字、始まる場所（0 から数えた文字の
-  -- 数）、グループ（1, 2, ...）、名前付きのグループ。使われなかった
-  -- グループは ""
-  data Match = Match String Int [String] (Map String)
+  -- ANCHOR: decimal
+  -- Look inside a number with a fraction:  decimal (mkDec 1999 2)  is
+  -- Just (1999, 2). Anything else (a whole number too) is Nothing.
+  -- 小数の中を見る。ほかのもの（整数も）は Nothing
+  let decimal j = case j of | JDec c d -> Just (c, d) | _ -> Nothing
+  -- ANCHOR_END: decimal
 
-  let Match.text m = case m of | Match t _ _ _ -> t
-  let Match.start m = case m of | Match _ i _ _ -> i
-  let Match.groups m = case m of | Match _ _ gs _ -> gs
-  -- Match.group 0 is the whole text, as in Python.
-  -- 0番は全体（Python と同じ）
-  let Match.group n m =
-    if n == 0 then Just (Match.text m)
-    else case drop (n - 1) (Match.groups m) of
-      | g : _ -> Just g
-      | [] -> Nothing
-  let Match.named name m =
-    case m of | Match _ _ _ names -> Map.lookup name names
-  -- ANCHOR_END: match
+  -- ANCHOR: displayJson
+  -- JSON is shown as JSON. (Here, show is the builtin Json.show: the
+  -- builtins of Json have no Json. in front inside it.)
+  -- JSON は JSON として見せる（ここの show は、組み込みの Json.show。
+  -- Json の組み込みは、中では Json. を付けない）
+  instance Display Json where
+    display j = show j
+  -- ANCHOR_END: displayJson
   """
--- ANCHOR_END: source
+-- ANCHOR_END: json
+
+-- ANCHOR: io
+ioSource :: Text
+ioSource = """
+  module IO exposing
+    ( putStr, putStrLn, getLine, readFile, writeFile, andThen
+    , finally, bracket, try
+    , getArgs, lookupEnv, getEnvironment, getContents
+    , ePutStr, ePutStrLn, exit
+    , forEachLine, foldLines )
+
+  -- ANCHOR: monadIO
+  -- IO joins Functor and Monad with its two builtins (here, without
+  -- IO. in front: returnIO and bindIO).
+  -- IO は、2つの組み込みで Functor と Monad の仲間になる（ここでは
+  -- IO. を付けずに returnIO と bindIO）
+  instance Functor IO where
+    map f m = bindIO m (\\x -> returnIO (f x))
+
+  instance Monad IO where
+    pure x = returnIO x
+    bind m f = bindIO m f
+  -- ANCHOR_END: monadIO
+
+  -- ANCHOR: ioAndThen
+  -- The function first, as Maybe.andThen:  m |> IO.andThen f
+  -- 関数が先。Maybe.andThen と同じ
+  andThen : (a -> IO b) -> IO a -> IO b
+  andThen f m = bind m f
+  -- ANCHOR_END: ioAndThen
+
+  -- ANCHOR: bracket
+  -- 🧹 Get a thing, use it, and give it back: the giving back is
+  --    done even when the use stops (as Haskell's bracket). use r is
+  --    made only when it is done (after returnIO ()), so a stop while
+  --    making it is inside finally too.
+  -- 借りて、使って、返す。使うところで止まっても、返すのはやる
+  -- （Haskell の bracket と同じ）。use r は、やるときに作る
+  -- （returnIO () のあと）ので、作る途中で止まっても finally の内側
+  bracket : IO r -> (r -> IO b) -> (r -> IO c) -> IO c
+  bracket acquire release use =
+    bindIO acquire (\\r ->
+      finally (bindIO (returnIO ()) (\\_ -> use r)) (release r))
+  -- ANCHOR_END: bracket
+
+  -- ANCHOR: stdinLines
+  -- 📜 The lines of the standard input, one at a time, until the end:
+  --    each one is let go before the next comes (unlike getContents).
+  -- 標準入力の行を、終わりまで1行ずつ。次の行が来る前に、前の行は
+  -- 手放す（getContents とちがう）
+  forEachLine : (String -> IO ()) -> IO ()
+  forEachLine act = do
+    next <- getLine
+    case next of
+      | Nothing -> pure ()
+      | Just line -> do
+          act line
+          forEachLine act
+
+  foldLines : (b -> String -> b) -> b -> IO b
+  foldLines f acc = do
+    next <- getLine
+    case next of
+      | Nothing -> pure acc
+      | Just line -> foldLines f (f acc line)
+  -- ANCHOR_END: stdinLines
+  """
+-- ANCHOR_END: io
+
+-- ANCHOR: time
+timeSource :: Text
+timeSource = """
+  module Time exposing
+    ( Time, Zone, now, here, utc, offset
+    , toIso, fromIso, format, toDate
+    , toYear, toMonth, toDay, toHour, toMinute, toSecond
+    , addSeconds, addDays, diffSeconds, diffDays
+    , toMillis, fromMillis )
+
+  -- ANCHOR: timeData
+  -- A moment: the milliseconds since 1970-01-01 00:00 in UTC. The
+  -- constructor is hidden, so a Time is never taken for a number.
+  -- ある瞬間：UTC の 1970-01-01 00:00 からのミリ秒。構成子は隠すので、
+  -- Time を、ただの数ととりちがえることはない
+  data Time = Time Int
+
+  -- A time zone: how many minutes it is ahead of UTC (+09:00 is 540).
+  -- タイムゾーン：UTC より何分進んでいるか（+09:00 なら 540）
+  data Zone = Zone Int
+
+  utc : Zone
+  utc = Zone 0
+
+  offset : Zone -> Int
+  offset z = case z of | Zone m -> m
+
+  toMillis : Time -> Int
+  toMillis t = case t of | Time ms -> ms
+
+  fromMillis : Int -> Time
+  fromMillis ms = Time ms
+  -- ANCHOR_END: timeData
+
+  -- ANCHOR: timeMath
+  -- Move a time, and the seconds or days from b to a (a - b, cut
+  -- down: 1.9 days is 1).
+  -- 時刻をずらす。b から a まで何秒・何日か（a - b。端数は切り捨て）
+  addSeconds : Int -> Time -> Time
+  addSeconds n t = Time (toMillis t + n * 1000)
+
+  addDays : Int -> Time -> Time
+  addDays n t = addSeconds (n * 86400) t
+
+  diffSeconds : Time -> Time -> Int
+  diffSeconds a b = (toMillis a - toMillis b) // 1000
+
+  diffDays : Time -> Time -> Int
+  diffDays a b = diffSeconds a b // 86400
+  -- ANCHOR_END: timeMath
+
+  -- ANCHOR: displayTime
+  -- {t} in f"..." shows a Time as the REPL does: 2026-11-17T03:00:00Z
+  -- f"..." の {t} も、REPL と同じ形で見せる
+  instance Display Time
+  instance Display Zone
+  -- ANCHOR_END: displayTime
+  """
+-- ANCHOR_END: time
+
+-- ANCHOR: path
+pathSource :: Text
+pathSource = """
+  module Path exposing (..)
+
+  -- join, basename, dirname, extension, stem and withExtension are all
+  -- builtins (Haskell's filepath). They touch no disk.
+  -- どれも組み込み（Haskell の filepath）。ディスクには触れない
+  """
+-- ANCHOR_END: path
+
+-- ANCHOR: file
+fileSource :: Text
+fileSource = """
+  module File exposing
+    ( FileInfo, list, glob, exists, isDir, info
+    , makeDir, remove, rename, copy, append
+    , Handle, open, openWith, readLine, readChunk, close
+    , withFile, withFileWith, foldLines, foldLinesWith, forEachLine
+    , readBytes, writeBytes )
+
+  -- The size in bytes, and when the file was last changed: what
+  -- File.info gives.
+  -- 大きさ（バイト）と、最後に変えた時刻。File.info がくれるもの
+  type alias FileInfo = { size : Int, modified : Time }
+
+  -- ANCHOR: handle
+  -- 🎫 An open file: only a number the world gave. The constructor is
+  --    hidden, so a Handle is never made from any number.
+  -- 開いたファイル：世界がくれた番号だけ。構成子は隠すので、どんな数
+  -- からでも Handle を作れる、ということはない
+  data Handle = Handle Int
+
+  open : String -> IO (Result String Handle)
+  open path = openWith Strict path
+
+  -- The next line, or Nothing at the end. A line that is not UTF-8
+  -- stops the program when the file was opened Strict (Python's
+  -- UnicodeDecodeError); Replace and Ignore never stop.
+  -- 次の行。終わりなら Nothing。Strict で開いたファイルの、UTF-8 でない
+  -- 行は、プログラムを止める（Python の UnicodeDecodeError）。Replace と
+  -- Ignore は止まらない
+  readLine : Handle -> IO (Maybe String)
+  readLine h = do
+    next <- nextLine h
+    case next of
+      | Ok line -> pure line
+      | Err why -> error why
+
+  -- At most n bytes, or Nothing at the end.
+  -- 多くても n バイト。終わりなら Nothing
+  readChunk : Int -> Handle -> IO (Maybe Bytes)
+  readChunk n h = do
+    next <- nextChunk n h
+    case next of
+      | Ok piece -> pure piece
+      | Err why -> error why
+  -- ANCHOR_END: handle
+
+  -- ANCHOR: withFile
+  -- 🧹 Open, use, and close, even when the use stops: ? and defer of
+  --    the chapter on errors.
+  -- 開いて、使って、閉じる。使うところで止まっても、閉じる。失敗を
+  -- 早めに返す章の ? と defer で
+  withFileWith
+    : Decoding -> String -> (Handle -> IO a) -> IO (Result String a)
+  withFileWith how path use = do
+    h <- openWith how path ?
+    defer close h
+    answer <- use h
+    pure (Ok answer)
+
+  withFile : String -> (Handle -> IO a) -> IO (Result String a)
+  withFile path use = withFileWith Strict path use
+  -- ANCHOR_END: withFile
+
+  -- ANCHOR: foldLines
+  -- 🔁 Go down the lines with a value: step gets the value so far and
+  --    a line, and gives the next value. Only one line is held at a
+  --    time.
+  -- 値を持ちながら、行を下っていく。step は、ここまでの値と1行を受け取り、
+  -- 次の値を返す。持つのは、いつも1行だけ
+  eachLine : Handle -> b -> (b -> String -> IO b) -> IO b
+  eachLine h acc step = do
+    next <- readLine h
+    case next of
+      | Nothing -> pure acc
+      | Just line -> do
+          acc2 <- step acc line
+          eachLine h acc2 step
+
+  foldLinesWith
+    : Decoding -> (b -> String -> b) -> b -> String -> IO (Result String b)
+  foldLinesWith how f start path =
+    withFileWith how path (\\h ->
+      eachLine h start (\\acc line -> pure (f acc line)))
+
+  foldLines : (b -> String -> b) -> b -> String -> IO (Result String b)
+  foldLines f start path = foldLinesWith Strict f start path
+
+  forEachLine : String -> (String -> IO ()) -> IO (Result String ())
+  forEachLine path act =
+    withFile path (\\h -> eachLine h () (\\_ line -> act line))
+  -- ANCHOR_END: foldLines
+  """
+-- ANCHOR_END: file
+
+-- ANCHOR: process
+processSource :: Text
+processSource = """
+  module Process exposing (Outcome (..), run, pipe, output)
+
+  -- ANCHOR: outcome
+  -- How a command ended: it could not start (no such command), it
+  -- ended with an exit code that is not 0, or it ended with 0. out
+  -- and err are the standard output and the standard error.
+  -- コマンドの終わり方：始まれなかった（そんなコマンドはない）、0 でない
+  -- 終了コードで終わった、0 で終わった。out と err は、標準出力と
+  -- 標準エラー
+  data Outcome
+    = CannotStart String
+    | Failed { code : Int, out : String, err : String }
+    | Succeeded { out : String, err : String }
+  -- ANCHOR_END: outcome
+
+  -- ANCHOR: run
+  -- A command with nothing for its standard input.
+  -- 標準入力に何も渡さないコマンド
+  run : String -> [String] -> IO Outcome
+  run command args = pipe command args ""
+
+  -- Only the output, or why there is none.
+  -- 出力だけ。なければ、そのわけ
+  output : Outcome -> Result String String
+  output o =
+    case o of
+      | Succeeded { out } -> Ok out
+      | Failed { code, err } ->
+          Err ("exit " ++ show code ++ ": " ++ String.trim err)
+      | CannotStart why -> Err why
+  -- ANCHOR_END: run
+  """
+-- ANCHOR_END: process
+
+-- ANCHOR: random
+randomSource :: Text
+randomSource = """
+  module Random exposing (int, pick, shuffle)
+
+  -- One of the list, or Nothing for [].
+  -- リストの1つ。[] なら Nothing
+  pick : [a] -> IO (Maybe a)
+  pick xs =
+    case xs of
+      | [] -> pure Nothing
+      | _ -> do
+          i <- int 0 (length xs - 1)
+          pure (case drop i xs of
+            | y : _ -> Just y
+            | [] -> Nothing)
+
+  -- The same list in a new order: pick one, then shuffle the rest.
+  -- 同じリストを、新しい順に。1つ選び、残りを混ぜる
+  shuffle : [a] -> IO [a]
+  shuffle xs =
+    case xs of
+      | [] -> pure []
+      | _ -> do
+          i <- int 0 (length xs - 1)
+          case drop i xs of
+            | [] -> pure []
+            | y : after -> do
+                rest <- shuffle (take i xs ++ after)
+                pure (y : rest)
+  """
+-- ANCHOR_END: random
+
+-- ANCHOR: bytes
+bytesSource :: Text
+bytesSource = """
+  module Bytes exposing
+    ( Decoding (..), fromString, toString, decode
+    , toList, fromList, toHex, fromHex, slice, concat )
+
+  -- ANCHOR: decodingData
+  -- What to do with bytes that are not UTF-8: stop (Strict), put a
+  -- U+FFFD there (Replace), or leave them out (Ignore). Python's
+  -- errors="strict", "replace" and "ignore".
+  -- UTF-8 でないバイトをどうするか：止まる（Strict）、U+FFFD を置く
+  -- （Replace）、とばす（Ignore）。Python の errors= の3つ
+  data Decoding = Strict | Replace | Ignore
+  -- ANCHOR_END: decodingData
+
+  -- {b} in f"..." shows it as the REPL does: <3 bytes: e38182>
+  -- f"..." の {b} も、REPL と同じ形で見せる
+  instance Display Bytes
+  """
+-- ANCHOR_END: bytes
+
+-- ANCHOR: hashModule
+hashSource :: Text
+hashSource = """
+  module Hash exposing (Hasher, sha256, start, add, finish, file)
+
+  -- The work of SHA-256 so far (hidden: only start and add make one).
+  -- ここまでの SHA-256 の途中（隠す。作れるのは start と add だけ）
+  data Hasher = Hasher Bytes
+
+  -- ANCHOR: hashFile
+  -- 🔏 The SHA-256 of a file, 64 KiB at a time: a file of any size
+  --    needs only 64 KiB of memory.
+  -- ファイルの SHA-256 を、64 KiB ずつ。どんなに大きいファイルでも、
+  -- メモリは 64 KiB ですむ
+  chunks : Handle -> Hasher -> IO Bytes
+  chunks h hasher = do
+    next <- File.readChunk 65536 h
+    case next of
+      | Nothing -> pure (finish hasher)
+      | Just piece -> chunks h (add piece hasher)
+
+  file : String -> IO (Result String Bytes)
+  file path = File.withFile path (\\h -> chunks h start)
+  -- ANCHOR_END: hashFile
+  """
+-- ANCHOR_END: hashModule
+
+-- ANCHOR: base64Module
+base64Source :: Text
+base64Source = """
+  module Base64 exposing (..)
+
+  -- encode and decode are builtins (Haskell's base64-bytestring).
+  -- どちらも組み込み（Haskell の base64-bytestring）
+  """
+-- ANCHOR_END: base64Module
+
+-- ANCHOR: uuid
+uuidSource :: Text
+uuidSource = """
+  module Uuid exposing (v4)
+
+  -- 0x40 to 0x4f is 0100xxxx; 0x80 to 0xbf is 10xxxxxx.
+  -- 0x40〜0x4f は 0100xxxx、0x80〜0xbf は 10xxxxxx
+  byteAt : Int -> IO Int
+  byteAt i =
+    if i == 6 then Random.int 64 79
+    else if i == 8 then Random.int 128 191
+    else Random.int 0 255
+
+  -- 🆔 A random UUID (version 4, RFC 9562): 16 random bytes, but the
+  --    7th starts with 4 (the version), and the 9th with 8, 9, a or b
+  --    (the variant). Its dice are Random's, so --seed=618 gives the
+  --    same one every time.
+  -- ランダムな UUID（バージョン4、RFC 9562）：16個のランダムなバイト。
+  -- ただし7つ目は 4 で始まり（バージョン）、9つ目は 8・9・a・b の
+  -- どれかで始まる（バリアント）。さいころは Random のものなので、
+  -- --seed=618 なら毎回同じ
+  v4 : IO String
+  v4 = do
+    numbers <- mapM byteAt (range 0 15)
+    let hex = Bytes.toHex (Bytes.fromList numbers)
+    pure (join "-"
+      [ slice 0 8 hex, slice 8 12 hex, slice 12 16 hex
+      , slice 16 20 hex, slice 20 32 hex ])
+  """
+-- ANCHOR_END: uuid
+
+-- ANCHOR: regexModule
+regexSource :: Text
+regexSource = """
+  module Regex exposing
+    ( Match, compile, matches, find, findAll, split
+    , replace, replaceAll, replaceWith, replaceFirstWith
+    , group, named )
+
+  -- ANCHOR: matchAlias
+  -- 🎁 What a regex found: the text, where it starts (in letters, from
+  --    0), the groups 1, 2, ... ("" for a group that took no part),
+  --    and the named groups.
+  -- 見つけたもの：その文字、始まる場所（0 から数えた文字の数）、
+  -- グループ 1, 2, …（使われなかったグループは ""）、名前付きのグループ
+  type alias Match =
+    { text : String
+    , start : Int
+    , groups : [String]
+    , named : Map String String }
+  -- ANCHOR_END: matchAlias
+
+  -- ANCHOR: group
+  -- The i-th item of a list, from 0 (not shown outside).
+  -- リストの i 番目（0 から。外には見せない）
+  nth : Int -> [a] -> Maybe a
+  nth i xs =
+    case xs of
+      | [] -> Nothing
+      | x : rest -> if i == 0 then Just x else nth (i - 1) rest
+
+  -- 🔢 Group n: 0 is the whole match, as m.group(0) in Python.
+  --    Nothing for a group the regex does not have.
+  -- n 番のグループ。0 は全体（Python の m.group(0) と同じ）。
+  -- 正規表現にないグループは Nothing
+  group : Int -> Match -> Maybe String
+  group n m =
+    if n == 0 then Just m.text else nth (n - 1) m.groups
+
+  -- 🏷️ The group named k:  (?<year>[0-9]+)  is  named "year" m.
+  -- k という名前のグループ
+  named : String -> Match -> Maybe String
+  named k m = Map.lookup k m.named
+  -- ANCHOR_END: group
+  """
+-- ANCHOR_END: regexModule
+
+-- ANCHOR: build
+-- 🏗️ Make the standard modules one by one, importing each right
+--    away (as every file does), so that the next one can use it. The
+--    hidden names are put in after each one, so that the modules
+--    after Prelude can use do and f"..." too.
+-- 標準のモジュールを1つずつ作り、すぐに（どのファイルとも同じ形で）
+-- import する。そうすれば、次のモジュールが使える。隠した名前も
+-- 1つごとに入れるので、Prelude より後ろのモジュールは do も f"..." も
+-- 使える
+buildPrelude :: Either Text Session
+buildPrelude = foldM addModule emptySession standardSources
+  where
+    addModule session (m, source) = do
+      made <- standardModule session m source
+      imp  <- either (Left . T.pack . errorBundlePretty) Right
+                (runLamParser (spaces *> importLine <* eof)
+                   "<default imports>" (defaultImports m))
+      withHiddenNames <$> importInto session imp made
+-- ANCHOR_END: build
+
+-- ANCHOR: formatNames
+-- 🙈 The names f"..." calls, under hidden names ($fmt.display), with
+--    the prelude's types and values. A program cannot write them, so
+--    no import and no definition of its own can change them.
+-- f"..." が呼ぶ名前を、隠した名前（$fmt.display）で、プレリュードの型と
+-- 値のまま入れておく。プログラムには書けないので、import も自分の定義も
+-- 変えられない
+formatNames :: [Name]
+formatNames =
+  [ "display", "show", "showNumber", "Float.fixed", "groupDigits"
+  , "zeroPad", "padLeft", "padRight", "center" ]
+
+-- ANCHOR: hiddenNames
+-- 🙈 Each hidden name, and the name of the prelude it stands for:
+--    the ones of f"...", the ones a do calls: bind, pure (for ?),
+--    branch (for ?) and IO.finally (for defer), and the ones that
+--    start main with its arguments.
+-- 隠した名前と、それが表すプレリュードの名前：f"..." のもの、do が
+-- 呼ぶもの（bind、? の pure と branch、defer の IO.finally）、引数のある
+-- main を始めるもの
+hiddenNames :: [(Name, Name)]
+hiddenNames =
+  [ (fmtName x, x) | x <- formatNames ]
+    <> [ (doBind, "bind"), (doPure, "pure")
+       , (tryBranch, "branch"), (doFinally, "IO.finally")
+       , (mainBind, "IO.bindIO"), (mainArgs, "IO.getArgs")
+       , (mainEnv, "IO.getEnvironment") ]
+    -- ANCHOR: regexHidden
+    -- What m//, s/// and =~ call:  $re.replaceAll is Regex.replaceAll
+    -- m//・s///・=~ が呼ぶもの
+    <> [ (reName x, "Regex." <> x) | x <- regexSugarNames ]
+    -- ANCHOR_END: regexHidden
+
+regexSugarNames :: [Name]
+regexSugarNames =
+  ["matches", "replace", "replaceAll", "replaceWith", "replaceFirstWith"]
+
+withHiddenNames :: Session -> Session
+withHiddenNames session = session
+  { sessionTypes  = hide (sessionTypes session)
+  , sessionValues = hide (sessionValues session) }
+  where
+    hide table = Map.fromList
+      [ (h, v) | (h, x) <- hiddenNames, Just v <- [Map.lookup x table] ]
+      `Map.union` table
+-- ANCHOR_END: hiddenNames
+-- ANCHOR_END: formatNames
 
 -- ANCHOR: session
 -- 🌱 A session with the prelude loaded. The prelude is checked by
@@ -222,8 +1203,8 @@ preludeSource = """
 -- 確かめるので、まちがいは、誰かが Lam を動かす前に見つかる
 preludeSession :: Session
 preludeSession =
-  case loadProgram emptySession "<prelude>" preludeSource of
-    Right (s, _) -> s
-    Left err     -> error ("the prelude is broken: " <> show err)
+  case buildPrelude of
+    Right s  -> s
+    Left err -> error ("the prelude is broken: " <> T.unpack err)
 -- ANCHOR_END: session
 -- ANCHOR_END: all

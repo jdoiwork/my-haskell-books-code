@@ -1,0 +1,30 @@
+-- 💴 Our own types in f"...": one line puts a type in Display (shown
+--    as show shows it), or an instance says how it wants to be shown.
+-- 自分の型を f"..." に。1行で Display に入れる（show と同じ形で見せる）
+-- か、インスタンスで見せ方を決める
+--   lam examples/format/money.lam
+
+data Shape = Circle Int | Rect Int Int
+
+data Money = Yen Int
+
+-- ANCHOR: instances
+-- 🔷 A shape is shown as show shows it: Circle 2.
+-- 図形は、show と同じ形で見せる
+instance Display Shape
+
+-- 💴 Money is shown the way people write it: 1,200 yen.
+-- お金は、人が書くとおりに見せる
+instance Display Money where
+  display m =
+    case m of
+      | Yen n -> f"{n:,} yen"
+-- ANCHOR_END: instances
+
+-- ANCHOR: main
+-- The things sold today, and what each one is worth.
+-- 今日売れたものと、それぞれの値打ち
+sold = [(Circle 2, Yen 300), (Rect 3 4, Yen 1200)]
+
+map (\(shape, price) -> f"{shape} costs {price}.") sold
+-- ANCHOR_END: main

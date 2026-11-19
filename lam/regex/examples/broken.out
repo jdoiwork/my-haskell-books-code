@@ -1,1 +1,1 @@
-in the definition of oops: type error: the types do not fit: Int where Bool is needed
+examples/broken.lam:5:20: in the definition of oops: type error: Bool is not in the class Number

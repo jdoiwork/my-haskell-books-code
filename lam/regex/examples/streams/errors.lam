@@ -1,0 +1,16 @@
+-- ANCHOR: all
+-- 🚨 Show the lines of the standard input that ended with 500. Any
+--    size: one line at a time.
+--   lam errors.lam < big.log
+-- 標準入力の行のうち、500 で終わったものを見せる。どんなに大きくても、
+-- 1行ずつ
+isError : String -> Bool
+isError line =
+  case words line of
+    | [_, _, _, "500", _] -> true
+    | _ -> false
+
+main : IO ()
+main = IO.forEachLine (\line ->
+  if isError line then putStrLn line else pure ())
+-- ANCHOR_END: all
