@@ -1,0 +1,6 @@
+total 1150
+.: missing field "item"
+.: missing field "price"
+.menu[0]: missing field "price"
+.menu[0]: missing field "group"
+.menu[0]: missing field "menu"

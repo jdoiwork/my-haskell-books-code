@@ -240,6 +240,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 命令の列にコンパイルする：バックトラックの VM | [`miniregex/vm/`](miniregex/vm/)、[`miniregex/lookaround/`](miniregex/lookaround/)、[`langs/regex-vm/`](langs/regex-vm/) |
 | 書き換えて速くする：ST で VM を書き直す | [`miniregex/vm-st/`](miniregex/vm-st/)、[`miniregex/vm/`](miniregex/vm/)、[`langs/cargo/`](langs/cargo/) |
 | 自分を呼ぶ：再帰とサブルーチン | [`miniregex/recursion/`](miniregex/recursion/)、[`miniregex/vm-st/`](miniregex/vm-st/)、[`langs/regex-recursion/`](langs/regex-recursion/) |
+| 止まらないパターンと戦う：線形時間の Pike VM | [`miniregex/linear/`](miniregex/linear/)、[`miniregex/recursion/`](miniregex/recursion/)、[`langs/regex-linear/`](langs/regex-linear/)、[`langs/cargo/`](langs/cargo/) |
+| 先に探す：探す場所を絞る | [`miniregex/prefilter/`](miniregex/prefilter/)、[`miniregex/linear/`](miniregex/linear/)、[`langs/regex-prefilter/`](langs/regex-prefilter/) |
 
 ### 第14部 Lam を育てる：言語の機能
 
@@ -267,6 +269,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 大きいファイルとバイト列：1行ずつ読む・ハッシュ・base64 | [`lam/streams/`](lam/streams/)、[`lam/files/`](lam/files/)、[`langs/interp-streams/`](langs/interp-streams/) |
 | 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/streams/`](lam/streams/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |
 | 文字列を読み解く：パーサーを組み合わせる | [`lam/parsing/`](lam/parsing/)、[`lam/regex/`](lam/regex/)、[`langs/interp-parsing/`](langs/interp-parsing/)、[`langs/cargo/`](langs/cargo/) |
+| データを読む：JSON の Decoder・CSV・TOML | [`lam/decode/`](lam/decode/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-decode/`](langs/interp-decode/)、[`langs/cargo/`](langs/cargo/) |
 | 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/modules/`](lam/modules/)、[`langs/interp-outside/`](langs/interp-outside/) |
 | 鍵をかける：権限のフラグと見張り | [`lam/guard/`](lam/guard/)、[`lam/outside/`](lam/outside/)、[`langs/interp-guard/`](langs/interp-guard/) |
 | CLI を手軽に作る：型から作る Typer 風のオプション | [`lam/cli/`](lam/cli/)、[`lam/float/`](lam/float/)、[`langs/interp-cli/`](langs/interp-cli/)、[`langs/cargo/`](langs/cargo/) |

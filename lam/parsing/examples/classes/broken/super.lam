@@ -1,0 +1,18 @@
+-- 🚨 An instance of Ranked for a type not in Describe.
+-- Describe に入っていない型に、Ranked のインスタンス
+--   lam examples/classes/broken/super.lam
+
+data Minutes = Minutes Int
+
+class Describe a where
+  describe : a -> String
+
+class Describe a => Ranked a where
+  rank : a -> Int
+
+-- ANCHOR: instance
+instance Ranked Minutes where
+  rank m =
+    case m of
+      | Minutes n -> n
+-- ANCHOR_END: instance

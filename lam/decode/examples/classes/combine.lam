@@ -1,0 +1,55 @@
+-- ➕ One total for money and for minutes: a class with a value that
+--    is not a function (empty), chosen by the type of the answer.
+-- お金にも分にも、1つの total。関数ではない値（empty）を持つクラス。
+-- どれを使うかは、答えの型で決まる
+--   lam examples/classes/combine.lam
+
+data Money = Yen Int
+data Minutes = Minutes Int
+
+-- ANCHOR: class
+-- How to put two together, and what is there when there is nothing.
+-- 2つを合わせる方法と、何もないときにあるもの
+class Combine a where
+  empty : a
+  combine : a -> a -> a
+-- ANCHOR_END: class
+
+-- ANCHOR: instances
+instance Combine Money where
+  empty = Yen 0
+  combine a b =
+    case (a, b) of
+      | (Yen x, Yen y) -> Yen (x + y)
+
+instance Combine Minutes where
+  empty = Minutes 0
+  combine a b =
+    case (a, b) of
+      | (Minutes x, Minutes y) -> Minutes (x + y)
+
+instance Combine Int where
+  empty = 0
+  combine a b = a + b
+-- ANCHOR_END: instances
+
+-- ANCHOR: total
+-- ➕ Put every item together. An empty list gives empty.
+-- 全部を合わせる。空のリストなら empty
+total : Combine a => [a] -> a
+total xs = foldr combine empty xs
+-- ANCHOR_END: total
+
+-- ANCHOR: nothing
+-- 🪹 Nothing bought yet: the type says which empty.
+-- まだ何も買っていない：どの empty かは、型が言う
+nothingYet : Money
+nothingYet = total []
+-- ANCHOR_END: nothing
+
+-- ANCHOR: main
+( total [Yen 300, Yen 450]
+, total [Minutes 25, Minutes 40]
+, total [1, 2, 3]
+, nothingYet )
+-- ANCHOR_END: main

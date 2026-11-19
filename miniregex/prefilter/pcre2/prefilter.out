@@ -1,0 +1,54 @@
+/Room (\d+)/I
+Capture group count = 1
+First code unit = 'R'
+Last code unit = ' '
+Subject length lower bound = 6
+
+/\b\d{4}-\d{2}-\d{2}\b/I
+Capture group count = 0
+Max lookbehind = 1
+Starting code units: 0 1 2 3 4 5 6 7 8 9
+Last code unit = '-'
+Subject length lower bound = 10
+
+/^(\w+\s?)+$/I
+Capture group count = 1
+Compile options: <none>
+Overall options: anchored
+Starting code units: 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P
+  Q R S T U V W X Y Z _ a b c d e f g h i j k l m n o p q r s t u v w x y z
+Subject length lower bound = 1
+
+/colou?r|grey/I
+Capture group count = 0
+Starting code units: c g
+Subject length lower bound = 4
+
+/(\w+)@(\w+)\.com/I
+Capture group count = 2
+Starting code units: 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P
+  Q R S T U V W X Y Z _ a b c d e f g h i j k l m n o p q r s t u v w x y z
+Last code unit = 'm'
+Subject length lower bound = 7
+
+/(a+)*b/I
+Capture group count = 1
+Starting code units: a b
+Last code unit = 'b'
+Subject length lower bound = 1
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac
+No match
+
+/(a+)*b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac
+Failed: error -47: match limit exceeded
+
+/(?R):{2,3}?/
+    a
+No match
+    ::
+Failed: error -52: nested recursion at the same subject position
+
+/(?R):{2,3}?/no_start_optimize
+    a
+Failed: error -52: nested recursion at the same subject position

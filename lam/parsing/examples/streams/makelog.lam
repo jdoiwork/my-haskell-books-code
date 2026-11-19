@@ -1,0 +1,45 @@
+-- ANCHOR: all
+-- 🏭 Make a big access log, one line at a time, to the screen:
+--   lam --seed=618 makelog.lam 300000 > big.log
+-- 大きなアクセスログを、1行ずつ画面に書く
+
+-- ANCHOR: line
+-- 📜 One line: the time, the method, the path, the status, the ms.
+--    2026-11-20T00:00:01Z GET /books/12 200 35ms
+-- 1行：時刻、メソッド、道、状態コード、かかったミリ秒
+paths : [String]
+paths = ["/", "/books", "/books/12", "/books/41", "/search", "/login"]
+
+status : Int -> Int
+status n =
+  if n <= 85 then 200
+  else if n <= 93 then 304
+  else if n <= 98 then 404
+  else 500
+
+line : Time -> Int -> IO String
+line start i = do
+  path <- Random.pick paths
+  n    <- Random.int 1 100
+  ms   <- Random.int 2 400
+  let method = if path == Just "/login" then "POST" else "GET"
+  let t = Time.addSeconds i start
+  pure f"{t} {method} {path ?: "/"} {status n} {ms}ms"
+-- ANCHOR_END: line
+
+-- 🔁 Write the lines from i to n, one by one (no list of them all).
+-- i から n までの行を、1つずつ書く（全部のリストは作らない）
+loop : Time -> Int -> Int -> IO ()
+loop start i n =
+  if i > n then pure () else do
+    text <- line start i
+    putStrLn text
+    loop start (i + 1) n
+
+main : [String] -> IO (Result String ())
+main args = do
+  let n = case args of | a : _ -> String.toInt a ?: 1000 | [] -> 1000
+  start <- pure (Time.fromIso "2026-11-20T00:00:00Z") ?
+  loop start 1 n
+  pure (Ok ())
+-- ANCHOR_END: all

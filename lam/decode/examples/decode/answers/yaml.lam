@@ -1,0 +1,65 @@
+-- Step 4 of the training: a small config in the style of YAML, read
+-- into Json, then read with a decoder.
+-- トレーニングのステップ4：YAML 風の小さな設定を Json に読み、それを
+-- Decoder で読む
+
+-- 📄 A line: how deep it is (spaces in front), the key, and the value
+--    ("" for a key that has children).
+-- 1行：深さ（前の空白の数）、キー、値（子どもを持つキーは ""）
+line : String -> Maybe (Int, String, String)
+line s =
+  case String.split ":" (String.trim s) of
+    | k : rest if k /= "" ->
+        Just (length s - length (String.trimStart s), k,
+              String.trim (join ":" rest))
+    | _ -> Nothing
+
+-- 🔢 A value: a whole number, true or false, or a string.
+-- 値：整数、true か false、それとも文字列
+scalar : String -> Json
+scalar v =
+  case String.toInt v of
+    | Just n -> JInt n
+    | Nothing ->
+        if v == "true" then JBool true
+        else if v == "false" then JBool false
+        else JStr v
+
+-- 🌳 The lines at depth 0, each with the lines at depth 2 under it.
+-- 深さ 0 の行と、その下の深さ 2 の行
+tree : [(Int, String, String)] -> [(String, Json)]
+tree ls =
+  case ls of
+    | [] -> []
+    | (_, k, v) : rest ->
+        if v /= "" then (k, scalar v) : tree rest
+        else (k, JObj (Map.fromList (children rest)))
+               : tree (List.drop (length (children rest)) rest)
+  where
+    children rest =
+      case rest of
+        | (2, k, v) : more -> (k, scalar v) : children more
+        | _ -> []
+
+yaml : String -> Json
+yaml text =
+  JObj (Map.fromList (tree [ l | Just l <- map line (lines text) ]))
+
+type alias Settings = { name : String, tax : Int, open : Bool }
+
+settings : Decoder Settings
+settings =
+  Decode.map3 (\n t o -> { name = n, tax = t, open = o })
+    (Decode.at ["shop", "name"] Decode.string)
+    (Decode.at ["shop", "tax_percent"] Decode.int)
+    (Decode.field "open" Decode.bool)
+
+text =
+  "shop:\n  name: Lam Shop\n  tax_percent: 10\nopen: true\n"
+
+main : IO ()
+main = do
+  putStrLn (Json.show (yaml text))
+  case Decode.run settings (yaml text) of
+    | Ok s -> putStrLn f"{s.name}: tax {s.tax}%, open {s.open}"
+    | Err ps -> putStrLn (Decode.explain ps)

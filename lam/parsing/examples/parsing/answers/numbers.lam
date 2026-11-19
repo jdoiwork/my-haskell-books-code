@@ -1,0 +1,21 @@
+-- Step 1 of the training: read a list of numbers, like [1, 2, 3], with
+-- any spaces around the numbers and the commas.
+-- トレーニングのステップ1：[1, 2, 3] のような数のリストを読む。数と
+-- カンマのまわりの空白は、いくつでもよい
+
+numbers : Parser [Int]
+numbers =
+  Parser.between "[" "]"
+    (Parser.sepBy (Parser.token Parser.int) (Parser.symbol ","))
+
+-- The spaces before the [ are read, too.
+-- [ の前の空白も読む
+readNumbers : String -> Result ParseError [Int]
+readNumbers text = Parser.run (do Parser.spaces; numbers) text
+
+main : IO ()
+main =
+  forEach ["[1, 2, 3]", "  [ 10 ,20,30 ] ", "[]", "[1, 2,]"] (\text ->
+    case readNumbers text of
+      | Ok xs -> putStrLn f"{text:<18} {xs} (sum {sum xs})"
+      | Err e -> putStrLn e.pretty)

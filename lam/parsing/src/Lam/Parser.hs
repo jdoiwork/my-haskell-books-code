@@ -9,18 +9,45 @@ module Lam.Parser
   , parseLam
   , expr
   , definition
+  , topDefinition
+  , signature
+  , signatureHead
+  , aliasDecl
+  , classDecl
+  , instanceDecl
+  , Binding (..)
+  , letBinding
   , program
+  , shebang
+  , here
   , atom
-  , name
-  , conName
-  , qualifiedName
   , mapLiteral
-  , pattern
-  , doBlock
-  , formatString
+  , qualifiedName
+  , qualifiedCon
+  , moduleHeader
+  , importLine
+  , exposingList
+  , fmtName
+  , reName
   , regexLiteral
   , matchRegex
   , substRegex
+  , name
+  , conName
+  , pattern
+  , patternAtom
+  , dataDecl
+  , typeAtom
+  , continuing
+  , bar
+  , branchesOf
+  , declaration
+  , spaces
+  , symbol
+  , keyword
+  , keywords
+  , formatString
+  , doExpr
     -- For the training: a field of your own, and the parts of one.
     -- トレーニングのため：自分のフィールドと、その部品
   , formatStringWith
@@ -34,20 +61,12 @@ module Lam.Parser
   , textOf
   , pad
   , call
-  , dataDecl
-  , typeAtom
-  , continuing
-  , bar
-  , declaration
-  , spaces
-  , symbol
-  , keyword
-  , keywords
   ) where
 
-import Control.Monad.Combinators.Expr (Operator (..), makeExprParser)
+import Control.Monad.Combinators.Expr (makeExprParser)
 import Control.Monad.Reader (Reader, ask, local, runReader)
-import Data.Char (isAlphaNum, isDigit)
+import qualified Control.Monad.Combinators.Expr as E
+import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -57,20 +76,21 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import Lam.Pcre (Regex (..), compileRegex)
+import Lam.Sugar
 import Lam.Syntax
 
 -- ANCHOR: lexer
--- ANCHOR: parserType
 -- 🔤 A parser that reads Text; no custom error type (Void).
---    It can also read one Pos: the column that a word must be to the
---    right of, to go on with the expression (see `continuing`).
+--    It can also read one column (Pos): an expression goes on only on
+--    lines to the right of it (see continuing).
 -- Text を読むパーサー。自分のエラーの型はなし（Void）。
--- 列の位置（Pos）を1つ読める。式の続きになるには、言葉がこの列より
--- 右になければならない（continuing を見る）
+-- 列（Pos）を1つ読める：式は、それより右の行にだけ続く（continuing）
+-- ANCHOR: parserType
 type Parser = ParsecT Void Text (Reader Pos)
 
--- ▶️ Run a parser. At first, a word must be to the right of column 1.
--- パーサーを動かす。はじめは、1桁目より右なら続き
+-- ▶️ Run a parser. At first, the column is 1: a word at column 1
+--    starts a new definition.
+-- パーサーを動かす。はじめの列は 1：1桁目の言葉は新しい定義の始まり
 runLamParser
   :: Parser a -> FilePath -> Text -> Either (ParseErrorBundle Text Void) a
 runLamParser p file source = runReader (runParserT p file source) pos1
@@ -95,18 +115,35 @@ symbol = L.symbol spaces
 -- ANCHOR: words
 -- 🚫 Words that cannot be variable names.
 -- 変数の名前にできない言葉
+-- ANCHOR: keywordList
 keywords :: [Text]
 keywords =
   [ "let", "in", "if", "then", "else", "true", "false"
-  , "case", "of", "data", "do" ]
+  , "case", "of", "data"
+  -- ANCHOR: keywordsRecords
+  , "type", "where"
+  -- ANCHOR_END: keywordsRecords
+  -- ANCHOR: keywordsClasses
+  , "class", "instance"
+  -- ANCHOR_END: keywordsClasses
+  -- ANCHOR: keywordsModules
+  , "module", "import"
+  -- ANCHOR_END: keywordsModules
+  -- ANCHOR: keywordsDo
+  , "do"
+  -- ANCHOR_END: keywordsDo
+  -- ANCHOR: keywordsDefer
+  , "defer" ]
+  -- ANCHOR_END: keywordsDefer
+-- ANCHOR_END: keywordList
 
 -- ANCHOR: keyword
 -- 🔑 A keyword, not followed by more letters ("in" but not "inside").
 -- キーワード。後ろに文字が続かない（"in" だが "inside" ではない）
---    try: if "do" is the start of "double", read nothing, so that the
---    name double can be read next.
--- try：「do」が「double」の頭なら、何も読まなかったことにする。
--- そうすれば、次に名前の double を読める
+--    try: if "if" is the start of "iffy", read nothing, so that the
+--    name iffy can be read next.
+-- try：「if」が「iffy」の頭なら、何も読まなかったことにする。
+-- そうすれば、次に名前の iffy を読める
 keyword :: Text -> Parser ()
 keyword w =
   lexeme (try (string w *> notFollowedBy (alphaNumChar <|> char '_')))
@@ -115,7 +152,21 @@ keyword w =
 -- 🏷️ A name: a small letter, then letters, digits, _ or '.
 -- 名前：小文字で始まり、文字・数字・_・' が続く
 name :: Parser Name
-name = (<?> "a name") $ lexeme $ try $ do
+name = (<?> "a name") $ lexeme $ try rawName
+
+-- 🏷️ A name, with no spaces after it. An f right before " is not
+--    one: it is the start of f"...". Nor is re right before ": it is
+--    the start of re"...".
+-- 名前（後ろの空白は読まない）。" のすぐ前の f は名前ではなく、
+-- f"..." の始まり。" のすぐ前の re も、re"..." の始まり
+rawName :: Parser Name
+rawName = do
+  -- ANCHOR: notFormat
+  notFollowedBy (string "f\"")
+  -- ANCHOR_END: notFormat
+  -- ANCHOR: notRegex
+  notFollowedBy (string "re\"")
+  -- ANCHOR_END: notRegex
   first <- lowerChar <|> char '_'
   rest  <- many (alphaNumChar <|> char '_' <|> char '\'')
   let n = T.pack (first : rest)
@@ -134,32 +185,85 @@ conName = (<?> "a constructor") $ lexeme $ try $ do
   pure (T.pack (first : rest))
 -- ANCHOR_END: conName
 
--- ANCHOR: qualifiedName
--- 🏷️ A name with a module in front: Map.insert, Json.parse.
---    No spaces around the dot. (Lam has no modules yet; the part in
---    front only groups the names, like a family name.)
--- 前にモジュールの名前が付いた名前。点のまわりに空白は入れない。
--- （Lam には、まだモジュールがない。前の部分は、名字のように、
--- 名前をまとめるだけ）
-qualifiedName :: Parser Name
-qualifiedName = (<?> "a name") $ lexeme $ try $ do
-  first <- upperChar
-  rest  <- many (alphaNumChar <|> char '_')
-  _     <- char '.'
-  small <- lowerChar
-  more  <- many (alphaNumChar <|> char '_' <|> char '\'')
-  let last' = T.pack (small : more)
-  -- Parser.do is not a name, but the start of a do (see doBlock).
-  -- Parser.do は名前ではなく、do の始まり（doBlock を見る）
-  if last' `elem` keywords
-    then fail ("the keyword " <> show last' <> " cannot end a name")
-    else pure (T.pack (first : rest <> ('.' : small : more)))
--- ANCHOR_END: qualifiedName
-
 -- 🔢 A whole number: 0, 42, ...
 -- 整数
 integer :: Parser Integer
 integer = lexeme L.decimal <?> "a number"
+
+-- ANCHOR: number
+-- 🔢 A number: 42 is a whole number; 1.5, 1e3 and 2.5e-3 are Floats
+--    (a point with digits after it, or an e).
+-- 数。42 は整数。1.5、1e3、2.5e-3 は Float（点と後ろの数字か、e がある）
+number :: Parser Literal
+number = (<?> "a number") $ lexeme $ do
+  whole    <- some digitChar
+  fraction <- optional (try (char '.' *> some digitChar))
+  power    <- optional (try (char 'e' *> powerOfTen))
+  pure $ case (fraction, power) of
+    (Nothing, Nothing) -> LInt (read whole)
+    _ -> LFloat (read (whole <> "." <> fromMaybe "0" fraction
+                             <> "e" <> show (fromMaybe 0 power)))
+  where
+    -- e3, e+3, e-3
+    powerOfTen :: Parser Integer
+    powerOfTen = do
+      sign <- optional (char '+' <|> char '-')
+      n    <- L.decimal
+      pure (if sign == Just '-' then negate n else n)
+-- ANCHOR_END: number
+
+-- ANCHOR: negative
+-- ➖ A minus right before a value, with no space between: -7, -1.5,
+--    -x, -(a + b).  -7 and -1.5 are numbers; -x is  negate x.
+--    "- 7" (with a space) is not this: that minus is the one of a - b.
+-- 値の直前の、空白をはさまないマイナス。-7 と -1.5 は数、-x は negate x。
+-- 空白をはさむ「- 7」はこれではない。a - b のマイナス
+negative :: Parser Expr
+negative = (<?> "a negative number") $ do
+  _ <- try (char '-' <* lookAhead (satisfy startsValue))
+  e <- atom
+  pure $ case e of
+    Lit (LInt n)   -> Lit (LInt (negate n))
+    Lit (LFloat x) -> Lit (LFloat (negate x))
+    _              -> App (Var "negate") e
+
+-- The letters a value can start with, right after a minus.
+-- マイナスのすぐ後ろで、値が始まれる文字
+startsValue :: Char -> Bool
+startsValue c = isDigit c || isAlpha c || c == '_' || c == '('
+-- ANCHOR_END: negative
+
+-- ANCHOR: qualifiedName
+-- 🏷️ A name with Float. in front, with no spaces:  Float.isNaN.
+--    A capital letter, a dot, then a small letter: a constructor has
+--    no fields, so this cannot be  Float  and a field  isNaN.
+--    (The chapter on modules makes Float a real module.)
+-- 前に Float. が付いた名前（空白なし）。大文字・点・小文字。構成子は
+-- フィールドを持たないので、Float とフィールドの isNaN とは読まない
+-- （モジュールの章で、Float を本物のモジュールにする）
+qualifiedName :: Parser Name
+qualifiedName = (<?> "a name") $ lexeme $ try $ do
+  first <- upperChar
+  rest  <- many (alphaNumChar <|> char '_' <|> char '\'')
+  _     <- char '.'
+  x     <- rawName
+  pure (T.pack (first : rest) <> "." <> x)
+-- ANCHOR_END: qualifiedName
+
+-- ANCHOR: qualifiedCon
+-- 🏷️ A constructor with a module in front: Json.JInt, S.Circle.
+--    Like qualifiedName, with a capital letter after the dot.
+-- 前にモジュールの名前が付いた構成子。qualifiedName と同じ形で、
+-- 点の後ろが大文字
+qualifiedCon :: Parser Name
+qualifiedCon = (<?> "a constructor") $ lexeme $ try $ do
+  first <- upperChar
+  rest  <- many (alphaNumChar <|> char '_')
+  _     <- char '.'
+  big   <- upperChar
+  more  <- many (alphaNumChar <|> char '_' <|> char '\'')
+  pure (T.pack (first : rest <> ('.' : big : more)))
+-- ANCHOR_END: qualifiedCon
 -- ANCHOR_END: words
 
 -- ANCHOR: stringLiteral
@@ -187,15 +291,17 @@ stringChar = (char '\\' *> escaped) <|> anySingle
 
 -- ANCHOR: atom
 -- ⚛️ The smallest pieces: a number, true/false, a string, a name,
---    ( expr ), a tuple, a list, or a map.
--- いちばん小さな部品：数、true・false、文字列、名前、( 式 )、タプル、
--- リスト、Map
+--    something in ( ) (an expression, a tuple, an operator, a
+--    section), or a list (or a list comprehension).
+-- いちばん小さな部品：数、true・false、文字列、名前、( ) の中身（式、
+-- タプル、演算子、セクション）、リスト（とリスト内包表記）
 -- <?> gives a part a name for error messages: "expecting a value".
 -- <?> は、エラーの文で使う部品の名前：「値が来るはず」
 -- ANCHOR: atomOnly
 atom :: Parser Expr
 atom = choice
-  [ Lit . LInt <$> integer
+  [ Lit <$> number
+  , negative
   , Lit (LBool True)  <$ keyword "true"
   , Lit (LBool False) <$ keyword "false"
   , Lit . LString <$> stringLiteral
@@ -203,27 +309,150 @@ atom = choice
   , regexLiteral
   , matchRegex
   , substRegex
-  , Var <$> name
+  , nameWithFields
+  , accessor
   , Var <$> qualifiedName
+  , Var <$> qualifiedCon
   , Var <$> conName
-  , parensOrTuple
-  , List <$> between (symbol "[") (symbol "]") (expr `sepBy` symbol ",")
+  , parenthesized
+  , listOrComprehension
+  , recordLiteral
   , mapLiteral
   ] <?> "a value"
 -- ANCHOR_END: atomOnly
 
+-- ANCHOR: tuple
+-- 🧺 Inside ( ): an operator alone (+), a section (+ 1) or (10 -),
+--    or expressions: (e) is just e, but (a, b) and (a, b, c) are tuples.
+-- ( ) の中身：演算子だけの (+)、セクションの (+ 1)・(10 -)、または式。
+-- (e) はただの e。(a, b) や (a, b, c) はタプル
+parenthesized :: Parser Expr
+parenthesized = do
+  _ <- symbol "("
+  -- ANCHOR: unitExpr
+  -- () is the tuple of nothing: the answer of putStrLn.
+  -- () は何も入っていないタプル。putStrLn の答え
+  inside <- (Tuple [] <$ char ')') <|> operatorFirst <|> expressionFirst
+  -- ANCHOR_END: unitExpr
+  -- ANCHOR: parenFields
+  -- Fields may follow the ) with no space:  (f x).name
+  -- ) のすぐ後ろに、フィールドを続けてよい
+  lexeme (fields inside)
+  -- ANCHOR_END: parenFields
+  where
+    -- (+) and (+ 1). An expression cannot start with an operator, so
+    -- once an operator is read, it is one of these two.
+    -- 式は演算子で始まらないので、演算子を読んだら、この2つのどちらか
+    operatorFirst = do
+      -- ANCHOR: minusInParens
+      -- (-1) is the number -1, and (-x) is negate x: not sections.
+      -- (- 1), with a space, is still the section \x -> x - 1.
+      -- (-1) は数の -1、(-x) は negate x で、セクションではない。
+      -- 空白のある (- 1) は、これまでどおりセクション
+      notFollowedBy (char '-' *> satisfy startsValue)
+      -- ANCHOR_END: minusInParens
+      (_, o) <- bareOperator
+      choice
+        [ operatorFunction o <$ try (spaces *> char ')')
+        , do
+            spaces
+            r <- expr
+            _ <- char ')'
+            pure (rightSection o r) ]
+    expressionFirst = do
+      first <- expr
+      choice
+        [ do (_, o) <- operatorSymbol
+             _ <- char ')'
+             pure (leftSection first o)
+        , do rest <- many (symbol "," *> expr)
+             _ <- char ')'
+             pure (case rest of
+                     [] -> first
+                     _  -> Tuple (first : rest)) ]
+
+-- ANCHOR_END: tuple
+
+-- ANCHOR: dotted
+-- 🔎 A name and the fields after it, with no spaces:  r.name,
+--    order.customer.name.  A small letter right after the dot is a
+--    field.
+-- 名前と、その後ろのフィールド（空白なし）。点のすぐ後ろの小文字は
+-- フィールド
+nameWithFields :: Parser Expr
+nameWithFields = (<?> "a name") $ lexeme $ try $ do
+  n <- rawName
+  fields (Var n)
+
+-- 🔎 The fields after something:  e.name.age  is  (e.name).age
+-- 何かの後ろのフィールド
+fields :: Expr -> Parser Expr
+fields e = do
+  -- hidden: an error message does not say "expecting '.'".
+  -- hidden：エラーの文に「'.' が来るはず」と出さない
+  fs <- many (hidden dotField)
+  pure (foldl Field e fs)
+
+-- .name, right after the thing before it.
+-- 前のものにくっついた .name
+dotField :: Parser Name
+dotField = try (char '.' *> rawName)
+-- ANCHOR_END: dotted
+
+-- ANCHOR: accessor
+-- 🔧 .name alone is a function that reads the field name:
+--    map .name crew.  It is sugar for  \$r -> $r.name.
+-- .name だけなら、フィールド name を読む関数。\$r -> $r.name の糖衣構文
+accessor :: Parser Expr
+accessor = (<?> "a field like .name") $ lexeme $ do
+  x <- dotField
+  pure (Lam "$r" (Field (Var "$r") x))
+-- ANCHOR_END: accessor
+
+-- ANCHOR: recordLiteral
+-- 📇 A record:  { name = "Lam", age = 3 },  and a changed copy of
+--    one:  { r | age = 4 }.
+-- レコードと、その一部を変えたもの
+recordLiteral :: Parser Expr
+recordLiteral = lexeme $ do
+  -- A record starts with  { name =  or  { name |.  Read ahead, so that
+  -- nothing is read if it is not one (the training adds { name, days }).
+  -- レコードは { name = か { name | で始まる。先読みして、そうでなければ
+  -- 何も読まない（トレーニングで { name, days } を足すため）
+  _ <- try (symbol "{" <* lookAhead (hidden name *> afterName))
+  base <- optional (try (name <* bar))
+  given <- recordField `sepBy1` symbol ","
+  _ <- char '}'
+  case [ x | (i, (x, _)) <- zip [0 :: Int ..] given
+           , x `elem` map fst (drop (i + 1) given) ] of
+    -- 「フィールド age が2度あります」
+    x : _ -> fail ("the field " <> T.unpack x <> " is written twice")
+    []    -> fields
+               (maybe (Record given) (\r -> Update (Var r) given) base)
+  where
+    -- Named for error messages: {name} says "'=' (a record)".
+    -- エラーの文のための名前：{name} なら「'='（レコード）」
+    afterName = (bar <|> equals) <?> "'=' (a record)"
+    recordField = do
+      x <- name
+      _ <- equals
+      e <- expr
+      pure (x, e)
+-- ANCHOR_END: recordLiteral
+
 -- ANCHOR: mapLiteral
 -- 🗺️ {"Python": 82, "TS": 75}  is sugar for
 --    Map.fromList [("Python", 82), ("TS", 75)].  {} is the empty map.
---    A key is a string written as it is, like JSON. When it looks like
---    a name, the quotes may be left out, like JavaScript:
---    {name: "Lam"} is {"name": "Lam"} (name is NOT a variable here).
---    To use the value of an expression as the key, put it in [ ]:
---    {[name]: "Lam"} uses the string in the variable name.
--- Map.fromList の糖衣構文。キーは、JSON と同じく、そのまま書いた文字列。
--- 名前の形なら、JavaScript と同じく " を省ける。{name: "Lam"} は
--- {"name": "Lam"} のこと（ここの name は変数ではない）。式の値をキーに
--- するときは、[ ] で包む。{[name]: "Lam"} は、変数 name の文字列を使う
+--    A key is a string or a number written as it is, like JSON and
+--    Python: {1: "one"}. When a string key looks like a name, the
+--    quotes may be left out, like JavaScript: {name: "Lam"} is
+--    {"name": "Lam"} (name is NOT a variable here). To use the value
+--    of an expression as the key, put it in [ ]: {[name]: "Lam"} uses
+--    the value of the variable name, and {[(1, 2)]: "a"} a tuple.
+-- Map.fromList の糖衣構文。キーは、JSON や Python と同じく、そのまま
+-- 書いた文字列か数。名前の形の文字列なら、JavaScript と同じく " を
+-- 省ける。{name: "Lam"} は {"name": "Lam"} のこと（ここの name は
+-- 変数ではない）。式の値をキーにするときは、[ ] で包む
 mapLiteral :: Parser Expr
 mapLiteral = do
   entries <- between (symbol "{") (symbol "}") (entry `sepBy` symbol ",")
@@ -233,51 +462,128 @@ mapLiteral = do
     entry = do
       k <- choice
         [ Lit . LString <$> stringLiteral
+        , numberKey
         , Lit . LString <$> bareKey
         , between (symbol "[") (symbol "]") expr ]
-      _ <- symbol ":"
+      -- Named for error messages: "':' (a Map)".
+      -- エラーの文のための名前：「':'（Map）」
+      _ <- symbol ":" <?> "':' (a Map)"
       v <- expr
       pure (k, v)
+    -- 1, 1.5 and -1, with no space after the minus.
+    -- 空白のないマイナスも
+    numberKey = do
+      minus <- optional (char '-')
+      n <- number
+      pure $ Lit $ case (minus, n) of
+        (Just _, LInt i)   -> LInt (negate i)
+        (Just _, LFloat x) -> LFloat (negate x)
+        _                  -> n
     -- A key without quotes: letters, digits, _ and ', not starting
     -- with a digit. Keywords are fine here ({if: 1}).
     -- " のないキー：文字・数字・_・'（数字では始まらない）。
     -- ここでは、キーワードも使える
     bareKey = (<?> "a key") $ lexeme $ do
       first <- letterChar <|> char '_'
-      rest  <- many (alphaNumChar <|> char '_' <|> char '\'')
+      -- hidden: the letters that may go on are not listed in errors.
+      -- hidden：続けてよい文字は、エラーの文に並べない
+      rest  <- many (hidden (alphaNumChar <|> char '_' <|> char '\''))
       pure (T.pack (first : rest))
 -- ANCHOR_END: mapLiteral
 
--- ANCHOR: tuple
--- 🧺 (e) is just e, but (a, b) and (a, b, c) are tuples.
---    () is the tuple of nothing.
--- (e) はただの e。(a, b) や (a, b, c) はタプル。() は何もないタプル
-parensOrTuple :: Parser Expr
-parensOrTuple = do
-  es <- between (symbol "(") (symbol ")") (expr `sepBy` symbol ",")
-  pure $ case es of
-    [e] -> e
-    _   -> Tuple es
--- ANCHOR_END: tuple
+-- ANCHOR: listOrComprehension
+-- 🧺 [1, 2, 3], or a list comprehension [x * 2 | x <- xs, x > 1].
+-- リスト、またはリスト内包表記
+listOrComprehension :: Parser Expr
+listOrComprehension = between (symbol "[") (symbol "]") $ do
+  items <- expr `sepBy` symbol ","
+  case items of
+    [e] -> option (List [e])
+             (comprehension e <$> (bar *> qualifier `sepBy1` symbol ","))
+    _   -> pure (List items)
+
+-- 🧺 x <- xs,  let y = x * 2,  or a condition x > 1.
+--    A let followed by in is not one: it is a condition.
+-- 内包表記の部品。in が続く let は部品ではなく、条件の式
+qualifier :: Parser Qualifier
+qualifier = choice
+  [ do binding <- try (letBinding <* notFollowedBy (keyword "in"))
+       pure $ case binding of
+         Named y e        -> LetName y e
+         Destructured p e -> LetPattern p e
+  , do p <- try (pattern <* symbol "<-")
+       Generator p <$> expr
+  , Condition <$> expr ]
+-- ANCHOR_END: listOrComprehension
+
+-- ANCHOR: operatorSymbol
+-- 🔣 The symbol of an operator, and the way to build its tree.
+--    bareOperator leaves the spaces after it, so that (- 1) and (-1)
+--    can be told apart.
+-- 演算子の記号と、その木の作り方。bareOperator は後ろの空白を残す
+-- （(- 1) と (-1) を見分けるため）
+operatorSymbol :: Parser (Text, Operator)
+operatorSymbol = lexeme bareOperator
+
+bareOperator :: Parser (Text, Operator)
+bareOperator = choice
+  [ (s, o) <$ try (string s <* notFollowedBy (oneOf opLetters))
+  | (_, s, o) <- concat operatorRows ]
+-- ANCHOR_END: operatorSymbol
 
 -- ANCHOR: application
 -- 📞 Calling a function: atoms side by side.
 --    f x y means (f x) y.
 -- 関数を呼ぶ：部品を並べる。f x y は (f x) y
+--    A call gets the mark of its place (At), for the errors.
+-- 呼び出しには、エラーのために、場所の印（At）を付ける
 application :: Parser Expr
 application = do
-  f    <- atom
-  args <- many (continuing *> atom)
-  pure (foldl App f args)
+  loc     <- here
+  (f, sp) <- withSpaceAfter atom
+  args    <- arguments sp
+  pure $ case args of
+    [] -> f                          -- only an atom: no call, no mark
+    _  -> At loc (foldl App f args)
+  where
+    -- ANCHOR: arguments
+    -- The arguments, one by one. A minus right before a value is a
+    -- negative argument only after a space: f -7 is f (-7), but in
+    -- n-1 (no space before -) the minus is the one of n - 1.
+    -- 引数を1つずつ。値の直前のマイナスが負の引数になるのは、前に空白が
+    -- あるときだけ。f -7 は f (-7)。n-1（- の前に空白なし）は n - 1
+    arguments afterSpace = do
+      next <- optional (continuing *> withSpaceAfter (argument afterSpace))
+      case next of
+        Nothing        -> pure []
+        Just (a, sp')  -> (a :) <$> arguments sp'
+    argument afterSpace
+      | afterSpace = atom
+      | otherwise  = notFollowedBy (char '-') *> atom
+    -- ANCHOR_END: arguments
+
+-- 📏 Read p, and tell if it ended with a space (or a line break, or a
+--    comment): the spaces after it are read by lexeme.
+-- p を読み、空白（改行、コメント）で終わったかを答える。後ろの空白は
+-- lexeme が読んでいる
+withSpaceAfter :: Parser a -> Parser (a, Bool)
+withSpaceAfter p = do
+  input  <- getInput
+  start  <- getOffset
+  a      <- p
+  end    <- getOffset
+  let used = T.take (end - start) input
+  pure (a, not (T.null used) && isSpace (T.last used))
 -- ANCHOR_END: application
 
 -- ANCHOR: continuing
 -- 📏 A word at the very left (column 1) starts a new definition,
---    so it cannot continue the expression above it. Inside do, a word
---    at the column of the lines of do starts the next line.
+--    so it cannot continue the expression above it. The column is
+--    read with ask: it is 1, except in the parts of a where (they
+--    start at their own column).
 -- いちばん左（1桁目）の言葉は、新しい定義の始まり。
--- だから、上の式の続きにはならない。do の中では、do の行と同じ列の
--- 言葉が、次の行の始まり
+-- だから、上の式の続きにはならない。列は ask で読む。ふつうは 1 だが、
+-- where の部品の中では、部品の始まる列になる
 continuing :: Parser ()
 continuing = do
   column <- L.indentLevel
@@ -288,11 +594,60 @@ continuing = do
 
 -- ANCHOR: operators
 -- ➕ Operators, from the tightest to the loosest (the same order
---    as Haskell). InfixL: 1 - 2 - 3 is (1 - 2) - 3.
---    InfixR: 1 : 2 : xs is 1 : (2 : xs).  InfixN: a == b == c is an error.
--- 演算子。強いものから順に（Haskell と同じ順番）
-operators :: [[Operator Parser Expr]]
-operators = operatorsWith [InfixR (BinOp Cons <$ op ":")]
+--    as Haskell, and >> << |> <| as in Elm). LeftA: 1 - 2 - 3 is
+--    (1 - 2) - 3.  RightA: 1 : 2 : xs is 1 : (2 : xs).
+--    NoneA: a == b == c is an error.
+-- 演算子。強いものから順に（Haskell と同じ順番。>> << |> <| は Elm と同じ）
+data Assoc = LeftA | RightA | NoneA
+
+operatorRows :: [[(Assoc, Text, Operator)]]
+operatorRows =
+  [ [ (RightA, ">>", Operator composeRight) ]
+  , [ (LeftA,  "<<", Operator composeLeft) ]
+  , [ (LeftA, "*", binary Mul), (LeftA, "/", binary Div)
+    -- ANCHOR: divRow
+    -- Dividing whole numbers, and the two that give Nothing for 0.
+    -- 整数の割り算と、0 で割ると Nothing になる2つ
+    , (LeftA, "//", binary IntDiv)
+    , (LeftA, "/?", binary DivMaybe), (LeftA, "//?", binary IntDivMaybe) ]
+    -- ANCHOR_END: divRow
+  , [ (LeftA, "+", binary Add), (LeftA, "-", binary Sub) ]
+  , [ (RightA, "++", binary Concat), (RightA, ":", binary Cons) ]
+  -- ANCHOR: orElseRow
+  -- m ?: 0: the value in m, or 0 for Nothing and Err. Leaning right,
+  -- a ?: b ?: 0 tries a, then b. Looser than ++, tighter than ==.
+  -- m の中の値か、Nothing・Err なら 0。右に寄るので、a ?: b ?: 0 は
+  -- a、次に b を試す。++ より弱く、== より強い
+  , [ (RightA, "?:", binary OrElse) ]
+  -- ANCHOR_END: orElseRow
+  , [ (NoneA, "==", binary Eq), (NoneA, "/=", binary Ne)
+    , (NoneA, "<",  binary Lt), (NoneA, "<=", binary Le)
+    , (NoneA, ">",  binary Gt), (NoneA, ">=", binary Ge)
+    -- ANCHOR: matchesRow
+    -- line =~ m/ERROR/  is  Regex.matches m/ERROR/ line (as in Perl)
+    -- 「合うか」の演算子（Perl と同じ）
+    , (NoneA, "=~", Operator matchesOp) ]
+    -- ANCHOR_END: matchesRow
+  , [ (RightA, "&&", binary And) ]
+  , [ (RightA, "||", binary Or) ]
+  , [ (LeftA,  "|>", Operator pipe) ]
+  , [ (RightA, "<|", Operator pipeLeft) ]
+  ]
+  where
+    binary o = Operator (BinOp o)
+
+-- The letters that operators are made of.
+-- 演算子を作る文字
+opLetters :: String
+opLetters = "+-*/=<>:&|?~"
+
+-- 🧮 Calls and operators together. An operator is not followed by
+--    more operator letters ("+" is not the start of "++", "<" not of
+--    "<=", "-" not of "->"), nor by ")" (that is a section: (10 -)).
+-- 関数の呼び出しと、演算子。演算子のあとに、演算子の文字は続かない。
+-- ) も続かない（それはセクションの (10 -)）
+operatorExpr :: Parser Expr
+operatorExpr = operatorExprWith operatorRows
 
 -- ANCHOR: formatOperators
 -- 🪡 Inside { } of f"...", a : ends the expression (the format comes
@@ -300,89 +655,298 @@ operators = operatorsWith [InfixR (BinOp Cons <$ op ":")]
 --    Write (x : xs) in parentheses, as Python wants lambda in them.
 -- f"..." の { } の中では、: で式が終わる（後ろに書式が来る）ので、
 -- :（リストの前に足す）は外す。Python の lambda と同じく、括弧で包む
-formatOperators :: [[Operator Parser Expr]]
-formatOperators = operatorsWith []
+formatOperatorRows :: [[(Assoc, Text, Operator)]]
+formatOperatorRows = map (filter (\(_, s, _) -> s /= ":")) operatorRows
 -- ANCHOR_END: formatOperators
 
--- 🧮 The table, with the operators of the level of ++ given.
--- 表。++ と同じ強さの演算子を、渡されたものにする
-operatorsWith :: [Operator Parser Expr] -> [[Operator Parser Expr]]
-operatorsWith cons =
-  [ [ InfixL (BinOp Mul <$ op "*"), InfixL (BinOp Div <$ op "/") ]
-  , [ InfixL (BinOp Add <$ op "+"), InfixL (BinOp Sub <$ op "-") ]
-  , InfixR (BinOp Concat <$ op "++") : cons
-  , [ InfixN (BinOp Eq <$ op "=="), InfixN (BinOp Ne <$ op "/=")
-    , InfixN (BinOp Lt <$ op "<" ), InfixN (BinOp Le <$ op "<=")
-    , InfixN (BinOp Gt <$ op ">" ), InfixN (BinOp Ge <$ op ">=")
-    -- line =~ m/ERROR/  is  Regex.matches m/ERROR/ line (as in Perl)
-    -- 「合うか」の演算子（Perl と同じ）
-    , InfixN (matchesOp <$ op "=~") ]
-  , [ InfixR (BinOp And <$ op "&&") ]
-  , [ InfixR (BinOp Or  <$ op "||") ]
-  ]
-
--- An operator is not followed by more operator letters:
--- "+" is not the start of "++", "<" not of "<=", "-" not of "->".
--- 演算子のあとに、演算子の文字は続かない
-op :: Text -> Parser Text
-op s = lexeme (try (continuing *> string s
-                      <* notFollowedBy (oneOf opLetters)))
-         <?> "an operator"
+-- 🧮 The same, with the rows of operators given.
+-- 同じだが、演算子の表を渡す
+operatorExprWith :: [[(Assoc, Text, Operator)]] -> Parser Expr
+operatorExprWith rows = makeExprParser application (map (map toInfix) rows)
   where
-    opLetters = "+-*/=<>:&|~" :: String
-
--- ANCHOR: matchesOp
--- 🐪 a =~ r  is sugar for  Regex.matches r a.
--- a =~ r は Regex.matches r a の糖衣構文
-matchesOp :: Expr -> Expr -> Expr
-matchesOp text regex = call "Regex.matches" [regex, text]
--- ANCHOR_END: matchesOp
-
--- 🧮 Calls and operators together.
--- 関数の呼び出しと、演算子
-operatorExpr :: Parser Expr
-operatorExpr = makeExprParser application operators
+    -- ANCHOR: toInfix
+    -- An operator gets the mark of the place of its symbol: the
+    -- error of 10 // 0 points at the //.
+    -- 演算子には、記号の場所の印を付ける。10 // 0 のエラーは // を指す
+    toInfix (assoc, s, Operator build) =
+      let symbolOnly = marked build <$> here <* op s <?> "an operator"
+      in case assoc of
+           LeftA  -> E.InfixL symbolOnly
+           RightA -> E.InfixR symbolOnly
+           NoneA  -> E.InfixN symbolOnly
+    op s = try (lexeme (continuing *> string s
+                          <* notFollowedBy (oneOf opLetters))
+                  <* notFollowedBy (char ')'))
+    marked build loc l r = At loc (build l r)
+    -- ANCHOR_END: toInfix
 -- ANCHOR_END: operators
 
 -- ANCHOR: expr
 -- 🌳 A whole expression. \, let and if reach to the right end.
 -- 式全体。\、let、if は右の端まで続く
 expr :: Parser Expr
-expr = choice [lambda, letIn, ifThenElse, caseOf, doBlock, operatorExpr]
+expr = choice [lambda, letIn, ifThenElse, caseOf, doExpr, operatorExpr]
+
+-- ANCHOR: doExpr
+-- 📝 do, then lines one under another, all at the same column (or
+--    on one line, with ; between them). Inside, an expression goes on
+--    only to the right of that column (see continuing).
+-- do のあとに、同じ列から行を縦に並べる（1行なら ; で区切る）。中の式は、
+-- その列より右にだけ続く（continuing）
+doExpr :: Parser Expr
+doExpr = do
+  keyword "do"
+  column <- L.indentLevel
+  lines' <- local (const column) (statement `sepBy1` nextLine column)
+  case last lines' of
+    DoRun _    -> pure (doBlock lines')
+    -- 「do の最後の行は答えそのものなので、? なしで書きます」
+    DoTryRun _ ->
+      fail "the last line of do is the answer itself: write it without ?"
+    -- 「do の最後の行は、式でなければなりません」
+    _ -> fail "the last line of do must be an expression"
+  where
+    nextLine column = (() <$ symbol ";") <|> do
+      now <- L.indentLevel
+      if now == column then pure () else empty
+
+-- 📝 One line: let x = e,  defer e,  p <- e,  or an expression. A
+--    let followed by in is an expression. The last two may end with ?.
+-- 1行：let x = e、defer e、p <- e、または式。in が続く let は式。
+-- 最後の2つは、? で終わってもよい
+statement :: Parser Statement
+statement = choice
+  [ do binding <- try (letBinding <* notFollowedBy (keyword "in"))
+       pure $ case binding of
+         Named x e        -> DoLet x e
+         Destructured p e -> DoLetPattern p e
+  , DoDefer <$> (keyword "defer" *> expr)
+  , do p <- try (pattern <* symbol "<-")
+       e <- expr
+       marked <- tryMark
+       pure (if marked then DoTry p e else DoBind p e)
+  , do e <- expr
+       marked <- tryMark
+       pure (if marked then DoTryRun e else DoRun e) ]
+-- ANCHOR_END: doExpr
+
+-- ANCHOR: tryMark
+-- ❓ A ? at the end of a line of do. It is not ?: (or-else), nor /?.
+--    It stands alone, to the right of the column of the do.
+-- do の行の終わりの ?。?:（なければ）でも /? でもない。do の列より右に、
+-- 1つだけで立つ
+tryMark :: Parser Bool
+tryMark = option False $ True <$
+  try (lexeme (continuing *> char '?' <* notFollowedBy (oneOf opLetters)))
+-- ANCHOR_END: tryMark
 
 -- ANCHOR: lambda
 -- \x y -> body  is  \x -> \y -> body  (sugar, no new tree shape).
--- \x y -> body は \x -> \y -> body のこと（糖衣構文。木の形は増えない）
+--    The arguments may be patterns: \(a, b) -> a + b.
+-- \x y -> body は \x -> \y -> body のこと（糖衣構文。木の形は増えない）。
+-- 引数はパターンでもよい
 lambda :: Parser Expr
 lambda = do
-  _    <- symbol "\\"
-  xs   <- some name
-  _    <- symbol "->"
-  body <- expr
-  pure (foldr Lam body xs)
-
-letIn :: Parser Expr
-letIn = do
-  (x, e) <- definition
-  keyword "in"
-  body <- expr
-  pure (Let x e body)
+  _      <- symbol "\\"
+  params <- some patternAtom
+  _      <- symbol "->"
+  body   <- expr
+  pure (lambdaWith params body)
 -- ANCHOR_END: lambda
 
+-- ANCHOR: letIn
+-- 🏷️ let f x = e in body, or let (q, r) = e in body.
+-- ふつうの let と、パターンの let
+letIn :: Parser Expr
+letIn = do
+  binding <- letBinding
+  case binding of
+    Named x e -> do
+      keyword "in"
+      Let x e <$> expr
+    -- At the top, only names can be defined: a pattern needs in.
+    -- いちばん外で定義できるのは名前だけ。パターンには in が要る
+    Destructured p e -> do
+      keyword "in" <?> "in (a let with a pattern needs in)"
+      letPattern p e <$> expr
+-- ANCHOR_END: letIn
+
 -- ANCHOR: definition
--- 🏷️ let f x y = body  is  let f = \x -> \y -> body.
---    The name may have a module in front:  let Map.insertWith f ...
--- let f x y = body は let f = \x -> \y -> body のこと。
--- 名前の前に、モジュールの名前を付けてもよい
-definition :: Parser (Name, Expr)
-definition = do
+-- 🏷️ What a let gives a name to: a name (with arguments), or the
+--    parts of a pattern.
+-- let が名前を付けるもの：名前（引数つきでもよい）か、パターンの部品
+data Binding
+  = Named Name Expr           -- let f x y = body
+  | Destructured Pattern Expr -- let (q, r) = e
+
+letBinding :: Parser Binding
+letBinding = do
   keyword "let"
-  f    <- qualifiedName <|> name
-  xs   <- many name
-  _    <- lexeme (string "=" <* notFollowedBy (char '='))
-  body <- expr
-  pure (f, foldr Lam body xs)
+  named <|> destructured
+  where
+    named = do
+      (f, e) <- afterLet
+      pure (Named f e)
+    destructured = do
+      p <- pattern
+      _ <- equals
+      Destructured p <$> expr
+
+-- 🏷️ let f x y = body  is  let f = \x -> \y -> body.
+--    The arguments may be patterns, as in a lambda.
+-- let f x y = body は let f = \x -> \y -> body のこと。
+-- 引数は、ラムダと同じくパターンでもよい
+definition :: Parser (Name, Expr)
+definition = keyword "let" *> afterLet
+
+afterLet :: Parser (Name, Expr)
+afterLet = do
+  -- ANCHOR: definedName
+  -- Map.insertWith may be defined too (the prelude does).
+  -- Map.insertWith も定義できる（プレリュードが使う）
+  f      <- qualifiedName <|> name
+  -- ANCHOR_END: definedName
+  params <- many patternAtom
+  _      <- equals
+  body   <- expr
+  pure (f, lambdaWith params body)
+
+-- = but not ==
+-- = だが == ではない
+equals :: Parser ()
+equals = () <$ lexeme (string "=" <* notFollowedBy (char '='))
 -- ANCHOR_END: definition
+
+-- ANCHOR: topDefinition
+-- 🏷️ A definition at the top of a file: let may be left out, and
+--    where may follow.
+--      area w h = w * h            is  let area w h = w * h
+--      f x = a + b where ...       is  f x = let a = ... in let b = ...
+--    Without let, we read ahead to the = first: a line that is not a
+--    definition is the expression at the end.
+-- ファイルのいちばん外の定義：let は省ける。where を後ろに付けてよい。
+-- let がなければ、先に = まで読んでみる。定義でない行は、最後の式
+topDefinition :: Parser (Name, Expr)
+topDefinition = do
+  (f, params) <- try $ do
+    _      <- optional (keyword "let")
+    f      <- qualifiedName <|> name
+    params <- many patternAtom
+    _      <- equals
+    pure (f, params)
+  body   <- expr
+  locals <- option [] whereBlock
+  pure (f, lambdaWith params (foldr (uncurry Let) body locals))
+-- ANCHOR_END: topDefinition
+
+-- ANCHOR: whereBlock
+-- 📎 where, then definitions one under another (at the same column):
+--      summary scores = total ++ " points"
+--        where
+--          total = showInt (sum scores)
+--    The parts may use the arguments, and the parts above them.
+-- where のあとに、定義を縦に並べる（同じ列から）。部品は、引数と、
+-- 上にある部品を使える
+whereBlock :: Parser [(Name, Expr)]
+whereBlock = block afterLet
+
+-- ANCHOR: block
+-- 📎 where, then items one under another, all at the same column.
+--    A where of a definition, a class and an instance all use this.
+-- where のあとに、同じ列から項目を縦に並べる。定義の where も、
+-- クラスとインスタンスも、これを使う
+block :: Parser a -> Parser [a]
+block item = do
+  try (continuing *> keyword "where")
+  column <- L.indentLevel
+  local (const column) (item `sepBy1` atColumn column)
+  where
+    atColumn column = do
+      now <- L.indentLevel
+      if now == column then pure () else empty
+-- ANCHOR_END: block
+-- ANCHOR_END: whereBlock
+
+-- ANCHOR: signature
+-- ✍️ A type annotation, on its own line above the definition:
+--      add : Int -> Int -> Int
+--      largest : Comparable a => [a] -> Maybe a
+--    It must be followed by a definition, so that  x : xs  at the end
+--    of a file is still an expression.
+-- 型の注釈。定義の上の行に書く。後ろに定義が続かなければならない。
+-- そうすれば、ファイルの終わりの x : xs は、式のまま
+signature :: Parser Decl
+signature = try $ do
+  sig <- signatureHead
+  _   <- lookAhead (optional (keyword "let") *> name)
+  pure sig
+
+-- ✍️ The annotation alone (the REPL puts ; and the definition after it).
+-- 注釈だけ（REPL では、後ろに ; と定義を続ける）
+signatureHead :: Parser Decl
+signatureHead = do
+  x     <- name
+  _     <- lexeme (char ':' <* notFollowedBy (oneOf opLetters))
+  conds <- conditions
+  t     <- typeExpr
+  pure (DefSig x (Signature conds t))
+
+-- 🎓 The classes before =>, if any:  Comparable a =>  or
+--    (Describe a, Comparable b) =>
+-- => の前のクラス（あれば）
+conditions :: Parser [(Name, Name)]
+conditions = option [] (try (classes <* symbol "=>"))
+  where
+    classes =
+      between (symbol "(") (symbol ")") (condition `sepBy1` symbol ",")
+        <|> fmap pure condition
+    condition = (,) <$> conName <*> name
+-- ANCHOR_END: signature
+
+-- ANCHOR: classDecl
+-- 🎓 class Describe a where
+--      describe : a -> String
+--      describeAll : [a] -> String
+--      describeAll xs = ...
+--    Under where: the types of the methods, and the defaults (written
+--    as definitions). A class may have no methods at all.
+-- where の下に、メソッドの型と、既定のメソッド（定義の形）。
+-- メソッドが1つもないクラスもよい
+classDecl :: Parser ClassDecl
+classDecl = do
+  keyword "class"
+  supers <- conditions
+  c      <- conName
+  a      <- name
+  items  <- option [] (block item)
+  pure (ClassDecl supers c a
+          [ (m, sig) | Left (m, sig) <- items ]
+          [ (m, e)   | Right (m, e)  <- items ])
+  where
+    -- A method's type has a : after its name; a default has its
+    -- arguments and = instead.
+    -- メソッドの型は名前のあとに :、既定のメソッドは引数と =
+    item = (Left <$> try methodType) <|> (Right <$> afterLet)
+    methodType = do
+      m <- name
+      _ <- lexeme (char ':' <* notFollowedBy (oneOf opLetters))
+      t <- typeExpr
+      pure (m, Signature [] t)
+
+-- 🧩 instance Describe Shape where
+--      describe s = ...
+--    instance Describe a => Describe (Maybe a) where ...
+--    The type is one word (Int, Shape) or in brackets: (Maybe a), [a].
+-- 型は1語（Int、Shape）か、括弧の中：(Maybe a)、[a]
+instanceDecl :: Parser InstanceDecl
+instanceDecl = do
+  keyword "instance"
+  context <- conditions
+  c       <- conName
+  t       <- typeAtom
+  methods <- option [] (block afterLet)
+  pure (InstanceDecl context c t methods)
+-- ANCHOR_END: classDecl
 
 ifThenElse :: Parser Expr
 ifThenElse = do
@@ -402,9 +966,16 @@ ifThenElse = do
 -- 枝は | で始める（最初の | は省いてよい）。枝にはガードを付けられる
 caseOf :: Parser Expr
 caseOf = do
+  loc <- here
   keyword "case"
   scrutinee <- expr
   keyword "of"
+  At loc <$> branchesOf scrutinee
+
+-- 🔀 The branches after "of", for the value e.
+-- of のあとの枝。e の値を分ける
+branchesOf :: Expr -> Parser Expr
+branchesOf scrutinee = do
   _ <- optional bar
   branches <- branch `sepBy1` bar
   pure (expandGuards scrutinee branches)
@@ -416,85 +987,12 @@ caseOf = do
       body  <- expr
       pure (p, guard, body)
 
--- 🚧 A single | (not the start of ||).
--- 1つだけの |（|| の頭ではない）
+-- 🚧 A single | (not the start of || or |>).
+-- 1つだけの |（|| や |> の頭ではない）
 bar :: Parser ()
-bar = lexeme (try (char '|' *> notFollowedBy (char '|'))) <?> "|"
+bar = lexeme (try (char '|' *> notFollowedBy (oneOf ("|>" :: String))))
+        <?> "|"
 -- ANCHOR_END: caseOf
-
--- ANCHOR: doBlock
--- 🎬 do: lines of IO, one under another (or split by ;).
---      do
---        name <- getLine
---        putStrLn name
---    Each line starts at the same column as the first one.
---    Parser.do (any name with a capital letter, then .do) is the same,
---    but its lines are joined with Parser.andThen (see desugarDo).
--- do：IO の行を、縦に並べる（; で区切ってもよい）。
--- どの行も、最初の行と同じ列から始める。
--- Parser.do（大文字で始まる名前と .do）も同じだが、行を
--- Parser.andThen でつなぐ（desugarDo を見る）
-doBlock :: Parser Expr
-doBlock = do
-  which  <- (Nothing <$ keyword "do") <|> (Just <$> qualifiedDo)
-  column <- L.indentLevel
-  lines' <- local (const column) (doLine `sepBy1` nextLine column)
-  either fail pure (desugarDo which lines')
-  where
-    nextLine column = (() <$ symbol ";") <|> atColumn column
-    atColumn column = do
-      here <- L.indentLevel
-      if here == column then pure () else empty
-
--- ANCHOR: qualifiedDo
--- 🏷️ Parser.do, Maybe.do, Result.do: the part in front of .do.
--- Parser.do・Maybe.do・Result.do の、.do の前の部分
-qualifiedDo :: Parser Name
-qualifiedDo = lexeme $ try $ do
-  first <- upperChar
-  rest  <- many (alphaNumChar <|> char '_')
-  _     <- string ".do"
-  notFollowedBy (alphaNumChar <|> char '_' <|> char '\'')
-  pure (T.pack (first : rest))
--- ANCHOR_END: qualifiedDo
-
--- 📝 One line of do.
--- do の1行
-data DoLine
-  = DoBind Name Expr       -- name <- getLine
-  | DoLet Name Expr        -- let greeting = "hi " ++ name
-  | DoExpr Expr            -- putStrLn greeting
-
-doLine :: Parser DoLine
-doLine = choice
-  [ do x <- try (name <* symbol "<-")
-       DoBind x <$> expr
-  , try (uncurry DoLet <$> definition <* notFollowedBy (keyword "in"))
-  , DoExpr <$> expr ]
--- ANCHOR_END: doBlock
-
--- ANCHOR: desugarDo
--- 🍬 do is sugar: it opens into bind and functions.
---      x <- e; rest    is    bind e (\x -> rest)
---      e; rest         is    bind e (\_ -> rest)
---      let x = e; rest is    let x = e in rest
---    With Parser.do, the lines are joined with Parser.bind:
---      x <- e; rest    is    Parser.bind e (\x -> rest)
---    The evaluator and the type checker never see do.
--- do は糖衣構文：bind と関数に開く。Parser.do なら、行を
--- Parser.bind でつなぐ。評価器も型検査器も、do を知らない
-desugarDo :: Maybe Name -> [DoLine] -> Either String Expr
-desugarDo which ls = case ls of
-  [DoExpr e]       -> Right e
-  DoExpr e : rest  -> bindTo e "_" <$> desugarDo which rest
-  DoBind x e : rest -> bindTo e x <$> desugarDo which rest
-  DoLet x e : rest -> Let x e <$> desugarDo which rest
-  -- 「do の最後の行は、式でなければなりません」
-  _ -> Left "the last line of do must be an expression"
-  where
-    bindTo e x body = App (App (Var bind) e) (Lam x body)
-    bind = maybe "bind" (<> ".bind") which
--- ANCHOR_END: desugarDo
 
 -- ANCHOR: guards
 -- 🛡️ Guards are sugar. A branch whose guard is false goes on to the
@@ -533,29 +1031,46 @@ pattern = do
   pure (maybe p (PCons p) rest)
   where
     consSymbol =
-      lexeme (try (char ':' *> notFollowedBy (oneOf ("+-*/=<>:&|" :: String))))
+      lexeme (try (char ':' *> notFollowedBy (oneOf opLetters)))
 
+-- ANCHOR: patternApp
 -- 🧩 A constructor with its patterns (Just x, Rect w h), or a small one.
--- 構成子と、その引数のパターン。または小さなパターン
+--    The constructor may have a module in front: S.Circle r.
+-- 構成子と、その引数のパターン。または小さなパターン。構成子の前には
+-- モジュールの名前が付いてもよい
 patternApp :: Parser Pattern
 patternApp =
-  (PCon <$> conName <*> many (continuing *> patternAtom)) <|> patternAtom
+  (PCon <$> constructorName <*> many (continuing *> patternAtom))
+    <|> patternAtom
+  where
+    constructorName = qualifiedCon <|> conName
+-- ANCHOR_END: patternApp
 
 patternAtom :: Parser Pattern
 patternAtom = choice
   [ PWild <$ lexeme (try (char '_' <* notFollowedBy nameChar))
   , PVar <$> name
-  , (\c -> PCon c []) <$> conName
+  , (\c -> PCon c []) <$> (qualifiedCon <|> conName)
   , PLit . LInt <$> integer
+  -- -1: a negative number (no space after the minus)
+  -- 負の数（マイナスのあとに空白なし）
+  , PLit . LInt . negate
+      <$> (try (char '-' <* lookAhead digitChar) *> integer)
   , PLit . LString <$> stringLiteral
   , PLit (LBool True)  <$ keyword "true"
   , PLit (LBool False) <$ keyword "false"
   , parensOrTuplePattern
   , PList <$> between (symbol "[") (symbol "]") (pattern `sepBy` symbol ",")
+  -- ANCHOR: recordPattern
+  -- { name, age }: take these fields, under their own names.
+  -- これらのフィールドを、同じ名前で取り出す
+  , PRecord <$> between (symbol "{") (symbol "}") (name `sepBy1` symbol ",")
+  -- ANCHOR_END: recordPattern
   ] <?> "a pattern"
   where
     nameChar = alphaNumChar <|> char '_' <|> char '\''
     parensOrTuplePattern = do
+      -- () too: sepBy, not sepBy1 / () も読む
       ps <- between (symbol "(") (symbol ")") (pattern `sepBy` symbol ",")
       pure $ case ps of
         [p] -> p
@@ -589,19 +1104,68 @@ typeExpr = do
 -- 🏷️ A type name with its arguments (Maybe Int), or a small type.
 -- 型の名前と、その引数。または小さな型
 typeApp :: Parser TypeExpr
-typeApp = (TyCon <$> conName <*> many (continuing *> typeAtom)) <|> typeAtom
+typeApp = choice
+  [ TyCon <$> conName <*> many (continuing *> typeAtom)
+  -- ANCHOR: typeVarApp
+  -- f a: a type variable with types after it (f is a hole, like List)
+  -- f a：型変数のあとに型が続く（f は List のような穴）
+  , do f    <- name
+       args <- many (continuing *> typeAtom)
+       pure (if null args then TyVar f else TyApp f args)
+  -- ANCHOR_END: typeVarApp
+  , typeAtom ]
 
 typeAtom :: Parser TypeExpr
 typeAtom = choice
   [ (\c -> TyCon c []) <$> conName
   , TyVar <$> name
   , TyList <$> between (symbol "[") (symbol "]") typeExpr
+  -- (a, b), and () (sepBy, not sepBy1) / () も読む
   , do ts <- between (symbol "(") (symbol ")") (typeExpr `sepBy` symbol ",")
        pure $ case ts of
          [t] -> t
          _   -> TyTuple ts
+  , recordType
   ] <?> "a type"
+
+-- ANCHOR: recordType
+-- 📇 { name : String, age : Int },  and  { r | name : String }:
+--    a record with name, and maybe other fields (r stands for them).
+-- name を持ち、ほかのフィールドもあるかもしれないレコード
+--（r が、ほかのフィールドを表す）
+recordType :: Parser TypeExpr
+recordType = between (symbol "{") (symbol "}") $ do
+  rest  <- optional (try (name <* bar))
+  given <- fieldType `sepBy1` symbol ","
+  pure (TyRecord given rest)
+  where
+    fieldType = do
+      x <- name
+      _ <- lexeme (char ':')
+      t <- typeExpr
+      pure (x, t)
+-- ANCHOR_END: recordType
+
+-- ANCHOR: aliasDecl
+-- 🏷️ type alias Member = { name : String, days : Int }
+-- 型の別名
+aliasDecl :: Parser AliasDecl
+aliasDecl = do
+  keyword "type"
+  keyword "alias"
+  t      <- conName
+  params <- many name
+  _      <- equals
+  AliasDecl t params <$> typeExpr
+-- ANCHOR_END: aliasDecl
 -- ANCHOR_END: dataDecl
+
+-- ANCHOR: matchesOp
+-- 🐪 a =~ r  is sugar for  Regex.matches r a.
+-- a =~ r は Regex.matches r a の糖衣構文
+matchesOp :: Expr -> Expr -> Expr
+matchesOp text regex = reCall "matches" [regex, text]
+-- ANCHOR_END: matchesOp
 
 -- ANCHOR: regexLiteral
 -- 🔎 re"\d{4}-\d\d" is a regular expression. Inside it, a \ is kept as
@@ -618,18 +1182,40 @@ regexLiteral = (<?> "a regex") $ lexeme $ do
   _      <- try (string "re\"")
   start  <- getOffset
   source <- T.concat <$> manyTill rawChar (char '"')
-  case compileRegex source of
-    Right _  -> pure (App (Var "$regex") (Lit (LString source)))
-    Left msg -> do
-      setOffset start
-      -- 「この正規表現は、コンパイルできません」
-      fail (T.unpack ("this regex does not compile: " <> msg))
+  regexValue <$> compiledAt start source
   where
     rawChar = choice
       [ do _ <- char '\\'
            c <- anySingleBut '\n'
            pure (T.pack ['\\', c])
       , T.singleton <$> noneOf ['"', '\n'] ]
+
+-- Compile the pattern here, so that a mistake is found before the
+-- program runs; the error points at the start of the pattern.
+-- ここでコンパイルしてみる。まちがいは、パターンの頭を指すエラーに
+compiledAt :: Int -> Text -> Parser Regex
+compiledAt start source = case compileRegex source of
+  Right regex -> pure regex
+  Left msg    -> do
+    setOffset start
+    -- 「この正規表現は、コンパイルできません」
+    fail (T.unpack ("this regex does not compile: " <> msg))
+
+-- The regex as an expression:  $regex "...".
+-- 式としての正規表現
+regexValue :: Regex -> Expr
+regexValue regex = App (Var "$regex") (Lit (LString (regexSource regex)))
+
+-- 📞 Regex.f a b, as a tree, under the hidden name $re.f: no import
+--    and no definition of a program can change what the sugar calls.
+-- Regex.f a b を木にする。隠した名前 $re.f を呼ぶので、プログラムの
+-- import や定義が、糖衣構文の呼ぶものを変えることはない
+reCall :: Name -> [Expr] -> Expr
+reCall f = foldl App (Var (reName f))
+
+-- 🙈 replaceAll  is  $re.replaceAll  (Regex.replaceAll)
+reName :: Name -> Name
+reName f = "$re." <> f
 -- ANCHOR_END: regexLiteral
 
 -- ANCHOR: matchRegex
@@ -695,21 +1281,6 @@ withFlags :: String -> Text -> Text
 withFlags flags body
   | null flags = body
   | otherwise  = "(?" <> T.pack flags <> ")" <> body
-
--- Compile the pattern here, so that a mistake is found before the
--- program runs; the error points at the start of the pattern.
--- ここでコンパイルしてみる。まちがいは、パターンの頭を指すエラーに
-compiledAt :: Int -> Text -> Parser Regex
-compiledAt start source = case compileRegex source of
-  Right regex -> pure regex
-  Left msg    -> do
-    setOffset start
-    fail (T.unpack ("this regex does not compile: " <> msg))
-
--- The regex as an expression:  $regex "...".
--- 式としての正規表現
-regexValue :: Regex -> Expr
-regexValue regex = App (Var "$regex") (Lit (LString (regexSource regex)))
 -- ANCHOR_END: matchRegex
 
 -- ANCHOR: substRegex
@@ -743,13 +1314,12 @@ substRegex = (<?> "a substitution") $ lexeme $ do
       plain  = T.pack [ c | Left c <- pieces ]
       found  = Var "$m"
       piece  = either Left (\(_, ref) ->
-                 Right (call "$group" [Lit (LString ref), found]))
+                 Right (App (App (Var "$group") (Lit (LString ref))) found))
   pure $ if all isLeftPiece pieces
-    then call (if global then "Regex.replaceAll" else "Regex.replace")
-              [regexValue regex, Lit (LString plain)]
-    else call (if global then "Regex.replaceWith"
-                         else "Regex.replaceFirstWith")
-              [regexValue regex, Lam "$m" (joinPieces (map piece pieces))]
+    then reCall (if global then "replaceAll" else "replace")
+                [regexValue regex, Lit (LString plain)]
+    else reCall (if global then "replaceWith" else "replaceFirstWith")
+                [regexValue regex, Lam "$m" (joinPieces (map piece pieces))]
   where
     isLeftPiece = either (const True) (const False)
 
@@ -844,9 +1414,9 @@ field :: Parser Expr
 field = do
   _ <- char '{'
   (source, e) <- match (spaces *> formatExpr)
-  debug <- optional (char '=' *> takeWhileP Nothing (== ' '))
+  debug  <- optional (char '=' *> takeWhileP Nothing (== ' '))
   format <- optional (char ':' *> formatSpec)
-  _ <- char '}' <?> "}"
+  closeField
   let shown = case (debug, format) of
         -- {x=} with no format: the value as the REPL shows it, like
         -- Python's repr. With a format, the value for people.
@@ -858,60 +1428,81 @@ field = do
     Just spaced ->
       BinOp Concat (Lit (LString (source <> "=" <> spaced))) shown
 
--- 🌳 The expression in a field: \, let, if, case and do must be in
+-- 🚪 The } at the end of a field. A letter there is most likely the
+--    type letter of Python (.1f, 5d): Lam has none.
+-- フィールドの終わりの }。そこに文字があれば、たぶん Python の型の
+-- 文字（.1f、5d）。Lam にはない
+closeField :: Parser ()
+closeField = do
+  o <- getOffset
+  letter <- optional (lookAhead (satisfy isAlpha))
+  case letter of
+    Just c -> do
+      setOffset o
+      -- 「書式に型の文字はありません（.1f ではなく .1 と書きます）」
+      fail ("a format has no type letter like " <> [c]
+            <> " (write {x:.1}, not {x:.1f})")
+    Nothing -> () <$ (char '}' <?> "}")
+
+-- 🌳 The expression in a field: \, let, if and case must be in
 --    parentheses (they would reach over the : and the }).
--- フィールドの式。\、let、if、case、do は括弧で包む（: や } まで
+-- フィールドの式。\、let、if、case は括弧で包む（: や } まで
 -- 飲みこんでしまうため）
 formatExpr :: Parser Expr
 formatExpr = do
   o <- getOffset
   wide <- optional (lookAhead (symbol "\\" <|> choice (map ((<$) "" . keyword)
-            ["let", "if", "case", "do"])))
+            ["let", "if", "case"])))
   case wide of
     Just _  -> do
       setOffset o
-      -- 「{ } の中では、\ let if case do を ( ) で包みます」
-      fail "inside { }, put \\, let, if, case and do in ( )"
-    Nothing -> makeExprParser application formatOperators
+      -- 「{ } の中では、\ let if case を ( ) で包みます」
+      fail "inside { }, put \\, let, if and case in ( )"
+    Nothing -> operatorExprWith formatOperatorRows
 -- ANCHOR_END: field
 
 -- ANCHOR: formatSpec
--- 📐 A format, a small part of Python's:  [< > ^][0][width][,]
+-- 📐 A format, a small part of Python's:  [< > ^][0][width][,][.digits]
 --      <8   to the left, in 8 letters     >8   to the right
 --      ^8   in the middle                 05   0 in front of a number
---      ,    a comma every 3 digits        >12, both
+--      ,    a comma every 3 digits        .2   2 digits after the point
+--      >12,.2   all of them
 -- 書式。Python の書式の小さな一部
 data Align = ToLeft | ToRight | ToCenter
   deriving (Eq, Show)
 
 data FormatSpec = FormatSpec
-  { specAlign :: Maybe Align
-  , specZero  :: Bool
-  , specWidth :: Maybe Integer
-  , specComma :: Bool
+  { specAlign  :: Maybe Align
+  , specZero   :: Bool
+  , specWidth  :: Maybe Integer
+  , specComma  :: Bool
+  , specDigits :: Maybe Integer
   }
   deriving (Eq, Show)
 
 noSpec :: FormatSpec
-noSpec = FormatSpec Nothing False Nothing False
+noSpec = FormatSpec Nothing False Nothing False Nothing
 
 -- 📐 Read a format. A mistake is an error here, before Lam runs.
 -- 書式を読む。まちがいは、Lam が動く前に、ここでエラーになる
 formatSpec :: Parser FormatSpec
 formatSpec = do
   -- 「書式は : のすぐ後ろに書きます（リストの : は ( ) で包みます）」
-  _     <- notFollowedBy (char ' ') <|> fail
-             "a format comes right after : (put the : of lists in ( ))"
-  o1    <- getOffset
-  align <- optional (choice [ ToLeft   <$ char '<'
-                            , ToRight  <$ char '>'
-                            , ToCenter <$ char '^' ])
-  o2    <- getOffset
-  zero  <- isJust <$> optional (char '0')
-  o3    <- getOffset
-  width <- optional (L.decimal <?> "a width")
-  o4    <- getOffset
-  comma <- isJust <$> optional (char ',')
+  _      <- notFollowedBy (char ' ') <|> fail
+              "a format comes right after : (put the : of lists in ( ))"
+  o1     <- getOffset
+  align  <- optional (choice [ ToLeft   <$ char '<'
+                             , ToRight  <$ char '>'
+                             , ToCenter <$ char '^' ])
+  o2     <- getOffset
+  zero   <- isJust <$> optional (char '0')
+  o3     <- getOffset
+  width  <- optional (L.decimal <?> "a width")
+  o4     <- getOffset
+  comma  <- isJust <$> optional (char ',')
+  o5     <- getOffset
+  dot    <- isJust <$> optional (char '.')
+  digits <- if dot then optional (L.decimal <?> "digits") else pure Nothing
   let failAt o msg = setOffset o >> fail msg
   case (align, zero, width) of
     -- 「< の後ろには、幅が要ります」
@@ -924,47 +1515,73 @@ formatSpec = do
     (Nothing, False, Just _)  ->
       failAt o1 "a width needs < > or ^ before it (or 0, for a number)"
     _ | zero && comma         -> failAt o4 "0 and , cannot be used together"
-      | otherwise             -> pure (FormatSpec align zero width comma)
+      -- 「. の後ろには、小数点以下のけたの数が要ります」
+      | dot && digits == Nothing ->
+          failAt (o5 + 1) "a number of digits must follow ."
+      | otherwise -> pure (FormatSpec align zero width comma digits)
 
 -- 🍬 The function calls a format opens into: first the value as text,
 --    then the text lined up.
---      {n:,}    groupDigits n         {n:05}  zeroPad 5 n
---      {x:>8}   padLeft 8 (display x)
+--      {n:,}    groupDigits (showNumber n)    {x:.2}  Float.fixed 2 x
+--      {n:05}   zeroPad 5 (showNumber n)      {x:>8}  padLeft 8 (display x)
 -- 書式を、関数の呼び出しに開く。まず値を文字にし、次に桁をそろえる
 applySpec :: FormatSpec -> Expr -> Expr
 applySpec s e = pad s (textOf s e)
 
--- 🔢 The value as text:  groupDigits n,  zeroPad 5 n,  or  display x.
--- 値を文字にする
+-- 🔢 The value as text. With , 0 or .digits, it is a number: its text
+--    from showNumber or Float.fixed, with commas or 0s put in.
+--    Otherwise, display x.
+-- 値を文字にする。, 0 .けた のどれかがあれば数で、showNumber か
+-- Float.fixed の文字に、カンマか 0 を入れる。なければ display x
 textOf :: FormatSpec -> Expr -> Expr
-textOf (FormatSpec _ zero width comma) e
-  | comma     = call "groupDigits" [e]
-  | zero      = call "zeroPad" [widthOf width, e]
+textOf (FormatSpec _ zero width comma digits) e
+  | comma     = call "groupDigits" [asNumber]
+  | zero      = call "zeroPad" [widthOf width, asNumber]
+  | isJust digits = asNumber
   | otherwise = call "display" [e]
+  where
+    asNumber = case digits of
+      Just d  -> call "Float.fixed" [Lit (LInt d), e]
+      Nothing -> call "showNumber" [e]
 
 -- 📏 Line the text up:  > is padLeft (the spaces go on the left).
 -- 文字の桁をそろえる。> は padLeft（空白を左に足す）
 pad :: FormatSpec -> Expr -> Expr
-pad (FormatSpec align _ width _) text = case align of
-  Just ToLeft   -> call "padRight" [widthOf width, text]
-  Just ToRight  -> call "padLeft"  [widthOf width, text]
-  Just ToCenter -> call "center"   [widthOf width, text]
+pad s text = case specAlign s of
+  Just ToLeft   -> call "padRight" [widthOf (specWidth s), text]
+  Just ToRight  -> call "padLeft"  [widthOf (specWidth s), text]
+  Just ToCenter -> call "center"   [widthOf (specWidth s), text]
   Nothing       -> text
 
 widthOf :: Maybe Integer -> Expr
 widthOf = Lit . LInt . fromMaybe 0
 
--- 📞 f a b, as a tree.
--- f a b を木にする
+-- ANCHOR: call
+-- 📞 f a b, as a tree. f is a hidden name of the prelude's f
+--    ($fmt.padLeft): a program cannot write it, so no import and no
+--    definition of its own can change what f"..." calls.
+-- f a b を木にする。f は、プレリュードの f の隠した名前（$fmt.padLeft）。
+-- プログラムには書けないので、import も自分の定義も、f"..." が呼ぶ
+-- ものを変えられない
 call :: Name -> [Expr] -> Expr
-call f = foldl App (Var f)
+call f = foldl App (Var (fmtName f))
+
+-- 🙈 padLeft  is  $fmt.padLeft
+fmtName :: Name -> Name
+fmtName f = "$fmt." <> f
+-- ANCHOR_END: call
 -- ANCHOR_END: formatSpec
 
 -- ANCHOR: run
 -- 📖 Read a whole program (spaces at the start, nothing left at the end).
--- プログラム全体を読む（先頭の空白から、最後まで読みきる）
+--    Without the marks of places: this is for looking at trees (the
+--    tests, GHCi), and for them the places are only noise.
+-- プログラム全体を読む（先頭の空白から、最後まで読みきる）。
+-- 場所の印は取る。木を見るため（テスト、GHCi）のもので、そこでは
+-- 場所はじゃまなだけだから
 parseExpr :: Text -> Either (ParseErrorBundle Text Void) Expr
-parseExpr = runLamParser (spaces *> expr <* eof) "<input>"
+parseExpr =
+  runLamParser (stripLocations <$> (spaces *> expr <* eof)) "<input>"
 
 -- 📣 The same, with an error message for people.
 -- 同じだが、人に読めるエラーの文にする
@@ -975,25 +1592,104 @@ parseLam file source =
     Right e  -> Right e
 
 -- ANCHOR: program
--- 📜 A program file: declarations (let without in, and data), then
---    an expression to compute at the end (it can be left out).
--- プログラムのファイル：宣言（in のない let と、data）を並べ、最後に
--- 計算する式を1つ置く（なくてもよい）
-program :: Parser ([Decl], Maybe Expr)
+-- ANCHOR: programOnly
+-- 📜 A program file: the module line and the imports (both can be
+--    left out), declarations (let without in, and data), then an
+--    expression to compute at the end (it can be left out too).
+-- プログラムのファイル：module の行と import（どちらもなくてよい）、
+-- 宣言（in のない let と、data）を並べ、最後に計算する式を1つ置く
+-- （これもなくてよい）
+program :: Parser Program
 program = do
+  _ <- optional shebang
   spaces
-  decls <- many declaration
-  final <- optional expr
+  header  <- optional moduleHeader
+  imports <- many importLine
+  decls   <- many declaration
+  final   <- optional expr
   eof
-  pure (decls, final)
+  pure (Program header imports decls final)
+-- ANCHOR_END: programOnly
+
+-- ANCHOR: shebang
+-- #️⃣ #!/usr/bin/env lam  on the first line, for the shell. Lam skips
+--    it, but keeps the line break, so the line numbers stay right.
+-- 1行目の #!/usr/bin/env lam は、シェルのためのもの。Lam は読み飛ばす。
+-- 改行は残すので、行の番号はずれない
+shebang :: Parser ()
+shebang = do
+  _ <- string "#!"
+  _ <- takeWhileP (Just "the rest of the #! line") (/= '\n')
+  pure ()
+-- ANCHOR_END: shebang
+
+-- ANCHOR: moduleHeader
+-- 🪧 module Shapes exposing (Shape (..), area)
+-- module の行
+moduleHeader :: Parser Header
+moduleHeader = do
+  loc <- here
+  keyword "module"
+  m <- conName
+  keyword "exposing"
+  Header loc m <$> exposingList
+
+-- 📥 import Shapes,  import Shapes as S,  import Shapes (area),
+--    import Shapes as S (area). The list is the same as Haskell's, with
+--    no word in front. It must be on the same line (or to the right of
+--    column 1): a ( at column 1 starts the expression at the end.
+-- import の1行。一覧は Haskell と同じく、前に言葉を付けない。同じ行に
+-- （か、1桁目より右に）書く。1桁目の ( は、最後の式の始まり
+importLine :: Parser Import
+importLine = do
+  loc <- here
+  keyword "import"
+  m <- conName
+  alias' <- optional (keyword "as" *> conName)
+  names  <- optional (continuing *> exposingList)
+  pure (Import loc m alias' names)
+
+-- 👀 (..)  or  (area, Shape, Shape (..), Json (JInt, JStr)). A class
+--    is written like a type: Describe (..) shows its methods too.
+-- 見せるものの一覧。クラスは型と同じ形：Describe (..) はメソッドも見せる
+exposingList :: Parser Exposing
+exposingList = between (symbol "(") (symbol ")") $
+  (ExposeAll <$ symbol "..") <|> (ExposeSome <$> (item `sepBy1` symbol ","))
+  where
+    item = (ExposeValue <$> name) <|> (ExposeType <$> conName <*> shown)
+    shown = option NoConstructors $ between (symbol "(") (symbol ")") $
+      (AllConstructors <$ symbol "..")
+        <|> (TheseConstructors <$> ((conName <|> name) `sepBy1` symbol ","))
+
+-- ANCHOR: here
+-- 📍 Where the parser is now: the file, the line and the column.
+-- パーサーがいま読んでいる場所：ファイル、行、列
+here :: Parser Loc
+here = do
+  pos <- getSourcePos
+  pure (Loc (sourceName pos)
+             (unPos (sourceLine pos))
+             (unPos (sourceColumn pos)))
+-- ANCHOR_END: here
+-- ANCHOR_END: moduleHeader
 
 -- 📜 One declaration. A let followed by in is not one: it is the
 --    expression at the end.
 -- 宣言を1つ。in が続く let は宣言ではなく、最後の式
+-- ANCHOR: declaration
 declaration :: Parser Decl
 declaration = choice
   [ DefData <$> dataDecl
-  , try (uncurry DefValue <$> definition <* notFollowedBy (keyword "in")) ]
+  -- ANCHOR: declarationMore
+  , DefAlias <$> aliasDecl
+  -- ANCHOR: declarationClass
+  , DefClass <$> classDecl
+  , DefInstance <$> instanceDecl
+  -- ANCHOR_END: declarationClass
+  , signature
+  -- ANCHOR_END: declarationMore
+  , try (uncurry DefValue <$> topDefinition <* notFollowedBy (keyword "in")) ]
+-- ANCHOR_END: declaration
 -- ANCHOR_END: program
 -- ANCHOR_END: run
 -- ANCHOR_END: all

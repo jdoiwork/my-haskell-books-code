@@ -2,11 +2,9 @@ module Main (main) where
 
 -- ANCHOR: imports
 import Control.Exception (SomeException, evaluate, try)
-import Control.Monad.ST (runST)
 import Data.Either (isLeft)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
-import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
 import Numeric (showHex)

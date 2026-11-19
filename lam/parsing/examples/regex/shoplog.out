@@ -1,0 +1,9 @@
+6 of 7 lines are log lines
+  2026-11-20 ERROR  1
+  2026-11-20 INFO   2
+  2026-11-21 ERROR  1
+  2026-11-21 INFO   1
+  2026-11-21 WARN   1
+errors:
+  2026-11-20 order 1043 card declined, call ***-****-5432
+  2026-11-21 printer timeout after 30s

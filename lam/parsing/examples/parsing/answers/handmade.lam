@@ -1,0 +1,94 @@
+-- ANCHOR: all
+-- Step 4 of the training: parsers made of Lam functions, without the
+-- builtin Parser. A parser takes the letters, and gives Nothing, or
+-- what it read and the letters that are left. Join Functor and Monad,
+-- and a do works for it, too.
+-- トレーニングのステップ4：組み込みの Parser を使わず、Lam の関数で
+-- パーサーを作る。パーサーは文字のリストを受け取り、Nothing か、
+-- 読んだものと残りの文字を返す。Functor と Monad の仲間にすれば、
+-- do も使える
+
+-- ANCHOR: basics
+-- 🧺 A parser of letters, in a box of its own type.
+-- 文字のパーサーを、自分の型の箱に入れる
+data P a = P ([String] -> Maybe (a, [String]))
+
+-- Read with the parser in the box.
+-- 箱の中のパーサーで読む
+step : P a -> [String] -> Maybe (a, [String])
+step (P f) cs = f cs
+
+instance Functor P where
+  map f p =
+    P (\cs -> case step p cs of
+                | Nothing -> Nothing
+                | Just (x, rest) -> Just (f x, rest))
+
+-- pure reads nothing. bind reads with p, then with the parser that f
+-- makes from what p gave.
+-- pure は何も読まない。bind は p で読み、p がくれた値から f が作った
+-- パーサーで、続きを読む
+instance Monad P where
+  pure x = P (\cs -> Just (x, cs))
+  bind p f =
+    P (\cs -> case step p cs of
+                | Nothing -> Nothing
+                | Just (x, rest) -> step (f x) rest)
+-- ANCHOR_END: basics
+
+-- ANCHOR: more
+-- One letter that the test says yes to.
+-- テストが true と言う1文字
+letter : (String -> Bool) -> P String
+letter test =
+  P (\cs -> case cs of
+              | c : rest if test c -> Just (c, rest)
+              | _ -> Nothing)
+
+-- p, or else q (from the same place).
+-- p。だめなら、同じ場所から q
+orElse : P a -> P a -> P a
+orElse p q =
+  P (\cs -> case step p cs of
+              | Nothing -> step q cs
+              | found -> found)
+
+-- p as many times as it fits.
+-- 合うかぎり、何度でも p
+many : P a -> P [a]
+many p =
+  orElse
+    (do
+       x <- p
+       xs <- many p
+       pure (x : xs))
+    (pure [])
+
+-- Read the whole string.
+-- 文字列の全体を読む
+runP : P a -> String -> Maybe a
+runP p s =
+  case step p (chars s) of
+    | Just (x, []) -> Just x
+    | _ -> Nothing
+-- ANCHOR_END: more
+
+-- ANCHOR: use
+digit : P String
+digit = letter (\c -> c >= "0" && c <= "9")
+
+-- 12-345: two groups of digits, and a - between them.
+-- 2つの数字の並びと、その間の -
+code : P (String, String)
+code = do
+  a <- many digit
+  letter (\c -> c == "-")
+  b <- many digit
+  pure (join "" a, join "" b)
+
+main : IO ()
+main = do
+  putStrLn f"{runP code "12-345"}"
+  putStrLn f"{runP code "12+345"}"
+-- ANCHOR_END: use
+-- ANCHOR_END: all

@@ -1,0 +1,4 @@
+-- 🐛 The annotation says "any a", but the definition adds 1.
+-- 注釈は「どんな a でも」と言うが、定義は 1 を足す
+next : a -> a
+next x = x + 1

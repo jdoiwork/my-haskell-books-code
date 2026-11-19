@@ -1,0 +1,11 @@
+-- ANCHOR: all
+module Order exposing (Order (..), describe)
+
+import Customer
+
+data Order = Order String Int
+
+describe o =
+  case o of
+    | Order who n -> f"{n} mugs for {Customer.greeting who}"
+-- ANCHOR_END: all

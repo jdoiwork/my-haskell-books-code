@@ -1,0 +1,49 @@
+-- Step 1 of the training: a menu in JSON, with groups inside groups.
+-- トレーニングのステップ1：JSON のメニュー。グループの中にグループ
+
+-- 🍽️ An item and its price, or a group of more menus.
+-- 品物と値段か、メニューのグループ
+data Menu = Item String Int | Group String [Menu]
+
+-- 🔁 A menu points at itself (through a group), so the group is in
+--    its where, and Decode.lazy waits until it is read.
+-- メニューは（グループを通して）自分を指す。グループは where に置き、
+-- Decode.lazy で、読むときまで待つ
+menu : Decoder Menu
+menu =
+  Decode.oneOf [item, group]
+  where
+    item =
+      Decode.map2 Item
+        (Decode.field "item" Decode.string)
+        (Decode.field "price" Decode.int)
+    group =
+      Decode.map2 Group
+        (Decode.field "group" Decode.string)
+        (Decode.field "menu" (Decode.list (Decode.lazy (\_ -> menu))))
+
+-- ➕ The prices of all the items.
+-- 品物の値段ぜんぶ
+total : Menu -> Int
+total m =
+  case m of
+    | Item _ price -> price
+    | Group _ ms -> sum (map total ms)
+
+text =
+  "{\"group\": \"all\", \"menu\": ["
+  ++ "{\"item\": \"sticker\", \"price\": 300},"
+  ++ " {\"group\": \"drinks\", \"menu\": ["
+  ++ "{\"item\": \"tea\", \"price\": 400},"
+  ++ " {\"item\": \"coffee\", \"price\": 450}]}]}"
+
+broken = "{\"group\": \"all\", \"menu\": [{\"item\": \"tea\"}]}"
+
+main : IO ()
+main = do
+  case Decode.fromString menu text of
+    | Ok m -> putStrLn f"total {total m}"
+    | Err ps -> putStrLn (Decode.explain ps)
+  case Decode.fromString menu broken of
+    | Ok m -> putStrLn f"total {total m}"
+    | Err ps -> putStrLn (Decode.explain ps)

@@ -1,0 +1,64 @@
+-- Step 3 of the training: read a settings file with [sections] into a
+-- map of maps. Comments (#) and empty lines are skipped. Each line is
+-- read with a regex, and the lines are put together with a parser.
+-- トレーニングのステップ3：[セクション] のある設定ファイルを、Map の
+-- Map に読む。コメント（#）と空の行は飛ばす。1行ずつは正規表現で読み、
+-- 行の並びはパーサーで組み立てる
+
+settings : String
+settings = join "\n"
+  [ "# the settings of the shop"
+  , "[shop]"
+  , "name = Lam Shop"
+  , "  open=9"
+  , ""
+  , "[stock]"
+  , "mug   =  12  "
+  , "# no more stickers"
+  , "sticker = 0" ]
+
+-- The named group, or "" (the regexes below always have it).
+-- 名前付きのグループ。なければ ""（下の正規表現には、いつもある）
+part : String -> Match -> String
+part key m = Regex.named key m ?: ""
+
+-- An empty line, or a comment.
+-- 空の行か、コメント
+blank : Parser Match
+blank = Parser.regex re"[ \t]*(#[^\n]*)?\n"
+
+-- [shop]
+header : Parser String
+header = map (part "name") (Parser.regex re"\[(?<name>\w+)\][ \t]*\n")
+
+-- name = Lam Shop
+setting : Parser (String, String)
+setting =
+  map (\m -> (part "key" m, part "value" m))
+    (Parser.regex
+       re"[ \t]*(?<key>\w+)[ \t]*=[ \t]*(?<value>[^\n]*?)[ \t]*\n")
+
+-- A section: its header, then settings and blank lines.
+-- セクション：見出しと、そのあとの設定と空の行
+section : Parser (String, Map String String)
+section = do
+  name <- header
+  lines <- Parser.many (Parser.oneOf
+    [ map Just setting
+    , map (\_ -> Nothing) blank ])
+  pure (name, Map.fromList [ kv | Just kv <- lines ])
+
+ini : Parser (Map String (Map String String))
+ini = do
+  Parser.many blank
+  sections <- Parser.many section
+  pure (Map.fromList sections)
+
+main : IO ()
+main =
+  -- The text must end with a new line, so one is added.
+  -- 文字列は改行で終わらなければならないので、1つ足す
+  case Parser.run ini (settings ++ "\n") of
+    | Ok m -> forEach (Map.toList m) (\(name, kvs) ->
+                putStrLn f"{name}: {kvs}")
+    | Err e -> putStrLn e.pretty

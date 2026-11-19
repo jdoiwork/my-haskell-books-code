@@ -1,0 +1,45 @@
+# The name field: the standard matcher gives up; the DFA matcher answers
+# 名前の欄：ふつうのマッチャーはあきらめる。DFA のマッチャーは答える
+/^(\w+\s?)+$/
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!
+Failed: error -47: match limit exceeded
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!\=dfa
+No match
+    Mira Ruby Lam GHC Perl Mira Ruby Lam\=dfa
+ 0: Mira Ruby Lam GHC Perl Mira Ruby Lam
+
+# The left branch first; the DFA matcher gives every match, longest first
+# 左の枝が先。DFA のマッチャーは、全部の一致を長い順に
+/a|ab/
+    ab
+ 0: a
+    ab\=dfa
+ 0: ab
+ 1: a
+
+/(a|ab)(c|bcd)/
+    abcd
+ 0: abcd
+ 1: a
+ 2: bcd
+    abcd\=dfa
+ 0: abcd
+ 1: abc
+
+# An empty round of a repeat sets the group
+# くり返しの空の回も、グループを書く
+/(a|)*b/
+    aab
+ 0: aab
+ 1: 
+
+/(a|b|)+?c/
+    abc
+ 0: abc
+ 1: b
+
+# No back reference in the DFA matcher
+# DFA のマッチャーには、後方参照がない
+/(a)\1/
+    aa\=dfa
+Failed: error -42: pattern contains an item that is not supported for DFA matching

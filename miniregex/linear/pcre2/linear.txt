@@ -1,0 +1,29 @@
+# The name field: the standard matcher gives up; the DFA matcher answers
+# 名前の欄：ふつうのマッチャーはあきらめる。DFA のマッチャーは答える
+/^(\w+\s?)+$/
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!\=dfa
+    Mira Ruby Lam GHC Perl Mira Ruby Lam\=dfa
+
+# The left branch first; the DFA matcher gives every match, longest first
+# 左の枝が先。DFA のマッチャーは、全部の一致を長い順に
+/a|ab/
+    ab
+    ab\=dfa
+
+/(a|ab)(c|bcd)/
+    abcd
+    abcd\=dfa
+
+# An empty round of a repeat sets the group
+# くり返しの空の回も、グループを書く
+/(a|)*b/
+    aab
+
+/(a|b|)+?c/
+    abc
+
+# No back reference in the DFA matcher
+# DFA のマッチャーには、後方参照がない
+/(a)\1/
+    aa\=dfa

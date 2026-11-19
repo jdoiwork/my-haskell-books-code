@@ -1,0 +1,22 @@
+/Room (\d+)/I
+
+/\b\d{4}-\d{2}-\d{2}\b/I
+
+/^(\w+\s?)+$/I
+
+/colou?r|grey/I
+
+/(\w+)@(\w+)\.com/I
+
+/(a+)*b/I
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac
+
+/(a+)*b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac
+
+/(?R):{2,3}?/
+    a
+    ::
+
+/(?R):{2,3}?/no_start_optimize
+    a

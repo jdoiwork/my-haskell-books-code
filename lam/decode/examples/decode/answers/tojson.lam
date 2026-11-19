@@ -1,0 +1,68 @@
+-- Step 3 of the training: write shapes as JSON with ToJson, read them
+-- back with FromJson, and get the same shapes.
+-- トレーニングのステップ3：ToJson で図形を JSON に書き、FromJson で
+-- 読み戻すと、同じ図形に戻る
+
+data Shape
+  = Circle { radius : Float }
+  | Rect { width : Float, height : Float }
+
+-- 📤 Writing, as in the chapter on Map and JSON.
+-- 書く。Map と JSON の章と同じ
+class ToJson a where
+  toJson : a -> Json
+
+instance ToJson Float where
+  toJson x = Json.fromFloat x
+
+instance ToJson a => ToJson [a] where
+  toJson xs = JArr (map toJson xs)
+
+instance ToJson Shape where
+  toJson s =
+    case s of
+      | Circle { radius } ->
+          JObj {kind: JStr "circle", radius: toJson radius}
+      | Rect { width, height } ->
+          JObj { kind: JStr "rect"
+               , width: toJson width
+               , height: toJson height }
+
+-- 📥 Reading, as in this chapter.
+-- 読む。この章と同じ
+class FromJson a where
+  decoder : Decoder a
+
+instance FromJson Float where
+  decoder = Decode.float
+
+instance FromJson a => FromJson [a] where
+  decoder = Decode.list decoder
+
+instance FromJson Shape where
+  decoder = do
+    kind <- Decode.field "kind" Decode.string
+    case kind of
+      | "circle" ->
+          map (\r -> Circle { radius = r }) (Decode.field "radius" decoder)
+      | "rect" ->
+          Decode.map2 (\w h -> Rect { width = w, height = h })
+            (Decode.field "width" decoder)
+            (Decode.field "height" decoder)
+      | _ -> Decode.fail f"unknown kind: {show kind}"
+
+-- 🔁 There and back again.
+-- 行って、帰ってくる
+roundTrip : [Shape] -> Result [Problem] [Shape]
+roundTrip shapes = Decode.run decoder (toJson shapes)
+
+shapes : [Shape]
+shapes =
+  [ Circle { radius = 1.5 }
+  , Rect { width = 2, height = 0.5 }
+  , Circle { radius = 0.1 } ]
+
+main : IO ()
+main = do
+  putStrLn (Json.show (toJson shapes))
+  putStrLn f"{roundTrip shapes == Ok shapes}"
