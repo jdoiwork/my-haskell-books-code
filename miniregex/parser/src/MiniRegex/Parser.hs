@@ -303,7 +303,7 @@ inBraces base isDigitOf wrongDigit = do
   closed <- option False (True <$ char '}')
   end <- atEnd
   case () of
-    _ | closed && T.null ds -> invalid at
+    _ | (closed || end) && T.null ds -> invalid at
           "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
       | closed -> codePoint at (readBase (toInteger base) (T.unpack ds))
       -- the place just after the wrong character (or the end)

@@ -1,0 +1,18 @@
+-- ANCHOR: all
+-- 👥 Two names, one a line. If the input ends before the second,
+--    the answer is Nothing, at once.
+-- 名前を2つ、1行に1つ。2つ目の前に入力が終わったら、すぐに Nothing
+twoNames : IO (Maybe (String, String))
+twoNames = do
+  first  <- getLine ?
+  second <- getLine ?
+  pure (Just (first, second))
+
+main : IO ()
+main = do
+  names <- twoNames
+  case names of
+    | Just (a, b) -> putStrLn f"{a} and {b}"
+    -- 「名前を2つください」
+    | Nothing -> putStrLn "two names, please"
+-- ANCHOR_END: all

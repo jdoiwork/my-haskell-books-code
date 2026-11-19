@@ -74,8 +74,8 @@ suggestApp live = serve (Proxy @SuggestApi) handler
       | otherwise                          = Nothing
 
     toView index q h =
-      let DocId n = hitDoc h
-          body'   = maybe "" docBody (Map.lookup (hitDoc h) (indexDocs index))
-      in HitView n (hitTitle h) (hitScore h) (excerptOf tok q body')
+      let body' = maybe "" docBody (Map.lookup (hitDoc h) (indexDocs index))
+      in HitView (docIdText (hitDoc h)) (hitTitle h) (hitScore h)
+                 (excerptOf tok q body')
 -- ANCHOR_END: handler
 -- ANCHOR_END: all

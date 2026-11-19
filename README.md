@@ -148,13 +148,14 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 
 | 章 | コード |
 |---|---|
-| 設計：型でドメインを描く | [`minisearch/`](minisearch/)、[`minisearch/01-design/`](minisearch/01-design/)、[`langs/project-design/`](langs/project-design/) |
-| インデクサーを CLI ツールにする | [`minisearch/02-cli/`](minisearch/02-cli/)、[`minisearch/01-design/`](minisearch/01-design/)、[`langs/project-indexer-cli/`](langs/project-indexer-cli/) |
-| 検索 Web API を公開する | [`minisearch/03-api/`](minisearch/03-api/)、[`minisearch/02-cli/`](minisearch/02-cli/)、[`langs/project-search-api/`](langs/project-search-api/) |
-| 速くする | [`minisearch/04-fast/`](minisearch/04-fast/)、[`minisearch/03-api/`](minisearch/03-api/)、[`langs/project-performance/`](langs/project-performance/) |
-| 並行化する | [`minisearch/05-concurrent/`](minisearch/05-concurrent/)、[`minisearch/04-fast/`](minisearch/04-fast/)、[`langs/project-concurrency/`](langs/project-concurrency/) |
-| 設計を磨く | [`minisearch/06-architecture/`](minisearch/06-architecture/)、[`minisearch/05-concurrent/`](minisearch/05-concurrent/)、[`langs/project-architecture/`](langs/project-architecture/) |
-| 第7部のふりかえり | [`minisearch/06-architecture/`](minisearch/06-architecture/)、[`review-search/`](review-search/) |
+| 設計：型でドメインを描く | [`minisearch/`](minisearch/)、[`minisearch/design/`](minisearch/design/)、[`langs/project-design/`](langs/project-design/) |
+| インデクサーを CLI ツールにする | [`minisearch/cli/`](minisearch/cli/)、[`minisearch/design/`](minisearch/design/)、[`langs/project-indexer-cli/`](langs/project-indexer-cli/) |
+| 検索 Web API を公開する | [`minisearch/api/`](minisearch/api/)、[`minisearch/cli/`](minisearch/cli/)、[`langs/project-search-api/`](langs/project-search-api/) |
+| 速くする | [`minisearch/fast/`](minisearch/fast/)、[`minisearch/api/`](minisearch/api/)、[`langs/project-performance/`](langs/project-performance/) |
+| 並列化する | [`minisearch/parallel/`](minisearch/parallel/)、[`minisearch/fast/`](minisearch/fast/)、[`langs/project-concurrency/`](langs/project-concurrency/) |
+| 並行化する | [`minisearch/live-text/`](minisearch/live-text/)、[`minisearch/live/`](minisearch/live/)、[`minisearch/parallel/`](minisearch/parallel/) |
+| 設計を磨く | [`minisearch/architecture/`](minisearch/architecture/)、[`minisearch/live/`](minisearch/live/)、[`langs/project-architecture/`](langs/project-architecture/) |
+| 第7部のふりかえり | [`minisearch/architecture/`](minisearch/architecture/)、[`review-search/`](review-search/) |
 
 ### 第8部 総合演習2：プログラミング言語を作る
 

@@ -530,6 +530,8 @@ main = hspec $ do
       "non-hex character in \\x{} (closing brace missing?)"         -- 167
     wrong "\\x{d800}" 7
       "disallowed Unicode code point (>= 0xd800 && <= 0xdfff)"    -- 173
+    wrong "\\x{"     3
+      "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
     wrong "\\xg"     2
       "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
   -- ANCHOR_END: errors

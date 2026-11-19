@@ -1,0 +1,21 @@
+-- ANCHOR: all
+-- ✅ assert: stop with the words when the condition is false, or
+--    give x as it is (as Haskell's assert, but with words).
+-- 条件が偽なら、その文で止まる。真なら x をそのまま返す（Haskell の
+-- assert と同じ。ただし文つき）
+assert : Bool -> String -> a -> a
+assert ok words x =
+  -- 「確かめに失敗しました」
+  if ok then x else error f"assertion failed: {words}"
+
+-- 📏 What one line of the receipt costs: the count is not negative.
+-- レシートの1行の値段。数は負ではない
+lineTotal : Int -> Int -> Int
+lineTotal count price =
+  assert (count >= 0) "the count is not negative" (count * price)
+
+main : IO ()
+main = do
+  putStrLn f"{lineTotal 4 300}"
+  putStrLn f"{lineTotal (-1) 300}"
+-- ANCHOR_END: all

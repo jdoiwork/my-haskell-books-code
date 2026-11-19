@@ -1,0 +1,17 @@
+/([a-z]+) \1/
+    the the dragon
+ 0: the the
+ 1: the
+
+/(a)?\1/
+    b
+No match
+
+/(?<w>[a-z]+)-\k<w>/
+    hush-hush
+ 0: hush-hush
+ 1: hush
+
+/(a)\2/
+Failed: error 115 at offset 5: reference to non-existent subpattern
+        here: (a)\2 |<-->|

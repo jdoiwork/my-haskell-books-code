@@ -1,0 +1,3 @@
+Slime
+A slime is soft and blue. It eats moss in the cave
+and splits in two when you hit it.
