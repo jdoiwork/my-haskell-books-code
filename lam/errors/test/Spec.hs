@@ -2696,6 +2696,22 @@ main = hspec $ do
       runLines [ "IO.finally (do pure (); error \"body\") (error \"cleanup\")" ]
         `shouldBe` [ "error: cleanup" ]
     -- ANCHOR_END: finallyTests
+    -- ANCHOR: deferMany
+    -- 「defer を3つ。後のものから動き、後始末が止まっても外側は動く」
+    it "runs many defers, the last first, even when a cleanup stops" $
+      runLinesIn emptyWorld
+        [ "bye n = putStrLn f\"bye {n}\""
+        , "do defer bye 1; defer bye 2; defer bye 3; putStrLn \"body\""
+        , "do defer bye 1; defer (do pure (); pure (1 // 0)); \
+          \putStrLn \"body\""
+        , "do defer bye 1; defer (pure (1 // 0)); putStrLn \"body\"" ]
+        `shouldBe`
+          ( [ "bye : Display a => a -> IO ()", "", "error: divided by zero"
+            , "error: divided by zero" ]
+          , emptyWorld { worldOutput = reverse
+              [ "body\n", "bye 3\n", "bye 2\n", "bye 1\n"
+              , "body\n", "bye 1\n", "bye 1\n" ] } )
+    -- ANCHOR_END: deferMany
     -- ANCHOR: bracketTry
     -- 「bracket は返すのを忘れない。try は、やる途中で止まったものだけを
     --   つかまえる」
