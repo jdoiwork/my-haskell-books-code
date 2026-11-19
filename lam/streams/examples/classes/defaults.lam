@@ -1,0 +1,53 @@
+-- 🧰 A default method: describeAll is written once, in the class. An
+--    instance may write its own instead.
+-- 既定のメソッド：describeAll は、クラスの中に1回だけ書く。
+-- インスタンスは、自分のものに取り替えてもよい
+--   lam examples/classes/defaults.lam
+
+data Shape
+  = Circle { radius : Int }
+  | Rect { width : Int, height : Int }
+
+data Money = Yen Int
+
+yen : Money -> Int
+yen m =
+  case m of
+    | Yen n -> n
+
+-- ANCHOR: class
+class Describe a where
+  describe : a -> String
+  describeAll : [a] -> String
+  -- The default: used when an instance does not write describeAll.
+  -- 既定のメソッド：インスタンスが describeAll を書かなければ、これ
+  describeAll xs = join ", " (map describe xs)
+-- ANCHOR_END: class
+
+-- ANCHOR: shape
+-- Shape writes describe only, and gets the default describeAll.
+-- Shape は describe だけを書き、既定の describeAll をもらう
+instance Describe Shape where
+  describe s =
+    case s of
+      | Circle { radius } -> "a circle of radius " ++ showInt radius
+      | Rect { width, height } ->
+          "a " ++ showInt width ++ "x" ++ showInt height ++ " rect"
+-- ANCHOR_END: shape
+
+-- ANCHOR: money
+-- Money writes its own describeAll: the sum, and how many payments.
+-- Money は、自分の describeAll を書く：合計と、支払いの回数
+instance Describe Money where
+  describe m =
+    case m of
+      | Yen n -> showInt n ++ " yen"
+  describeAll ms =
+    describe (Yen (sum (map yen ms)))
+      ++ " in " ++ showInt (length ms) ++ " payments"
+-- ANCHOR_END: money
+
+-- ANCHOR: main
+( describeAll [Circle { radius = 1 }, Rect { width = 2, height = 3 }]
+, describeAll [Yen 300, Yen 450, Yen 80] )
+-- ANCHOR_END: main

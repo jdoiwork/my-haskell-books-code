@@ -1,0 +1,4 @@
+examples/streams/photos/lam.png: OK
+examples/streams/photos/sea.png: FAILED
+examples/streams/photos/gone.png: no such file
+[exit 1]

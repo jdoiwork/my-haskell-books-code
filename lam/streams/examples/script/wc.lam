@@ -1,0 +1,12 @@
+-- 🧮 wc in Lam: the lines, the words and the letters of the standard
+--    input, each one made with |>.
+--      lam examples/script/wc.lam < examples/script/sample.txt
+-- Lam で書いた wc：標準入力の行・単語・文字の数。どれも |> で作る
+
+main : IO ()
+main = do
+  text <- getContents
+  let lineCount = text |> lines |> length
+  let wordCount = text |> words |> length
+  let letterCount = text |> length
+  putStrLn f"{lineCount} lines, {wordCount} words, {letterCount} letters"

@@ -1,0 +1,5 @@
+/^(?:a|b)*c/heapframes_size
+    \[ab]{5000}!
+
+/^(?:a|b)*c()()()()()()()()()()/heapframes_size
+    \[ab]{5000}!

@@ -1,0 +1,9 @@
+/^(?:a|b)*c/heapframes_size
+    \[ab]{5000}!
+No match
+Heapframes size in match_data: 2621440
+
+/^(?:a|b)*c()()()()()()()()()()/heapframes_size
+    \[ab]{5000}!
+No match
+Heapframes size in match_data: 5242880

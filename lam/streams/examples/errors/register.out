@@ -1,0 +1,6 @@
+open the register
+10900 yen now
+close the register (1000 yen in it)
+open the register
+close the register (1000 yen in it)
+examples/errors/register.lam:23:22: error: divided by zero

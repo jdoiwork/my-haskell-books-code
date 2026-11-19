@@ -102,6 +102,7 @@ dependencies = [
  "nom",
  "proptest",
  "regex",
+ "regex-automata",
  "rusqlite",
  "serde",
  "serde_json",

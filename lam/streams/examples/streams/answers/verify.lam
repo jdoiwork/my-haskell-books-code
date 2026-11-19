@@ -1,0 +1,34 @@
+-- ANCHOR: all
+-- ✅ Step 3: check files against a list of SHA-256 (the form of
+--    sha256sum: the hash, two spaces, the path). Exit 1 if one fails.
+--   lam verify.lam sums.txt
+-- ステップ3：SHA-256 の一覧（sha256sum の形：ハッシュ、空白2つ、道）で、
+-- ファイルを確かめる。1つでも合わなければ exit 1
+
+-- 🔎 One line of the list: OK, FAILED, or why it cannot be read.
+-- 一覧の1行：OK か FAILED か、読めないわけ
+check : String -> IO Bool
+check line =
+  case String.split "  " line of
+    | [want, path] -> do
+        got <- Hash.file path
+        case got of
+          | Ok h ->
+              if Bytes.toHex h == want then do
+                putStrLn f"{path}: OK"
+                pure true
+              else do
+                putStrLn f"{path}: FAILED"
+                pure false
+          | Err why -> do
+              putStrLn why
+              pure false
+    | _ -> pure true
+
+main : [String] -> IO (Result String ())
+main args = do
+  let list = case args of | p : _ -> p | [] -> "sums.txt"
+  text <- readFile list ?
+  results <- mapM check (filter (\l -> l /= "") (lines text))
+  if all id results then pure (Ok ()) else exit 1
+-- ANCHOR_END: all

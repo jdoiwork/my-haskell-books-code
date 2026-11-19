@@ -1,0 +1,22 @@
+-- ANCHOR: all
+-- 🔢 Step 1: the lines, the words and the bytes of a file, as wc does,
+--    one line at a time.
+--   lam wc.lam ../access.log
+-- ステップ1：ファイルの行・単語・バイトの数を、wc と同じく、1行ずつ
+type alias Tally = { lines : Int, words : Int, bytes : Int }
+
+-- A line adds 1 line, its words, and its bytes with the \n.
+-- 1行で、行が1つ、単語がいくつか、バイトが改行こみでいくつか増える
+add : Tally -> String -> Tally
+add t line =
+  { lines = t.lines + 1
+  , words = t.words + length (words line)
+  , bytes = t.bytes + length (Bytes.fromString line) + 1 }
+
+main : [String] -> IO (Result String ())
+main args = do
+  let path = case args of | p : _ -> p | [] -> "-"
+  t <- File.foldLines add { lines = 0, words = 0, bytes = 0 } path ?
+  putStrLn f"{t.lines} {t.words} {t.bytes} {path}"
+  pure (Ok ())
+-- ANCHOR_END: all

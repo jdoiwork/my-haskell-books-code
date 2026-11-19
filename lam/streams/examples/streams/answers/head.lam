@@ -1,0 +1,23 @@
+-- ANCHOR: all
+-- ✂️ Step 2: the first n lines of a file, however big: stop reading
+--    after n, and the file is closed all the same.
+--   lam head.lam 3 ../access.log
+-- ステップ2：どんなに大きいファイルでも、頭の n 行。n 行で読むのを
+-- やめても、ファイルはちゃんと閉じる
+firstLines : Int -> Handle -> IO ()
+firstLines n h =
+  if n <= 0 then pure () else do
+    next <- File.readLine h
+    case next of
+      | Nothing -> pure ()
+      | Just line -> do
+          putStrLn line
+          firstLines (n - 1) h
+
+main : [String] -> IO (Result String ())
+main args =
+  case args of
+    | [n, path] -> File.withFile path (firstLines (String.toInt n ?: 10))
+    -- 「使い方：lam head.lam 行の数 ファイル」
+    | _ -> pure (Err "usage: lam head.lam LINES FILE")
+-- ANCHOR_END: all
