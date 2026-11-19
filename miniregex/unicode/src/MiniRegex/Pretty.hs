@@ -55,15 +55,15 @@ anchor :: Anchor -> Writer Text
 anchor a = case a of
   LineStart   -> (<> "^") <$> need [(M, True)]
   LineEnd     -> (<> "$") <$> need [(M, True)]
-  TextStart   -> pure "\\A"
+  TextStart   -> (<> "^") <$> need [(M, False)]
   TextEnd     -> pure "\\z"
-  LastLineEnd -> pure "\\Z"
+  LastLineEnd -> (<> "$") <$> need [(M, False)]
 
 atom :: Atom -> Writer Text
 atom a = case a of
   Lit c                    -> (<> escapeOutside c) <$> need (caseOf False c)
   NoCase (Lit c)           -> (<> escapeOutside c) <$> need (caseOf True c)
-  AnyChar                  -> pure "\\N"
+  AnyChar                  -> (<> ".") <$> need [(S, False)]
   Anything                 -> (<> ".") <$> need [(S, True)]
   Class cls                -> classWith False cls
   NoCase (Class cls)       -> classWith True cls
@@ -103,13 +103,16 @@ itemNeeds (Builtin _ t) = case t of
   Digit r   -> [(AD, r == AsciiOnly)]
   WhiteSpace r -> [(AS, r == AsciiOnly)]
   Word r    -> [(AW, r == AsciiOnly)]
-  Posix AsciiOnly _ -> [(AP, True)]
+  Posix AsciiOnly n
+    | n `elem` ["digit", "xdigit"] -> [(AT, True)]
+    | otherwise                    -> [(AP, True)]
   Posix AllUnicode n
     | n `elem` ["digit", "xdigit"] -> [(AP, False), (AT, False)]
     | otherwise                    -> [(AP, False)]
   _ -> []
 itemNeeds _ = []
 
+-- ANCHOR: need
 -- 🚩 Make the flags what the atom needs: write (?i-aD) for the ones that
 --    are not, and remember them. (?aP) sets aT too, and (?-aP) takes
 --    both away, as in the parser.
@@ -141,6 +144,7 @@ need wants = do
       AP -> "aP"
       AT -> "aT"
       _  -> ""
+-- ANCHOR_END: need
 
 -- 🔁 The quantifier as written: "", *, +, ?, {n}, {n,}, {n,m}, and
 --    then ? or + for Lazy and Possessive. Once, but not greedy, has to
@@ -238,11 +242,11 @@ branchTree (Branch ps) = Node "branch" (map pieceTree ps)
 pieceTree :: Piece -> Tree Text
 pieceTree (Anchor a)       = Node (anchorLabel a) []
   where
-    anchorLabel LineStart   = "^ line start"
-    anchorLabel LineEnd     = "$ line end"
-    anchorLabel TextStart   = "\\A text start"
+    anchorLabel LineStart   = "^ line start (m)"
+    anchorLabel LineEnd     = "$ line end (m)"
+    anchorLabel TextStart   = "^ text start"
     anchorLabel TextEnd     = "\\z text end"
-    anchorLabel LastLineEnd = "\\Z text end (or before a last \\n)"
+    anchorLabel LastLineEnd = "$ text end (or before a last \\n)"
 pieceTree (Quantified a q) = case a of
   Group kind inner -> Node ("group " <> groupName kind <> times)
                            [patternTree inner]

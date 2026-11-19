@@ -1,0 +1,6 @@
+/(a(?i)b|c)d/
+    aBd
+    CD
+    Cd
+    ABd
+

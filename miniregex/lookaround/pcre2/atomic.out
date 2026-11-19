@@ -1,0 +1,23 @@
+/(?>a|ab)c/
+    abc
+No match
+
+/(?:a|ab)c/
+    abc
+ 0: abc
+
+/a*+a/
+    aaa
+No match
+
+/(a+)+b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaaac
+Failed: error -47: match limit exceeded
+
+/(?>a+)+b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaaac
+No match
+
+/(a++)+b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaaac
+No match

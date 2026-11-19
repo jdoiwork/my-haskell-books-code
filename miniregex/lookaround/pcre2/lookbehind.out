@@ -1,0 +1,29 @@
+/(?<=price:\s?)\d+/g
+    price:1200 gold, price: 80 gold, price:   7 gold
+ 0: 1200
+ 0: 80
+
+/(?<=price:\s*)\d+/
+Failed: error 125 at offset 0: length of lookbehind assertion is not limited
+        here: |-->| (?<=price:...
+
+/(?<=colour|color)s/
+    colors
+ 0: s
+
+/(?<=(a|aa))b/
+    aab
+ 0: b
+ 1: aa
+
+/(?<=a|(aa))b/
+    aab
+ 0: b
+
+/(?<=\d{1,300})x/
+Failed: error 200 at offset 0: branch too long in variable-length lookbehind assertion
+        here: |-->| (?<=\d{1,3...
+
+/x\K*/
+Failed: error 109 at offset 4: quantifier does not follow a repeatable item
+        here: x\K* |<--|

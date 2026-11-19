@@ -1,0 +1,13 @@
+/\R/g
+    Mira\r\nRuby\nLam\rGHC
+ 0: \x0d\x0a
+ 0: \x0a
+ 0: \x0d
+
+/\R\n/
+    \r\n
+No match
+
+/(?:\r\n|\n|\r)\n/
+    \r\n
+ 0: \x0d\x0a

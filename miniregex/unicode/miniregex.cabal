@@ -43,6 +43,9 @@ library
     -- The scripts of Unicode 17, the same version as PCRE2 10.49's
     -- Unicode 17 の文字体系（PCRE2 10.49 と同じ版）
     , unicode-data-scripts ^>=0.6
+    -- To see Japanese in GHCi (uprint)
+    -- GHCi で日本語を見るため（uprint）
+    , unicode-show     ^>=0.1
 
 -- The compatibility meter: how many of PCRE2's tests pass.
 -- 互換度メーター：PCRE2 のテストのうち、いくつ通るか

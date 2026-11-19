@@ -1,0 +1,10 @@
+/price:\s*\K\d+/g
+    price:1200 gold, price:   7 gold
+
+/(price):\K\d+/
+    price:1200
+
+/a\K/g
+    aaa
+
+/(?<=\Kprice:)\d+/

@@ -1,0 +1,17 @@
+/(?>a|ab)c/
+    abc
+
+/(?:a|ab)c/
+    abc
+
+/a*+a/
+    aaa
+
+/(a+)+b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaaac
+
+/(?>a+)+b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaaac
+
+/(a++)+b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaaac

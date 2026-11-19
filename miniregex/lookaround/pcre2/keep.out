@@ -1,0 +1,19 @@
+/price:\s*\K\d+/g
+    price:1200 gold, price:   7 gold
+ 0: 1200
+ 0: 7
+
+/(price):\K\d+/
+    price:1200
+ 0: 1200
+ 1: price
+
+/a\K/g
+    aaa
+ 0: 
+ 0: 
+ 0: 
+
+/(?<=\Kprice:)\d+/
+Failed: error 199 at offset 16: \K is not allowed in lookarounds (but see PCRE2_EXTRA_ALLOW_LOOKAROUND_BSK)
+        here: ...price:)\d+ |<-->|

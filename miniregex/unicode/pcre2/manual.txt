@@ -1,0 +1,6 @@
+/[[:punct:]]+/utf,ucp
+    !§©¬
+
+/\p{Xps}/utf
+    \x{85}
+

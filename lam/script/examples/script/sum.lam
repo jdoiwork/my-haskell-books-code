@@ -1,0 +1,14 @@
+-- ➕ Add up the numbers in the arguments.
+--      lam examples/script/sum.lam 1 2 3        gives 6
+--    Something that is not a number: exit code 2.
+-- 引数の数を足す。数でないものがあれば、終了コード 2 で終わる
+
+main : [String] -> IO ()
+main args =
+  case find (\a -> String.toInt a == Nothing) args of
+    | Just bad -> do
+        -- 「sum：数ではありません：……」
+        ePutStrLn f"sum: not a number: {bad}"
+        exit 2
+    | Nothing ->
+        putStrLn f"{sum (map (\a -> String.toInt a ?: 0) args)}"

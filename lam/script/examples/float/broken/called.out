@@ -1,0 +1,1 @@
+examples/float/broken/called.lam:8:1: type error: Int is not a function, but is called with an argument here (a -> b is needed): x -1 gives -1 to x, so write x - 1

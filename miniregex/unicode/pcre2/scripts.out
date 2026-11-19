@@ -1,0 +1,12 @@
+/\p{Han}+/utf
+    記録室のノート
+ 0: \x{8a18}\x{9332}\x{5ba4}
+
+/\p{Katakana}+/utf
+    記録室のノート
+ 0: \x{30ce}\x{30fc}\x{30c8}
+
+/\p{sc:Katakana}+/utf
+    記録室のノート
+ 0: \x{30ce}
+

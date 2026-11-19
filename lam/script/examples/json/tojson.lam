@@ -1,0 +1,78 @@
+-- 📤 Any value to JSON with one name, toJson: a class of our own,
+--    with instances for the builtin types, a Map, and a data type.
+-- どんな値も、1つの名前 toJson で JSON に。自分で作るクラスと、
+-- 組み込みの型・Map・data の型のインスタンス
+--   lam examples/json/tojson.lam
+
+-- ANCHOR: class
+-- What a type needs to be written as JSON.
+-- JSON に書ける型が持つもの
+class ToJson a where
+  toJson : a -> Json
+
+instance ToJson Int where
+  toJson n = JInt n
+
+instance ToJson Float where
+  toJson x = Json.fromFloat x
+
+instance ToJson String where
+  toJson s = JStr s
+
+instance ToJson Bool where
+  toJson b = JBool b
+
+instance ToJson a => ToJson [a] where
+  toJson xs = JArr (map toJson xs)
+-- ANCHOR_END: class
+
+-- ANCHOR: keys
+-- 🔑 A key of a JSON object is always a string. A Map can be written
+--    as JSON when its keys can be strings, and its values JSON.
+-- JSON のオブジェクトのキーは、いつも文字列。キーを文字列にでき、
+-- 値を JSON にできる Map なら、JSON に書ける
+class ToKey a where
+  toKey : a -> String
+
+instance ToKey String where
+  toKey s = s
+
+instance ToKey Int where
+  toKey n = showInt n
+
+instance (ToKey k, ToJson v) => ToJson (Map k v) where
+  toJson m =
+    JObj (Map.fromList [(toKey k, toJson v) | (k, v) <- Map.toList m])
+-- ANCHOR_END: keys
+
+-- ANCHOR: shape
+-- 🔷 A type of our own: the kind of shape goes into "kind".
+-- 自分の型。図形の種類は "kind" に入れる
+data Shape
+  = Circle { radius : Float }
+  | Rect { width : Float, height : Float }
+
+instance ToJson Shape where
+  toJson s =
+    case s of
+      | Circle { radius } ->
+          JObj {kind: JStr "circle", radius: toJson radius}
+      | Rect { width, height } ->
+          JObj { kind: JStr "rect"
+               , width: toJson width
+               , height: toJson height }
+-- ANCHOR_END: shape
+
+-- ANCHOR: use
+shapes = [Circle { radius = 1.5 }, Rect { width = 2, height = 0.5 }]
+
+scores : Map String Int
+scores = {Python: 82, TS: 75}
+
+floors : Map Int [String]
+floors = {1: ["shop"], 2: ["workshop", "library"]}
+
+[ Json.show (toJson shapes)
+, Json.show (toJson scores)
+, Json.show (toJson floors) ]
+-- ANCHOR_END: use

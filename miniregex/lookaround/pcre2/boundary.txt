@@ -1,0 +1,15 @@
+/[0-9]{4}-[0-9]{2}-[0-9]{2}/
+    Room 1234-56-789 is closed
+
+/\b[0-9]{4}-[0-9]{2}-[0-9]{2}\b/
+    Room 1234-56-789 is closed
+    On 2026-11-21 a dragon
+
+/\b([a-z]+) \1\b/g
+    Mira saw the the dragon near near the lake
+
+/\bcafé\b/utf
+    a café.
+
+/\bcafé\b/utf,ucp
+    a café.

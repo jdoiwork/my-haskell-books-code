@@ -1,0 +1,9 @@
+/\p{Han}+/utf
+    記録室のノート
+
+/\p{Katakana}+/utf
+    記録室のノート
+
+/\p{sc:Katakana}+/utf
+    記録室のノート
+

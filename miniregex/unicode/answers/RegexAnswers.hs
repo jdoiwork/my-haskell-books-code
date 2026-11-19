@@ -1,23 +1,21 @@
 -- ANCHOR: all
 -- ANCHOR: head
 -- | The answers to the training: the design chapter's, and then the
---   groups chapter's.
--- トレーニングの解答：設計の章のものと、グループの章のもの
+--   Unicode chapter's.
+-- トレーニングの解答：設計の章のものと、Unicode の章のもの
 module RegexAnswers
   ( colourTree
   , choiceTree
   , escape
-  , splitKeeping
-  , namedGroups
-  , settings
+  , asciiDigits
+  , charOffset
   ) where
 
+import Data.Char (GeneralCategory (..), chr, generalCategory, ord)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Map.Strict (Map)
-import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.Foreign (lengthWord8)
 
 import MiniRegex
 import MiniRegex.Syntax
@@ -63,42 +61,35 @@ escape = T.concatMap one
       | otherwise        = T.singleton c
     special = "\\^$.|?*+()[]{}" :: String
 
--- The groups chapter's training
--- グループの章のトレーニング
+-- The Unicode chapter's training
+-- Unicode の章のトレーニング
 
--- ANCHOR: keeping
--- ✂️ split, but with what the groups found between the pieces (as
---    Python's re.split does; a group that found nothing gives "").
--- split と同じ。ただし、切れ端のあいだに、グループが見つけたものも
--- はさむ（Python の re.split と同じ。何も見つけなかったグループは ""）
-splitKeeping :: Regex -> Text -> [Text]
-splitKeeping re t = go 0 (findAll re t)
+-- ANCHOR: digits
+-- 🔢 Every decimal digit (２, ٣, 𝟘 ...) into 0 to 9. In Unicode, the
+--    digits of each kind sit side by side, from 0 to 9; so the value
+--    of a digit is how many digits come just before it, modulo 10.
+-- どの10進の数字（２・٣・𝟘 など）も 0 から 9 にする。Unicode では、どの
+-- 種類の数字も、0 から 9 の順に並んでいる。だから、数字の値は、すぐ前に
+-- 続いている数字の数を 10 で割った余り
+asciiDigits :: Text -> Text
+asciiDigits = replaceWith digit (T.singleton . toAscii . T.head . matchText)
   where
-    go from []       = [T.drop from t]
-    go from (m : ms) =
-      T.take (matchStart m - from) (T.drop from t)
-        : map (fromMaybe "") (groups m)
-        ++ go (matchEnd m) ms
--- ANCHOR_END: keeping
+    digit = either (error . show) id (compile "\\d")
+    toAscii c = chr (ord '0' + value c)
+    value c = length (takeWhile isDigitChar (drop 1 [c, pred c ..])) `mod` 10
+    isDigitChar x = generalCategory x == DecimalNumber
+-- ANCHOR_END: digits
 
--- ANCHOR: named
--- 📛 Every named group that found something, by name.
--- 何かを見つけた名前付きのグループの全部を、名前で引ける表に
-namedGroups :: Match -> Map Text Text
-namedGroups m = Map.mapMaybe (\n -> group n m) (matchNames m)
-
--- ⚙️ Lines like "name = Mira" into a table. Lines of another shape
---    are skipped.
--- "name = Mira" のような行を、表にする。ほかの形の行は飛ばす
-settings :: Text -> Map Text Text
-settings t = Map.fromList
-  [ (k, v)
-  | m <- findAll line t
-  , let found = namedGroups m
-  , Just k <- [Map.lookup "key" found]
-  , Just v <- [Map.lookup "value" found] ]
+-- ANCHOR: offset
+-- 📍 The place in characters of a place in bytes (from PCRE2, Rust or
+--    Go). Nothing in the middle of a character, or past the end.
+-- バイトで数えた場所（PCRE2・Rust・Go から来たもの）を、文字で数えた
+-- 場所にする。文字の途中や、終わりより先なら Nothing
+charOffset :: Text -> Int -> Maybe Int
+charOffset t b = lookup b (zip starts [0 ..])
   where
-    line = either (error . show) id
-      (compileWith [Multiline] "^(?<key>[a-z]+) *= *(?<value>[^\n]*)$")
--- ANCHOR_END: named
+    -- the byte where each character starts, and the end
+    -- それぞれの文字が始まるバイトと、終わり
+    starts = scanl (+) 0 (map (lengthWord8 . T.singleton) (T.unpack t))
+-- ANCHOR_END: offset
 -- ANCHOR_END: all

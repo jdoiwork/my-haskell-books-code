@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- 💥 Plain and Fancy both say how a Shape is shown.
+-- Plain も Fancy も、Shape の見せ方を決めている
+import Shapes
+import Plain
+import Fancy
+
+Fancy.framed (Shapes.Circle 2)
+-- ANCHOR_END: all

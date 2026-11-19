@@ -1,0 +1,16 @@
+/(?i)café/
+    CAFÉ
+
+/(?i)café/utf
+    CAFÉ
+
+/(?i)k/utf
+    \x{212a}
+
+/(?i)ß/utf
+    ẞ
+    SS
+
+/(?i)i/utf
+    İ
+

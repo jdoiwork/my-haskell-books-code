@@ -1,0 +1,12 @@
+/(a(?i)b|c)d/
+    aBd
+ 0: aBd
+ 1: aB
+    CD
+No match
+    Cd
+ 0: Cd
+ 1: C
+    ABd
+No match
+

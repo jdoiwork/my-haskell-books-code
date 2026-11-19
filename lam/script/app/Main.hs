@@ -12,14 +12,16 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Text.IO.Utf8 as Utf8
 import System.Console.Haskeline
-import System.Environment (getArgs, withArgs)
+import System.Environment (getArgs, lookupEnv, withArgs)
 import System.Exit (ExitCode (..), exitWith)
+import System.FilePath (splitSearchPath)
 import System.IO (stderr)
 
+import Lam.Module (Files, diskFiles, importAt, loadProgram, runProgram)
 import Lam.Prelude (preludeSession)
-import Lam.Program (Ending (..), Session, loadProgram, runProgram)
-import Lam.Repl (Input (..), endingText, parseInput, step)
+import Lam.Program (Ending (..), Session)
 import qualified Lam.Program as Program
+import Lam.Repl (Input (..), endingText, parseInput, step)
 import Lam.World (realWorld)
 
 main :: IO ()
@@ -49,6 +51,16 @@ loop session = do
       Right (Load file) -> do
         loaded <- liftIO (loadFile session file)
         loop loaded
+      -- ANCHOR: replImport
+      -- import, from the folder the REPL runs in (and LAM_PATH).
+      -- import は、REPL を動かしたフォルダー（と LAM_PATH）から
+      Right (ImportLine imp) -> do
+        files <- liftIO realFiles
+        imported <- liftIO (importAt files preludeSession session imp)
+        case imported of
+          Left err -> liftIO (TIO.putStrLn err) >> loop session
+          Right session' -> loop session'
+      -- ANCHOR_END: replImport
       _ -> do
         -- An IO expression is done here, in the real world.
         -- IO の式は、ここで本物の世界でやる
@@ -69,32 +81,47 @@ loop session = do
 loadFile :: Session -> FilePath -> IO Session
 loadFile session file = do
   source <- Utf8.readFile file
-  case loadProgram session file source of
+  files  <- realFiles
+  loaded <- loadProgram files preludeSession session file source
+  case loaded of
     Left err -> TIO.putStrLn err >> pure session
     Right (session', final) -> do
       -- 「読みこみました」
       TIO.putStrLn ("loaded " <> T.pack file)
+      -- The expression at the end is done in the real world too.
+      -- 最後の式も、本物の世界でやる
       forM_ final $ \e -> do
         out <- Program.evaluate realWorld session' e
-        TIO.putStrLn (endingText out)
+        unless (out == Finished "") (TIO.putStrLn (endingText out))
       pure session'
 -- ANCHOR_END: loop
 
 -- ANCHOR: runFile
--- 📜 lam program.lam: main (if there is one) runs in the real world.
+-- 📜 lam program.lam: load it, then run it in the real world.
 --    How it ended becomes the exit code: 0, 1 for an error, n for exit n.
--- main（あれば）は、本物の世界で動く。終わり方が終了コードになる：
+-- 読みこんでから、本物の世界で動かす。終わり方が終了コードになる：
 -- 0、エラーなら 1、exit n なら n
 runFile :: FilePath -> IO ()
 runFile file = do
   source <- Utf8.readFile file
-  ending <- runProgram realWorld preludeSession file source
+  files  <- realFiles
+  loaded <- loadProgram files preludeSession preludeSession file source
+  ending <- case loaded of
+    Left err             -> pure (Errored err)
+    Right (done, final)  -> runProgram realWorld done final
   case ending of
-    Finished out -> unless (T.null out) (TIO.putStrLn out)
+    Finished _   -> pure ()
     Errored err  -> do
       TIO.hPutStrLn stderr err
       exitWith (ExitFailure 1)
     ExitedWith 0 -> exitWith ExitSuccess
     ExitedWith n -> exitWith (ExitFailure n)
+
+-- 💽 The disk, and the folders of LAM_PATH (lib:more, as PATH).
+-- ディスクと、LAM_PATH のフォルダー（PATH と同じ形の lib:more）
+realFiles :: IO (Files IO)
+realFiles = do
+  path <- lookupEnv "LAM_PATH"
+  pure (diskFiles (maybe [] splitSearchPath path))
 -- ANCHOR_END: runFile
 -- ANCHOR_END: all

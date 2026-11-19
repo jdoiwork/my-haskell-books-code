@@ -1,5 +1,6 @@
 -- ANCHOR: all
 -- ANCHOR: header
+{-# LANGUAGE MultilineStrings #-}
 -- | The records of the guild's archive room, a search by hand, and the
 --   code we want to write with MiniRegex.
 -- ギルドの記録室の記録と、手で書いた探しものと、MiniRegex で書きたい
@@ -23,6 +24,10 @@ module MiniRegex.Examples
   , notes
   , doubled
   , doubledWords
+  , oldRecords
+  , yearsIn
+  , datePatternX
+  , monthOf
   ) where
 -- ANCHOR_END: header
 
@@ -204,4 +209,46 @@ doubled = surely "([a-z]+) \\1"
 doubledWords :: Text -> [Text]
 doubledWords t = [w | m <- findAll doubled t, Just w <- [group 1 m]]
 -- ANCHOR_END: doubled
+
+-- ANCHOR: oldrecords
+-- 📜 A page written by a clerk long ago: full-width digits, Japanese
+--    names, and words in capitals.
+-- ずっと昔の係の人が書いたページ：全角の数字、日本語の名前、大文字の言葉
+oldRecords :: Text
+oldRecords = T.unlines
+  [ "２０２６年１１月１９日　ミラ　ドラゴンの鱗　３００ゴールド"
+  , "2026-11-20 Ruby bought a NOTE at the CAFÉ"
+  , "１１/２１　ルビー　ノート　２冊"
+  ]
+
+-- 📅 The years: four digits in a row, of any kind.
+-- 年：どの種類でもよい、4つ並んだ数字
+yearsIn :: Text -> [Text]
+yearsIn t = map matchText (findAll (surely "\\d{4}") t)
+-- ANCHOR_END: oldrecords
+
+-- ANCHOR: xmode
+-- 📝 A date of either kind, with notes in the pattern itself (?x):
+--    the spaces and the # comments are skipped.
+-- どちらの書き方の日付も。パターンの中に説明を書く（(?x)）：空白と
+-- # のコメントは読み飛ばされる
+datePatternX :: Regex
+datePatternX = surely """
+  (?x)
+  (?<year>  \\d{4} )  [-年]      # 2026- or ２０２６年
+  (?<month> \\d{1,2} ) [-月]     # 11- or １１月
+  (?<day>   \\d{1,2} ) 日?       # 19 or １９日
+  """
+-- ANCHOR_END: xmode
+
+-- ANCHOR: reset
+-- 🗓️ The month, from 11月19日, 2026-11-19 or 11/19: (?| ... ) gives
+--    each branch's group the same number, 1.
+-- 11月19日・2026-11-19・11/19 から月を取り出す。(?| ... ) は、どの枝の
+-- グループにも、同じ1番を付ける
+monthOf :: Text -> Maybe Text
+monthOf t = find months t >>= group 1
+  where
+    months = surely "(?|(\\d+)月|\\d{4}-(\\d+)-|(\\d+)/\\d+)"
+-- ANCHOR_END: reset
 -- ANCHOR_END: all

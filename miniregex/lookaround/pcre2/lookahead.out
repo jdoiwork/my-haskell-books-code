@@ -1,0 +1,25 @@
+/\d+(?= gold)/g
+    for 300 gold, a herb for 5 silver
+ 0: 300
+
+/\d+(?=(gold))/
+    300gold
+ 0: 300
+ 1: gold
+
+/\d+(?! gold)/g
+    300 gold, 5 silver
+ 0: 30
+ 0: 5
+
+/^(?=.*\d)(?=.*[A-Z])(?!.*dragon).{8,}$/
+    Lambda2026
+ 0: Lambda2026
+    lambda2026
+No match
+    Lambda-dragon-7
+No match
+
+/(?!(a))b\1?/
+    b
+ 0: b

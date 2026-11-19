@@ -66,11 +66,12 @@ realWorld request = case request of
   GetEnvironment -> do
     pairs <- getEnvironment
     pure (VMap (Map.fromList
-      [ (T.pack k, VString (T.pack v)) | (k, v) <- pairs ]))
+      [ (Key (VString (T.pack k)), VString (T.pack v)) | (k, v) <- pairs ]))
   -- ANCHOR_END: realArgs
   -- ANCHOR: realStdio
   GetContents -> VString <$> Utf8.getContents
   PutErr s -> do
+    hFlush stdout                -- the screen first, in the right order
     TIO.hPutStr stderr s
     pure unit
   -- ANCHOR_END: realStdio
@@ -93,9 +94,9 @@ unit = VTuple []
 
 -- ANCHOR: fake
 -- 🎭 A fake world: the lines to type, the files, and the screen.
--- 偽物の世界：打ちこむ行、ファイル、画面
 --    For scripts: the arguments, the environment, and the standard
 --    error.
+-- 偽物の世界：打ちこむ行、ファイル、画面。
 -- スクリプトのため：引数、環境変数、標準エラー
 data FakeWorld = FakeWorld
   { worldInput  :: [Text]          -- the lines still to be read
@@ -145,7 +146,8 @@ fakeWorld request = case request of
     pure (maybeValue (VString <$> found))
   GetEnvironment -> do
     env <- gets worldEnv
-    pure (VMap (VString <$> env))
+    pure (VMap (Map.fromList
+      [ (Key (VString k), VString v) | (k, v) <- Map.toList env ]))
   -- ANCHOR_END: fakeArgs
   -- ANCHOR: fakeStdio
   -- All the lines still to be read, each with its line break.

@@ -1,0 +1,22 @@
+/(?i)café/
+    CAFÉ
+No match
+
+/(?i)café/utf
+    CAFÉ
+ 0: CAF\x{c9}
+
+/(?i)k/utf
+    \x{212a}
+ 0: \x{212a}
+
+/(?i)ß/utf
+    ẞ
+ 0: \x{1e9e}
+    SS
+No match
+
+/(?i)i/utf
+    İ
+No match
+

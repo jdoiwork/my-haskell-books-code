@@ -309,7 +309,8 @@ showFound mods subj ms = concatMap one ms
 --    has \= (modifiers for this subject), which MiniRegex cannot follow
 --    yet.
 -- 入力の行の \ を、pcre2test と同じように文字にする：\t \n \x41
--- \x{263a} \o{11064} \N{U+1234} \101 など。\=（この入力だけの修飾子）があれば Nothing
+-- \x{263a} \o{11064} \N{U+1234} \101 など。\=（この入力だけの修飾子）が
+-- あれば Nothing
 -- （MiniRegex には、まだ従えない）
 decodeSubject :: Text -> Maybe Text
 decodeSubject = fmap T.pack . go . T.unpack

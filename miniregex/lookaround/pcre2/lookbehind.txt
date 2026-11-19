@@ -1,0 +1,17 @@
+/(?<=price:\s?)\d+/g
+    price:1200 gold, price: 80 gold, price:   7 gold
+
+/(?<=price:\s*)\d+/
+
+/(?<=colour|color)s/
+    colors
+
+/(?<=(a|aa))b/
+    aab
+
+/(?<=a|(aa))b/
+    aab
+
+/(?<=\d{1,300})x/
+
+/x\K*/

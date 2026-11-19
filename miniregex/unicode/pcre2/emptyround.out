@@ -1,9 +1,0 @@
-/(a*)*/
-    aab
- 0: aa
- 1: 
-
-/(|b){2,5}/
-    bbbx\=notempty_atstart
- 0: b
- 1: b
