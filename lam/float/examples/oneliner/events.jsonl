@@ -1,5 +1,0 @@
-{"time": "09:00:01", "level": "info", "user": {"name": "alice"}, "ms": 12}
-{"time": "09:00:05", "level": "error", "user": {"name": "bob"}, "ms": 340}
-
-{"time": "09:01:10", "level": "info", "user": {"name": "carol"}, "ms": 25}
-{"time": "09:02:00", "level": "error", "user": {"name": "alice"}, "ms": 1200}

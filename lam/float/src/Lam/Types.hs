@@ -12,30 +12,24 @@ module Lam.Types
   , TypeEnv
   , TypeError (..)
   , DataTable (..)
+  , Alias (..)
   , DataType (..)
   , Constructor (..)
-  , Alias (..)
   , noData
-  , substitute
-  , inferAnnotated
   , members
-  , derive
-  , derivable
+  , comparability
   , fieldsOf
   , tString
   , tFloat
   , defaultNumbers
   , tList
   , tTuple
-  , tMap
-  , tIO
-  , tUnit
-  , MainShape (..)
-  , checkMain
   , closeOver
   , closeOverWith
   , inferType
   , inferDefinition
+  , inferAnnotated
+  , substitute
   , renderType
   , renderScheme
   , renderTypeError
@@ -63,12 +57,6 @@ data Type
   | TVar Int            -- t0, t1, ... shown as a, b, ...
   | TFun Type Type      -- a -> b
   | TCon Name [Type]    -- String, [a], (a, b)
-  -- ANCHOR: tapp
-  -- A type variable that stands for a type with a hole, given the
-  -- type for the hole:  f a  (f may turn out to be List, Maybe, Map).
-  -- 穴のあいた型を表す型変数に、穴に入れる型を渡したもの
-  | TApp Type Type      -- f a
-  -- ANCHOR_END: tapp
   -- ANCHOR: trecord
   -- A record: the fields we know, and maybe a type variable for the
   -- other fields (the "rest of the row").
@@ -96,25 +84,6 @@ tList a = TCon "List" [a]           -- [a]
 
 tTuple :: [Type] -> Type
 tTuple ts = TCon "Tuple" ts         -- (a, b)
-
--- ANCHOR: tmap
--- The keys are always strings, so only the values have a type.
--- キーはいつも文字列なので、型があるのは値だけ
-tMap :: Type -> Type
-tMap a = TCon "Map" [a]             -- Map a
--- ANCHOR_END: tmap
-
--- ANCHOR: tio
--- IO a: an action that gives an a when it is done.
--- () is the tuple of nothing, the answer of putStrLn.
--- IO a：やり終えると a をくれる頼みごと。
--- () は、何も入っていないタプル。putStrLn の答え
-tIO :: Type -> Type
-tIO a = TCon "IO" [a]               -- IO a
-
-tUnit :: Type
-tUnit = tTuple []                   -- ()
--- ANCHOR_END: tio
 -- ANCHOR_END: tcon
 
 -- ANCHOR: class
@@ -123,23 +92,11 @@ tUnit = tTuple []                   -- ()
 -- クラス：型変数がなれるもの。クラスもその仲間も言語が決めていて、
 -- プログラムからは増やせない
 data Class
-  = Comparable    -- == < ... : Int, Bool, String, lists, tuples, maps of them
+  = Comparable    -- == < ... : Int, Bool, String, lists and tuples of them
   | Semigroup     -- ++       : String, [a]
   | HasLength     -- length   : String, [a]
-  -- ANCHOR: classShowable
-  | Showable      -- f"{x}"   : the same types as Comparable, for now
-  -- ANCHOR_END: classShowable
-  -- ANCHOR: classStdlib
-  -- A class of types with a hole (f in  f a), and one more of String
-  -- and lists.
-  -- 穴のあいた型（f a の f）のクラスと、文字列とリストのクラス
-  | Foldable      -- any, sum, maximum : [ ], Maybe, Map
-  | Functor       -- map               : [ ], Maybe, Map, Result e
-  | Sequence      -- reverse, take     : String, [a]
-  -- ANCHOR_END: classStdlib
   -- ANCHOR: classFloat
   | Number        -- + - *  and 1, 2  : Int, Float
-  | Fallible      -- ?:               : Maybe, Result e
   -- ANCHOR_END: classFloat
   deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -177,10 +134,8 @@ data TypeError
   -- ANCHOR_END: orElseNeedsType
   -- ANCHOR: dataErrors
   -- Handler is not Comparable: its constructor Button holds Int -> Int.
-  --    (The same for Showable.)
   -- Handler は比べられない：構成子 Button が Int -> Int を持っている
-  -- （Showable も同じ）
-  | HoldsNotIn Class Type Name Type
+  | HoldsNotComparable Type Name Type
   | UnknownConstructor Name           -- case s of | Circel r -> ...
   | WrongPatternArgs Name Int Int     -- Rect w   (needs 2, got 1)
   | UnknownType Name                  -- data T = C Strng
@@ -188,32 +143,16 @@ data TypeError
   | WrongTypeArgs Name Int Int        -- data T = C Maybe
   | BuiltinType Name                  -- data List a = ...
   -- ANCHOR_END: dataErrors
-  -- ANCHOR: scriptErrors
-  -- main has none of the three shapes (see checkMain).
-  -- main が、3つの形のどれでもない（checkMain を見る）
-  | BadMain Type
-  -- The same error, and where it happened (the innermost place).
-  -- 同じエラーと、それが起きた場所（いちばん内側の場所）
-  | TypeAt Loc TypeError
-  -- ANCHOR_END: scriptErrors
-  -- ANCHOR: moduleErrors
-  -- JDec is a constructor that the module Json does not show.
-  -- JDec は、モジュール Json が見せていない構成子
-  | Hidden Name Name
-  -- data Maybe ... again: the type Maybe belongs to the module Maybe.
-  -- もう一度 data Maybe：型 Maybe は、モジュール Maybe のもの
-  | ForeignType Name Name
-  -- ANCHOR_END: moduleErrors
   -- ANCHOR: recordErrors
   -- { name : String } has no field age.
   -- { name : String } には、フィールド age がない
   | MissingField Name Type
-  -- The annotation of add says a can be any type, but the definition
+  -- The annotation of next says a can be any type, but the definition
   -- makes it Int.
-  -- add の注釈は「a はどんな型でもよい」と言うが、定義は Int にする
+  -- next の注釈は「a はどんな型でもよい」と言うが、定義は Int にする
   | TooGeneral Name Name Type
-  -- The annotation of pair says a and b may differ, but they are the same.
-  -- pair の注釈は「a と b はちがってよい」と言うが、同じになる
+  -- The annotation of swap says a and b may differ, but they are the same.
+  -- swap の注釈は「a と b はちがってよい」と言うが、同じになる
   | SameVariables Name Name Name
   -- The annotation of largest must say Comparable a.
   -- largest の注釈には、Comparable a が要る
@@ -234,7 +173,7 @@ data DataTable = DataTable
   { dataTypes    :: Map Name DataType
   , constructors :: Map Name Constructor
   -- ANCHOR: aliasesField
-  -- The type aliases: type alias User = { name : String, age : Int }
+  -- The type aliases: type alias Member = { name : String, days : Int }
   -- 型の別名
   , aliases      :: Map Name Alias
   -- ANCHOR_END: aliasesField
@@ -248,20 +187,17 @@ data DataTable = DataTable
 data Alias = Alias Int Type
 -- ANCHOR_END: alias
 
--- ANCHOR: dataType
 -- 📐 One data type.  data Maybe a = Nothing | Just a  has 1 type
---    variable, and is Comparable (and Showable) when a (t0) is:
---    {Comparable := [0], Showable := [0]}.
--- data の型1つ。型変数の数と、クラスごとの、そのクラスに入る条件
+--    variable, and is Comparable when a (t0) is: Just [0].
+-- data の型1つ。型変数の数と、Comparable になる条件
 data DataType = DataType
-  { typeArity :: Int
-    -- For each class the type is in: which type variables must be in
-    -- the class too (by number). A class not in the map: never.
-    -- 入っているクラスごとに、同じクラスに入っていなければならない
-    -- 型変数（番号）。表にないクラスには、決して入らない
-  , derived   :: Map Class [Int]
+  { typeArity  :: Int
+    -- Just: which type variables must be Comparable (by number).
+    -- Nothing: it is never Comparable.
+    -- Just：Comparable でなければならない型変数（番号）。
+    -- Nothing：決して Comparable にならない
+  , comparable :: Maybe [Int]
   }
--- ANCHOR_END: dataType
 
 -- 🧱 One constructor: Just is the 2nd (number 1) of Maybe, with 1
 --    argument, and has the type  forall a. a -> Maybe a.
@@ -293,7 +229,6 @@ applyT s t = case t of
   TVar n    -> Map.findWithDefault t n s
   TFun a b  -> TFun (applyT s a) (applyT s b)
   TCon c ts -> TCon c (map (applyT s) ts)
-  TApp f a  -> appT (applyT s f) (applyT s a)
   -- ANCHOR: applyRecord
   -- When the rest r turned out to be more fields (and another rest),
   -- put them together:  { r | name : a }  with  r := { s | age : Int }
@@ -302,9 +237,9 @@ applyT s t = case t of
   TRecord fs rest ->
     let fs' = Map.map (applyT s) fs
     in case rest >>= (`Map.lookup` s) of
-         Just (TVar m)            -> TRecord fs' (Just m)
+         Just (TVar m)             -> TRecord fs' (Just m)
          Just (TRecord more rest') -> TRecord (Map.union fs' more) rest'
-         _                        -> TRecord fs' rest
+         _                         -> TRecord fs' rest
   -- ANCHOR_END: applyRecord
   _         -> t
 -- ANCHOR_END: applyT
@@ -313,19 +248,6 @@ applyT s t = case t of
 -- 型変数 t0、t1、... に、型を入れる（別名のため）
 substitute :: [Type] -> Type -> Type
 substitute ts = applyT (Map.fromList (zip [0 ..] ts))
-
--- ANCHOR: appT
--- 🕳️ Put a type into the hole. When f turned out to be a named type
---    with a hole (List, or Result e), the hole is filled:
---    f Int  with  f := List  is  [Int],  with  f := Result String  is
---    Result String Int.
--- 穴に型を入れる。f が、穴のあいた名前の型（List、Result e）だと
--- わかったら、穴を埋める
-appT :: Type -> Type -> Type
-appT f a = case f of
-  TCon c ts -> TCon c (ts <> [a])
-  _         -> TApp f a
--- ANCHOR_END: appT
 
 applyScheme :: Subst -> Scheme -> Scheme
 applyScheme s (Forall vs needs t) =
@@ -341,6 +263,7 @@ compose s2 s1 = Map.map (applyT s2) s1 `Map.union` s2
 -- ANCHOR_END: subst
 
 -- ANCHOR: unify
+-- ANCHOR: unifyHead
 -- 🤝 Make two types the same, if we can, and say how.
 --    Int -> t0  and  t1 -> Bool  give {t1 := Int, t0 := Bool}.
 --    It runs in Infer, because two records may need a new type
@@ -358,6 +281,7 @@ unify a b = case (a, b) of
     s1 <- unify a1 a2
     s2 <- unify (applyT s1 r1) (applyT s1 r2)
     pure (compose s2 s1)
+  -- ANCHOR_END: unifyHead
   -- ANCHOR: unifyCon
   -- The same name and the same number of types inside: make the
   -- insides the same, one by one.  [t0] and [Int] give {t0 := Int}.
@@ -365,16 +289,6 @@ unify a b = case (a, b) of
   (TCon c1 ts1, TCon c2 ts2)
     | c1 == c2 && length ts1 == length ts2 -> unifyMany ts1 ts2
   -- ANCHOR_END: unifyCon
-  -- ANCHOR: unifyApp
-  -- f a  and  [Int]: f is List with a hole, and a is Int. The last
-  -- type inside is the one in the hole.
-  -- f a と [Int]：f は穴のあいた List、a は Int。中の最後の型が、穴の中身
-  (TApp f x, TApp g y) -> unifyMany [f, x] [g, y]
-  (TApp f x, TCon c ts@(_ : _)) ->
-    unifyMany [f, x] [TCon c (init ts), last ts]
-  (TCon c ts@(_ : _), TApp f x) ->
-    unifyMany [TCon c (init ts), last ts] [f, x]
-  -- ANCHOR_END: unifyApp
   -- ANCHOR: unifyRecord
   -- Two records: the fields both have must be the same; the fields
   -- only one has go into the rest of the other (see unifyRests).
@@ -454,7 +368,6 @@ ftv t = case t of
   TVar n    -> Set.singleton n
   TFun a b  -> ftv a <> ftv b
   TCon _ ts -> foldMap ftv ts
-  TApp f a  -> ftv f <> ftv a
   TRecord fs rest -> foldMap ftv fs <> maybe Set.empty Set.singleton rest
   _         -> Set.empty
 -- ANCHOR_END: ftv
@@ -472,18 +385,12 @@ data InferState = InferState
   { nextVar :: Int
   , needs   :: Needs
   , known   :: DataTable     -- read only / 読むだけ
-    -- ANCHOR: pendingField
-    -- Classes for  f a  while f is not known yet:  length xs  when
-    -- sum xs  made xs an  f Int. They wait until f is known.
-    -- f がまだわからないうちの、f a のクラスの条件。f がわかるまで待つ
-  , pending :: [(Class, Type)]
-    -- ANCHOR_END: pendingField
   }
 
 newtype Infer a = Infer (InferState -> Either TypeError (a, InferState))
 
 runInfer :: DataTable -> Infer a -> Either TypeError a
-runInfer table (Infer f) = fst <$> f (InferState 0 Map.empty table [])
+runInfer table (Infer f) = fst <$> f (InferState 0 Map.empty table)
 
 -- 📚 The data types we know.
 -- 知っている data の型
@@ -523,18 +430,6 @@ freshRow = Infer $ \st -> Right (nextVar st, st { nextVar = nextVar st + 1 })
 failWith :: TypeError -> Infer a
 failWith err = Infer (\_ -> Left err)
 
--- ANCHOR: inPlace
--- 📍 Put the place on an error inside. An error that already has a
---    place keeps it, as in the evaluator.
--- 中で起きたエラーに場所を付ける。もう場所のあるエラーは、評価器と
--- 同じく、そのまま
-inPlace :: Loc -> Infer a -> Infer a
-inPlace loc (Infer f) = Infer $ \st -> case f st of
-  Left err@(TypeAt _ _) -> Left err
-  Left err              -> Left (TypeAt loc err)
-  Right done            -> Right done
--- ANCHOR_END: inPlace
-
 -- ANCHOR: liftUnify
 -- 🤝 unify, inside Infer. Then check the classes: when t3 must be
 --    Comparable and t3 turned out to be Int -> Int, that is an error.
@@ -547,36 +442,8 @@ liftUnify a b = do
     [ require c t
     | (n, t) <- Map.toList s
     , c <- maybe [] Set.toList (Map.lookup n current) ]
-  recheck s
   pure s
 -- ANCHOR_END: liftUnify
-
--- ANCHOR: pending
--- ⏳ Apply what we learned to the waiting classes. Those whose f is
---    known now (f a became [Int]) are checked as usual.
--- 待っている条件に、わかったことを当てはめる。f がわかったもの
--- （f a が [Int] になった）は、ふつうに確かめる
-recheck :: Subst -> Infer ()
-recheck s = do
-  waiting <- Infer $ \st -> Right (pending st, st { pending = [] })
-  mapM_ (\(c, t) -> require c (applyT s t)) waiting
-
--- 🧺 Before a let gets its forall type: an f that is still not known
---    but has a class waiting on it becomes a list (like the defaulting
---    of Haskell). So  let average xs = sum xs / length xs  is for
---    lists:  [Int] -> Int.
--- let の型を forall にする前に：まだわからず、条件が待っている f は、
--- リストにする（Haskell の defaulting のように）
-settle :: Infer Subst
-settle = do
-  waiting <- Infer $ \st -> Right (pending st, st)
-  case [ n | (_, TApp (TVar n) _) <- waiting ] of
-    []    -> pure Map.empty
-    n : _ -> do
-      s1 <- liftUnify (TVar n) (TCon "List" [])
-      s2 <- settle
-      pure (s2 `compose` s1)
--- ANCHOR_END: pending
 -- ANCHOR_END: monad
 
 -- ANCHOR: require
@@ -608,31 +475,23 @@ require c t = case t of
       k : _ -> failWith (NotInClass k TInt)
       []    -> pure ()
     -- ANCHOR_END: numberClash
-  -- ANCHOR: requireApp
-  -- f a, with f not known yet: wait (see recheck).
-  -- f a の f がまだわからない：待つ（recheck を見る）
-  TApp _ _ -> Infer $ \st ->
-    Right ((), st { pending = (c, t) : pending st })
-  -- ANCHOR_END: requireApp
   _ -> do
     table <- knownData
     case members table c t of
       Just inside -> mapM_ (require c) inside
       Nothing     -> failWith (notIn table)
-  -- ANCHOR: notIn
   where
     -- For a data type, look at its constructors again, to say which
     -- one keeps it out.
     -- data の型なら、構成子を見直して、どれのせいかを言う
     notIn table = case t of
       TCon name ts
-        | c `elem` derivable
+        | c == Comparable
         , Left (con, inside) <-
-            derive table c name (fieldsOf table name) ->
-            HoldsNotIn c t con
+            comparability table name (fieldsOf table name) ->
+            HoldsNotComparable t con
               (applyT (Map.fromList (zip [0 ..] ts)) inside)
       _ -> NotInClass c t
-  -- ANCHOR_END: notIn
 
 -- 🧱 The constructors of a data type, with the types of their arguments.
 -- data の型の構成子と、その引数の型
@@ -652,101 +511,52 @@ members table c t = case (c, t) of
   (Comparable, TInt)              -> Just []
   -- ANCHOR: membersFloat
   (Comparable, TCon "Float" [])   -> Just []
-  (Showable,   TCon "Float" [])   -> Just []
   -- The numbers: + - * and the literals 1, 2 work on these two.
   -- 数。+ - * と、1 や 2 のリテラルは、この2つに使える
   (Number,     TInt)              -> Just []
   (Number,     TCon "Float" [])   -> Just []
-  -- ?: takes the value out of these, with a hole for the value.
-  -- ?: が中の値を取り出すもの。値のほうが穴
-  (Fallible,   TCon "Maybe" [])   -> Just []
-  (Fallible,   TCon "Result" [_]) -> Just []
   -- ANCHOR_END: membersFloat
   (Comparable, TBool)             -> Just []
   (Comparable, TCon "String" [])  -> Just []
   (Comparable, TCon "List" [a])   -> Just [a]
   (Comparable, TCon "Tuple" ts)   -> Just ts
-  -- ANCHOR: membersMap
-  -- Map a is Comparable when a is, like [a].
-  -- Map a は、[a] と同じく、a が Comparable なら Comparable
-  (Comparable, TCon "Map" [a])    -> Just [a]
-  -- ANCHOR_END: membersMap
-  -- ANCHOR: membersRecord
-  -- A record is Comparable (and Showable) when every field is. The
-  -- rest r, if any, must be too: every field it will hold.
-  -- レコードは、どのフィールドも Comparable（Showable）なら、そう。
-  -- 残りの r があれば、r も（r が持つことになる、どのフィールドも）
-  (Comparable, TRecord fs rest)   -> Just (fieldTypes fs rest)
-  (Showable,   TRecord fs rest)   -> Just (fieldTypes fs rest)
-  -- ANCHOR_END: membersRecord
   (Semigroup,  TCon "String" [])  -> Just []
   (Semigroup,  TCon "List" [_])   -> Just []
   (HasLength,  TCon "String" [])  -> Just []
   (HasLength,  TCon "List" [_])   -> Just []
-  -- ANCHOR: membersShowable
-  -- What can go into f"{x}": the same as Comparable (not functions,
-  -- not IO). A list or a map is Showable when its items are.
-  -- f"{x}" に入れられるもの。Comparable と同じ（関数と IO は入らない）
-  (Showable,   TInt)              -> Just []
-  (Showable,   TBool)             -> Just []
-  (Showable,   TCon "String" [])  -> Just []
-  (Showable,   TCon "List" [a])   -> Just [a]
-  (Showable,   TCon "Tuple" ts)   -> Just ts
-  (Showable,   TCon "Map" [a])    -> Just [a]
-  -- ANCHOR_END: membersShowable
-  -- ANCHOR: membersHoles
-  -- The types with a hole: List is [ ] before the type of the items.
-  -- Result e has its hole for the value; the error e stays as it is.
-  -- 穴のあいた型。List は、要素の型を入れる前の [ ]。Result e は、
-  -- 値のほうが穴。エラーの e はそのまま
-  (Foldable,   TCon "List" [])    -> Just []
-  (Foldable,   TCon "Maybe" [])   -> Just []
-  (Foldable,   TCon "Map" [])     -> Just []
-  (Functor,    TCon "List" [])    -> Just []
-  (Functor,    TCon "Maybe" [])   -> Just []
-  (Functor,    TCon "Map" [])     -> Just []
-  (Functor,    TCon "Result" [_]) -> Just []
-  -- ANCHOR_END: membersHoles
-  -- ANCHOR: membersSequence
-  -- Strings and lists: reverse "abc" and reverse [1, 2, 3]
-  -- 文字列とリスト
-  (Sequence,   TCon "String" [])  -> Just []
-  (Sequence,   TCon "List" [_])   -> Just []
-  -- ANCHOR_END: membersSequence
+  -- ANCHOR: membersRecord
+  -- A record is Comparable when every field is. The rest r, if any,
+  -- must be too: every field it will hold.
+  -- レコードは、どのフィールドも Comparable なら Comparable。
+  -- 残りの r があれば、r も（r が持つことになる、どのフィールドも）
+  (Comparable, TRecord fs rest)   ->
+    Just (Map.elems fs <> maybe [] (\r -> [TVar r]) rest)
+  -- ANCHOR_END: membersRecord
   -- ANCHOR: membersData
   -- A data type: the rows its declaration added.  Maybe Int needs
-  -- Int (its argument number 0) to be Comparable, and to be Showable.
+  -- Int (its argument number 0) to be Comparable.
   -- data の型：宣言が足した行。Maybe Int は、0番目の引数 Int が
-  -- Comparable（Showable）であればよい
-  (_, TCon name ts)
+  -- Comparable であればよい
+  (Comparable, TCon name ts)
     | Just dt <- Map.lookup name (dataTypes table)
-    , Just needed <- Map.lookup c (derived dt) ->
-        Just [ ts !! i | i <- needed ]
+    , Just needed <- comparable dt -> Just [ ts !! i | i <- needed ]
   -- ANCHOR_END: membersData
   _                               -> Nothing
-  where
-    fieldTypes fs rest = Map.elems fs <> maybe [] (\r -> [TVar r]) rest
 -- ANCHOR_END: require
 
--- ANCHOR: derive
--- 🎓 The classes a data type gets from its insides, by itself.
--- data の型が、中身から自動で入るクラス
-derivable :: [Class]
-derivable = [Comparable, Showable]
-
--- ⚖️ Is the new type in class cls, and when?  Look at every argument
---    of every constructor:
---      a type variable    -> it must be in cls
+-- ANCHOR: comparability
+-- ⚖️ Is the new type Comparable, and when?  Look at every argument of
+--    every constructor:
+--      a type variable    -> it must be Comparable
 --      the type itself    -> skip it (we are deciding that now)
 --      anything else      -> ask the table of members, as require does
 --    data Maybe a = Nothing | Just a      gives Right [0]   (a must be)
 --    data Tagged a = Tagged Int           gives Right []    (always)
 --    data Handler = Button (Int -> Int)   gives Left (Button, Int -> Int)
--- 新しい型はクラス cls に入るか、どんなときか。どの構成子のどの引数も見る
-derive
-  :: DataTable -> Class -> Name -> [(Name, [Type])]
-  -> Either (Name, Type) [Int]
-derive table cls self fields =
+-- 新しい型は Comparable か、どんなときか。どの構成子のどの引数も見る
+comparability
+  :: DataTable -> Name -> [(Name, [Type])] -> Either (Name, Type) [Int]
+comparability table self fields =
   Set.toList <$> foldM add Set.empty
     [ (c, t) | (c, ts) <- fields, t <- ts ]
   where
@@ -754,17 +564,17 @@ derive table cls self fields =
       Just vs -> Right (acc <> vs)
       Nothing -> Left (c, t)
 
-    -- The type variables t needs to be in cls, or Nothing if it
+    -- The type variables t needs to be Comparable, or Nothing if it
     -- can never be.
-    -- t が cls に入るために、cls に入っていなければならない型変数
+    -- t が Comparable であるために、Comparable でなければならない型変数
     needs :: Type -> Maybe (Set Int)
     needs t = case t of
       TVar i -> Just (Set.singleton i)
       TCon name _ | name == self -> Just Set.empty
-      _ -> case members table cls t of
+      _ -> case members table Comparable t of
         Just inside -> Set.unions <$> traverse needs inside
         Nothing     -> Nothing
--- ANCHOR_END: derive
+-- ANCHOR_END: comparability
 
 
 -- ANCHOR: scheme
@@ -817,10 +627,6 @@ closeOverWith cs t = Forall (Set.toList (ftv t))
 -- W アルゴリズム：式の型と、わかったこと
 infer :: TypeEnv -> Expr -> Infer (Subst, Type)
 infer env expr = case expr of
-  -- ANCHOR: inferAt
-  At loc e -> inPlace loc (infer env e)
-  -- ANCHOR_END: inferAt
-
   -- ANCHOR: inferLit
   -- ANCHOR: inferNumber
   -- 3 can be an Int or a Float: a new a, in the class Number.
@@ -864,7 +670,6 @@ infer env expr = case expr of
       TInt    -> failWith (Mismatch tf' needed)
       TBool   -> failWith (Mismatch tf' needed)
       TCon {} -> failWith (Mismatch tf' needed)
-      TApp {} -> failWith (Mismatch tf' needed)
       TRecord {} -> failWith (Mismatch tf' needed)
       -- Otherwise the argument must fit the function: found first.
       -- そうでなければ、引数が関数に合うはず（来たものを先に）
@@ -880,12 +685,7 @@ infer env expr = case expr of
     tx <- fresh
     (s1, te) <- infer (Map.insert x (Forall [] Map.empty tx) env) e
     s2 <- liftUnify (applyT s1 tx) te
-    -- ANCHOR: settleLet
-    -- The f that are still not known become lists (see settle).
-    -- まだわからない f は、リストにする（settle を見る）
-    s3' <- settle
-    let s    = s3' `compose` s2 `compose` s1
-    -- ANCHOR_END: settleLet
+    let s    = s2 `compose` s1
         env' = applyEnv s env
     ns <- currentNeeds
     let sc = generalize env' ns (applyT s te)
@@ -904,6 +704,21 @@ infer env expr = case expr of
     let s = s5 `compose` s4 `compose` s3 `compose` s2 `compose` s1
     pure (s, applyT s5 te)
 
+  -- ANCHOR: inferOrElse
+  -- m ?: d : m holds an a that may be missing, and d is an a.
+  -- m は、ないかもしれない a を持つもの。d は a
+  BinOp OrElse l r -> do
+    (s1, tl) <- infer env l
+    (s2, tr) <- infer (applyEnv s1 env) r
+    a        <- fresh
+    holder   <- holding (applyT s2 tl) a
+    s3 <- liftUnify (applyT s2 tl) holder
+    let s123 = s3 `compose` s2 `compose` s1
+    s4 <- liftUnify (applyT s3 tr) (applyT s123 a)
+    let s = s4 `compose` s123
+    pure (s, applyT s a)
+  -- ANCHOR_END: inferOrElse
+
   -- ANCHOR: inferBinOp
   -- Each operator says what its two sides must be, and what it gives.
   -- 演算子ごとに、両側の型と、答えの型が決まっている
@@ -911,13 +726,6 @@ infer env expr = case expr of
     (left, right, result) <- opType op
     (s1, tl) <- infer env l
     (s2, tr) <- infer (applyEnv s1 env) r
-    -- ANCHOR: orElseLeft
-    -- The left of ?: must hold a value that may be missing. Say so
-    -- before unify, which would make  3 ?: 0  a list in the end.
-    -- ?: の左は、ないかもしれない値を持つもの。unify の前に確かめる
-    -- （unify に任せると、3 ?: 0 は最後にリストにされてしまう）
-    when (op == OrElse) $ checkFallible (applyT s2 tl)
-    -- ANCHOR_END: orElseLeft
     s3 <- liftUnify (applyT s2 tl) (applyT (s2 `compose` s1) left)
     let s123 = s3 `compose` s2 `compose` s1
     s4 <- liftUnify (applyT s3 tr) (applyT s123 right)
@@ -1098,12 +906,6 @@ opType op = case op of
   IntDiv      -> pure (TInt, TInt, TInt)
   DivMaybe    -> pure (tFloat, tFloat, TCon "Maybe" [tFloat])
   IntDivMaybe -> pure (TInt, TInt, TCon "Maybe" [TInt])
-  -- m ?: d : m is a Maybe a (or a Result e a), and d is an a.
-  -- m は Maybe a（か Result e a）、d は a
-  OrElse -> do
-    f <- freshIn Fallible
-    a <- fresh
-    pure (TApp f a, a, a)
   -- ANCHOR_END: opTypeNumber
   _ | op `elem` [Eq, Ne, Lt, Le, Gt, Ge] -> do
         a <- freshIn Comparable
@@ -1116,21 +918,23 @@ opType op = case op of
     pure (a, tList a, tList a)
   _      -> pure (TBool, TBool, TBool)          -- && ||
 
--- ANCHOR: checkFallible
--- 🛟 Is t the type of a Maybe or a Result (or not known yet)? A
---    number, a string, a list, a function, ... is never one.
--- t は Maybe か Result の型か（まだわからなくてもよい）。数、文字列、
--- リスト、関数などは、決してそうならない
-checkFallible :: Type -> Infer ()
-checkFallible t = case t of
-  TCon "Maybe" _  -> pure ()
-  TCon "Result" _ -> pure ()
-  TApp _ _        -> pure ()
+-- ANCHOR: holding
+-- 🛟 What the left of ?: must be, holding a: a Result e a if it is a
+--    Result, and a Maybe a otherwise (also when it is not known yet).
+--    A number, a string, a list, a function, ... is never one.
+-- ?: の左がなるべき型（中身は a）。Result なら Result e a、ほかは
+-- Maybe a（まだわからないときも）。数、文字列、リスト、関数などは、
+-- 決してそうならない
+holding :: Type -> Type -> Infer Type
+holding t a = case t of
+  TCon "Result" [e, _] -> pure (TCon "Result" [e, a])
+  TCon "Maybe" _       -> pure (TCon "Maybe" [a])
   TVar n -> do
     cs <- Map.findWithDefault Set.empty n <$> currentNeeds
     when (Number `Set.member` cs) $ failWith (OrElseNeeds t)
+    pure (TCon "Maybe" [a])
   _ -> failWith (OrElseNeeds t)
--- ANCHOR_END: checkFallible
+-- ANCHOR_END: holding
 
 -- 🆕 A new type variable that must be in class c.
 -- クラス c に入っていなければならない、新しい型変数
@@ -1170,9 +974,7 @@ unifyAll t ts = case ts of
 -- クラスの条件を見せるため、答えは Scheme
 inferType :: DataTable -> TypeEnv -> Expr -> Either TypeError Scheme
 inferType table env e = runInfer table $ do
-  (s0, t) <- infer env e
-  s1 <- settle
-  let s = s1 `compose` s0
+  (s, t) <- infer env e
   ns <- currentNeeds
   pure (generalize (applyEnv s env) ns (applyT s t))
 
@@ -1184,8 +986,7 @@ inferDefinition table env x e = runInfer table $ do
   tx <- fresh
   (s1, te) <- infer (Map.insert x (Forall [] Map.empty tx) env) e
   s2 <- liftUnify (applyT s1 tx) te
-  s3 <- settle
-  let s = s3 `compose` s2 `compose` s1
+  let s = s2 `compose` s1
   ns <- currentNeeds
   pure (generalize (applyEnv s env) ns (applyT s te))
 -- ANCHOR_END: run
@@ -1215,10 +1016,8 @@ inferAnnotated table env x names declared e = runInfer table $ do
   let t = applyT (Map.fromList (zip vs (map TVar news))) t0
   sequence_ [ require c (TVar new)
             | (v, new) <- zip vs news, c <- classesOf wanted v ]
-  s1 <- check (Map.insert x declared env) e t
-  s3 <- settle
-  let s      = s3 `compose` s1
-      images = [ (v, applyT s (TVar new)) | (v, new) <- zip vs news ]
+  s <- check (Map.insert x declared env) e t
+  let images = [ (v, applyT s (TVar new)) | (v, new) <- zip vs news ]
   ns <- currentNeeds
   mapM_ (checkImage images ns) images
   pure declared
@@ -1241,6 +1040,7 @@ inferAnnotated table env x names declared e = runInfer table $ do
           c : _ -> failWith (AnnotationNeeds x c (nameOf v))
           []    -> pure ()
       _ -> failWith (TooGeneral x (nameOf v) image)
+-- ANCHOR_END: inferAnnotated
 
 -- ANCHOR: check
 -- ☑️ Check an expression against a type we know. A function gives
@@ -1251,7 +1051,6 @@ inferAnnotated table env x names declared e = runInfer table $ do
 -- そうすれば、まちがいは、まちがえた場所で見つかる
 check :: TypeEnv -> Expr -> Type -> Infer Subst
 check env expr t = case (expr, t) of
-  (At loc e, _) -> inPlace loc (check env e t)
   (Lam y body, TFun a b) ->
     check (Map.insert y (Forall [] Map.empty a) env) body b
   _ -> do
@@ -1259,40 +1058,6 @@ check env expr t = case (expr, t) of
     s2 <- liftUnify te (applyT s1 t)
     pure (s2 `compose` s1)
 -- ANCHOR_END: check
--- ANCHOR_END: inferAnnotated
-
--- ANCHOR: checkMain
--- 🚪 main, the way into a program, has one of three shapes:
---      main : IO ()
---      main : [String] -> IO ()                 (the arguments)
---      main : [String] -> Map String -> IO ()   (and the environment)
---    The number of arrows decides which one to check.
--- プログラムの入り口 main は、3つの形のどれか。
--- 矢印の数で、どれを確かめるかを決める
-data MainShape = MainPlain | MainArgs | MainArgsEnv
-  deriving (Eq, Show)
-
-checkMain :: Scheme -> Either TypeError MainShape
-checkMain sc = runInfer noData $ do
-  -- main = 1 is an Int here, not a number of any type.
-  -- main = 1 は、どの型でもよい数ではなく、Int にして確かめる
-  t <- instantiate (defaultNumbers sc)
-  let (shape, wanted) = case arrows t of
-        0 -> (MainPlain,   tIO tUnit)
-        1 -> (MainArgs,    TFun args (tIO tUnit))
-        _ -> (MainArgsEnv, TFun args (TFun (tMap tString) (tIO tUnit)))
-      args = tList tString
-  -- Any mismatch is told as one error: which shapes main may have.
-  -- 合わなければ、どれも同じエラーにする：main に許される形を教える
-  Infer $ \st -> case unify t wanted of
-    Infer f -> case f st of
-      Left _          -> Left (BadMain t)
-      Right (_, st')  -> Right (shape, st')
-  where
-    arrows ty = case ty of
-      TFun _ r -> 1 + arrows r :: Int
-      _        -> 0
--- ANCHOR_END: checkMain
 
 -- ANCHOR: render
 -- 🖨️ Show a type, naming the variables a, b, c, ... in order.
@@ -1303,49 +1068,31 @@ renderType t = renderWith (typeNames t) t
 -- ANCHOR: typeNames
 -- 🏷️ The names a, b, c, ... of the type variables, in order.
 -- 型変数の名前 a、b、c、...（出てきた順）
---    A variable with a hole (the f of  f a) is called f, g, ...
---    instead, as in Haskell.
--- 穴のある型変数（f a の f）は、Haskell と同じく f、g、... と呼ぶ
 typeNames :: Type -> Map Int Text
 typeNames t =
-  Map.fromList (zip heads holed <> zip rests restNames
-                <> zip (filter (`notElem` (heads <> rests)) vars) plain)
+  Map.fromList (zip rests restNames
+                <> zip (filter (`notElem` rests) vars) plain)
   where
     vars  = nub (order t)
-    heads = nub (holes t)
     rests = nub (rowsOf t)
     order ty = case ty of
       TVar n    -> [n]
       TFun a b  -> order a <> order b
       TCon _ ts -> concatMap order ts
-      TApp f a  -> order f <> order a
       TRecord fs r -> maybe [] pure r <> concatMap order (Map.elems fs)
-      _         -> []
-    holes ty = case ty of
-      TApp (TVar n) a -> n : holes a
-      TApp f a  -> holes f <> holes a
-      TFun a b  -> holes a <> holes b
-      TCon _ ts -> concatMap holes ts
-      TRecord fs _ -> concatMap holes (Map.elems fs)
       _         -> []
     -- ANCHOR: rowNames
     -- The rest of a record is called r, r1, r2, ...
     -- レコードの残りは r、r1、r2、... と呼ぶ
     rowsOf ty = case ty of
       TRecord fs r -> maybe [] pure r <> concatMap rowsOf (Map.elems fs)
-      TApp f a  -> rowsOf f <> rowsOf a
       TFun a b  -> rowsOf a <> rowsOf b
       TCon _ ts -> concatMap rowsOf ts
       _         -> []
     restNames = "r" : [ "r" <> T.pack (show i) | i <- [1 :: Int ..] ]
     -- ANCHOR_END: rowNames
-    holed = [ T.singleton c | c <- "fgh" ]
-            <> [ "f" <> T.pack (show i) | i <- [1 :: Int ..] ]
-    plain = [ T.singleton c
-            | c <- ['a' .. 'z']
-            , null heads || c `notElem` ("fgh" :: String)
-            , null rests || c /= 'r' ]
-              <> [ "t" <> T.pack (show i) | i <- [1 :: Int ..] ]
+    plain = [ T.singleton c | c <- ['a' .. 'z'], null rests || c /= 'r' ]
+            <> [ "t" <> T.pack (show i) | i <- [1 :: Int ..] ]
 -- ANCHOR_END: typeNames
 
 renderWith :: Map Int Text -> Type -> Text
@@ -1369,11 +1116,6 @@ renderWith names0 = go names0 False
         "(" <> T.intercalate ", " (map (go names False) ts) <> ")"
       TCon c ts -> T.unwords (c : map (argument names) ts)
       -- ANCHOR_END: renderCon
-      -- ANCHOR: renderApp
-      -- f a: an argument with arguments goes into ( ), as for Box (Box a)
-      -- f a：引数に引数があれば、Box (Box a) と同じく ( ) に入れる
-      TApp f a -> go names True f <> " " <> argument names a
-      -- ANCHOR_END: renderApp
       -- ANCHOR: renderRecord
       -- { name : String, age : Int }  and  { r | name : String }
       -- (the fields in the order of their names)
@@ -1395,7 +1137,6 @@ renderWith names0 = go names0 False
       TFun {} -> "(" <> go names False ty <> ")"
       TCon c (_ : _)
         | c `notElem` ["List", "Tuple"] -> "(" <> go names False ty <> ")"
-      TApp {} -> "(" <> go names False ty <> ")"
       _ -> go names False ty
 
 -- ANCHOR: renderScheme
@@ -1473,8 +1214,8 @@ renderTypeError err = case err of
                         <> T.pack (show c)
   -- ANCHOR: renderDataErrors
   -- 「Handler は Comparable に入っていません（Button が Int -> Int を持つ）」
-  HoldsNotIn cls t c inside ->
-    renderType t <> " is not in the class " <> T.pack (show cls) <> " ("
+  HoldsNotComparable t c inside ->
+    renderType t <> " is not in the class Comparable ("
       <> c <> " holds " <> renderType inside <> ")"
   -- 「知らない構成子です」
   UnknownConstructor c -> "unknown constructor: " <> c
@@ -1490,22 +1231,10 @@ renderTypeError err = case err of
                            <> ", but got " <> T.pack (show m)
   -- 「List は組み込みの型です」
   BuiltinType t    -> t <> " is a builtin type"
-  -- 「main は IO ()、[String] -> IO ()、
-  --   [String] -> Map String -> IO () のどれかでなければなりません」
-  BadMain t        -> "main must be IO (), [String] -> IO (), or "
-                        <> "[String] -> Map String -> IO (), but it is "
-                        <> renderType t
-  -- ANCHOR: renderModuleErrors
-  -- 「JDec は、モジュール Json が見せていません（exposing にありません）」
-  Hidden c m       -> c <> " is hidden by the module " <> m
-                        <> " (it is not in its exposing list)"
-  -- 「型 Maybe は、モジュール Maybe で決めたものです」
-  ForeignType t m  -> "the type " <> t <> " belongs to the module " <> m
-  -- ANCHOR_END: renderModuleErrors
   -- ANCHOR: renderRecordErrors
   -- 「{ name : String } には、フィールド age がありません」
   MissingField f t -> renderType t <> " has no field " <> f
-  -- 「add の注釈では a はどんな型でもよいのに、定義では Int です」
+  -- 「next の注釈では a はどんな型でもよいのに、定義では Int です」
   -- (r of { r | ... } stands for the other fields: say so.)
   -- （{ r | ... } の r は、ほかのフィールドを表すので、そう言う）
   TooGeneral x a t -> "the annotation of " <> x <> " says " <> a
@@ -1513,7 +1242,7 @@ renderTypeError err = case err of
                               TRecord {} -> " can be any other fields"
                               _          -> " can be any type")
                         <> ", but the definition needs " <> renderType t
-  -- 「pair の注釈では a と b はちがってよいのに、定義では同じです」
+  -- 「swap の注釈では a と b はちがってよいのに、定義では同じです」
   SameVariables x a b -> "the annotation of " <> x <> " says " <> a
                         <> " and " <> b <> " may differ, but the "
                         <> "definition needs them to be the same"
@@ -1529,8 +1258,6 @@ renderTypeError err = case err of
   -- 「フィールド age が2度あります」
   DuplicateField f -> "the field " <> f <> " is written twice"
   -- ANCHOR_END: renderRecordErrors
-  -- 「場所：……」
-  TypeAt loc e     -> renderLoc loc <> ": " <> renderTypeError e
   where
     count n = T.pack (show n) <> if n == 1 then " argument" else " arguments"
   -- ANCHOR_END: renderDataErrors

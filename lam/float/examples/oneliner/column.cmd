@@ -1,1 +1,0 @@
--F, -ane 'putStrLn (field 1)' examples/oneliner/sales.csv

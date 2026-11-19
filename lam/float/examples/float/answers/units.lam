@@ -2,12 +2,14 @@
 -- ステップ2：-40 C から 40 C までの表。華氏は整数に丸める
 --   lam examples/float/answers/units.lam
 
+-- ANCHOR: table
 fahrenheit : Float -> Float
 fahrenheit c = c * 9 / 5 + 32
 
--- ANCHOR: table
-main : IO ()
-main =
-  forEach (map (\i -> i * 10) (range -4 4)) (\c ->
-    putStrLn f"{c:>4} C = {round (fahrenheit (toFloat c)) ?: 0:>4} F")
+-- Every 20 degrees, from -40 to 40.
+-- -40 から 40 まで、20 度ごと
+celsius : [Int]
+celsius = [i * 20 | i <- range -2 2]
+
+[(c, round (fahrenheit (toFloat c)) ?: 0) | c <- celsius]
 -- ANCHOR_END: table

@@ -1,1 +1,1 @@
-examples/records/broken/noted.lam:5:13: in the definition of add: type error: Int is not in the class Semigroup
+in the definition of add: type error: Int is not in the class Semigroup

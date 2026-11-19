@@ -1,1 +1,1 @@
-examples/records/broken/order.lam:7:18: in the definition of double: type error: unknown name: once
+in the definition of double: type error: unknown name: once

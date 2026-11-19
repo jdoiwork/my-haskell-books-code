@@ -1,4 +1,1 @@
-3
-Just "Rust"
-HELLO!
-(20, "Lam")
+(3, Just "Rust", "lala", [1, 2, 1, 2], (9, "Lam")) : (Int, Maybe String, String, [Int], (Int, String))

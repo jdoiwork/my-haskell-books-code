@@ -13,10 +13,9 @@ mean xs = sum xs / toFloat (length xs)
 --    root of the mean of the squares of the differences.
 -- 点数が平均からどれくらい離れているか：差の2乗の平均の平方根
 stddev : [Float] -> Float
-stddev xs = sqrt (mean (map (\x -> (x - m) * (x - m)) xs))
+stddev xs = sqrt (mean [(x - m) * (x - m) | x <- xs])
   where
     m = mean xs
 -- ANCHOR_END: mean
 
-main : IO ()
-main = putStrLn f"mean {mean scores:.2}, standard deviation {stddev scores:.2}"
+(Float.fixed 2 (mean scores), Float.fixed 2 (stddev scores))

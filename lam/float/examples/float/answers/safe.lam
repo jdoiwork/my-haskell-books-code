@@ -1,5 +1,5 @@
--- 🛟 Step 3: an average that never fails, and numbers from text.
--- ステップ3：失敗しない平均と、文字から読む数
+-- 🛟 Step 3: an average and a percentage that never fail.
+-- ステップ3：失敗しない平均と割合
 --   lam examples/float/answers/safe.lam
 
 -- ANCHOR: safe
@@ -8,14 +8,13 @@
 average : [Int] -> Maybe Float
 average xs = toFloat (sum xs) /? toFloat (length xs)
 
--- A line of text to a number: String.toFloat, or else 0.
--- 1行の文字を数に。読めなければ 0
-readOr0 : String -> Float
-readOr0 s = String.toFloat s ?: 0
+-- part of whole, in percent with 1 digit; "-" when whole is 0.
+-- whole のうちの part を、小数点以下1けたの百分率で。whole が 0 なら "-"
+percent : Int -> Int -> String
+percent part whole =
+  case toFloat part * 100 /? toFloat whole of
+    | Nothing -> "-"
+    | Just p -> Float.fixed 1 p ++ "%"
 -- ANCHOR_END: safe
 
-main : IO ()
-main = do
-  putStrLn f"{average [82, 75, 91, 64] ?: 0:.1}"
-  putStrLn f"{average [] ?: 0:.1}"
-  putStrLn (show (map readOr0 ["1.5", " 2 ", "two", "-0.25"]))
+(average [82, 75, 91, 64] ?: 0, average [] ?: 0, percent 3 4, percent 1 0)

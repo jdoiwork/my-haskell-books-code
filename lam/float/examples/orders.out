@@ -1,1 +1,0 @@
-("{\"mug\":1,\"sticker\":6}", "bad JSON: json list value > ',' or '}': not enough input") : (String, String)

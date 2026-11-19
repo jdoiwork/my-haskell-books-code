@@ -1,1 +1,0 @@
--an --begin '(0, 0)' -e '(fst acc + toIntOr 0 (field 2), snd acc + 1)' --end 'putStrLn f"average {toFloat (fst acc) / toFloat (snd acc):.1}"' examples/oneliner/scores.txt

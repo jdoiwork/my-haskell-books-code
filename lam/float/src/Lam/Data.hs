@@ -8,6 +8,7 @@ module Lam.Data
   ( declareData
   , declareAlias
   , annotationScheme
+  , builtinTypes
   ) where
 
 import Control.Monad (unless, when)
@@ -36,7 +37,7 @@ declareData table (DataDecl t params cons) = do
       self   = TCon t (map TVar [0 .. arity - 1]) -- Maybe a
       -- The new type can be used inside itself: data Tree a = ... Tree a
       -- 新しい型は、自分の中でも使える
-      known = table { dataTypes = Map.insert t (DataType arity Map.empty)
+      known = table { dataTypes = Map.insert t (DataType arity Nothing)
                                                  (dataTypes table) }
   fields <- traverse (traverse (traverse (toType known vars))) cons
   let rows =
@@ -44,14 +45,8 @@ declareData table (DataDecl t params cons) = do
         | (i, (c, ts)) <- zip [0 ..] fields
         , let scheme =
                 Forall [0 .. arity - 1] Map.empty (foldr TFun self ts) ]
-      -- ANCHOR: derived
-      -- Each class the new type gets from its insides (by itself).
-      -- 新しい型が、中身から自動で入るクラスごとに
-      dt = DataType arity $ Map.fromList
-             [ (cls, vs)
-             | cls <- derivable
-             , Right vs <- [derive table cls t fields] ]
-      -- ANCHOR_END: derived
+      dt = DataType arity
+             (either (const Nothing) Just (comparability table t fields))
       table' = table
         { dataTypes    = Map.insert t dt (dataTypes table)
         , constructors = Map.union (Map.fromList rows) (constructors table) }
@@ -63,13 +58,11 @@ declareData table (DataDecl t params cons) = do
 --    their names.
 -- 言語がはじめから持つ型。data も別名も、この名前は使えない
 builtinTypes :: [Name]
-builtinTypes =
-  [ "Int", "Float", "Bool", "String", "List", "Tuple", "Map", "IO", "Regex"
-  , "Parser" ]
+builtinTypes = ["Int", "Float", "Bool", "String", "List", "Tuple"]
 -- ANCHOR_END: builtinTypes
 
 -- ANCHOR: declareAlias
--- 🏷️ Add a type alias to the table.  type alias User = { ... }
+-- 🏷️ Add a type alias to the table.  type alias Member = { ... }
 --    The type it stands for may use the aliases above it, but not
 --    itself (it would never end).
 -- 型の別名を表に足す。表す型には、上にある別名は使えるが、自分自身は
@@ -139,7 +132,8 @@ restsIn te = case te of
 
 -- ANCHOR: toType
 -- 🏷️ A written type, as a Type.  Maybe a  is  TCon "Maybe" [TVar 0].
--- 書かれた型を、Type にする
+--    It takes the whole table, to look up the aliases too.
+-- 書かれた型を、Type にする。別名も引けるように、表をまるごと受け取る
 toType :: DataTable -> Map Name Int -> TypeExpr -> Either TypeError Type
 toType table vars te = case te of
   TyVar a ->
@@ -150,34 +144,10 @@ toType table vars te = case te of
   TyCon "Int" [] -> Right TInt
   TyCon "Bool" [] -> Right TBool
   TyCon "String" [] -> Right tString
-  -- ANCHOR: toTypeMap
-  -- Map Json: a map from strings to Json.
-  -- Map Json：文字列から Json への Map
-  TyCon "Map" [a] -> tMap <$> go a
-  TyCon "Map" args -> Left (WrongTypeArgs "Map" 1 (length args))
-  -- ANCHOR_END: toTypeMap
-  -- ANCHOR: toTypeIO
-  -- IO (): an action, kept in a data type.
-  -- IO ()：data の型の中に持つ頼みごと
-  TyCon "IO" [a] -> tIO <$> go a
-  TyCon "IO" args -> Left (WrongTypeArgs "IO" 1 (length args))
-  -- ANCHOR_END: toTypeIO
-  -- ANCHOR: toTypeRegex
-  -- Regex: a compiled regular expression (no type arguments).
-  -- Regex：コンパイルした正規表現（型の引数はない）
   -- ANCHOR: floatType
-  TyCon "Float" [] -> Right (TCon "Float" [])
+  TyCon "Float" [] -> Right tFloat
   TyCon "Float" args -> Left (WrongTypeArgs "Float" 0 (length args))
   -- ANCHOR_END: floatType
-  TyCon "Regex" [] -> Right (TCon "Regex" [])
-  TyCon "Regex" args -> Left (WrongTypeArgs "Regex" 0 (length args))
-  -- ANCHOR_END: toTypeRegex
-  -- ANCHOR: toTypeParser
-  -- Parser Int: a parser that gives an Int, kept in a data type.
-  -- Parser Int：Int をくれるパーサー。data の型の中に持つ
-  TyCon "Parser" [a] -> TCon "Parser" <$> traverse go [a]
-  TyCon "Parser" args -> Left (WrongTypeArgs "Parser" 1 (length args))
-  -- ANCHOR_END: toTypeParser
   -- ANCHOR: toTypeRecord
   -- { name : String, age : Int }, and { r | name : String }
   TyRecord fs rest -> do
@@ -205,7 +175,7 @@ toType table vars te = case te of
     Just dt
       | typeArity dt /= length args ->
           Left (WrongTypeArgs c (typeArity dt) (length args))
-      | otherwise        -> TCon c <$> traverse go args
+      | otherwise -> TCon c <$> traverse go args
   where
     go = toType table vars
 -- ANCHOR_END: toType

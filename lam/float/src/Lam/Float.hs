@@ -1,11 +1,11 @@
 -- ANCHOR: all
 -- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
--- | Floats: turning numbers into each other, rounding, and a few
---   functions of math. The arithmetic itself (+ - * /) is in the
+-- | Floats: turning numbers into each other, rounding, showing, and a
+--   few functions of math. The arithmetic itself (+ - * /) is in the
 --   evaluator (binOp).
--- Float：数どうしの変換、丸め、いくつかの数学の関数。計算そのもの
--- （+ - * /）は評価器（binOp）にある。
+-- Float：数どうしの変換、丸め、文字にする関数、いくつかの数学の関数。
+-- 計算そのもの（+ - * /）は評価器（binOp）にある。
 module Lam.Float
   ( floatBuiltins
   , roundAway
@@ -13,16 +13,14 @@ module Lam.Float
   , readFloat
   ) where
 
-import Data.Scientific (fromFloatDigits, toRealFloat)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Maybe (fromMaybe)
 import Text.Read (readMaybe)
 
 import Lam.Builtins
 import Lam.Eval
-import Lam.Json (fromScientific, toAeson)
-import qualified Data.Aeson as A
+import Lam.Pretty (showFloat)
 import Lam.Types
 -- ANCHOR_END: head
 
@@ -66,9 +64,16 @@ floatBuiltins =
   , isFloat "Float.isNaN" isNaN
   , isFloat "Float.isInfinite" isInfinite
   -- ANCHOR_END: math
+  -- ANCHOR: show
+  -- A Float as text, as the REPL shows it (showInt is for Ints).
+  --   showFloat 2.5 is "2.5",  showFloat (7 / 2) is "3.5"
+  -- Float を、REPL と同じ形の文字に（Int には showInt）
+  , prim1 "showFloat" (tFloat ~> tString) $ \v ->
+      VString . showFloat <$> number v
+  -- ANCHOR_END: show
   -- ANCHOR: fixed
   -- n digits after the point, the half away from 0 (the exact Float):
-  -- Float.fixed 1 72.25 is "72.3". f"{x:.1}" calls this.
+  -- Float.fixed 1 72.25 is "72.3".
   -- 小数点以下 n けた。半分は 0 から遠いほうへ（Float のぴったりの値で）
   , requiring [(Number, 0)] $
       prim2 "Float.fixed" (TInt ~> a ~> tString) $ \n v -> do
@@ -76,42 +81,17 @@ floatBuiltins =
         x      <- number v
         Right (VString (fixedText (fromInteger (max 0 digits)) x))
   -- ANCHOR_END: fixed
-  -- ANCHOR: parse
-  -- Text to Float:  String.toFloat "1.5" is Just 1.5
-  -- 文字を Float に
-  , prim1 "String.toFloat" (tString ~> tMaybe tFloat) $ \v -> do
-      s <- string v
-      Right (maybeValue (VFloat <$> readFloat (T.strip s)))
-  -- ANCHOR_END: parse
-  -- ANCHOR: json
-  -- JSON and Float. A number of JSON (JInt or JDec) gives a Float;
-  -- a Float gives the shortest JSON number for it. NaN and the
-  -- infinities have no JSON number: null, as JSON.stringify does.
-  -- JSON と Float。JSON の数（JInt か JDec）は Float に。Float は、
-  -- それを表すいちばん短い JSON の数に。NaN と無限大は null
-  , prim1 "Json.toFloat" (tJson ~> tMaybe tFloat) $ \v ->
-      Right $ maybeValue $ case toAeson v of
-        Right (A.Number s) -> Just (VFloat (toRealFloat s))
-        _                  -> Nothing
-  , prim1 "Json.fromFloat" (tFloat ~> tJson) $ \v -> do
-      x <- number v
-      Right $ if isNaN x || isInfinite x
-        then con "JNull" []
-        else fromScientific (fromFloatDigits x)
-  -- ANCHOR_END: json
   ]
   where
     a = TVar 0
-    tJson = TCon "Json" []
-    tMaybe t = TCon "Maybe" [t]
     -- A Float to an Int, by the rounding f (on the exact value).
     -- Float を Int に。丸め方 f で（ぴったりの値に対して）
-    toInt n f = prim1 n (tFloat ~> tMaybe TInt) $ \v -> do
+    toInt n f = prim1 n (tFloat ~> TCon "Maybe" [TInt]) $ \v -> do
       x <- number v
-      Right $ maybeValue $
+      Right $
         if isNaN x || isInfinite x
-          then Nothing
-          else Just (VInt (f (toRational x)))
+          then VCon "Nothing" 0 []
+          else VCon "Just" 1 [VInt (f (toRational x))]
     onFloat n f = prim1 n (tFloat ~> tFloat) $ \v -> VFloat . f <$> number v
     isFloat n f = prim1 n (tFloat ~> TBool) $ \v -> VBool . f <$> number v
 -- ANCHOR_END: table

@@ -19,19 +19,22 @@ average : [Float] -> Float
 average xs = sum xs / toFloat (length xs)
 -- ANCHOR_END: average
 
--- ANCHOR: fahrenheit
--- 🌡️ Celsius to Fahrenheit: 0 is 32, and -40 is -40.
--- 摂氏を華氏に
-fahrenheit : Float -> Float
-fahrenheit c = c * 9 / 5 + 32
--- ANCHOR_END: fahrenheit
+-- ANCHOR: lowest
+-- ⬇️ The lowest and the highest: Nothing for an empty list.
+-- いちばん低い・高い。空のリストなら Nothing
+lowest : [Float] -> Maybe Float
+lowest xs =
+  case xs of
+    | [] -> Nothing
+    | x : rest -> Just (foldl min x rest)
+
+highest : [Float] -> Maybe Float
+highest xs =
+  case xs of
+    | [] -> Nothing
+    | x : rest -> Just (foldl max x rest)
+-- ANCHOR_END: lowest
 
 -- ANCHOR: main
-main : IO ()
-main = do
-  -- 「平均」
-  putStrLn f"average {average temps:.2} C"
-  -- 「いちばん低い・高い」
-  putStrLn f"lowest {minimum temps ?: 0} C, highest {maximum temps ?: 0} C"
-  forEach temps (\c -> putStrLn f"{c:>5} C = {fahrenheit c:>5.1} F")
+(Float.fixed 2 (average temps), lowest temps ?: 0, highest temps ?: 0)
 -- ANCHOR_END: main
