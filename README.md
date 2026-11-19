@@ -242,6 +242,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 自分を呼ぶ：再帰とサブルーチン | [`miniregex/recursion/`](miniregex/recursion/)、[`miniregex/vm-st/`](miniregex/vm-st/)、[`langs/regex-recursion/`](langs/regex-recursion/) |
 | 止まらないパターンと戦う：線形時間の Pike VM | [`miniregex/linear/`](miniregex/linear/)、[`miniregex/recursion/`](miniregex/recursion/)、[`langs/regex-linear/`](langs/regex-linear/)、[`langs/cargo/`](langs/cargo/) |
 | 先に探す：探す場所を絞る | [`miniregex/prefilter/`](miniregex/prefilter/)、[`miniregex/linear/`](miniregex/linear/)、[`langs/regex-prefilter/`](langs/regex-prefilter/) |
+| しおりと命令を磨く：バイトの場所と1文字のくり返し | [`miniregex/cursor/`](miniregex/cursor/)、[`miniregex/prefilter/`](miniregex/prefilter/)、[`langs/regex-cursor/`](langs/regex-cursor/) |
 
 ### 第14部 Lam を育てる：言語の機能
 

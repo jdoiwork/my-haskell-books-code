@@ -1001,6 +1001,9 @@ main = hspec $ do
       fmap rest (cursorAt "日本語" 2) `shouldBe` Just "語"
       fmap (fmap byte . back 1) (cursorAt "日本語" 2)
         `shouldBe` Just (Just 3)
+  -- ANCHOR_END: cursortests
+
+  -- ANCHOR: looptests
   describe "loops with no marks / 印のない輪" $ do
     -- a loop whose body always takes a character needs no mark
     -- 中身が必ず1文字以上食べる輪には、印が要らない
@@ -1024,7 +1027,7 @@ main = hspec $ do
     it "finds the needed characters of a*abc" $
       map describePrefilter ["a*abc", "a+ab"]
         `shouldBe` [("one of a", "\"abc\""), ("one of a", "\"ab\"")]
-  -- ANCHOR_END: cursortests
+  -- ANCHOR_END: looptests
 
   -- ANCHOR: recursion
   describe "calls and recursion / 呼び出しと再帰" $ do

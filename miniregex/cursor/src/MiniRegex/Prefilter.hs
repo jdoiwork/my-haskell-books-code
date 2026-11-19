@@ -186,6 +186,7 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
           _            -> after
           where
             after = need ! (pc + 1)
+    -- ANCHOR: common
     -- what both ways take (Nothing: that way never gets to a match)
     -- 両方の道が食べるもの（Nothing：その道は match に着かない）
     both Nothing ys         = ys
@@ -199,6 +200,7 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
     common (x : xs) ys
       | x `elem` ys = x : common xs (delete x ys)
       | otherwise   = common xs ys
+    -- ANCHOR_END: common
 -- ANCHOR_END: needed
 
 -- ANCHOR: places
