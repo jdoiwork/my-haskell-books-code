@@ -3,7 +3,7 @@ name:          lam
 version:       0.13.5.0
 build-type:    Simple
 
--- 第13部 Lam を育てる：言語の機能（5. 小数を足す：Elm 風の number）
+-- 第14部 Lam を育てる：言語の機能（5. 小数を足す：Elm 風の number）
 
 common shared
   default-language: GHC2024

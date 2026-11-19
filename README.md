@@ -226,7 +226,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 配って使ってもらう：docker compose で、コマンド1つで本棚を | [`tsundoku/docker/`](tsundoku/docker/)、[`tsundoku/mantine/`](tsundoku/mantine/) |
 | 第12部のふりかえり | [`tsundoku/docker/`](tsundoku/docker/)、[`review-tsundoku/`](review-tsundoku/) |
 
-### 第13部 Lam を育てる：言語の機能
+### 第14部 Lam を育てる：言語の機能
 
 | 章 | コード |
 |---|---|
@@ -241,7 +241,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/io/`](lam/io/)、[`langs/interp-format/`](langs/interp-format/) |
 | ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/script/`](lam/script/)、[`langs/interp-modules/`](langs/interp-modules/) |
 
-### 第14部 Lam でスクリプトを書く
+### 第15部 Lam でスクリプトを書く
 
 | 章 | コード |
 |---|---|
@@ -255,7 +255,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | CLI を手軽に作る：型から作る Typer 風のオプション | [`lam/cli/`](lam/cli/)、[`lam/float/`](lam/float/)、[`langs/interp-cli/`](langs/interp-cli/)、[`langs/cargo/`](langs/cargo/) |
 | ワンライナーで動かす：Perl のように | [`lam/oneliner/`](lam/oneliner/)、[`lam/guard/`](lam/guard/)、[`langs/interp-oneliner/`](langs/interp-oneliner/) |
 
-### 第15部 Lam を仕上げる
+### 第16部 Lam を仕上げる
 
 | 章 | コード |
 |---|---|
@@ -263,7 +263,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 仕事どうしで話す：チャネルとメッセージ | [`lam/channels/`](lam/channels/)、[`lam/concurrency/`](lam/concurrency/)、[`langs/interp-channels/`](langs/interp-channels/) |
 | テストとデバッグ：lam test | [`lam/testing/`](lam/testing/)、[`lam/channels/`](lam/channels/)、[`langs/interp-testing/`](langs/interp-testing/)、[`langs/cargo/`](langs/cargo/) |
 
-### 第16部 プログラマーのための数学
+### 第17部 プログラマーのための数学
 
 | 章 | コード |
 |---|---|
@@ -278,9 +278,9 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | ベクトルと行列：たくさんの数をまとめて動かす | [`math/`](math/)、[`langs/math-vectors/`](langs/math-vectors/) |
 | 微分と勾配：坂道を下って答えを探す | [`math/`](math/)、[`langs/math-calculus/`](langs/math-calculus/) |
 | 結合法則とモノイド：分けて計算してよい理由 | [`math/`](math/)、[`langs/math-algebra/`](langs/math-algebra/) |
-| 第16部のふりかえり | [`math/`](math/)、[`review-math/`](review-math/) |
+| 第17部のふりかえり | [`math/`](math/)、[`review-math/`](review-math/) |
 
-### 第17部 いまどきのプログラミングと Haskell
+### 第18部 いまどきのプログラミングと Haskell
 
 | 章 | コード |
 |---|---|
@@ -293,7 +293,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | CI と再現できる環境：みんなの手元で同じに動く | [`modern/`](modern/)、[`ci/`](ci/) |
 | AI と書くプログラミング：型とテストを手綱に | [`modern/`](modern/)、[`langs/modern-ai/`](langs/modern-ai/) |
 | MCP サーバーを育てる：チャットから依頼板を動かす | [`modern/`](modern/)、[`langs/modern-mcp/`](langs/modern-mcp/) |
-| 第17部のふりかえり | [`review-modern/`](review-modern/) |
+| 第18部のふりかえり | [`review-modern/`](review-modern/) |
 <!-- chapter-index: end -->
 
 ## ライセンス

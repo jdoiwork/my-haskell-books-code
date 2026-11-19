@@ -3,7 +3,7 @@ name:          lam
 version:       0.13.6.0
 build-type:    Simple
 
--- 第13部 Lam を育てる：言語の機能（6. 型クラスを作る：class と instance）
+-- 第14部 Lam を育てる：言語の機能（6. 型クラスを作る：class と instance）
 
 common shared
   default-language: GHC2024

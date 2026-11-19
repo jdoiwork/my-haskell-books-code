@@ -3,7 +3,7 @@ name:          lam
 version:       0.13.3.0
 build-type:    Simple
 
--- 第13部 Lam を育てる：言語の機能（3. 書きやすくする：パターンと糖衣構文）
+-- 第14部 Lam を育てる：言語の機能（3. 書きやすくする：パターンと糖衣構文）
 
 common shared
   default-language: GHC2024

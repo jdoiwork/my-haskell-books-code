@@ -3,7 +3,7 @@ name:          lam
 version:       0.13.4.0
 build-type:    Simple
 
--- 第13部 Lam を育てる：言語の機能（4. 型を書く：型の注釈とレコード）
+-- 第14部 Lam を育てる：言語の機能（4. 型を書く：型の注釈とレコード）
 
 common shared
   default-language: GHC2024
