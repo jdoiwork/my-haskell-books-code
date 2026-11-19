@@ -73,7 +73,7 @@ readTests = outside "" "" . zip [1 ..] . T.lines
           let (src, mods, rest') = patternLines body rest
               allMods            = T.intercalate "," (filter (not . T.null)
                                      [mods, pat, sub])
-              (group, after)     = break (T.null . snd) rest'
+              (group, after)     = break (blank . snd) rest'
           in  subjects src allMods group ++ outside pat sub after
       | otherwise = outside pat sub rest
 
@@ -94,7 +94,11 @@ readTests = outside "" "" . zip [1 ..] . T.lines
         in  TestCase n src mods (T.strip s) answer'
               : subjects src mods more
 
-    isSubject l = "\t" `T.isPrefixOf` l || "  " `T.isPrefixOf` l
+    isSubject l = not (blank l)
+                    && ("\t" `T.isPrefixOf` l || "  " `T.isPrefixOf` l)
+    -- A line of only spaces ends the group, too (pcre2test does so).
+    -- 空白だけの行も、ひとまとまりを終わらせる（pcre2test と同じ）
+    blank = T.null . T.strip
     -- "\= Expect no match" is a note for people.
     -- "\= Expect no match" は、人のためのメモ
     isComment   = ("\\=" `T.isPrefixOf`)

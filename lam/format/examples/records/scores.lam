@@ -1,0 +1,37 @@
+-- 🎓 The workshop's scores from the chapter on sugar, written again with
+--    records: each score has a name for each part.
+-- 糖衣構文の章の、工房の点数を、レコードで書き直す。部品ごとに名前がある
+--   lam examples/records/scores.lam
+
+-- ANCHOR: scores
+type alias Score = { name : String, score : Int }
+
+scores : [Score]
+scores =
+  [ { name = "Python", score = 82 }
+  , { name = "TS", score = 75 }
+  , { name = "Rust", score = 91 }
+  , { name = "Go", score = 68 } ]
+-- ANCHOR_END: scores
+
+-- ANCHOR: passed
+-- 🎓 The names of those who passed (70 or more): a record pattern on
+--    the left of <-.
+-- 合格した人（70点以上）の名前：<- の左に、レコードのパターン
+passed : [String]
+passed = [name | { name, score } <- scores, score >= 70]
+
+-- ➕ The total: .score is a function, so it goes straight into map.
+-- 合計：.score は関数なので、そのまま map に渡せる
+total : Int
+total = scores |> map .score |> sum
+
+-- 🎁 5 more points, at most 100, for each one: a changed copy.
+-- 1人ずつ5点足して、100で止める：一部を変えた新しいレコード
+bonus : Score -> Score
+bonus s = { s | score = min 100 (s.score + 5) }
+-- ANCHOR_END: passed
+
+-- ANCHOR: final
+(passed, total, map (bonus >> .score) scores)
+-- ANCHOR_END: final

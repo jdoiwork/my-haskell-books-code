@@ -107,10 +107,13 @@ builtins =
 -- 🗺️ Maps. Each name starts with Map., like Haskell's qualified import
 --    (import qualified Data.Map as Map). A key may be of any
 --    Comparable type k. Only the functions that compare keys say so,
---    as in Haskell:  Comparable k => k -> v -> Map k v -> Map k v
+--    as in Haskell:  KeyComparable k => k -> v -> Map k v -> Map k v
+--    (KeyComparable: the Comparable types, compared so that NaN is
+--    found again)
 -- Map。名前は、Haskell の qualified な import と同じく、Map. で始める。
 -- キーは、Comparable な型 k なら何でもよい。Haskell と同じく、キーを
--- 比べる関数だけが Comparable k を求める
+-- 比べる関数だけが KeyComparable k を求める（KeyComparable：仲間は
+-- Comparable と同じ。NaN も引けるように比べる）
 mapBuiltins :: [Builtin]
 mapBuiltins =
   [ Builtin "Map.empty" (closeOver (tMap k v)) (VMap Map.empty)
@@ -142,7 +145,7 @@ mapBuiltins =
   where
     k = TVar 0
     v = TVar 1
-    keyed = requiring [(Comparable, 0)]
+    keyed = requiring [(KeyComparable, 0)]
     keyValue pair = case pair of
       VTuple [key, x] -> Right (Key key, x)
       _               -> wrong "a pair"
@@ -172,7 +175,7 @@ setBuiltins =
   ]
   where
     a = TVar 0
-    keyed = requiring [(Comparable, 0)]
+    keyed = requiring [(KeyComparable, 0)]
     setOp n f = prim2 n (tSet a ~> tSet a ~> tSet a) $ \s1 s2 ->
       VSet <$> (f <$> setOf s1 <*> setOf s2)
 -- ANCHOR_END: setTable

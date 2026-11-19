@@ -1,2 +1,0 @@
-error: examples/oneliner/shop.json: --path=orders.0.price: no price
-[exit 1]

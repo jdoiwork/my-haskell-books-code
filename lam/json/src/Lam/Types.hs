@@ -126,6 +126,9 @@ data Class
   -- ANCHOR: classFloat
   | Number        -- + - *  and 1, 2  : Int, Float
   -- ANCHOR_END: classFloat
+  -- ANCHOR: classKey
+  | KeyComparable -- a key of a Map or a Set: the Comparable types
+  -- ANCHOR_END: classKey
   -- ANCHOR: classDeclared
   | Declared Name -- class Describe a where ...  (its members: instances)
   -- ANCHOR_END: classDeclared
@@ -134,7 +137,7 @@ data Class
 -- 🧱 The builtin classes.
 -- 組み込みのクラス
 builtinClasses :: [Class]
-builtinClasses = [Comparable, Semigroup, HasLength, Number]
+builtinClasses = [Comparable, Semigroup, HasLength, Number, KeyComparable]
 
 -- 🏷️ The name of a class, as written.  Declared "Describe" is Describe.
 -- 書いたとおりのクラスの名前
@@ -603,7 +606,7 @@ require c t = case t of
     -- data の型なら、構成子を見直して、どれのせいかを言う
     notIn table = case t of
       TCon name ts
-        | c == Comparable
+        | c `elem` [Comparable, KeyComparable]
         , Left (con, inside) <-
             comparability table name (fieldsOf table name) ->
             HoldsNotComparable t con
@@ -666,6 +669,11 @@ superClosure table c0 = go Set.empty [c0]
         | otherwise           -> go (Set.insert c seen) (above c <> rest)
     above c = case c of
       Declared n -> maybe [] classSuper (Map.lookup n (classes table))
+      -- ANCHOR: keyAbove
+      -- A Comparable type is a KeyComparable type too.
+      -- Comparable の型は、KeyComparable の型でもある
+      Comparable -> [KeyComparable]
+      -- ANCHOR_END: keyAbove
       _          -> []
 
 -- 🧹 Leave out a class that another class of the same type variable
@@ -684,6 +692,11 @@ simplifyNeeds table = Map.map keep
 -- 同じクラスに入っていなければならない、中の型
 members :: DataTable -> Class -> Type -> Maybe [Type]
 members table c t = case (c, t) of
+  -- ANCHOR: membersKey
+  -- The keys: the same members as Comparable.
+  -- キー：仲間は Comparable と同じ
+  (KeyComparable, _)              -> members table Comparable t
+  -- ANCHOR_END: membersKey
   (Comparable, TInt)              -> Just []
   -- ANCHOR: membersFloat
   (Comparable, TCon "Float" [])   -> Just []

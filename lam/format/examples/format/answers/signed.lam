@@ -1,0 +1,18 @@
+-- ➕ Step 3 of the training: show a number with its sign, +2 or -2.
+--    Lam's format has no + (Python's has), but a field can hold any
+--    expression, so a function of our own is enough.
+-- トレーニングのステップ3：数を、+2・-2 のように符号つきで見せる。
+-- Lam の書式に + はない（Python にはある）が、フィールドには
+-- どんな式でも書けるので、自分の関数で足りる
+--   lam> :load examples/format/answers/signed.lam
+--   lam> :print changes
+
+signed n = if n > 0 then f"+{n}" else f"{n}"
+
+-- 📈 Yesterday's score and today's.
+-- 昨日の点と、今日の点
+scores = [("Python", 80, 82), ("TS", 77, 75), ("Rust", 91, 91)]
+
+changes =
+  map (\(name, before, now) -> f"{name:<8}{now:>4}{signed (now - before):>5}")
+    scores

@@ -1,0 +1,7 @@
+/(a+)+b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaac
+    aaaaaaaaaaaaaaaaaaaaaac
+
+/(a+)+b/
+    aaaaaaaaaaaaaaaaaaaaaac
+    aaaaaaaaaaaaaaaaaaaaaacb

@@ -287,12 +287,12 @@ No match
     ething
 No match
 
-/^\Β/
-    Β
+/^\/
+    
  0: \x81
 
-/^ΓΏ/
-    ΓΏ
+/^ÿ/
+    ÿ
  0: \xff
 
 /^[0-9]+$/
@@ -6074,26 +6074,26 @@ No match
     aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 
 No match
     
-/(?i)reg(?:ul(?:[aΓ¤]|ae)r|ex)/
+/(?i)reg(?:ul(?:[aδ]|ae)r|ex)/
     REGular
  0: REGular
     regulaer
  0: regulaer
     Regex  
  0: Regex
-    regulΓ¤r 
+    regulδr 
  0: regul\xe4r
 
 #if !ebcdic
 
-/Γ…Γ¦Γ¥Γ¤[Γ -ΓΏΓ€-Γ]+/
-    Γ…Γ¦Γ¥Γ¤Γ 
+/Εζεδ[ΰ-ÿΐ-ί]+/
+    Εζεδΰ
  0: \xc5\xe6\xe5\xe4\xe0
-    Γ…Γ¦Γ¥Γ¤ΓΏ
+    Εζεδÿ
  0: \xc5\xe6\xe5\xe4\xff
-    Γ…Γ¦Γ¥Γ¤Γ€
+    Εζεδΐ
  0: \xc5\xe6\xe5\xe4\xc0
-    Γ…Γ¦Γ¥Γ¤Γ
+    Εζεδί
  0: \xc5\xe6\xe5\xe4\xdf
 
 #endif
@@ -10060,7 +10060,7 @@ No match, mark = X
 
 /(.COMMIT)(*COMMIT::::::::::interal error:::)/
 
-/(*COMMIT:ΓΏΓΏ)/
+/(*COMMIT:ÿÿ)/
 
 /(*COMMIT:]w)/
 

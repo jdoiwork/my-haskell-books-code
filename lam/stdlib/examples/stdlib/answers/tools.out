@@ -1,6 +1,1 @@
-[[1, 2], [3, 4], [5]]
-["abc", "def", "g"]
-{"a": ["apple", "avocado"], "b": ["banana"]}
-|Lam is a small      |
-|language that grows |
-|a little every day  |
+([[1, 2], [3, 4], [5]], ["abc", "def", "g"], {"a": ["apple", "avocado"], "b": ["banana"]}, ["the quick", "brown fox", "jumps over", "the lazy", "dog"]) : ([[Int]], [String], Map String [String], [String])

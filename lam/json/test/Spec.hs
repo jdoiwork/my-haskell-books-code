@@ -1130,7 +1130,7 @@ main = hspec $ do
           , "Just 75 : Maybe Int"
           , "Nothing : Maybe Int"
           , "true : Bool"
-          , "Comparable a => Map a b"
+          , "KeyComparable a => Map a b"
           , "true : Bool"
           , "type error: String -> String is not in the class Comparable"
           , "{\"the\": 3} : Map String Int"
@@ -1181,10 +1181,10 @@ main = hspec $ do
         `shouldBe`
           [ "{1: \"one\", 2: \"two\"} : Map Int String"
           , "Just \"a\" : Maybe String"
-          , "Comparable a => a -> b -> Map a b -> Map a b"
+          , "KeyComparable a => a -> b -> Map a b -> Map a b"
           , "{-1: 2, 1.5: 3} : Map Float Int"
           , "{[Nothing]: 0, [Just 2]: 1} : Map (Maybe Int) Int"
-          , "type error: String -> String is not in the class Comparable"
+          , "type error: String -> String is not in the class KeyComparable"
           , "type error: String is not in the class Number" ]
     -- ANCHOR_END: anyKeys
 
@@ -1211,8 +1211,8 @@ main = hspec $ do
           , "[(0, 0)] : [(Int, Int)]"
           , "Just (Set.fromList [\"a\"]) : Maybe (Set String)"
           , "true : Bool"
-          , "Comparable a => [a] -> Set a"
-          , "type error: String -> String is not in the class Comparable" ]
+          , "KeyComparable a => [a] -> Set a"
+          , "type error: String -> String is not in the class KeyComparable" ]
 
     -- 「Set.fromList は、Haskell の Set.fromList と同じ答え」
     it "builds the same set as Haskell's Set.fromList" $
@@ -1242,6 +1242,44 @@ main = hspec $ do
             \arguments, but got 1" ]
     -- ANCHOR_END: mapTypes
 
+    -- ANCHOR: nanKeys
+    -- 「NaN のキーも、また引ける。== は IEEE どおり」
+    it "finds a NaN key again" $
+      runLines
+        [ "nan = 0 / 0"
+        , "m = Map.insert nan \"a\" Map.empty"
+        , "Map.lookup nan m"
+        , "Map.insert nan \"b\" m"
+        , "Set.fromList [nan, nan, 1.5, -1 / 0]"
+        , "Set.member (Just nan) (Set.fromList [Just nan])"
+        , "nan == nan"
+        , "f : Comparable k => k -> Map k Int; f k = Map.insert k 1 {}"
+        , "g k = (k < k, Map.insert k 1 {})" ]
+        `shouldBe`
+          [ "nan : Float"
+          , "m : Map Float String"
+          , "Just \"a\" : Maybe String"
+          , "{NaN: \"b\"} : Map Float String"
+          , "Set.fromList [-Infinity, 1.5, NaN] : Set Float"
+          , "true : Bool"
+          , "false : Bool"
+          , "f : Comparable a => a -> Map a Int"
+          , "g : (Comparable a, Number b) => a -> (Bool, Map a b)" ]
+
+    -- 「キーの比べ方は、NaN のほかは == と < と同じ」
+    it "compares keys as == and < do, but for NaN" $
+      property $ \(x :: Double) (y :: Double) ->
+        let lit v = "(" <> floatLiteral v <> ")"
+        in runLines
+             [ "Set.toList (Set.fromList [" <> lit x <> ", " <> lit y <> "])"
+                 <> " == (if " <> lit y <> " < " <> lit x
+                 <> " then [" <> lit y <> ", " <> lit x <> "]"
+                 <> " else if " <> lit x <> " == " <> lit y
+                 <> " then [" <> lit x <> "]"
+                 <> " else [" <> lit x <> ", " <> lit y <> "])" ]
+             === ["true : Bool"]
+    -- ANCHOR_END: nanKeys
+
     -- ANCHOR: usualTypes
     -- 「どの型にもなれる数のある値には、ふつうの型（Int）を添える。
     --   関数は1行のまま」
@@ -1253,12 +1291,13 @@ main = hspec $ do
         , "names = {1: \"one\"}"
         , "words = {\"a\": \"b\"}" ]
         `shouldBe`
-          [ "treasures : (Comparable a, Number a, Comparable b, Number b) \
-            \=> Map (a, b) String\n  -- usually : Map (Int, Int) String"
-          , "(Comparable a, Number a, Comparable b, Number b) \
+          [ "treasures : (Number a, KeyComparable a, Number b, \
+            \KeyComparable b) => Map (a, b) String\n\
+            \  -- usually : Map (Int, Int) String"
+          , "(Number a, KeyComparable a, Number b, KeyComparable b) \
             \=> Map (a, b) String\n  -- usually : Map (Int, Int) String"
           , "double : Number a => a -> a"
-          , "names : (Comparable a, Number a) => Map a String\n\
+          , "names : (Number a, KeyComparable a) => Map a String\n\
             \  -- usually : Map Int String"
           , "words : Map String String" ]
     -- ANCHOR_END: usualTypes
@@ -1280,7 +1319,7 @@ main = hspec $ do
         `shouldBe`
           [ "{ name = 1 } : { name : Int }"
           , "{\"name\": 1} : Map String Int"
-          , "{} : Comparable a => Map a b"
+          , "{} : KeyComparable a => Map a b"
           , "r : Number a => { name : a }\n  -- usually : { name : Int }"
           , "{ name = 2 } : { name : Int }" ]
 

@@ -15,8 +15,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Text.Megaparsec
 
-import Lam.Io (Handler)
 import Lam.Parser
+import Lam.Pretty (render)
 import Lam.Program
 import Lam.Syntax
 import Lam.Types
@@ -28,8 +28,24 @@ import Lam.Types
 data Input
   = Define Name Expr     -- let double x = x * 2
   | DefineType DataDecl  -- data Shape = Circle Int | Rect Int Int
+  -- ANCHOR: replRecords
+  | DefineAlias AliasDecl  -- type alias Member = { name : String }
+  -- add : Int -> Int -> Int; add x y = x + y   (; joins the two lines)
+  -- （; で2行をつなぐ）
+  | DefineTyped Name Signature Expr
+  -- ANCHOR_END: replRecords
+  -- ANCHOR: replClasses
+  | DefineClass ClassDecl        -- class Describe a where describe : a -> String
+  | DefineInstance InstanceDecl  -- instance Describe Int where describe n = ...
+  -- ANCHOR_END: replClasses
   | Evaluate Expr        -- double 21
   | ShowType Expr        -- :type double
+  -- ANCHOR: replDicts
+  | ShowDicts Expr       -- :dicts describe (Circle 2)
+  -- ANCHOR_END: replDicts
+  -- ANCHOR: replPrint
+  | PrintText Expr       -- :print receipt
+  -- ANCHOR_END: replPrint
   | ShowNames            -- :env
   | Load FilePath        -- :load examples/fib.lam
   | Help                 -- :help
@@ -47,50 +63,92 @@ parseInput line =
       [ ShowNames <$ symbol ":env"
       , Help <$ symbol ":help"
       , ShowType <$> (symbol ":type" *> expr)
+      , ShowDicts <$> (symbol ":dicts" *> expr)
+      , PrintText <$> (symbol ":print" *> expr)
       , Load . T.unpack . T.strip <$> (symbol ":load" *> takeRest)
       , DefineType <$> dataDecl
-      , try (uncurry Define <$> definition <* eof)
+      , DefineAlias <$> aliasDecl
+      , DefineClass <$> classDecl
+      , DefineInstance <$> instanceDecl
+      , typed
+      , try (uncurry Define <$> topDefinition <* eof)
       , Evaluate <$> expr ]
+    typed = do
+      sig <- try (signatureHead <* symbol ";")
+      (x, e) <- topDefinition
+      case sig of
+        DefSig y s | x == y -> pure (DefineTyped x s e)
+        -- 「注釈と定義の名前がちがいます」
+        _ -> fail "the annotation and the definition have different names"
 -- ANCHOR_END: input
 
 -- ANCHOR: step
 -- 🔁 One turn of the REPL. (:load is done by Main, which reads files.)
---    An IO expression is done by the handler, so step runs in its monad.
--- REPL の1回分（:load は、ファイルを読む Main がする）。
--- IO の式はハンドラーがやるので、step はそのモナドの中で動く
-step :: Monad m => Handler m -> Session -> Text -> m (Session, Text)
-step handle session line =
+-- REPL の1回分（:load は、ファイルを読む Main がする）
+step :: Session -> Text -> (Session, Text)
+step session line =
   case parseInput line of
-    Left err -> pure (session, err)
-    Right Help -> pure (session, helpText)
+    Left err -> (session, err)
+    Right Help -> (session, helpText)
     Right ShowNames ->
-      pure (session, T.unwords (Map.keys (sessionValues session)))
-    Right (ShowType e) -> pure $
+      (session, T.unwords (filter (not . T.isPrefixOf "$")
+                             (Map.keys (sessionValues session))))
+    Right (ShowType e) ->
       case inferType (sessionData session) (sessionTypes session) e of
         Left err -> (session, "type error: " <> renderTypeError err)
-        Right t  -> (session, renderScheme t)
-    Right (Evaluate e) -> do
-      out <- evaluate handle session e
-      pure (session, either id id out)
-    Right (Define x e) -> pure $ case define session x e of
+        Right (t, _) -> (session, renderUsual t)
+    -- ANCHOR: stepDicts
+    -- The expression the evaluator gets: with the dictionaries put in.
+    -- 評価器が受け取る式：辞書を入れたもの
+    Right (ShowDicts e) ->
+      case inferType (sessionData session) (sessionTypes session) e of
+        Left err      -> (session, "type error: " <> renderTypeError err)
+        Right (_, e') -> (session, render e')
+    -- ANCHOR_END: stepDicts
+    Right (Evaluate e) -> (session, either id id (evaluate session e))
+    -- ANCHOR: stepPrint
+    Right (PrintText e) -> (session, either id id (printText session e))
+    -- ANCHOR_END: stepPrint
+    Right (Define x e) -> case define session x e of
       Left err           -> (session, err)
       Right (s', shown)  -> (s', shown)
-    Right (DefineType d) -> pure $ case defineData session d of
+    Right (DefineType d) -> case defineData session d of
       Left err           -> (session, err)
       Right (s', shown)  -> (s', shown)
-    Right (Load file) -> pure
+    -- ANCHOR: stepRecords
+    Right (DefineAlias a) -> case defineAlias session a of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    Right (DefineTyped x sig e) -> case defineTyped session x sig e of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    -- ANCHOR_END: stepRecords
+    -- ANCHOR: stepClasses
+    Right (DefineClass c) -> case defineClass session c of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    Right (DefineInstance i) -> case defineInstance session i of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    -- ANCHOR_END: stepClasses
+    Right (Load file) ->
       (session, "(:load " <> T.pack file <> " is handled by the REPL)")
 
 -- 📖 :help
 helpText :: Text
 helpText = T.intercalate "\n"
-  [ "let name args = expr   define a name (it can call itself)"
+  [ "name args = expr       define a name (let may be left out)"
+  , "name : T; name x = e   define a name with a type annotation"
   , "data T a = C a | D      define a data type"
+  , "type alias R = { x : Int }   give a type another name"
+  , "class C a where m : a -> T    declare a class (one line here)"
+  , "instance C T where m x = e    give a type to a class"
+  , "{\"key\": expr, ...}     a Map: {\"Python\": 82}, {1: \"one\"}"
   , "expr                   compute an expression"
-  , "{\"key\": expr, ...}     a map (the keys are strings)"
-  , "do x <- e; f x         IO, line by line (an IO expression is done)"
-  , "f\"x = {x:>5}\"          a string with values in it (< > ^ 0 , =)"
   , ":type expr             show the type of an expression"
+  , ":dicts expr            show it with the dictionaries put in"
+  , ":print expr            write a String (or a [String]) as it is"
+  , "f\"x = {x:>5.1}\"        put values in a string"
   , ":load file.lam         load the definitions in a file"
   , ":env                   list the names you can use"
   , ":quit                  quit" ]

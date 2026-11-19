@@ -56,3 +56,14 @@ try:
     assert False
 except ValueError as e:
     assert str(e) == "Cannot specify ',' with 's'."
+
+
+# ANCHOR: decimals
+# Python: .1f rounds the exact value, and a half goes to the even
+# digit: 72.25 is 72.2 (Lam's Float.fixed gives 72.3)
+# Python：.1f は、ぴったりの値を丸め、半分は偶数のほうへ。72.25 は
+# 72.2（Lam の Float.fixed は 72.3）
+print(f"{72.25:.1f} {0.25:.1f} {1237.5:>10,.1f}")
+# ANCHOR_END: decimals
+
+assert f"{72.25:.1f} {0.25:.1f} {1237.5:>10,.1f}" == "72.2 0.2    1,237.5"

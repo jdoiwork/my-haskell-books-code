@@ -1,67 +1,71 @@
--- 🏆 The results of the quiz, read from the keyboard: a name and the
---    scores of each round on a line (someone may have no score yet).
--- クイズ大会の結果を、キーボードから読む。1行に、名前と、各回の点数
--- （まだ点数のない人もいる）
---   lam examples/stdlib/quiz.lam < examples/stdlib/quiz.in
+-- 🏆 The results of the quiz: a name and the scores of each round
+--    (someone may have no score yet).
+-- クイズ大会の結果：名前と、各回の点数（まだ点数のない人もいる）
+--   lam examples/stdlib/quiz.lam
 
--- ANCHOR: parse
--- 📄 "Rust 95 88 79"  gives  Just ("Rust", [95, 88, 79]),
---    and an empty line gives Nothing.
--- 1行を、名前と点数の組に。空の行は Nothing
-let parse line =
-  case words line of
-    | name : scores -> Just (name, map (toIntOr 0) scores)
-    | [] -> Nothing
--- ANCHOR_END: parse
+-- ANCHOR: book
+-- 📒 Who got what, as a Map from the name to the scores.
+-- 誰が何点だったか。名前から点数への Map
+book =
+  Map.fromList
+    [ ("Python", [82, 75, 90])
+    , ("TS", [68, 91])
+    , ("Rust", [95, 88, 79])
+    , ("Ruby", [])
+    , ("Erlang", [55, 61, 40]) ]
+-- ANCHOR_END: book
 
 -- ANCHOR: best
 -- 🥇 The best score, or "-" when there is none yet (maximum gives
 --    Nothing for an empty list).
 -- いちばんよい点。まだなければ「-」（空のリストの maximum は Nothing）
-let best scores =
+best scores =
   case maximum scores of
     | Just s -> showInt s
     | Nothing -> "-"
 -- ANCHOR_END: best
 
+-- ANCHOR: totals
+-- ➕ map works on a Map too: the total of each one. maximum and sum
+--    work on the values of a Map.
+-- map は Map にも効く：1人ずつの合計。maximum も sum も、Map の値に効く
+totals = map sum book
+
+bestTotal = maximum totals ?: 0
+
+allPoints = sum totals
+-- ANCHOR_END: totals
+
 -- ANCHOR: passed
 -- ✅ Passed: has a score, and every score is 60 or more.
 -- 合格：点数があって、どの点も 60 以上
-let passed scores = not (null scores) && all (\s -> s >= 60) scores
+passed scores = not (null scores) && all (\s -> s >= 60) scores
 -- ANCHOR_END: passed
 
--- ANCHOR: main
-let main = do
-  text <- getContents
-  -- toList of a Maybe is [] or [x]: the empty lines go away.
-  -- Maybe の toList は [] か [x]。空の行は消える
-  let book = text |> lines |> concatMap (\l -> toList (parse l))
-               |> Map.fromList
-  -- map works on a Map too: the total of each one.
-  -- map は Map にも効く：1人ずつの合計
-  let totals = map sum book
-  forEach (Map.toList book) (\kv ->
-    putStrLn f"{fst kv:<8}best {best (snd kv):>3}  total {sum (snd kv):>3}")
-  -- maximum and sum work on the values of a Map.
-  -- maximum も sum も、Map の値に効く
-  putStrLn f"the best total: {fromMaybe 0 (maximum totals)}"
-  putStrLn f"all the points: {sum totals}"
-  putStrLn f"anyone below 60: {any (\s -> s < 60) (concat (Map.values book))}"
-  -- ANCHOR: ranking
-  -- 1. Rust 262 ... : indexed numbers them from 0.
-  -- indexed は 0 から番号を付ける
-  let ranking = Map.toList totals |> sortOn (\kv -> 0 - snd kv) |> indexed
-  forEach ranking (\r ->
-    case r of
-      | (i, (name, total)) -> putStrLn f"{i + 1}. {name:<8}{total:>4}")
-  case partition (\kv -> passed (snd kv)) (Map.toList book) of
-    | (ok, notYet) -> do
-        putStrLn f"passed: {join ", " (map fst ok)}"
-        putStrLn f"not yet: {join ", " (map fst notYet)}"
-  -- ANCHOR_END: ranking
-  -- ANCHOR: pretty
-  -- The totals as JSON, on many lines, for the notice board.
-  -- 合計を JSON で、掲示板に貼れるよう、何行かに分けて
-  putStrLn (Json.pretty (JObj (map JInt totals)))
-  -- ANCHOR_END: pretty
--- ANCHOR_END: main
+-- ANCHOR: ranking
+-- 📋 "1. Rust 262", ...: the biggest total first, numbered from 1
+--    (indexed numbers them from 0).
+-- 合計の大きい順に、1 から番号を付ける（indexed は 0 から）
+ranking =
+  Map.toList totals
+    |> sortOn (\(name, total) -> -total)
+    |> indexed
+    |> map (\(i, (name, total)) ->
+              showInt (i + 1) ++ ". " ++ name ++ " " ++ showInt total)
+
+-- 🚦 Those who passed, and those who did not yet.
+-- 合格した人と、まだの人
+groups = partition (\(name, scores) -> passed scores) (Map.toList book)
+
+passedNames = map fst (fst groups)
+
+notYet = map fst (snd groups)
+-- ANCHOR_END: ranking
+
+-- ANCHOR: pretty
+-- 📌 The totals as JSON, on many lines, for the notice board.
+-- 合計を JSON で、掲示板に貼れるよう、何行かに分けて
+notice = Json.pretty (JObj (map JInt totals))
+-- ANCHOR_END: pretty
+
+ranking

@@ -1,0 +1,19 @@
+-- 📊 Step 1 of the training: a table whose first column is as wide as
+--    the longest name. The width is known only when the program runs,
+--    so call padRight with it, instead of writing it in f"...".
+-- トレーニングのステップ1：最初の列を、いちばん長い名前の幅にした表。
+-- 幅は動かすまでわからないので、f"..." に書かずに、padRight に渡す
+--   lam> :load examples/format/answers/table.lam
+--   lam> :print table
+
+scores = [("Python", 82), ("TS", 75), ("Haskell", 100), ("Rust", 91)]
+
+-- 📏 The length of the longest name (at least that of the title "name").
+-- いちばん長い名前の長さ（見出しの "name" より短くはしない）
+nameLengths = map (\(name, _) -> length name) scores
+
+widest = maximum (length "name" : nameLengths) ?: 0
+
+row (name, score) = f"{padRight widest name} | {score:>5}"
+
+table = f"{padRight widest "name"} | score" : map row scores

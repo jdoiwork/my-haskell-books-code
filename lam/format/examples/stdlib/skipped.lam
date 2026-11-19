@@ -1,0 +1,25 @@
+-- ⏭️ Answers that may be skipped. Our own data type goes into
+--    Fallible, so that ?: works on it, as on Maybe and Result.
+-- 飛ばしたかもしれない答え。自分で作った data の型を Fallible に入れ、
+-- Maybe や Result と同じく ?: を使う
+--   lam examples/stdlib/skipped.lam
+
+-- ANCHOR: answer
+data Answer a = Answered a | Skipped
+
+-- 🛟 What an answer holds, as a Maybe: a skipped one holds nothing.
+-- 答えが持っているものを、Maybe で。飛ばした答えは何も持たない
+instance Fallible Answer where
+  toMaybe ans =
+    case ans of
+      | Answered x -> Just x
+      | Skipped -> Nothing
+-- ANCHOR_END: answer
+
+-- ANCHOR: main
+-- The points of each question: a skipped one is 0.
+-- 問題ごとの点。飛ばした問題は 0
+answers = [Answered 10, Skipped, Answered 7, Skipped]
+
+map (\a -> a ?: 0) answers
+-- ANCHOR_END: main

@@ -77,17 +77,17 @@ data Value
 -- ANCHOR: key
 -- 🔑 A key of a Map or a Set. Data.Map needs Ord, but a Value has no
 --    Ord: a function cannot be compared. The type checker lets only a
---    Comparable type be a key, so compareValues always gives Right.
+--    Comparable type be a key, so compareKeys always gives Right.
 -- Map や Set のキー。Data.Map には Ord が要るが、Value には Ord がない
 -- （関数は比べられない）。キーにできるのは Comparable の型だけだと
--- 型検査器が確かめるので、compareValues はいつも Right を返す
+-- 型検査器が確かめるので、compareKeys はいつも Right を返す
 newtype Key = Key Value
 
 instance Eq Key where
   a == b = compare a b == EQ
 
 instance Ord Key where
-  compare (Key a) (Key b) = case compareValues a b of
+  compare (Key a) (Key b) = case compareKeys a b of
     Right o -> o
     Left _  -> error "a key that cannot be compared"
 -- ANCHOR_END: key
@@ -406,22 +406,46 @@ comparison op = case op of
 -- 同じ型の2つの値を比べる。リストとタプルは、辞書の言葉のように
 -- 左から比べる。関数は比べられない
 compareValues :: Value -> Value -> Either EvalError Ordering
-compareValues a b = case (a, b) of
+compareValues = compareWith compare
+
+-- ANCHOR: compareKeys
+-- 🔑 Compare two keys of a Map or a Set. The same as compareValues,
+--    but NaN is equal to NaN and larger than every other number, so
+--    that a NaN key can be found again (NaN == NaN is false).
+-- Map や Set のキーを比べる。compareValues と同じだが、NaN は NaN と
+-- 等しく、ほかのどの数よりも大きい。NaN のキーをまた引けるように
+-- （NaN == NaN は false なので）
+compareKeys :: Value -> Value -> Either EvalError Ordering
+compareKeys = compareWith keyOrder
+  where
+    keyOrder x y
+      | isNaN x && isNaN y = EQ
+      | isNaN x            = GT
+      | isNaN y            = LT
+      | otherwise          = compare x y
+-- ANCHOR_END: compareKeys
+
+-- ⚖️ Compare, with num as the way to compare two Floats.
+-- 比べる。num は、2つの Float の比べ方
+compareWith
+  :: (Double -> Double -> Ordering)
+  -> Value -> Value -> Either EvalError Ordering
+compareWith num a b = case (a, b) of
   (VInt x,    VInt y)    -> Right (compare x y)
   -- Two numbers, one of them a Float (in a list, a tuple, a record).
   -- 片方が Float の2つの数（リストやタプル、レコードの中）
-  _ | Just x <- floatOf a, Just y <- floatOf b -> Right (compare x y)
+  _ | Just x <- floatOf a, Just y <- floatOf b -> Right (num x y)
   (VBool x,   VBool y)   -> Right (compare x y)
   (VString x, VString y) -> Right (compare x y)
-  (VTuple xs, VTuple ys) -> compareLists xs ys
-  (VList xs,  VList ys)  -> compareLists xs ys
+  (VTuple xs, VTuple ys) -> compareLists num xs ys
+  (VList xs,  VList ys)  -> compareLists num xs ys
   -- ANCHOR: compareMap
   -- Two maps: compare their (key, value) pairs, in the order of keys.
   -- Two sets: their values, in order.
   -- 2つの Map は、（キー, 値）の組を、キーの順に比べる。
   -- 2つの Set は、値を順に比べる
-  (VMap xs,   VMap ys)   -> compareLists (pairs xs) (pairs ys)
-  (VSet xs,   VSet ys)   -> compareLists (keys xs) (keys ys)
+  (VMap xs,   VMap ys)   -> compareLists num (pairs xs) (pairs ys)
+  (VSet xs,   VSet ys)   -> compareLists num (keys xs) (keys ys)
   -- ANCHOR_END: compareMap
   -- ANCHOR: compareCon
   -- The constructor written first is the smaller one. With the same
@@ -429,12 +453,12 @@ compareValues a b = case (a, b) of
   -- 先に書いた構成子のほうが小さい。同じ構成子なら、引数を左から比べる
   (VCon _ i xs, VCon _ j ys)
     | i /= j    -> Right (compare i j)
-    | otherwise -> compareLists xs ys
+    | otherwise -> compareLists num xs ys
   -- ANCHOR_END: compareCon
   -- ANCHOR: compareRecord
   -- Two records of the same type: the fields in the order of names.
   -- 同じ型の2つのレコード：フィールドを名前の順に比べる
-  (VRecord xs, VRecord ys) -> compareLists (Map.elems xs) (Map.elems ys)
+  (VRecord xs, VRecord ys) -> compareLists num (Map.elems xs) (Map.elems ys)
   -- ANCHOR_END: compareRecord
   _                      -> Left (CannotCompare (renderValue a))
 
@@ -448,14 +472,16 @@ keys :: Set Key -> [Value]
 keys s = [ k | Key k <- Set.toList s ]
 -- ANCHOR_END: pairs
 
-compareLists :: [Value] -> [Value] -> Either EvalError Ordering
-compareLists xs ys = case (xs, ys) of
+compareLists
+  :: (Double -> Double -> Ordering)
+  -> [Value] -> [Value] -> Either EvalError Ordering
+compareLists num xs ys = case (xs, ys) of
   ([],      [])      -> Right EQ
   ([],      _)       -> Right LT
   (_,       [])      -> Right GT
   (x : xs', y : ys') -> do
-    o <- compareValues x y
-    if o == EQ then compareLists xs' ys' else Right o
+    o <- compareWith num x y
+    if o == EQ then compareLists num xs' ys' else Right o
 -- ANCHOR_END: compare
 
 -- ANCHOR: render

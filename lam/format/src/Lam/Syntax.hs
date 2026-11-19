@@ -9,6 +9,10 @@ module Lam.Syntax
   , Pattern (..)
   , TypeExpr (..)
   , DataDecl (..)
+  , Signature (..)
+  , AliasDecl (..)
+  , ClassDecl (..)
+  , InstanceDecl (..)
   , Decl (..)
   , freeVars
   , patternVars
@@ -33,16 +37,24 @@ data Expr
   | Let Name Expr Expr     -- let x = e in body
   | If Expr Expr Expr      -- if c then a else b
   | BinOp Op Expr Expr     -- a + b
-  | Tuple [Expr]           -- (1, "one"), and () with none
+  | Tuple [Expr]           -- (1, "one")    (two or more)
   | List [Expr]            -- [1, 2, 3]
   | Case Expr [(Pattern, Expr)]   -- case e of | p -> a | q -> b
+  -- ANCHOR: recordExprs
+  | Record [(Name, Expr)]          -- { name = "Lam", age = 3 }
+  | Field Expr Name                -- r.name
+  | Update Expr [(Name, Expr)]     -- { r | age = 4 }
+  -- ANCHOR_END: recordExprs
   deriving (Eq, Show)
 -- ANCHOR_END: expr
 
 -- 🔢 The values you can write directly.
 -- そのまま書ける値
 data Literal
-  = LInt Integer           -- 42
+  = LInt Integer           -- 42, -7
+  -- ANCHOR: lfloat
+  | LFloat Double          -- 1.5, 1e3, -0.25
+  -- ANCHOR_END: lfloat
   | LBool Bool             -- true, false
   | LString Text           -- "hello"
   deriving (Eq, Show)
@@ -51,6 +63,11 @@ data Literal
 -- 演算子
 data Op
   = Add | Sub | Mul | Div            -- + - * /
+  -- ANCHOR: newOps
+  | IntDiv                           -- //  (whole numbers)
+  | DivMaybe | IntDivMaybe           -- /? //?  (Nothing for 0)
+  | OrElse                           -- ?:  (Nothing, Err: the right side)
+  -- ANCHOR_END: newOps
   | Eq | Ne | Lt | Le | Gt | Ge      -- == /= < <= > >=
   | Concat                           -- ++  (strings)
   | Cons                             -- :   (an item in front of a list)
@@ -68,6 +85,9 @@ data Pattern
   | PTuple [Pattern]         -- (name, score)
   | PList [Pattern]          -- [], [x], [x, y]
   | PCons Pattern Pattern    -- x : rest
+  -- ANCHOR: precord
+  | PRecord [Name]           -- { name, age }
+  -- ANCHOR_END: precord
   deriving (Eq, Show)
 -- ANCHOR_END: pattern
 
@@ -77,9 +97,18 @@ data Pattern
 data TypeExpr
   = TyCon Name [TypeExpr]    -- Int, Maybe a, Tree a
   | TyVar Name               -- a
+  -- ANCHOR: tyApp
+  | TyApp Name [TypeExpr]    -- f a  (a type variable with types after it)
+  -- ANCHOR_END: tyApp
   | TyFun TypeExpr TypeExpr  -- a -> b
   | TyList TypeExpr          -- [a]
   | TyTuple [TypeExpr]       -- (a, b)
+  -- ANCHOR: tyRecord
+  -- { name : String, age : Int },  and  { r | name : a }  (r stands
+  -- for the other fields, if any).
+  -- r は、ほかのフィールド（あれば）を表す
+  | TyRecord [(Name, TypeExpr)] (Maybe Name)
+  -- ANCHOR_END: tyRecord
   deriving (Eq, Show)
 
 -- 📐 data Shape = Circle Int | Rect Int Int
@@ -93,11 +122,71 @@ data DataDecl = DataDecl
   }
   deriving (Eq, Show)
 
--- 📜 One line of a program: a definition, or a data declaration.
--- プログラムの1つの宣言：定義か、data の宣言
+-- ANCHOR: signature
+-- ✍️ A type annotation:  largest : Comparable a => [a] -> Maybe a
+--    The classes (by name, with their type variable), then the type.
+-- 型の注釈。クラス（名前と型変数）と、型
+data Signature = Signature [(Name, Name)] TypeExpr
+  deriving (Eq, Show)
+
+-- 🏷️ type alias Member = { name : String, days : Int }
+--    A new name for a type that is already there (not a new type).
+-- もうある型に付ける、新しい名前（新しい型ではない）
+data AliasDecl = AliasDecl
+  { aliasName   :: Name             -- Member
+  , aliasParams :: [Name]           -- []   (Pair a has [a])
+  , aliasType   :: TypeExpr         -- { name : String, days : Int }
+  }
+  deriving (Eq, Show)
+-- ANCHOR_END: signature
+
+-- ANCHOR: classDecl
+-- 🎓 class Describe a where
+--      describe : a -> String
+--      describeAll : [a] -> String
+--      describeAll xs = ...            (a default: may be left out)
+--    The classes above it (Comparable a => ...), the name, its type
+--    variable, the types of the methods, and the defaults.
+-- 上位のクラス（Comparable a => ...）、名前、型変数、メソッドの型、
+-- 既定のメソッド
+data ClassDecl = ClassDecl
+  { classSupers   :: [(Name, Name)]        -- [(Comparable, a)]
+  , classDeclName :: Name                  -- Describe
+  , classVar      :: Name                  -- a
+  , classMethods  :: [(Name, Signature)]   -- describe : a -> String
+  , classDefaults :: [(Name, Expr)]        -- describeAll xs = ...
+  }
+  deriving (Eq, Show)
+
+-- 🧩 instance Describe a => Describe (Maybe a) where
+--      describe m = ...
+--    The classes the type variables need, the class, the type, and
+--    the methods.
+-- 型変数に要るクラス、クラス、型、メソッド
+data InstanceDecl = InstanceDecl
+  { instContext :: [(Name, Name)]          -- [(Describe, a)]
+  , instClass   :: Name                    -- Describe
+  , instType    :: TypeExpr                -- Maybe a
+  , instMethods :: [(Name, Expr)]          -- describe m = ...
+  }
+  deriving (Eq, Show)
+-- ANCHOR_END: classDecl
+
+-- 📜 One line of a program: a definition, a data declaration, a type
+--    annotation, a type alias, a class, or an instance.
+-- プログラムの1つの宣言：定義、data の宣言、型の注釈、型の別名、
+-- クラス、インスタンス
 data Decl
   = DefValue Name Expr       -- let x = e
   | DefData DataDecl         -- data Shape = ...
+  -- ANCHOR: declMore
+  | DefSig Name Signature    -- add : Int -> Int -> Int
+  | DefAlias AliasDecl       -- type alias Member = { ... }
+  -- ANCHOR_END: declMore
+  -- ANCHOR: declClass
+  | DefClass ClassDecl       -- class Describe a where ...
+  | DefInstance InstanceDecl -- instance Describe Shape where ...
+  -- ANCHOR_END: declClass
   deriving (Eq, Show)
 -- ANCHOR_END: decl
 
@@ -123,6 +212,11 @@ freeVars expr = case expr of
   -- パターンの名前は、その枝の中で決まっている
   Case e alts     -> freeVars e <> foldMap
     (\(p, body) -> freeVars body `Set.difference` patternVars p) alts
+  -- ANCHOR: freeRecords
+  Record fs       -> foldMap (freeVars . snd) fs
+  Field e _       -> freeVars e
+  Update e fs     -> freeVars e <> foldMap (freeVars . snd) fs
+  -- ANCHOR_END: freeRecords
 
 -- 🧩 The names a pattern gives:  (x, Just y)  gives x and y.
 -- パターンが付ける名前
@@ -135,5 +229,8 @@ patternVars p = case p of
   PTuple ps   -> foldMap patternVars ps
   PList ps    -> foldMap patternVars ps
   PCons h t   -> patternVars h <> patternVars t
+  -- ANCHOR: patternVarsRecord
+  PRecord xs  -> Set.fromList xs
+  -- ANCHOR_END: patternVarsRecord
 -- ANCHOR_END: freeVars
 -- ANCHOR_END: all

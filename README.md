@@ -231,6 +231,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 章 | コード |
 |---|---|
 | 設計：使う側から決めて、パターンを型で描く | [`miniregex/design/`](miniregex/design/)、[`langs/regex-design/`](langs/regex-design/)、[`langs/cargo/`](langs/cargo/) |
+| パターンを読む：パーサー | [`miniregex/parser/`](miniregex/parser/)、[`miniregex/design/`](miniregex/design/)、[`langs/regex-parser/`](langs/regex-parser/)、[`langs/cargo/`](langs/cargo/) |
+| 最初のマッチャー：バックトラックで全部試す | [`miniregex/backtrack/`](miniregex/backtrack/)、[`miniregex/parser/`](miniregex/parser/)、[`langs/regex-backtrack/`](langs/regex-backtrack/)、[`langs/cargo/`](langs/cargo/) |
 
 ### 第14部 Lam を育てる：言語の機能
 
@@ -243,8 +245,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 小数を足す：Elm 風の number | [`lam/records/`](lam/records/)、[`lam/float/`](lam/float/)、[`langs/interp-float/`](langs/interp-float/) |
 | 型クラスを作る：class と instance | [`lam/classes/`](lam/classes/)、[`lam/float/`](lam/float/)、[`langs/interp-classes/`](langs/interp-classes/) |
 | Map と JSON | [`lam/json/`](lam/json/)、[`lam/classes/`](lam/classes/)、[`langs/interp-map-json/`](langs/interp-map-json/) |
-| 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/oneliner/`](lam/oneliner/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |
-| 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/io/`](lam/io/)、[`langs/interp-format/`](langs/interp-format/) |
+| 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/json/`](lam/json/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |
+| 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/stdlib/`](lam/stdlib/)、[`langs/interp-format/`](langs/interp-format/) |
 | ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/script/`](lam/script/)、[`langs/interp-modules/`](langs/interp-modules/) |
 
 ### 第15部 Lam でスクリプトを書く

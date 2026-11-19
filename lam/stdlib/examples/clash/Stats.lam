@@ -1,8 +1,0 @@
--- ANCHOR: all
--- 📊 Stats: the sum and the mean of a list of numbers.
--- Stats：数のリストの合計と平均
-module Stats exposing (sum, mean)
-
-let sum xs = foldl (\total x -> total + x) 0 xs
-let mean xs = if length xs == 0 then 0 else sum xs / length xs
--- ANCHOR_END: all

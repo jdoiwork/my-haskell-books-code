@@ -1,0 +1,16 @@
+-- 🌡️ Step 4 of the training: a temperature of our own type, shown with
+--    1 digit after the point and °C, wherever it is put in f"...".
+-- トレーニングのステップ4：自分の型の気温を、f"..." のどこに入れても、
+-- 小数点以下1けたと °C で見せる
+--   lam examples/format/answers/celsius.lam
+
+data Celsius = Celsius Float
+
+instance Display Celsius where
+  display (Celsius c) = f"{c:.1}°C"
+
+-- 🗓️ The lowest of each day of a cold week.
+-- 寒い週の、毎日の最低気温
+week = [("Mon", Celsius 2.25), ("Tue", Celsius -0.5), ("Wed", Celsius 10)]
+
+map (\(day, t) -> f"{day}: {t:>7}") week

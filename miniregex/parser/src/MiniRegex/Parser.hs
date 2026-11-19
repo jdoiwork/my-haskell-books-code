@@ -1,0 +1,594 @@
+-- ANCHOR: all
+-- | Read a pattern into the tree of MiniRegex.Syntax, the way PCRE2
+--   reads it. A wrong pattern stops with PCRE2's message, at the place
+--   PCRE2 gives. A right pattern with something the tree has no place
+--   for yet (\d, look-ahead, ...) stops as Unsupported.
+-- パターンを読んで、MiniRegex.Syntax の木にする。読み方は PCRE2 と同じ。
+-- まちがったパターンは、PCRE2 と同じ文と場所で止まる。正しいけれど、
+-- 木にまだ居場所のないもの（\d、先読みなど）は Unsupported で止まる
+module MiniRegex.Parser
+  ( parsePattern
+  , Parser
+  ) where
+
+-- ANCHOR: imports
+-- The parser, and the record of the names of the groups
+-- パーサーと、グループの名前の記録
+import Control.Monad (when)
+import Control.Monad.State.Strict (State, evalState, gets, modify')
+import Data.Set (Set)
+import Data.Set qualified as Set
+import Text.Megaparsec
+  ( ParsecT, ParseErrorBundle (..), ParseError (..), ErrorFancy (..)
+  , runParserT, customFailure, getOffset, atEnd, eof, try, lookAhead
+  , anySingle, satisfy, takeWhileP, option, many, some, (<|>)
+  , notFollowedBy, getInput )
+import Text.Megaparsec.Char (char, string)
+
+-- Characters, text and numbers
+-- 文字、文字列、数
+import Data.Char
+  ( chr, isAlphaNum, isAscii, isDigit, isHexDigit, isLetter, isOctDigit
+  , ord, toUpper, digitToInt, generalCategory, GeneralCategory (..) )
+import Data.Bits (xor)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NE
+import Data.Text (Text)
+import Data.Text qualified as T
+import Data.Text.Foreign (lengthWord8)
+
+import MiniRegex.Syntax
+import MiniRegex.Types
+-- ANCHOR_END: imports
+
+-- ANCHOR: parser
+-- 🧰 A parser of Text that stops with a RegexError, and keeps the
+--    names of the groups it has read (to find a name used twice).
+-- Text を読むパーサー。止まるときは RegexError で。読んだグループの
+-- 名前を覚えておく（同じ名前が2回出てきたら、わかるように）
+type Parser = ParsecT RegexError Text (State (Set Text))
+
+-- 🚧 Stop: the pattern is wrong. `at` is the place PCRE2 gives.
+-- 止まる：パターンがまちがっている。at は PCRE2 が言う場所
+invalid :: Int -> Text -> Parser a
+invalid at message = customFailure (Invalid at message)
+
+-- 🚧 Stop: the pattern is fine, but has something the tree cannot
+--    hold yet. `at` is where that thing starts.
+-- 止まる：正しいパターンだが、木にまだ入れられないものがある。
+-- at は、それが始まる場所
+unsupported :: Int -> Text -> Parser a
+unsupported at what = customFailure (Unsupported at what)
+-- ANCHOR_END: parser
+
+-- ANCHOR: run
+-- 🏗️ Read a pattern. Of the flags, only x (Extended) changes how a
+--    pattern is read, and it is not done yet.
+-- パターンを読む。フラグのうち、読み方を変えるのは x（Extended）だけ。
+-- それは、まだ
+parsePattern :: [Option] -> Text -> Either RegexError Pattern
+parsePattern opts src
+  | Extended `elem` opts = Left (Unsupported 0 "flag x")
+  | otherwise            = case evalState run Set.empty of
+      Right tree   -> Right tree
+      Left  bundle -> Left (firstError bundle)
+  where
+    run = runParserT (whole <* eof) "pattern" src
+
+-- 🚩 The pattern, and then the end. A ) here has no ( before it.
+-- パターン全体と、その終わり。ここに来た ) には、対になる ( がない
+whole :: Parser Pattern
+whole = do
+  tree <- pattern
+  at <- getOffset
+  end <- atEnd
+  if end
+    then pure tree
+    else invalid (at + 1) "unmatched closing parenthesis"  -- 122
+
+-- 📮 Our own error, out of megaparsec's bundle. Every way to fail
+--    in this parser is one of ours; just in case, anything else is
+--    "not yet", never "wrong".
+-- megaparsec の束から、自分のエラーを取り出す。このパーサーの失敗は
+-- どれも自分のエラーのはず。念のため、ほかのものは「まちがい」では
+-- なく「まだ」にする
+firstError :: ParseErrorBundle Text RegexError -> RegexError
+firstError bundle = case NE.head (bundleErrors bundle) of
+  FancyError _ fancy | e : _ <- [e | ErrorCustom e <- Set.toList fancy] -> e
+  other -> Unsupported (errorOffsetOf other) "?"
+  where
+    errorOffsetOf (TrivialError at _ _) = at
+    errorOffsetOf (FancyError   at _)   = at
+-- ANCHOR_END: run
+
+-- ANCHOR: pattern
+-- 🌳 Branches split by |.
+-- | で分かれた枝
+pattern :: Parser Pattern
+pattern = do
+  first <- branch
+  rest  <- many (char '|' *> branch)
+  pure (Pattern (first :| rest))
+
+-- 🪵 Pieces, up to | or ) or the end. A quantifier may not come
+--    first: there is nothing before it to repeat.
+-- 部品を、| か ) か終わりまで。量指定子は先頭に来られない
+-- （くり返すものが、前にないから）
+branch :: Parser Branch
+branch = do
+  skipIgnorable
+  noQuantifier
+  pieces <- many piece
+  pure (Branch (concat pieces))
+
+-- 🧩 One piece: an anchor, or something to repeat with how many
+--    times. \Q...\E gives some characters at once; the quantifier
+--    after it is for the last one.
+-- 部品1つ：アンカーか、くり返すものと回数。\Q...\E は文字をまとめて
+-- くれるので、うしろの量指定子は最後の1文字にかかる
+piece :: Parser [Piece]
+piece = anchorPiece <|> quantifiedPieces
+  where
+    anchorPiece = do
+      a <- (LineStart <$ char '^') <|> (LineEnd <$ char '$')
+      skipIgnorable
+      noQuantifier
+      pure [Anchor a]
+    quantifiedPieces = do
+      atoms <- atomsP
+      skipIgnorable
+      q <- option once quantifier
+      skipIgnorable
+      noQuantifier
+      let lastOne = NE.last atoms
+          before  = NE.init atoms
+      pure ([Quantified a once | a <- before] ++ [Quantified lastOne q])
+
+-- 🙅 A quantifier here would repeat nothing (error 109). PCRE2 reads
+--    the quantifier first ({5,2} is still error 104), then says 109
+--    at the place just after it.
+-- ここに量指定子が来たら、くり返すものがない（エラー 109）。PCRE2 は
+-- 量指定子を読み終えてから（{5,2} なら、やはり 104）、そのすぐうしろの
+-- 場所で 109 を言う
+noQuantifier :: Parser ()
+noQuantifier = do
+  found <- option False (True <$ quantifierBase)
+  at <- getOffset
+  when found $
+    invalid at "quantifier does not follow a repeatable item"  -- 109
+-- ANCHOR_END: pattern
+
+-- ANCHOR: ignorable
+-- 💤 Things that leave nothing in the tree: a comment (?#...), a lone
+--    \E, and an empty \Q\E. PCRE2 reads past them, so a* and a(?#c)*
+--    are the same.
+-- 木に何も残さないもの：コメント (?#...)、ひとりの \E、空の \Q\E。
+-- PCRE2 は読み飛ばすので、a* と a(?#c)* は同じ
+skipIgnorable :: Parser ()
+skipIgnorable = () <$ many ignorable
+  where
+    ignorable = comment <|> try (string "\\E" >> pure ())
+                        <|> try emptyQuote
+    emptyQuote = string "\\Q" >> (() <$ string "\\E" <|> eof)
+    comment = do
+      _ <- try (string "(?#")
+      _ <- takeWhileP Nothing (/= ')')
+      closed <- option False (True <$ char ')')
+      at <- getOffset
+      when (not closed) $
+        invalid at "missing ) after (?# comment"  -- 118
+-- ANCHOR_END: ignorable
+
+-- ANCHOR: atom
+-- ⚛️ Something to repeat: one atom, or the characters of \Q...\E.
+-- くり返せるもの：アトム1つ、または \Q...\E の文字
+atomsP :: Parser (NonEmpty Atom)
+atomsP = quoted <|> ((:| []) <$> atom)
+  where
+    -- \Q...\E: every character up to \E (or the end) is itself.
+    -- \Q...\E：\E（か終わり）までの文字は、どれもその文字そのもの
+    quoted = do
+      _ <- try (string "\\Q" <* lookAhead anySingle)
+      body <- many (satisfy (/= '\\') <|> try (char '\\' <* notFollowedBy e))
+      _ <- option "" (string "\\E")
+      -- (an empty \Q\E never comes here: skipIgnorable took it)
+      -- （空の \Q\E は、ここには来ない。skipIgnorable が読み飛ばした）
+      maybe (fail "empty \\Q") (pure . fmap Lit) (NE.nonEmpty body)
+    e = char 'E'
+
+-- ⚛️ One atom.
+-- アトム1つ
+atom :: Parser Atom
+atom = do
+  c <- lookAhead anySingle
+  case c of
+    '.'  -> AnyChar <$ anySingle
+    '['  -> Class <$> charClass
+    '('  -> group
+    '\\' -> Lit <$> escaped OutsideClass
+    _ | c == '|' || c == ')' -> fail "the end of a branch"
+      -- ^ and $ are pieces; * + ? and {n,m} were caught by
+      -- noQuantifier. Anything else is the character itself
+      -- (] and }, and a { that is not a quantifier, too).
+      -- ^ と $ は部品の側で、* + ? {n,m} は noQuantifier が止めた。
+      -- 残りは、その文字そのもの（] と }、量指定子でない { も）
+      | otherwise -> Lit <$> anySingle
+-- ANCHOR_END: atom
+
+-- ANCHOR: escape
+-- 🏠 Where a \ is: some escapes mean another thing in [ ... ].
+-- \ がどこにあるか：[ ... ] の中では意味の変わるものがある
+data Place = OutsideClass | InsideClass
+  deriving Eq
+
+-- 🔐 A \ that means one character. \d, \b, \1 and the like mean
+--    more than one character; the tree has no place for them yet.
+-- 1文字を表す \。\d・\b・\1 などは1文字ではないので、木にはまだ
+-- 居場所がない
+escaped :: Place -> Parser Char
+escaped place = do
+  at <- getOffset
+  _ <- char '\\'
+  end <- atEnd
+  when end $ invalid (at + 1) "\\ at end of pattern"  -- 101
+  c <- anySingle
+  let what = T.pack ['\\', c]
+  case c of
+    _ | not (isAscii c)  -> pure c        -- \日 is 日
+      | not (isAlphaNum c) -> pure c      -- \. \* \\ \- ...
+    'a' -> pure '\a'
+    'e' -> pure '\ESC'
+    'f' -> pure '\f'
+    'n' -> pure '\n'
+    'r' -> pure '\r'
+    't' -> pure '\t'
+    'b' | place == InsideClass -> pure '\b'
+    'x' -> hexEscape at
+    'o' -> octalBraces at
+    '0' -> octalDigits
+    'c' -> control at
+    _ | c `elem` ("ijmqyIJMOTY" :: String) ->
+          invalid (at + 2) "unrecognized character follows \\"  -- 103
+      | c `elem` ("lLuUF" :: String) ->
+          invalid (at + 2)
+            "PCRE2 does not support \\F, \\L, \\l, \\N{name}, \\U, or \\u"
+            -- 137
+      | otherwise -> unsupported at what  -- \d \w \b \1 \p \k ...
+-- ANCHOR_END: escape
+
+-- ANCHOR: numbers
+-- 🔢 \x41 (one or two digits) and \x{263a}.
+-- \x41（数字は1つか2つ）と \x{263a}
+hexEscape :: Int -> Parser Char
+hexEscape at = braced <|> short
+  where
+    short = do
+      ds <- takeWhileUpTo 2 isHexDigit
+      when (null ds) $
+        invalid (at + 2)
+          "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
+      pure (chr (readBase 16 ds))
+    braced = do
+      _ <- char '{'
+      inBraces 16 isHexDigit
+        "non-hex character in \\x{} (closing brace missing?)"  -- 167
+
+-- 🔢 \o{101}.
+-- \o{101}
+octalBraces :: Int -> Parser Char
+octalBraces at = do
+  open <- option False (True <$ char '{')
+  if open
+    then inBraces 8 isOctDigit
+           "non-octal character in \\o{} (closing brace missing?)"  -- 164
+    else invalid (at + 2) "missing opening brace after \\o"  -- 155
+
+-- 🔢 \0, \012: a 0 and up to two more octal digits.
+-- \0、\012：0 と、あと2つまでの8進の数字
+octalDigits :: Parser Char
+octalDigits = do
+  ds <- takeWhileUpTo 2 isOctDigit
+  pure (chr (readBase 8 ds))
+
+-- 🔢 The digits in { }, with spaces or tabs allowed next to the
+--    braces, then }. The code point must be a Unicode character.
+-- { } の中の数字（かっこのすぐ内側には空白とタブを置ける）と }。
+-- 番号は、Unicode の文字でなければならない
+inBraces :: Int -> (Char -> Bool) -> Text -> Parser Char
+inBraces base isDigitOf wrongDigit = do
+  blanks
+  ds <- takeWhileP Nothing isDigitOf
+  blanks
+  at <- getOffset
+  closed <- option False (True <$ char '}')
+  end <- atEnd
+  case () of
+    _ | closed && T.null ds -> invalid at
+          "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
+      | closed -> codePoint at (readBase (toInteger base) (T.unpack ds))
+      -- the place just after the wrong character (or the end)
+      -- まちがった文字のすぐうしろ（か、終わり）
+      | end       -> invalid at wrongDigit
+      | otherwise -> invalid (at + 1) wrongDigit
+
+-- 🔢 A number as a character. `at` is the place of the } (PCRE2 says
+--    the place of the } for these two errors).
+-- 番号を文字にする。at は } の場所（この2つのエラーで、PCRE2 は } の
+-- 場所を言う）
+codePoint :: Int -> Integer -> Parser Char
+codePoint at n
+  | n > 0x10FFFF =
+      invalid at "character code point value in \\x{} or \\o{} is too large"
+        -- 134
+  | n >= 0xD800 && n <= 0xDFFF =
+      invalid at "disallowed Unicode code point (>= 0xd800 && <= 0xdfff)"
+        -- 173
+  | otherwise = pure (chr (fromInteger n))
+
+-- 🎛️ \cA is the control character 1 (A is 65, and 65 xor 64 = 1).
+-- \cA は制御文字の 1（A は 65 で、65 xor 64 = 1）
+control :: Int -> Parser Char
+control at = do
+  end <- atEnd
+  when end $ invalid (at + 2) "\\c at end of pattern"  -- 102
+  c <- anySingle
+  when (c < ' ' || c > '~') $
+    invalid (at + 3) "\\c must be followed by a printable ASCII character"
+      -- 168
+  pure (chr (ord (toUpper c) `xor` 0x40))
+
+-- Read at most n characters that pass the test.
+-- 条件に合う文字を、n 個まで読む
+takeWhileUpTo :: Int -> (Char -> Bool) -> Parser String
+takeWhileUpTo 0 _ = pure []
+takeWhileUpTo n ok =
+  option [] ((:) <$> satisfy ok <*> takeWhileUpTo (n - 1) ok)
+
+-- Spaces and tabs.
+-- 空白とタブ
+blanks :: Parser ()
+blanks = () <$ takeWhileP Nothing (`elem` (" \t" :: String))
+
+readBase :: Num n => n -> String -> n
+readBase base = foldl (\acc d -> acc * base + fromIntegral (digitToInt d)) 0
+-- ANCHOR_END: numbers
+
+-- ANCHOR: class
+-- 🔤 [ ... ] and [^ ... ]. A ] just after the [ (or [^) is the
+--    character ], so a class always has an item.
+-- [ ... ] と [^ ... ]。[（か [^）のすぐうしろの ] は文字の ] なので、
+-- 文字の集まりには、いつも項目がある
+charClass :: Parser CharClass
+charClass = do
+  _ <- char '['
+  noPosixHere
+  neg <- option False (True <$ char '^')
+  firstItem <- classItem (char ']' <|> classChar)
+  rest <- many (classItem classChar)
+  closed <- option False (True <$ char ']')
+  at <- getOffset
+  when (not closed) $
+    invalid at "missing terminating ] for character class"  -- 106
+  pure (CharClass neg (firstItem :| rest))
+
+-- 🙅 [:alpha:] is for inside a class ([[:alpha:]]). Written as a
+--    class by itself, PCRE2 refuses it (errors 112 and 113), so that
+--    nobody writes [:digit:] and gets the characters d, g, i, t and :.
+-- [:alpha:] は、文字の集まりの中に書くもの（[[:alpha:]]）。それだけで
+-- 書くと、PCRE2 は断る（エラー 112 と 113）。[:digit:] と書いて、
+-- d・g・i・t・: の集まりになってしまわないように
+noPosixHere :: Parser ()
+noPosixHere = do
+  rest <- getInput
+  at <- getOffset
+  case T.unpack (T.take 1 rest) of
+    [c] | c `elem` (":.=" :: String)
+        , Just len <- posixLength c (T.unpack (T.drop 1 rest)) ->
+          invalid (at + 1 + len) (posixError c)
+    _ -> pure ()
+  where
+    -- how far to the c] that closes it, as PCRE2 looks for it
+    -- それを閉じる c] まで、何文字か（PCRE2 と同じ探し方で）
+    posixLength c = go 0
+      where
+        go n ('\\' : x : more) | x `elem` ("]\\" :: String) = go (n + 2) more
+        go _ ('[' : x : _) | x == c = Nothing
+        go n (x : ']' : _) | x == c = Just (n + 2)
+        go _ (']' : _)              = Nothing
+        go n (_ : more)             = go (n + 1) more
+        go _ []                     = Nothing
+    posixError ':' =
+      "POSIX named classes are supported only within a class"  -- 112
+    posixError _ = "POSIX collating elements are not supported"  -- 113
+
+-- 🔤 a, or a-z. A - just before the ] is the character -.
+-- a か a-z。] のすぐ前の - は、文字の -
+classItem :: Parser Char -> Parser ClassItem
+classItem first = do
+  noEnd
+  lo <- first
+  dash <- option False (True <$ try (char '-' <* lookAhead notClose))
+  if not dash
+    then pure (Single lo)
+    else do
+      hi <- classChar
+      at <- getOffset
+      when (hi < lo) $
+        invalid at "range out of order in character class"  -- 108
+      pure (Range lo hi)
+  where
+    notClose = satisfy (/= ']')
+    -- a [ with nothing after it is missing its ]
+    -- うしろに何もない [ には、] がない
+    noEnd = do
+      end <- atEnd
+      at <- getOffset
+      when end $
+        invalid at "missing terminating ] for character class"  -- 106
+
+-- 🔤 One character in [ ... ]: itself, or a \ that means one.
+-- [ ... ] の中の1文字：その文字か、1文字を表す \
+classChar :: Parser Char
+classChar = do
+  at <- getOffset
+  c <- lookAhead anySingle
+  next <- lookAhead (anySingle *> option ' ' anySingle)
+  case c of
+    ']' -> fail "the end of the class"
+    -- \Q \E, and [:alpha:] and its friends, are for later chapters.
+    -- Read them first, then stop: a parser in `many` that stops
+    -- without reading anything only ends the `many`.
+    -- \Q \E と、[:alpha:] とその仲間は、あとの章で。先に読んでから
+    -- 止まる（many の中のパーサーが、何も読まずに止まると、many が
+    -- 終わるだけになる）
+    '\\' | next `elem` ("QE" :: String) -> do
+      _ <- anySingle
+      unsupported at (T.pack ['\\', next] <> " in []")
+    '\\' -> escaped InsideClass
+    '[' | next `elem` (":.=" :: String) -> do
+      _ <- anySingle
+      unsupported at "[:"
+    _ -> anySingle
+-- ANCHOR_END: class
+
+-- ANCHOR: group
+-- 🫧 ( ... ), (?: ... ), (?<name> ... ); and the things in (? ... )
+--    that are for later chapters.
+-- ( ... )、(?: ... )、(?<name> ... )。(? ... ) のうち、あとの章で
+-- 読むもの
+group :: Parser Atom
+group = do
+  at <- getOffset
+  _ <- char '('
+  kind <- groupKind at
+  inner <- pattern
+  closed <- option False (True <$ char ')')
+  end <- getOffset
+  when (not closed) $
+    invalid end "missing closing parenthesis"  -- 114
+  pure (Group kind inner)
+
+-- 🏷️ What is just after the (.
+-- ( のすぐうしろに何があるか
+groupKind :: Int -> Parser Capture
+groupKind at = do
+  rest <- lookAhead (takeWhileUpTo 3 (const True))
+  case rest of
+    '?' : ':' : _       -> NonCapturing <$ string "?:"
+    '?' : '<' : c : _
+      | c `elem` ("=!" :: String) -> notYet (T.pack ['(', '?', '<', c])
+    '?' : '<' : _       -> string "?<"  *> name '>'
+    '?' : '\'' : _      -> string "?'"  *> name '\''
+    '?' : 'P' : '<' : _ -> string "?P<" *> name '>'
+    '?' : 'P' : c : _   -> notYet (T.pack ['(', '?', 'P', c])
+    '?' : c : _
+      | c `elem` ("=!>|(" :: String) -> notYet (T.pack ['(', '?', c])
+      | c == 'R' || c == '&' || c == '+' || isDigit c -> notYet "(?R"
+      | c == 'C' -> notYet "(?C"
+    '?' : _             -> notYet "(?flags)"  -- (?i) (?-m) (?s: ...)
+    '*' : _             -> notYet "(*"
+    _                   -> pure Numbered
+  where
+    notYet = unsupported at
+
+-- 📛 A group's name, up to its end mark. A letter or _ first, then
+--    letters, digits and _ (Unicode ones too, as PCRE2 with UTF).
+--    At most 128 bytes in UTF-8; no name twice.
+-- グループの名前を、終わりの印まで。頭は文字か _、そのあとは文字・
+-- 数字・_（PCRE2 の UTF と同じく、Unicode の文字も）。UTF-8 で
+-- 128 バイトまで。同じ名前は2回使えない
+name :: Char -> Parser Capture
+name close = do
+  at <- getOffset
+  first <- lookAhead (option close anySingle)
+  when (isNameDigit first) $
+    invalid (at + 1) "subpattern name must start with a non-digit"  -- 144
+  n <- takeWhileP Nothing isNameChar
+  nameEnd <- getOffset
+  when (T.null n) $ invalid at "subpattern name expected"  -- 162
+  when (lengthWord8 n > 128) $
+    invalid nameEnd "subpattern name is too long (maximum 128 code units)"
+      -- 148
+  closed <- option False (True <$ char close)
+  when (not closed) $
+    invalid nameEnd "syntax error in subpattern name (missing terminator?)"
+      -- 142
+  seen <- gets (Set.member n)
+  after <- getOffset
+  when seen $
+    invalid after
+      "two named subpatterns have the same name (PCRE2_DUPNAMES not set)"
+      -- 143
+  modify' (Set.insert n)
+  pure (Named n)
+  where
+    isNameChar c  = c == '_' || isLetter c || isDigit c || isNameDigit c
+    isNameDigit c = generalCategory c == DecimalNumber
+-- ANCHOR_END: group
+
+-- ANCHOR: quantifier
+-- 🔁 A quantifier, and after it ? (Lazy) or + (Possessive).
+-- 量指定子と、そのうしろの ?（控えめ）か +（所有的）
+quantifier :: Parser Quantifier
+quantifier = do
+  c <- quantifierBase
+  g <- option Greedy ((Lazy <$ char '?') <|> (Possessive <$ char '+'))
+  pure (Quantifier c g)
+
+-- 🔢 * + ? or {n,m}. A { that does not have the shape of {n,m} is
+--    not a quantifier (it is the character {).
+-- * + ? か {n,m}。{n,m} の形でない { は、量指定子ではない（文字の {）
+quantifierBase :: Parser Count
+quantifierBase =
+      (Count 0 Nothing  <$ char '*')
+  <|> (Count 1 Nothing  <$ char '+')
+  <|> (Count 0 (Just 1) <$ char '?')
+  <|> braces
+
+-- 📏 {n} {n,} {n,m} {,m}, with spaces or tabs allowed around the
+--    numbers and the comma. Numbers up to 65535.
+-- {n} {n,} {n,m} {,m}。数とコンマのまわりには空白とタブを置ける。
+-- 数は 65535 まで
+braces :: Parser Count
+braces = do
+  (lo, comma, hi) <- try shape
+  lo' <- traverse checked lo
+  hi' <- traverse checked hi
+  case (lo', hi') of
+    (Just (n, _), Nothing)
+      | comma     -> pure (Count n Nothing)   -- {n,}
+      | otherwise -> pure (Count n (Just 0))  -- {n}
+    (Nothing, Just (m, _)) -> pure (Count 0 (Just m))  -- {,m}
+    (Just (n, _), Just (m, at)) -> case between n m of  -- {n,m}
+      Just q  -> pure (count q)
+      Nothing -> invalid at "numbers out of order in {} quantifier"  -- 104
+    (Nothing, Nothing) -> fail "not a quantifier"  -- shape stops this
+  where
+    shape = do
+      _ <- char '{'
+      blanks
+      lo <- option Nothing (Just <$> number)
+      blanks
+      comma <- option False (True <$ char ',')
+      hi <- if comma
+              then blanks *> option Nothing (Just <$> number) <* blanks
+              else pure Nothing
+      _ <- char '}'
+      -- {} {,} { } are not quantifiers
+      -- {} {,} { } は量指定子ではない
+      case (lo, hi) of
+        (Nothing, Nothing) -> fail "not a quantifier"
+        _                  -> pure (lo, comma, hi)
+    -- the digits, and the place just after them
+    -- 数字と、そのすぐうしろの場所
+    number = do
+      ds <- some (satisfy isDigit)
+      at <- getOffset
+      pure (readBase 10 ds :: Integer, at)
+    -- read as an Integer, so that a long number does not wrap round
+    -- Integer で読むので、長い数でも、ひと回りしない
+    checked (n, at)
+      | n > 65535 = invalid at "number too big in {} quantifier"  -- 105
+      | otherwise = pure (fromInteger n, at)
+-- ANCHOR_END: quantifier
+-- ANCHOR_END: all

@@ -1,12 +1,47 @@
--- 🧰 Try the tools of the training.
--- トレーニングの道具を試す
+-- 🧰 Three more tools, made of the toolbox of the chapter (the
+--    answers to steps 1 to 3 of the training).
+-- 章の道具箱で作る、3つの道具（トレーニングのステップ1〜3の解答）
 --   lam examples/stdlib/answers/tools.lam
-import Extra (chunksOf, groupBy, wordWrap)
 
-let main = do
-  print (chunksOf 2 [1, 2, 3, 4, 5])
-  print (chunksOf 3 "abcdefg")
-  print (groupBy (take 1) ["apple", "banana", "avocado"])
-  forEach
-    (wordWrap 20 "Lam is a small language that grows a little every day")
-    (\line -> putStrLn f"|{line:<20}|")
+-- ANCHOR: chunksOf
+-- ✂️ Step 1: cut into pieces of n. take and drop are of Sequence, so
+--    a string is cut the same way.
+-- ステップ1：n 個ずつに切る。take と drop は Sequence なので、
+-- 文字列も同じように切れる
+chunksOf n xs =
+  if n < 1 || length xs == 0 then []
+  else take n xs : chunksOf n (drop n xs)
+-- ANCHOR_END: chunksOf
+
+-- ANCHOR: groupBy
+-- 🗂️ Step 2: put the items into groups, by the key that f gives. Each
+--    group keeps the order of the items.
+-- ステップ2：f がくれるキーで、グループに分ける。グループの中は元の順
+groupBy f xs =
+  foldl
+    (\groups x -> Map.update (f x) (\g -> Just ((g ?: []) ++ [x])) groups)
+    {}
+    xs
+-- ANCHOR_END: groupBy
+
+-- ANCHOR: wordWrap
+-- 📜 Step 3: wrap the words into lines of up to width letters. A word
+--    longer than width is a line of its own.
+-- ステップ3：単語を、width 文字までの行に折り返す。width より長い単語は、
+-- それだけで1行
+wordWrap width text =
+  let words = filter (\w -> w /= "") (String.split " " text) in
+  let add lines w =
+        case lines of
+          | [] -> [w]
+          | line : rest ->
+              if length line + 1 + length w <= width
+                then (line ++ " " ++ w) : rest
+                else w : lines
+  in reverse (foldl add [] words)
+-- ANCHOR_END: wordWrap
+
+( chunksOf 2 [1, 2, 3, 4, 5]
+, chunksOf 3 "abcdefg"
+, groupBy (take 1) ["apple", "banana", "avocado"]
+, wordWrap 10 "the quick brown fox jumps over the lazy dog" )

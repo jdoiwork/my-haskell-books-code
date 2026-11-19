@@ -186,11 +186,27 @@ main = hspec $ do
     -- 答えは、pcre2test と同じ形で書く
     it "shows an answer like pcre2test" $
       showFound (Just (Match "a\tb\xe9" 0 4)) `shouldBe` [" 0: a\\x09b\\xe9"]
+    -- a line of only spaces ends a group (it is not a subject)
+    -- 空白だけの行で、ひとまとまりが終わる（入力ではない）
+    it "ends a group at a line of spaces" $
+      readTests (T.unlines
+        [ "/X{}/"
+        , "    ZZX{}YZ"
+        , " 0: X{}"
+        , "    "
+        , "/X{1234/"
+        , "    ZZX{123456"
+        , " 0: X{1234"
+        ])
+        `shouldBe`
+          [ TestCase 2 "X{}" "" "ZZX{}YZ" [" 0: X{}"]
+          , TestCase 6 "X{1234" "" "ZZX{123456" [" 0: X{1234"]
+          ]
     -- the whole of testoutput1: no wrong answers
     -- testoutput1 の全部：ちがう答えは1つもない
     it "passes 19 of PCRE2's testoutput1, and fails none" $ do
       tests <- readTestFile "testdata/testoutput1"
-      tally (map judge tests) `shouldBe` Tally 19 0 2806
+      tally (map judge tests) `shouldBe` Tally 19 0 2629
   -- ANCHOR_END: meter
 
   -- ANCHOR: pcre2

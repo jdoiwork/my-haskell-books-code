@@ -1,0 +1,11 @@
+/(a+)+b/no_start_optimize
+    aaaaaaaaaaaaaaaaaaaaac
+No match
+    aaaaaaaaaaaaaaaaaaaaaac
+Failed: error -47: match limit exceeded
+
+/(a+)+b/
+    aaaaaaaaaaaaaaaaaaaaaac
+No match
+    aaaaaaaaaaaaaaaaaaaaaacb
+Failed: error -47: match limit exceeded

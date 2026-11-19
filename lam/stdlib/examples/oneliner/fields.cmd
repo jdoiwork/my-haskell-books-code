@@ -1,1 +1,0 @@
--ane 'print fields' examples/oneliner/scores.txt

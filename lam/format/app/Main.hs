@@ -6,7 +6,6 @@
 module Main (main) where
 
 import Control.Exception (NonTermination (..), evaluate, try)
-import Control.Monad (forM_, unless)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -17,10 +16,8 @@ import System.Exit (exitFailure)
 import System.IO (stderr)
 
 import Lam.Prelude (preludeSession)
-import Lam.Program (Session, loadProgram, runProgram)
+import Lam.Program (Session, loadProgram)
 import Lam.Repl (Input (..), parseInput, step)
-import qualified Lam.Program as Program
-import Lam.World (realWorld)
 
 main :: IO ()
 main = do
@@ -48,14 +45,11 @@ loop session = do
         loaded <- liftIO (loadFile session file)
         loop loaded
       _ -> do
-        -- An IO expression is done here, in the real world.
-        -- IO の式は、ここで本物の世界でやる
-        shown <- liftIO $ try $ do
-          (session', out) <- step realWorld session text
-          evaluate (T.length out `seq` (session', out))
+        let (session', out) = step session text
+        shown <- liftIO (try (evaluate (T.length out `seq` out)))
         case shown of
-          Right (session', o) -> do
-            liftIO (unless (T.null o) (TIO.putStrLn o))
+          Right o -> do
+            liftIO (TIO.putStrLn o)
             loop session'
           Left NonTermination -> do
             liftIO (TIO.putStrLn
@@ -69,25 +63,22 @@ loadFile session file = do
   source <- Utf8.readFile file
   case loadProgram session file source of
     Left err -> TIO.putStrLn err >> pure session
-    Right (session', final) -> do
+    Right (session', out) -> do
       -- 「読みこみました」
       TIO.putStrLn ("loaded " <> T.pack file)
-      forM_ final $ \e -> do
-        out <- Program.evaluate realWorld session' e
-        TIO.putStrLn (either id id out)
+      mapM_ TIO.putStrLn out
       pure session'
 -- ANCHOR_END: loop
 
 -- ANCHOR: runFile
--- 📜 lam program.lam: main (if there is one) runs in the real world.
--- main（あれば）は、本物の世界で動く
+-- 📜 lam program.lam
 runFile :: FilePath -> IO ()
 runFile file = do
   source <- Utf8.readFile file
-  result <- runProgram realWorld preludeSession file source
-  case result of
-    Right out -> unless (T.null out) (TIO.putStrLn out)
-    Left err  -> do
+  case loadProgram preludeSession file source of
+    Right (_, Just out) -> TIO.putStrLn out
+    Right (_, Nothing)  -> pure ()
+    Left err            -> do
       TIO.hPutStrLn stderr err
       exitFailure
 -- ANCHOR_END: runFile
