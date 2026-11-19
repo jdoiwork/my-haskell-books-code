@@ -22,10 +22,10 @@ import Lam.Types
 -- ANCHOR_END: head
 
 -- ANCHOR: pretty
--- 🎀 Step 3: Json.pretty writes JSON over many lines, with 2 spaces
+-- 🎀 Step 4: Json.pretty writes JSON over many lines, with 2 spaces
 --    of indent. aeson-pretty does the work; this is one more row
 --    for the table of builtins.
--- ステップ3：Json.pretty は、JSON を2つの空白で字下げして、何行にも
+-- ステップ4：Json.pretty は、JSON を2つの空白で字下げして、何行にも
 -- 分けて書く。仕事は aeson-pretty がする。組み込みの関数の表の1行
 prettyBuiltin :: Builtin
 prettyBuiltin =

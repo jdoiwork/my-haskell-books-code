@@ -1,0 +1,42 @@
+-- 🎓 One name, describe, for shapes and money: a class and two
+--    instances.
+-- 図形にもお金にも、1つの名前 describe を。クラスと2つのインスタンス
+--   lam examples/classes/describe.lam
+
+data Shape
+  = Circle { radius : Int }
+  | Rect { width : Int, height : Int }
+
+data Money = Yen Int
+
+-- ANCHOR: class
+-- What a type must have to be in the class: a describe of its own.
+-- クラスに入る型が持つもの：自分の describe
+class Describe a where
+  describe : a -> String
+-- ANCHOR_END: class
+
+-- ANCHOR: instances
+instance Describe Shape where
+  describe s =
+    case s of
+      | Circle { radius } -> "a circle of radius " ++ showInt radius
+      | Rect { width, height } ->
+          "a " ++ showInt width ++ "x" ++ showInt height ++ " rect"
+
+instance Describe Money where
+  describe m =
+    case m of
+      | Yen n -> showInt n ++ " yen"
+-- ANCHOR_END: instances
+
+-- ANCHOR: twice
+-- 🔁 Any type in Describe: say it twice.
+-- Describe に入る型なら、なんでも：2回言う
+twice : Describe a => a -> String
+twice x = describe x ++ ", " ++ describe x
+-- ANCHOR_END: twice
+
+-- ANCHOR: main
+(describe (Circle { radius = 2 }), describe (Yen 500), twice (Yen 80))
+-- ANCHOR_END: main

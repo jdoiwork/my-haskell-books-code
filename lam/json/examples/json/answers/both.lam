@@ -1,0 +1,21 @@
+-- 🤝 Step 2 of the training: the words in both lists, and the words
+--    in only one of them, with Sets.
+-- トレーニングのステップ2：両方のリストにある単語と、片方にしかない
+-- 単語を、Set で
+--   lam examples/json/answers/both.lam
+
+-- Each word once, from the words of a line.
+-- 行の単語を、1つずつ
+wordSet : [String] -> Set String
+wordSet ws = Set.fromList ws
+
+monday = wordSet ["herb", "elixir", "herb", "map"]
+
+tuesday = wordSet ["map", "key", "elixir"]
+
+{ both = Set.toList (Set.intersection monday tuesday)
+, onlyOne =
+    Set.toList
+      (Set.union
+        (Set.difference monday tuesday)
+        (Set.difference tuesday monday)) }

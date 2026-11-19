@@ -37,8 +37,8 @@ preludeSource = """
   -- 数
   let max a b = if a < b then b else a
   let min a b = if a < b then a else b
-  let abs n = if n < 0 then 0 - n else n
-  let mod a b = a - a / b * b
+  let abs n = if n < 0 then -n else n
+  let mod a b = a - a // b * b
   let even n = mod n 2 == 0
   let pow b e = if e == 0 then 1 else b * pow b (e - 1)
   let gcd a b = if b == 0 then a else gcd b (mod a b)
@@ -97,15 +97,14 @@ preludeSource = """
   -- ANCHOR_END: maybeMore
 
   -- ANCHOR: insertWith
-  -- Maps from strings: functions that take a function, made of the
-  -- builtins
-  -- 文字列をキーにした Map：関数を受け取る関数を、組み込みの関数から作る
+  -- Maps: functions that take a function, made of the builtins
+  -- Map：関数を受け取る関数を、組み込みの関数から作る
   let Map.insertWith f k v m =
     case Map.lookup k m of
       | Nothing -> Map.insert k v m
       | Just old -> Map.insert k (f v old) m
   let Map.map f m =
-    Map.fromList (map (\\kv -> (fst kv, f (snd kv))) (Map.toList m))
+    Map.fromList (map (\\(k, v) -> (k, f v)) (Map.toList m))
   -- ANCHOR_END: insertWith
 
   -- ANCHOR: json
@@ -119,7 +118,7 @@ preludeSource = """
     | JDec Int Int
     | JStr String
     | JArr [Json]
-    | JObj (Map Json)
+    | JObj (Map String Json)
   -- ANCHOR_END: json
 
   -- ANCHOR: jsonTools
@@ -149,9 +148,9 @@ preludeSource = """
   -- 整数なら JInt にする
   let Json.mkDec c d =
     if c == 0 then JInt 0
-    else if mod c 10 == 0 then Json.mkDec (c / 10) (d - 1)
-    else if d > 0 || d < 0 - 1024 then JDec c d
-    else JInt (c * pow 10 (0 - d))
+    else if mod c 10 == 0 then Json.mkDec (c // 10) (d - 1)
+    else if d > 0 || d < -1024 then JDec c d
+    else JInt (c * pow 10 (-d))
   -- ANCHOR_END: mkDec
   """
 -- ANCHOR_END: source

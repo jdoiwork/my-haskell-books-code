@@ -236,7 +236,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 型を書く：型の注釈とレコード | [`lam/records/`](lam/records/)、[`lam/sugar/`](lam/sugar/)、[`langs/interp-records/`](langs/interp-records/) |
 | 小数を足す：Elm 風の number | [`lam/records/`](lam/records/)、[`lam/float/`](lam/float/)、[`langs/interp-float/`](langs/interp-float/) |
 | 型クラスを作る：class と instance | [`lam/classes/`](lam/classes/)、[`lam/float/`](lam/float/)、[`langs/interp-classes/`](langs/interp-classes/) |
-| Map と JSON | [`lam/json/`](lam/json/)、[`lam/data/`](lam/data/)、[`langs/interp-map-json/`](langs/interp-map-json/) |
+| Map と JSON | [`lam/json/`](lam/json/)、[`lam/classes/`](lam/classes/)、[`langs/interp-map-json/`](langs/interp-map-json/) |
 | 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/oneliner/`](lam/oneliner/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |
 | 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/io/`](lam/io/)、[`langs/interp-format/`](langs/interp-format/) |
 | ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/script/`](lam/script/)、[`langs/interp-modules/`](langs/interp-modules/) |
