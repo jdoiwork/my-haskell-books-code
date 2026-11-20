@@ -1,0 +1,41 @@
+== gold guild.log
+2026-11-21 Mira sold 300 gold for herbs
+2026-11-21 Ruby sold 25 gold
+2026-11-22 Lam sold 1200 gold for swords
+2026-11-22 ラムダ sold 40 gold for 薬草
+exit 0
+== -c gold guild.log
+4
+exit 0
+== -ic gold guild.log
+5
+exit 0
+== -v gold guild.log
+note: the shop opens at 9
+PERL sold 7 Gold for onions
+exit 0
+== -on \d+ gold guild.log
+1:300 gold
+2:25 gold
+4:1200 gold
+5:40 gold
+exit 0
+== -o \w+ sold guild.log
+Mira sold
+Ruby sold
+Lam sold
+ラムダ sold
+PERL sold
+exit 0
+== -c gold guild.log notes.log
+guild.log:4
+notes.log:2
+exit 0
+== silver guild.log
+exit 1
+== gold nofile notes.log
+notes.log:Mira paid 300 gold on 2026-11-23
+notes.log:no gold here
+exit 2
+== (\d+ guild.log
+exit 2
