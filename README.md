@@ -245,6 +245,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | しおりと命令を磨く：バイトの場所と1文字のくり返し | [`miniregex/cursor/`](miniregex/cursor/)、[`miniregex/prefilter/`](miniregex/prefilter/)、[`langs/regex-cursor/`](langs/regex-cursor/) |
 | エンジンを乗り換える：バックトラックと Pike VM | [`miniregex/engines/`](miniregex/engines/)、[`miniregex/cursor/`](miniregex/cursor/)、[`langs/cargo/`](langs/cargo/) |
 | 測って比べる：pcre2・Rust・Python とベンチマーク | [`miniregex/benchmarks/`](miniregex/benchmarks/)、[`miniregex/engines/`](miniregex/engines/)、[`langs/regex-benchmarks/`](langs/regex-benchmarks/)、[`langs/cargo/`](langs/cargo/) |
+| Haskell の仲間に入る：regex-base と `=~` | [`miniregex/base/`](miniregex/base/)、[`miniregex/benchmarks/`](miniregex/benchmarks/)、[`langs/regex-base/`](langs/regex-base/) |
 
 ### 第14部 Lam を育てる：言語の機能
 
