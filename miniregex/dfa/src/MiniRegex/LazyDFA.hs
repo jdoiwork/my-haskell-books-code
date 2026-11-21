@@ -306,7 +306,11 @@ forwardEnd m (Text arr off len) b0 = firstState m True >>= \case
       f <- readSTRef (flags m)
       a <- readSTRef (ascii m)
       loop f a s b best
-    loop f a !s !b !best = do
+    -- f and a strict too: then GHC hands the loop what is inside the
+    -- vectors, once, instead of opening the boxes at every character
+    -- f と a も正格に。そうすると GHC は、ベクトルの中身を1度だけ
+    -- ループに渡す。文字ごとに箱を開けなくて済む
+    loop !f !a !s !b !best = do
       fl <- MU.unsafeRead f s
       let !best' = if odd fl then b else best
       if fl >= 2 || b >= len
@@ -337,7 +341,7 @@ backwardStart m t lo e = firstState m False >>= \case
       f <- readSTRef (flags m)
       a <- readSTRef (ascii m)
       go f a s b best
-    go f a !s !b !best = do
+    go !f !a !s !b !best = do
       fl <- MU.unsafeRead f s
       let !best' = if odd fl then b else best
       if fl >= 2 || b <= lo then pure (Right best') else do
