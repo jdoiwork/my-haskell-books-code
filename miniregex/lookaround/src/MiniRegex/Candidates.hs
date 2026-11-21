@@ -59,11 +59,13 @@ ends p c = pattern 1 p (c, noCaps)
       | holds a cur = [here]
       | otherwise        = []
     piece _ KeepOut (cur, caps) = [(cur, keepOut cur caps)]
+    -- ANCHOR: possessive
     -- a*+: only the first candidate of a* (the longest)
     -- a*+：a* の候補の先頭（いちばん長いもの）だけ
     piece n (Quantified a q) here
       | greed q == Possessive = take 1 (repeatAtom q (atom n a) here)
       | otherwise             = repeatAtom q (atom n a) here
+    -- ANCHOR_END: possessive
 
     -- One character, a whole pattern for a group (writing down what it
     -- found), or the text a group found before.
@@ -113,6 +115,7 @@ verdict :: Sense -> [(Cursor, Caps)] -> (Cursor, Caps) -> [(Cursor, Caps)]
 verdict Positive ((_, caps') : _) (cur, _) = [(cur, caps')]
 verdict Negative []               here     = [here]
 verdict _        _                _        = []
+-- ANCHOR_END: look
 
 -- 📏 How far back a branch of a lookbehind can start: the farthest first.
 -- 後読みの枝が、どこまで下がって始まれるか。遠いほうから
@@ -121,8 +124,6 @@ farthestFirst (Width least most) = [far, far - 1 .. near]
   where
     near = fromIntegral least
     far  = fromIntegral (fromMaybe least most)
-
--- ANCHOR_END: look
 
 -- 🔢 Give each part the number of its first group.
 -- 部分ごとに、最初のグループの番号を付ける

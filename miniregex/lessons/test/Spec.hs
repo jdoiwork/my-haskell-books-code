@@ -25,8 +25,10 @@ import MiniRegex.Pike (scanPike)
 import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (instructions)
 import MiniRegex.Race (findRacing)
+-- ANCHOR: prefilterimport
 import MiniRegex.Prefilter
   (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
+-- ANCHOR_END: prefilterimport
 import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Cursor (Cursor, at, back, before, byte, cursorAt, rest, taken)
 import Data.Foldable (toList)
@@ -57,6 +59,7 @@ genText = T.pack <$> listOf (elements "ab日")
 genLines :: Gen Text
 genLines = T.pack <$> listOf (frequency [(3, elements "ab"), (1, pure '\n')])
 
+-- ANCHOR: lessongens
 -- 🎲 For the chapter on learning from other lands: patterns with a
 --    text inside, or of texts only, and characters to make texts of.
 -- よその国に学ぶ章のため：内側に文字列のあるパターンと、文字列だけの
@@ -76,6 +79,7 @@ lessonChars = "12a-@.b s+é日本soldGOgOKkK\x212A"
 isInner :: Start -> Bool
 isInner (Inner _ _) = True
 isInner _           = False
+-- ANCHOR_END: lessongens
 
 -- 🎲 Short texts of a and b only.
 -- a と b だけの短い文字列
@@ -933,6 +937,7 @@ main = hspec $ do
   describe "looking first / 先に探す" $ do
     -- what it learns from a pattern: like pcre2test's /I
     -- パターンから調べること：pcre2test の /I と同じように
+    -- ANCHOR: twolines
     it "knows where a match can start, and what it needs" $
       map describePrefilter
         [ "Room (\\d+)", "\\b\\d{4}-\\d{2}-\\d{2}\\b", "^(\\w+\\s?)+$"
@@ -955,6 +960,7 @@ main = hspec $ do
           , ("anywhere", "\"\"")
           , ("only 64 texts: \"DRAGON\" ... \"dragon\"", "\"\"")
           , ("one of \\d", "\"\"") ]
+    -- ANCHOR_END: twolines
     -- the VM is handed fewer places
     -- VM に渡す場所が減る
     it "hands the VM only the places worth trying" $ do

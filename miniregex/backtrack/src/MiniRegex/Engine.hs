@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | The engine. compilePattern reads with the parser; searchFrom now
 --   runs the real matcher, a backtracking one, from each place in turn.
 --   Only two things are still stopped at the door: the flag i and the
@@ -13,6 +14,7 @@ module MiniRegex.Engine
   , searchFromList
   , searchWith
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Data.Maybe (listToMaybe, mapMaybe)

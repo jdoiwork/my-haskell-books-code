@@ -270,8 +270,6 @@ main = hspec $ do
     -- 答えは、pcre2test と同じ形で書く
     it "shows an answer like pcre2test" $
       showFound (Just (Match "a\tb\xe9" 0 4)) `shouldBe` [" 0: a\\x09b\\xe9"]
-    -- the whole of testoutput1: no wrong answers
-    -- testoutput1 の全部：ちがう答えは1つもない
     -- a line of only spaces ends a group (it is not a subject)
     -- 空白だけの行で、ひとまとまりが終わる（入力ではない）
     it "ends a group at a line of spaces" $

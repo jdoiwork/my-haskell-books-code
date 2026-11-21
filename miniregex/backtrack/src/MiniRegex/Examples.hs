@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | The records of the guild's archive room, a search by hand, and the
 --   code we want to write with MiniRegex.
 -- ギルドの記録室の記録と、手で書いた探しものと、MiniRegex で書きたい
@@ -16,6 +17,7 @@ module MiniRegex.Examples
   , endsOf
   , endsAtStart
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Data.Char (isDigit)

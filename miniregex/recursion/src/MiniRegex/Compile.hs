@@ -306,12 +306,14 @@ showInst i = case i of
   CutFail     -> "cutfail"
   Back d      -> "back " <> num d
   AtMark m    -> "atmark m" <> num m
+  -- ANCHOR: showcall
   Gosub g a   -> "gosub " <> group g <> ", " <> num a
   Return      -> "return"
   where
     num = T.pack . show
     group 0 = "(?R)"
     group g = "(?" <> num g <> ")"
+    -- ANCHOR_END: showcall
     alone p = Pattern (Branch [p] NE.:| [])
     -- a space would not be seen: write it in quotes
     -- 空白は見えないので、引用符で囲む

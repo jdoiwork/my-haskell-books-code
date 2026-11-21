@@ -412,7 +412,9 @@ showInst i = case i of
   Close n     -> "close " <> num n
   Ref n       -> "ref " <> num n
   RefNoCase n -> "ref (?i)" <> num n
+  -- ANCHOR: listingcluster
   TakeCluster -> "cluster"
+  -- ANCHOR_END: listingcluster
   Keep        -> "keep"
   Match       -> "match"
   SetMark m   -> "mark m" <> num m

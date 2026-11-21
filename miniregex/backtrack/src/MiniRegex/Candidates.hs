@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | The first matcher: from a cursor, list every place where the
 --   pattern can end, in the order PCRE2 tries them. The first one is
 --   the answer; laziness keeps the others from being made, until they
@@ -9,6 +10,7 @@
 module MiniRegex.Candidates
   ( ends
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Data.List.NonEmpty qualified as NE
@@ -20,11 +22,13 @@ import MiniRegex.Types (Option)
 -- ANCHOR_END: imports
 
 -- ANCHOR: ends
+-- ANCHOR: top
 -- 🧺 Every place where the pattern can end, starting at the cursor.
 -- しおりから始めて、パターンが終われる場所の全部
 ends :: [Option] -> Pattern -> Cursor -> [Cursor]
 ends opts = pattern
   where
+-- ANCHOR_END: top
     -- ANCHOR: pattern
     -- The left branch first, then the next one.
     -- 左の枝が先、それから次の枝

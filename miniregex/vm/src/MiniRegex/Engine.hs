@@ -66,7 +66,8 @@ searchCounting limit re subject from = case cursorAt subject from of
   where
     go n [] = (Right Nothing, used n)
     go n (c : cs) = case runVM (program re) n (const True) c of
-      (Found end caps, left) -> (Right (Just (toMatch re c end caps)), used left)
+      (Found end caps, left) ->
+        (Right (Just (toMatch re c end caps)), used left)
       (NotFound, left)       -> go left cs
       (OutOfSteps, _)        -> (Left (GaveUp limit), limit)
     used left = limit - left

@@ -76,10 +76,12 @@ atom a = case a of
   Group kind inner         -> inParens (open kind) inner
   Atomic inner             -> inParens "(?>" inner
   Look d sense inner       -> inParens (look d sense) inner
+  -- ANCHOR: rendercall
   -- a call keeps the flags of the group it calls: nothing to set here
   -- 呼び出しは、呼んだグループのフラグで動く。ここで付けるものはない
   Call 0                   -> pure "(?R)"
   Call n                   -> pure ("(?" <> T.pack (show n) <> ")")
+  -- ANCHOR_END: rendercall
   where
     inParens opening inner = do
       saved <- get
@@ -286,9 +288,11 @@ pieceTree (Quantified a q) = case a of
     label (Backref n) = "\\" <> T.pack (show n) <> " same as group "
                           <> T.pack (show n)
     label (NoCase x)  = "(?i) " <> label x
+    -- ANCHOR: labelcall
     label (Call 0)    = "(?R) call the whole pattern"
     label (Call n)    = "(?" <> T.pack (show n) <> ") call group "
                           <> T.pack (show n)
+    -- ANCHOR_END: labelcall
     groupName Numbered     = "(numbered)"
     groupName (Named n)    = "<" <> n <> ">"
     groupName NonCapturing = "(?:)"

@@ -2304,6 +2304,22 @@ main = hspec $ do
           let re = surely p
               t  = T.pack cs
           in  counterexample (T.unpack p) (findAll re t === findAllVM re t)
+    -- the groups, with the engine the regex chose, within its limit
+    -- グループは、正規表現が選んだエンジンで、上限のうちに求める
+    it "finds the groups with the engine the regex chose" $ do
+      let re = surely "(a+)+c|a+b"
+          t  = T.replicate 12 "a" <> "b"
+          groupsOf r u = fmap matchGroups (find r u)
+      canDfa (program re) `shouldBe` True
+      groupsOf re t `shouldBe` fmap matchGroups (findVM re t)
+      map matchGroups (findAll re t)
+        `shouldBe` map matchGroups (findAllVM re t)
+      -- with the backtracking VM and a small limit, the steps run out
+      -- バックトラックの VM で、上限を小さくすると、ステップ数が尽きる
+      let slow = re { engine = Backtracking, stepLimit = 1000 }
+          long = T.replicate 30 "a" <> "b"
+      r <- try (evaluate (length (show (groupsOf slow long))))
+      r `shouldBe` Left (GaveUp 1000)
   -- ANCHOR: answers
   describe "the training / トレーニング" $ do
     -- step 2: in a ByteString, the places are bytes

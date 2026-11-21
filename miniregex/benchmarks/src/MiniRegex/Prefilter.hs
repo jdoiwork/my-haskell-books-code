@@ -201,10 +201,13 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
     both xs Nothing         = xs
     both (Just xs) (Just ys) = Just (common xs ys)
     -- each character of ys is used up once: so the answer is never
-    -- longer than ys; and both are sorted, so the answer is too, and
-    -- the narrowing comes to an end
+    -- longer than ys. Both are sorted, so the answer is too: the same
+    -- characters always make the same list. Each round, a list only
+    -- loses characters or stays, so the narrowing comes to an end
     -- ys の文字は、1つにつき1回だけ使う。だから答えは ys より長くならない。
-    -- 両方が並べ替えてあるので、答えも並ぶ。絞り込みは終わる
+    -- 両方が並べ替えてあるので、答えも並ぶ。同じ文字の集まりは、いつも
+    -- 同じリストになる。回るたびに、リストは文字が減るか同じかなので、
+    -- 絞り込みは終わる
     common [] _ = []
     common (x : xs) ys
       | x `elem` ys = x : common xs (delete x ys)

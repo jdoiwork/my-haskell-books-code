@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | The small rules that both matchers share: does one character fit
 --   an atom, and does a place fit an anchor. The flags m and s change
 --   them.
@@ -8,6 +9,7 @@ module MiniRegex.Rules
   ( fitsChar
   , holds
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Data.List.NonEmpty qualified as NE

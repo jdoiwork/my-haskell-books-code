@@ -125,9 +125,11 @@ firstAtoms prog = case walk [0] IntSet.empty [] False of
       | IntSet.member pc seen = walk todo seen atoms anchored
       | otherwise = case prog ! pc of
           Take a            -> go todo (a : atoms) anchored
+          -- ANCHOR: firsttakeall
           -- none, or some: the atom, or what comes next
           -- 0個か、いくつか：そのアトムか、次のもの
           TakeAll a         -> walk (pc + 1 : todo) seen' (a : atoms) anchored
+          -- ANCHOR_END: firsttakeall
           Assert TextStart  -> go todo atoms True
           Assert _          -> on [pc + 1]
           Split a b         -> on [a, b]
@@ -196,9 +198,8 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
     both xs Nothing         = xs
     both (Just xs) (Just ys) = Just (common xs ys)
     -- each character of ys is used up once: so the answer is never
-    -- longer than ys, and the narrowing comes to an end
-    -- ys の文字は、1つにつき1回だけ使う。だから答えは ys より長くならず、
-    -- 絞り込みは終わる
+    -- longer than ys
+    -- ys の文字は、1つにつき1回だけ使う。だから答えは ys より長くならない
     common [] _ = []
     common (x : xs) ys
       | x `elem` ys = x : common xs (delete x ys)

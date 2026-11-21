@@ -58,7 +58,7 @@ module MiniRegex
 import Data.Char (ord)
 import Data.Functor.Identity (Identity (..))
 import Data.Map.Strict qualified as Map
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust, maybeToList)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Foreign (lengthWord8)
@@ -131,10 +131,12 @@ isMatch re t = isJust (find re t)
 
 -- 🔍 The first match. If the steps run out (ten million, unless
 --    told otherwise), GaveUp is thrown. From the chapter on the lazy
---    DFA: the DFA first, if it can run the regex (it never gives up).
+--    DFA: the DFA first, if it can run the regex. The DFA counts no
+--    steps; the groups come from the engine the regex chose, with the
+--    limit.
 -- 最初に見つかったもの。ステップ数が尽きたら（既定は 1000万ステップ）、
--- GaveUp を投げる。lazy DFA の章から：DFA で動かせるなら、まず DFA で
--- （DFA は、あきらめない）
+-- GaveUp を投げる。lazy DFA の章から：DFA で動かせるなら、まず DFA で。
+-- DFA は、ステップ数を数えない。グループは、選んだエンジンで上限つき
 find :: Regex -> Text -> Maybe Match
 find re t = fromMaybe (findVM re t) (dfaFind re t 0)
 
@@ -264,7 +266,7 @@ namedSpan name m = do
 -- 最初に見つかったものを、その文字列に置き換える
 -- （$1 も、ただの "$1"）
 replace :: Regex -> Text -> Text -> Text
-replace re new t = rebuild (const new) (take 1 (findAll re t)) t
+replace re new t = rebuild (const new) (maybeToList (find re t)) t
 
 -- 🖍️ Replace every match.
 -- 見つかったもの全部を置き換える
@@ -282,7 +284,8 @@ replaceWith re f t = rebuild f (findAll re t) t
 -- 🧾 Replace the first match with the template ($1, ${name}, $$).
 -- 最初に見つかったものを、テンプレート（$1・${name}・$$）で置き換える
 replaceTemplate :: Regex -> Template -> Text -> Text
-replaceTemplate re tpl t = rebuild (expand tpl) (take 1 (findAll re t)) t
+replaceTemplate re tpl t =
+  rebuild (expand tpl) (maybeToList (find re t)) t
 
 -- 🧾 Replace every match with the template.
 -- 見つかったもの全部を、テンプレートで置き換える

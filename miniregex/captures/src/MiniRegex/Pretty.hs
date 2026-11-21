@@ -131,8 +131,10 @@ pieceTree (Quantified a q)   = case a of
     label AnyChar     = ". any"
     label (Class cls) = renderClass cls
     label (Group _ _) = "group"
+    -- ANCHOR: drawref
     label (Backref n) = "\\" <> T.pack (show n) <> " same as group "
                           <> T.pack (show n)
+    -- ANCHOR_END: drawref
     groupName Numbered     = "(numbered)"
     groupName (Named n)    = "<" <> n <> ">"
     groupName NonCapturing = "(?:)"

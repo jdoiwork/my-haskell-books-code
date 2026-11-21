@@ -899,8 +899,10 @@ classChar = do
 -- ( ... )、(?: ... )、(?<name> ... )、(?i: ... )、(?| ... )、(?> ... )、
 -- (?= ... ) (?! ... ) (?<= ... ) (?<! ... )。(? ... ) のうち、あとの章で
 -- 読むもの。グループの中で変えたフラグは、) で元に戻る
+-- ANCHOR: groupcall
 group :: Parser Atom
 group = pythonRef <|> callGroup <|> defineGroup <|> do
+-- ANCHOR_END: groupcall
   at <- getOffset
   saved <- gets flags
   wasLooking <- gets inLook
@@ -957,8 +959,10 @@ measure at (Pattern bs) = case trouble of
     trouble
       | any hasBackref (NE.toList bs) =
           Just (Unsupported at "back reference in lookbehind")
+      -- ANCHOR: lookbehindcall
       | any hasCall (NE.toList bs) =
           Just (Unsupported at "call in lookbehind")
+      -- ANCHOR_END: lookbehindcall
       | any (\w -> longest w == Nothing) widths =
           Just (Invalid at "length of lookbehind assertion is not limited")
             -- 125
@@ -1127,6 +1131,7 @@ name close = do
   modify' (\r -> r { seenNames = Set.insert n (seenNames r) })
   pure (Named n)
 
+-- ANCHOR: nametextor
 -- 📛 Just the name, up to its end mark (and the mark).
 -- 名前だけを、終わりの印まで（印も読む）
 nameText :: Char -> Parser Text
@@ -1157,6 +1162,7 @@ nameTextOr close unclosed = do
   where
     isNameChar c  = c == '_' || isLetter c || isDigit c || isNameDigit c
     isNameDigit c = generalCategory c == DecimalNumber
+-- ANCHOR_END: nametextor
 -- ANCHOR_END: names
 -- ANCHOR_END: group
 
@@ -1242,6 +1248,7 @@ namedRef close = do
 --    not references but calls of a group (gCall, below).
 -- \g1 \g-1 \g+1 \g{1} \g{-1} \g{+1} \g{name}。\g<1> と \g'1' は
 -- 後方参照ではなく、グループの呼び出し（下の gCall）
+-- ANCHOR: grefcall
 gRef :: Parser Atom
 gRef = do
   afterG <- getOffset
@@ -1249,6 +1256,7 @@ gRef = do
   case next of
     '{' -> anySingle *> braced afterG
     _ | next `elem` ("<'" :: String) -> anySingle *> gCall afterG next
+-- ANCHOR_END: grefcall
       | isDigit next || next `elem` ("+-" :: String) -> do
           (sign, n) <- signedNumber afterG
           end <- getOffset

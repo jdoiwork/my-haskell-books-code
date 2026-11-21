@@ -59,7 +59,9 @@ pieceWidth (Quantified a (Quantifier (Count n more) _)) =
     Width s l = atomWidth a
     longest' = case (l, more) of
       (Just 0, _)      -> Just 0          -- (?=a)* still takes nothing
+      -- ANCHOR: widthzero
       _ | n == 0 && more == Just 0 -> Just 0  -- (?(DEFINE)...) is {0}
+      -- ANCHOR_END: widthzero
       (Just w, Just e) -> Just (w * (n + e))
       _                -> Nothing
 
@@ -74,7 +76,9 @@ atomWidth a = case a of
   Atomic p    -> patternWidth p
   Look _ _ _  -> Width 0 (Just 0)
   Backref _   -> Width 0 Nothing
+  -- ANCHOR: widthcall
   Call _      -> Width 0 Nothing
+  -- ANCHOR_END: widthcall
   NoCase x    -> atomWidth x
   _           -> Width 1 (Just 1)  -- Lit, AnyChar, Anything, Class
 -- ANCHOR_END: width

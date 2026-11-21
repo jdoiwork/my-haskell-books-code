@@ -82,10 +82,12 @@ template re = fmap (Template . merge) . go 0 . T.unpack
         unknown = Left (Invalid at "unknown substring")     -- -49
 
     wrong at = Left (Invalid at "invalid replacement string")  -- -35
+    -- ANCHOR: namechar
     -- the same characters as the names of groups (Unicode letters too)
     -- グループの名前と同じ文字（Unicode の文字も）
     isNameChar c = c == '_' || isLetter c
                      || generalCategory c == DecimalNumber
+    -- ANCHOR_END: namechar
 
 -- 🧹 Join the plain parts next to each other.
 -- となりあう、そのままの文字をつなぐ

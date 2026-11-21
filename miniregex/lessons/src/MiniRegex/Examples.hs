@@ -552,12 +552,14 @@ everywhere re = re { prefilter = noPrefilter }
 byKmp :: Regex -> Regex
 byKmp re = re { prefilter = (prefilter re) { finder = ByKmp } }
 
+-- ANCHOR: eachtext
 -- 🐌 The same regex, looking for each of its texts with Text's search
 --    (from the chapter on learning from other lands: to compare with).
 -- 同じ正規表現で、文字列を1つずつ Text の検索で探す（よその国に学ぶ章
 -- から：くらべる相手）
 eachText :: Regex -> Regex
 eachText re = re { prefilter = (prefilter re) { finder = EachText } }
+-- ANCHOR_END: eachtext
 
 -- 🔍 For GHCi: what is known before the VM runs, as pcre2test's /I
 --    shows it.
@@ -569,6 +571,7 @@ seePrefilter p = do
   putStrLn ("start:  " ++ s)
   putStrLn ("needed: " ++ n)
 
+-- ANCHOR: describe
 -- 📝 The same, as two lines of text.
 -- 同じものを、2行の文字で
 describePrefilter :: Text -> (String, String)
@@ -591,6 +594,7 @@ describePrefilter p = (showStart (start pf), show (needed pf))
     -- the atom, as `take` shows it in a listing
     -- アトムを、listing の take と同じ書き方で
     atomText a = T.unpack (T.drop 5 (showInst (Take a)))
+-- ANCHOR_END: describe
 
 -- 🗺️ For GHCi: the places the VM is handed, from 0.
 -- GHCi で試す用：VM に渡す場所。0 から
@@ -629,6 +633,7 @@ safeCompile = compileWith [Linear]
 -- ANCHOR_END: users
 
 -- ANCHOR: plain
+-- ANCHOR: unpossessed
 -- 🐢 The same regex, compiled without the possessive loops (as in the
 --    chapter before).
 -- 同じ正規表現を、所有的な輪にせずにコンパイルしたもの（前の章と同じ）
@@ -637,6 +642,7 @@ unpossessed re =
   re { program = prog, prefilter = prefilterOf (tree re) prog }
   where
     prog = compilePlain (tree re)
+-- ANCHOR_END: unpossessed
 
 -- 👣 For GHCi: the steps of stepsWith, with the program of the chapter
 --    before (no possessive loops).

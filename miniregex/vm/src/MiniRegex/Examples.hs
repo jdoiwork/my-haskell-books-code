@@ -367,7 +367,9 @@ nameField = "Mira Ruby Lam GHC Perl Mira Ruby Lam!"
 -- 名前の欄の確かめ：言葉。うしろに空白があっても、なくてもよい
 wordsOnly :: Regex
 wordsOnly = surely "^(\\w+\\s?)+$"
+-- ANCHOR_END: window
 
+-- ANCHOR: windowcheck
 -- 🪟 The window takes at most a hundred thousand steps for a check.
 -- 窓口は、1回の確かめに、多くても10万ステップ
 windowLimit :: Int
@@ -377,5 +379,5 @@ windowLimit = 100_000
 -- 欄は言葉だけか。確かめをあきらめたら Left
 checkName :: Text -> Either GaveUp Bool
 checkName t = isJust <$> findWithin windowLimit wordsOnly t
--- ANCHOR_END: window
+-- ANCHOR_END: windowcheck
 -- ANCHOR_END: all

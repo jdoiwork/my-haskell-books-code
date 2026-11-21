@@ -177,11 +177,13 @@ run whole = matcher [] 1 whole
               p : _ -> p == at c
               []    -> False
         -- ANCHOR_END: call
+        -- ANCHOR: cluster
         -- \X: go on from where the cluster ends (and only from there)
         -- \X：クラスターの終わった所から先へ（そこからだけ）
         atom _ Cluster k c caps = do
           c' <- clusterEnd c
           k c' caps
+        -- ANCHOR_END: cluster
         atom _ a k c caps = case step c of
           Just (x, c') | fitsChar a x -> k c' caps
           _                                -> Nothing

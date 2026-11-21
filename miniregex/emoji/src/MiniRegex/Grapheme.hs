@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | \X: one extended grapheme cluster, what a person sees as one
 --   character (UAX #29, Unicode 17.0). 👨‍👩‍👧 is five code points (three
 --   people and two ZWJs), 🇯🇵 is two (two regional indicators), and 👍🏽
@@ -17,6 +18,7 @@ module MiniRegex.Grapheme
   , clusterCount
   , takeClusters
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Data.Text (Text)
@@ -31,11 +33,11 @@ import MiniRegex.Ucd
 -- 🧠 What the rules need to remember about the cluster so far.
 -- 規則が、ここまでのクラスターについて覚えておくこと
 data Seen = Seen
-  { lastBreak :: !GraphemeBreak  -- the value of the last character
-  , pictJoin  :: !Pict           -- for GB11: 😀 Extend* ZWJ
-  , conjunctRun   :: !Conj           -- for GB9c: क ् ...
-  , ris       :: !Int            -- for GB12/13: regional indicators
-                                 --   just before, in a row
+  { lastBreak   :: !GraphemeBreak  -- the value of the last character
+  , pictJoin    :: !Pict           -- for GB11: 😀 Extend* ZWJ
+  , conjunctRun :: !Conj           -- for GB9c: क ् ...
+  , ris         :: !Int            -- for GB12/13: regional indicators
+                                   --   just before, in a row
   }
 
 -- 🖼️ GB11: an Extended_Pictographic, then Extend*, and then a ZWJ.
@@ -90,10 +92,10 @@ remember seen c = Seen n pict conj riCount
       | n == ZWJ, pictJoin seen == Pict              = PictZwj
       | otherwise                                    = NoPict
     conj = case conjunct c of
-      Consonant                            -> Cons
-      Linker | conjunctRun seen /= NoConj      -> ConsLinker
-      ConjunctExtend                       -> conjunctRun seen
-      _                                    -> NoConj
+      Consonant                           -> Cons
+      Linker | conjunctRun seen /= NoConj -> ConsLinker
+      ConjunctExtend                      -> conjunctRun seen
+      _                                   -> NoConj
     riCount
       | n == RegionalIndicator = ris seen + 1
       | otherwise              = 0

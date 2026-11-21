@@ -40,7 +40,7 @@ import Data.Text qualified as T
 import Text.Regex.Base
 import Text.Regex.Base.Impl (polymatch, polymatchM)
 
-import MiniRegex (compileWith, explain, findAll, isMatch)
+import MiniRegex (compileWith, explain, find, findAll, isMatch)
 import MiniRegex.Types
 -- ANCHOR_END: imports
 
@@ -102,9 +102,7 @@ instance RegexMaker Regex CompOption ExecOption String where
 -- T.take と T.drop で切るから。MiniRegex も文字で数えるので、そのまま
 -- 渡せる
 instance RegexLike Regex Text where
-  matchOnce re t = case findAll re t of
-    m : _ -> Just (toArray m)
-    []    -> Nothing
+  matchOnce re t  = toArray <$> find re t
   matchAll re t   = map toArray (findAll re t)
   matchCount re t = length (findAll re t)
   matchTest       = isMatch

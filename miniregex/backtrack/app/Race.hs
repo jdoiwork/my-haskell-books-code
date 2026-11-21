@@ -1,9 +1,11 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | Race the two matchers: a*b on texts of a's (no b, so every place is
 --   tried, and every candidate of a* at each of them).
 -- 2つのマッチャーを競走させる：a だけの文字列に a*b を当てる（b がないので、
 -- どの場所も試し、その場所ごとに a* の候補を全部試す）
 module Main (main) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Control.Exception (evaluate)

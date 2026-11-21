@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | Reading Unicode's data files (the UCD) while the program is built,
 --   with Template Haskell. A file like emoji-data.txt says, line by
 --   line, which characters have which value:
@@ -19,6 +20,7 @@ module MiniRegex.UcdFile
   , ucdFileWith
   , shortBidi
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 -- Template Haskell: running code while the program is built
@@ -139,11 +141,10 @@ ucdFile path = do
   lift (grouped [ (lo e, hi e, value e) | e <- entries, not (missing e) ])
 
 -- 🖌️ For a file where each character has just one value
---    (DerivedBidiClass.txt, GraphemeBreakProperty.txt): paint, with
---    each value renamed first (Left_To_Right -> L).
--- 文字ごとに値が1つだけのファイル（DerivedBidiClass.txt・
--- GraphemeBreakProperty.txt）のため：塗り重ねる。先に値の名前を付け替える
--- （Left_To_Right -> L）
+--    (DerivedBidiClass.txt): paint, with each value renamed first
+--    (Left_To_Right -> L).
+-- 文字ごとに値が1つだけのファイル（DerivedBidiClass.txt）のため：
+-- 塗り重ねる。先に値の名前を付け替える（Left_To_Right -> L）
 ucdFileWith :: (String -> String) -> FilePath -> Q Exp
 ucdFileWith rename path = do
   entries <- entriesOf path

@@ -53,7 +53,8 @@ book (file, enc) = do
       -- the passed tests that the Pike VM can run (in linear time)
       -- 通ったテストのうち、Pike VM で動かせるもの（線形時間で）
       byPike = length [ () | (t, Pass) <- zip tests verdicts
-                           , engineOf t `elem` [Just PikeVM, Just Switching] ]
+                           , engineOf t `elem` [ Just PikeVM
+                                               , Just Switching ] ]
   putStrLn (file ++ ":")
   printf "  parsed:  %4d / %d (%.1f%%), misread %d\n"
     readOk total (percent readOk total) misread

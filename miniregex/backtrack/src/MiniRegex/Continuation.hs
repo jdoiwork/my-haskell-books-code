@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | The same matcher, written with continuations: each part is given
 --   "the rest of the work" and calls it from the place where it ends.
 --   The first place where the rest says yes is the answer; no list of
@@ -11,6 +12,7 @@ module MiniRegex.Continuation
   , matchAt
   , run
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Control.Applicative ((<|>))

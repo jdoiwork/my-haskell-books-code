@@ -175,7 +175,9 @@ atomically :: (Rest -> Rest) -> Rest -> Rest
 atomically part k c caps = do
   (c', caps') <- part done c caps
   k c' caps'
+-- ANCHOR_END: atomically
 
+-- ANCHOR: verdict
 -- ⚖️ What a look says: a positive one goes on when the inside worked
 --    (with its groups), a negative one when it did not (with none).
 -- 見た結果：肯定は中がうまくいったら（中のグループを持って）、否定は
@@ -184,6 +186,9 @@ verdict :: Sense -> Maybe (Cursor, Caps) -> Rest -> Rest
 verdict Positive (Just (_, caps')) k c _    = k c caps'
 verdict Negative Nothing           k c caps = k c caps
 verdict _        _                 _ _ _    = Nothing
+-- ANCHOR_END: verdict
+
+-- ANCHOR: farthest
 -- 📏 How far back a branch of a lookbehind can start: the farthest
 --    first. (The parser lets no branch with no limit in.)
 -- 後読みの枝が、どこまで下がって始まれるか。遠いほうから。
@@ -193,7 +198,7 @@ farthestFirst (Width least most) = [far, far - 1 .. near]
   where
     near = fromIntegral least
     far  = fromIntegral (fromMaybe least most)
--- ANCHOR_END: atomically
+-- ANCHOR_END: farthest
 
 -- ANCHOR: numbered
 -- 🔢 Give each part the number of its first group: the number after

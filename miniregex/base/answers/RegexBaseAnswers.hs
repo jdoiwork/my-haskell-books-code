@@ -18,7 +18,7 @@ import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8Lenient)
 
-import MiniRegex (Match (..), Span (..), byteOffset, findAll)
+import MiniRegex (Match (..), Span (..), byteOffset, find, findAll)
 import MiniRegex.Portable (Backend)
 import Text.Regex.Base.Impl (polymatch, polymatchM)
 import Text.Regex.MiniRegex
@@ -36,10 +36,12 @@ instance RegexLike Regex ByteString where
     where
       t = decodeUtf8Lenient bs
   -- matchOnce and matchOnceText are written with each other: give one
+  -- (with find, which stops at the first match)
   -- matchOnce と matchOnceText は、おたがいを使って書いてあるので、片方を書く
-  matchOnce re bs = case matchAll re bs of
-    m : _ -> Just m
-    []    -> Nothing
+  -- （最初の一致で止まる find で）
+  matchOnce re bs = inBytes t <$> find re t
+    where
+      t = decodeUtf8Lenient bs
 
 instance RegexContext Regex ByteString ByteString where
   match  = polymatch

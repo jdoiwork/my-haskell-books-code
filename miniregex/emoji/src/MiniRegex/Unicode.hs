@@ -35,7 +35,9 @@ import Data.Text (Text)
 import Data.Text qualified as T
 
 import MiniRegex.Syntax (CharType (..), Property (..), Reach (..))
+-- ANCHOR: ucdimport
 import MiniRegex.Ucd (bidiClassNamed, binaryNamed, inTable)
+-- ANCHOR_END: ucdimport
 -- ANCHOR_END: imports
 
 -- ANCHOR: fold
@@ -239,10 +241,12 @@ hasProperty p c = case p of
   where
     letter    = hasProperty (Category "L") c
     number    = hasProperty (Category "N") c
+    -- ANCHOR: innamed
     -- look the table up by its name, and the character in it
     -- 名前で表を引いて、その中に文字を探す
     inNamed find name =
       maybe False ((`inTable` c) . snd) (find (T.unpack name))
+    -- ANCHOR_END: innamed
 
 -- 📇 The general categories, by their two-letter names. A name of one
 --    letter is all the categories that start with it; Lc (or L&) is

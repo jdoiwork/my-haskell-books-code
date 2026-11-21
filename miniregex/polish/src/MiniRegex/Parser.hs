@@ -411,8 +411,10 @@ atom = do
     '.'  -> anySingle *> dot
     '['  -> Class <$> charClass
     '('  -> group
+    -- ANCHOR: atomescape
     '\\' -> anyNewline <|> cluster <|> reference <|> typeEscape
               <|> (Lit <$> escaped OutsideClass)
+    -- ANCHOR_END: atomescape
     _ | c == '|' || c == ')' -> fail "the end of a branch"
       -- ^ and $ are pieces; * + ? and {n,m} were caught by
       -- noQuantifier. Anything else is the character itself

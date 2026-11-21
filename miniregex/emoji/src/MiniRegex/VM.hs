@@ -22,7 +22,9 @@ import Data.IntMap.Strict qualified as IntMap
 
 import MiniRegex.Caps
 import MiniRegex.Cursor hiding (before, rest)
+-- ANCHOR: clusterimport
 import MiniRegex.Grapheme (clusterEnd)
+-- ANCHOR_END: clusterimport
 import MiniRegex.Program
 import MiniRegex.Rules (eatAll, fitsChar, holds)
 import MiniRegex.Types (Span (..))

@@ -71,11 +71,13 @@ module MiniRegex.Examples
   , scanSwitchingAgain
   , scanSwitchingEach
   , guildBook
+  -- ANCHOR: emojiexports
   , board
   , emojiIn
   , emojiOf
   , cutPreview
   , preview
+  -- ANCHOR_END: emojiexports
   ) where
 -- ANCHOR_END: header
 
@@ -94,7 +96,9 @@ import MiniRegex.Cursor (at, cursorAt, headOf)
 import MiniRegex.Engine
   ( Runner, budgetFor, nonEmptyAt, runnerFor, searchCounting
   , searchCountingBy, searchFrom )
+-- ANCHOR: emojiimport
 import MiniRegex.Grapheme (clusterCount, takeClusters)
+-- ANCHOR_END: emojiimport
 import MiniRegex.Parser (parsePattern)
 import MiniRegex.Pretty (drawPattern)
 import MiniRegex.PikeST (scanPikeST)

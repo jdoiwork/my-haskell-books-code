@@ -193,9 +193,8 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
     both xs Nothing         = xs
     both (Just xs) (Just ys) = Just (common xs ys)
     -- each character of ys is used up once: so the answer is never
-    -- longer than ys, and the narrowing comes to an end
-    -- ys の文字は、1つにつき1回だけ使う。だから答えは ys より長くならず、
-    -- 絞り込みは終わる
+    -- longer than ys
+    -- ys の文字は、1つにつき1回だけ使う。だから答えは ys より長くならない
     common [] _ = []
     common (x : xs) ys
       | x `elem` ys = x : common xs (delete x ys)

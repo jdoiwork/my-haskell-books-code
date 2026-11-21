@@ -20,8 +20,10 @@ data Regex
 -- ANCHOR_END: naive
 
 -- ANCHOR: odd
--- 🙀 Trees that no pattern makes. PCRE2 refuses all of them.
--- どのパターンからも作られない木。PCRE2 は、どれも断る
+-- 🙀 Trees that no pattern makes. PCRE2 never reads a pattern into
+--    any of them.
+-- どのパターンからも作られない木。PCRE2 は、どれも、この木のとおりには
+-- 読まない
 noBranch, fiveToTwo, minusOne, repeatedStart, starStar :: Regex
 -- an | with no branch at all / 枝が1本もない選択
 noBranch      = Alt []

@@ -26,7 +26,7 @@ import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (instructions)
 import MiniRegex.Race (findRacing)
 import MiniRegex.Prefilter
-  (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
+  (kmpPlaces, kmpTable, textPlaces)
 import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Cursor (Cursor, at, back, before, byte, cursorAt, rest, taken)
 import Data.Foldable (toList)
@@ -41,8 +41,10 @@ import MiniRegex.Bounded
 import MiniRegex.STVM (scanVMST, scanVMSTFresh)
 import MiniRegex.Unicode (caseVariants, fold)
 import MiniRegex.VM (scanVM)
+-- ANCHOR: dfaimports
 import MiniRegex.LazyDFA (canDfa, dfaFind, dfaFor, reversePattern)
 import Data.Maybe (fromMaybe, isJust)
+-- ANCHOR_END: dfaimports
 import RegexAnswers
 -- ANCHOR_END: imports
 
@@ -72,12 +74,6 @@ lessonPatterns =
 
 lessonChars :: [Char]
 lessonChars = "12a-@.b s+é日本soldGOgOKkK\x212A"
-
--- 📍 Is it a start with a text inside?
--- 内側の文字列の始まりか？
-isInner :: Start -> Bool
-isInner (Inner _ _) = True
-isInner _           = False
 
 -- 🎲 Short texts of a and b only.
 -- a と b だけの短い文字列
@@ -384,6 +380,7 @@ genTreeLinear = goP <$> genTree [Greedy, Lazy] 2
       _                  -> a
 -- ANCHOR_END: genlinear
 
+-- ANCHOR: gentreedfa
 -- 🎲 For the chapter on the lazy DFA: the same, without anchors and \K
 --    (the DFA does not run them), so that more patterns go by the DFA.
 -- lazy DFA の章のため：同じ木から、アンカーと \K を抜いたもの（DFA は
@@ -400,6 +397,7 @@ genTreeDfa = goP <$> genTreeLinear
     goPiece other            = other
     goA (Group c p) = Group c (goP p)
     goA a           = a
+-- ANCHOR_END: gentreedfa
 
 -- 🌳 Random trees whose references and looks are all right.
 -- 参照と「見る」ものが、どれも正しい、でたらめな木
@@ -2194,6 +2192,22 @@ main = hspec $ do
           let re = surely p
               t  = T.pack cs
           in  counterexample (T.unpack p) (findAll re t === findAllVM re t)
+    -- the groups, with the engine the regex chose, within its limit
+    -- グループは、正規表現が選んだエンジンで、上限のうちに求める
+    it "finds the groups with the engine the regex chose" $ do
+      let re = surely "(a+)+c|a+b"
+          t  = T.replicate 12 "a" <> "b"
+          groupsOf r u = fmap matchGroups (find r u)
+      canDfa (program re) `shouldBe` True
+      groupsOf re t `shouldBe` fmap matchGroups (findVM re t)
+      map matchGroups (findAll re t)
+        `shouldBe` map matchGroups (findAllVM re t)
+      -- with the backtracking VM, the steps run out: GaveUp
+      -- バックトラックの VM なら、ステップ数が尽きて GaveUp
+      let slow = re { engine = Backtracking }
+          long = T.replicate 30 "a" <> "b"
+      r <- try (evaluate (length (show (groupsOf slow long))))
+      r `shouldBe` Left (GaveUp defaultLimit)
   -- ANCHOR_END: dfa
   -- ANCHOR: answers
   describe "the training / トレーニング" $ do

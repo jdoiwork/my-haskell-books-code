@@ -54,11 +54,15 @@ import MiniRegex.Width (Width (..), branchWidth, hasBackref)
 -- Text を読むパーサー。止まるときは RegexError で。Reading を覚えておく
 type Parser = ParsecT RegexError Text (State Reading)
 
+-- ANCHOR: reading
 -- 📒 What the parser keeps while it reads: the names of the groups so
 --    far (to find a name used twice), how many groups have opened so
 --    far (for \g{-1}), and what the first reading found out about the
---    whole pattern (Nothing while it is the first reading). From this
---    chapter, the flags in effect here, and whether we are in (?| ... ).
+--    whole pattern (Nothing while it is the first reading). The flags
+--    in effect here, and whether we are in (?| ... ). From this
+--    chapter, whether we are in a look, whether we saw \K in a look,
+--    and the troubles with lookbehinds (PCRE2 tells them only after
+--    reading it all).
 -- パーサーが読みながら覚えておくもの：ここまでのグループの名前（同じ
 -- 名前が2回出てきたら、わかるように）、ここまでに開いたグループの数
 -- （\g{-1} のため）、1回目の読みでわかった、パターン全体のこと
@@ -76,6 +80,7 @@ data Reading = Reading
   , keepInLook :: Bool
   , troubles   :: [RegexError]
   }
+-- ANCHOR_END: reading
 
 -- 🔭 The whole pattern, from the first reading: how many groups, and
 --    the numbers of the names. \k<year>(?<year>...) refers to a group

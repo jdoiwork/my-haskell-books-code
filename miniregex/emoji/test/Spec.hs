@@ -41,6 +41,7 @@ import MiniRegex.Bounded
 import MiniRegex.STVM (scanVMST, scanVMSTFresh)
 import MiniRegex.Unicode (caseVariants, fold)
 import MiniRegex.VM (scanVM)
+-- ANCHOR: emojiimports
 import MiniRegex.Cursor (headOf)
 import MiniRegex.Grapheme
 import MiniRegex.Ucd
@@ -50,6 +51,7 @@ import Data.Array.Unboxed qualified as U
 import Data.Map.Strict qualified as Map
 import Data.Text.IO qualified as TIO
 import Numeric (readHex)
+-- ANCHOR_END: emojiimports
 import MiniRegex.LazyDFA (canDfa, dfaFind, dfaFor, reversePattern)
 import Data.Maybe (fromMaybe, isJust)
 import RegexAnswers
@@ -501,6 +503,7 @@ genChar = elements "ab日 .*+?|()[]{}^$\\-,]0#:"
 -- ANCHOR_END: trees
 
 -- ANCHOR: emojihelpers
+-- ANCHOR: ranges
 -- 🏷️ The ranges the real PCRE2 gave, by name ("emoji 23 23" is #).
 -- 本物の PCRE2 の答えの範囲を、名前ごとに（"emoji 23 23" は #）
 realRanges :: String -> Map.Map String [(Int, Int)]
@@ -527,7 +530,9 @@ oursOf name = concatMap noSurrogates (pairs (U.elems table))
     noSurrogates (a, b)
       | b < 0xD800 || a > 0xDFFF = [(a, b)]
       | otherwise = [ r | r@(x, y) <- [(a, 0xD7FF), (0xE000, b)], x <= y ]
+-- ANCHOR_END: ranges
 
+-- ANCHOR: breaktests
 -- 🧪 GraphemeBreakTest.txt: each line's text, and its clusters
 --    ("÷ 0061 × 0308 ÷" is one cluster, a and the umlaut).
 -- GraphemeBreakTest.txt：行ごとの文字列と、そのクラスター
@@ -564,6 +569,7 @@ endsBy :: (Seen -> Char -> Bool) -> Text -> String
 endsBy rules t = unwords
   [ show (maybe 0 at (clusterEndBy rules c))
   | i <- [0 .. T.length t - 1], Just c <- [cursorAt t i] ]
+-- ANCHOR_END: breaktests
 
 -- 👨‍👩‍👧 A family: a man, a woman and a girl, with ZWJs between (GHC
 --    does not take a ZWJ itself in a string: write it \x200D).
@@ -2428,7 +2434,22 @@ main = hspec $ do
           let re = surely p
               t  = T.pack cs
           in  counterexample (T.unpack p) (findAll re t === findAllVM re t)
-  -- ANCHOR: answers
+    -- the groups, with the engine the regex chose, within its limit
+    -- グループは、正規表現が選んだエンジンで、上限のうちに求める
+    it "finds the groups with the engine the regex chose" $ do
+      let re = surely "(a+)+c|a+b"
+          t  = T.replicate 12 "a" <> "b"
+          groupsOf r u = fmap matchGroups (find r u)
+      canDfa (program re) `shouldBe` True
+      groupsOf re t `shouldBe` fmap matchGroups (findVM re t)
+      map matchGroups (findAll re t)
+        `shouldBe` map matchGroups (findAllVM re t)
+      -- with the backtracking VM and a small limit, the steps run out
+      -- バックトラックの VM で、上限を小さくすると、ステップ数が尽きる
+      let slow = re { engine = Backtracking, stepLimit = 1000 }
+          long = T.replicate 30 "a" <> "b"
+      r <- try (evaluate (length (show (groupsOf slow long))))
+      r `shouldBe` Left (GaveUp 1000)
   -- ANCHOR: emojitests
   describe "emoji / 絵文字" $ do
     -- every \p{...} that is yes or no, and every \p{bc:...}: the same
@@ -2483,7 +2504,7 @@ main = hspec $ do
       [ t | (t, o) <- zip ins outs, endsBy pcre2Breaks t /= o ] `shouldBe` []
       length [ t | (t, o) <- zip ins outs, endsBy breaksBefore t /= o ]
         `shouldBe` 400
-    -- and with them, 41 of Unicode's tests come out otherwise
+    -- and with them, 43 of Unicode's tests come out otherwise
     -- それを写すと、Unicode のテストのうち 43 問がちがう答えになる
     it "with PCRE2's three differences, misses 43 of Unicode's tests" $ do
       cases <- breakTests <$> readFile "ucd/GraphemeBreakTest.txt"
@@ -2542,6 +2563,7 @@ main = hspec $ do
         parsePattern [] (render tr) === Right tr
   -- ANCHOR_END: emojitests
 
+  -- ANCHOR: answers
   describe "the training / トレーニング" $ do
     -- step 2: a flag and a thumb stay whole
     -- ステップ2：国旗と親指は、こわれない

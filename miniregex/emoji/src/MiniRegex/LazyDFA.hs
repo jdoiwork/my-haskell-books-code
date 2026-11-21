@@ -3,13 +3,13 @@
 --   are made only when a character first needs them, and kept in a
 --   cache. A forward DFA finds where a match ends; a reverse DFA, from
 --   there, where it starts; the groups, if the pattern has any, come
---   from walking a program with one way only, or from the backtracking
---   VM, on that span only.
+--   from walking a program with one way only, or from the engine the
+--   regex chose, on that span only, with its limit on the steps.
 -- Rust の regex や RE2 と同じ、lazy DFA（その場で作る DFA）。機械の状態
 -- は、ある文字で初めて要るときに作り、キャッシュに覚える。前向きの DFA で
 -- 一致の終わりを、そこから逆向きの DFA で始まりを見つける。グループが
 -- あれば、道が1つのプログラムなら1度たどって、そうでなければ、その範囲
--- だけでバックトラックの VM に求めてもらう
+-- だけで、正規表現が選んだエンジンに、ステップ数の上限つきで求めてもらう
 module MiniRegex.LazyDFA
   ( Dfa (..)
   , dfaFor
@@ -48,15 +48,14 @@ import Data.Text.Unsafe
 -- MiniRegex
 import MiniRegex.Caps (Caps, groupList, noCaps, remember)
 import MiniRegex.Compile (compileTree)
-import MiniRegex.Cursor (Cursor, byte, cursorAt, jumpTo, step)
+import MiniRegex.Cursor (Cursor, byte, cursorAt, headOf, jumpTo, step)
+import MiniRegex.Engine (searchAt)
 import MiniRegex.Groups (groupCount, groupNames)
 import MiniRegex.Program
 import MiniRegex.Rules (eatAll, fitsChar)
-import MiniRegex.STVM (scanVMST)
 import MiniRegex.Syntax (Atom (..), Branch (..), Pattern (..), Piece (..))
 import MiniRegex.Types (Regex (..))
 import MiniRegex.Types qualified as Ty
-import MiniRegex.VM (Answer (..))
 -- ANCHOR_END: imports
 
 -- ANCHOR: types
@@ -416,20 +415,26 @@ matchesFrom re (Dfa fw bw) t b0 k0 n0 = do
       { Ty.matchText   = takeWord8 (e - s) (dropWord8 s t)
       , Ty.matchStart  = ks
       , Ty.matchEnd    = ke
-      , Ty.matchGroups = groupList groups (capsFrom (cursor s ks))
+      , Ty.matchGroups = groupsOf s ks e
       , Ty.matchNames  = names
       }
-    capsFrom from
-      | groups == 0 = noCaps
+    groupsOf s ks e
+      | groups == 0 = []
       -- one way only: walk it once
       -- 道が1つだけ：1度たどる
-      | straight    = walkStraight (program re) from
-      -- or else the VM, from the start only: the same match, with groups
-      -- そうでなければ VM を、始まりからだけ：同じ一致を、グループつきで
-      | otherwise =
-          case scanVMST (program re) maxBound (const True) [from] of
-            (Just _, Found _ caps, _) -> caps
-            _ -> error "the VM did not find the DFA's match"
+      | straight    =
+          groupList groups (walkStraight (program re) (cursor s ks))
+      -- or else the engine the regex chose, with its limit on the steps
+      -- (GaveUp is thrown when they run out), from the start, on the
+      -- text up to the end only: the same match, with groups. The table
+      -- and the budget then cost only as much as the match.
+      -- そうでなければ、正規表現が選んだエンジンで、ステップ数の上限つき
+      -- （尽きたら GaveUp を投げる）。始まりから、文字列は終わりまでだけ：
+      -- 同じ一致を、グループつきで。表も予算も、一致の長さの分で済む
+      | otherwise = case searchAt re (jumpTo ks s (upTo e)) of
+          Just (m, _) -> Ty.matchGroups m
+          Nothing     -> error "the VM did not find the DFA's match"
+    upTo e = headOf (takeWord8 e t)
 -- ANCHOR_END: find
 
 -- ANCHOR: straight

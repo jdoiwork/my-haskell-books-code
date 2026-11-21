@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | Look before the VM runs. From the program, find out where a match
 --   can start (only at the first place, with this text, or with one of
 --   these characters) and which character it surely needs. Then only
@@ -29,6 +30,7 @@ module MiniRegex.Prefilter
   , kmpPlaces
   , kmpTable
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Data.Array (Array, bounds, listArray, (!))
@@ -78,6 +80,7 @@ data Lead
   deriving (Show, Eq)
 -- ANCHOR_END: lead
 
+-- ANCHOR: finder
 -- 🔎 How to look for a Prefix: Text's own search, or KMP. (EachText,
 --    from the chapter on learning from other lands, is only to compare
 --    with: for Literals, each text with Text's search, put in order.)
@@ -86,6 +89,7 @@ data Lead
 -- 検索で探して、並べ直す）
 data Finder = ByText | ByKmp | EachText
   deriving (Show, Eq)
+-- ANCHOR_END: finder
 
 -- 🧹 What we know before running the VM.
 -- VM を動かす前に、わかっていること
@@ -302,10 +306,13 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
     both xs Nothing         = xs
     both (Just xs) (Just ys) = Just (common xs ys)
     -- each character of ys is used up once: so the answer is never
-    -- longer than ys; and both are sorted, so the answer is too, and
-    -- the narrowing comes to an end
+    -- longer than ys. Both are sorted, so the answer is too: the same
+    -- characters always make the same list. Each round, a list only
+    -- loses characters or stays, so the narrowing comes to an end
     -- ys の文字は、1つにつき1回だけ使う。だから答えは ys より長くならない。
-    -- 両方が並べ替えてあるので、答えも並ぶ。絞り込みは終わる
+    -- 両方が並べ替えてあるので、答えも並ぶ。同じ文字の集まりは、いつも
+    -- 同じリストになる。回るたびに、リストは文字が減るか同じかなので、
+    -- 絞り込みは終わる
     common [] _ = []
     common (x : xs) ys
       | x `elem` ys = x : common xs (delete x ys)

@@ -21,9 +21,11 @@ import Text.Regex.Pcre2 qualified as Pcre2
 import Text.Regex.TDFA qualified as TDFA
 import Text.Regex.TDFA.Text ()
 
+-- ANCHOR: miniimports
 import MiniRegex
 import MiniRegex.Examples (fieldOf, guildBook, surely)
 import MiniRegex.LazyDFA (dfaCountEnds, dfaSpans)
+-- ANCHOR_END: miniimports
 -- ANCHOR_END: imports
 
 -- ANCHOR: jobs
@@ -45,6 +47,7 @@ jobs =
 -- ANCHOR_END: jobs
 
 -- ANCHOR: main
+-- ANCHOR: mainfn
 -- ⏱️ Twenty thousand lines; each job with the three libraries, as
 --    multiples of MiniRegex. Then the name field, with eight names, and
 --    (from the chapter on the lazy DFA) the jobs with the VM only and
@@ -56,6 +59,7 @@ main = do
   let book = guildBook 20000
   _ <- evaluate (T.length book)
   defaultMain (map (job book) jobs ++ [field, vmAndDfa book])
+-- ANCHOR_END: mainfn
 
 job :: Text -> (String, Text, Text) -> Benchmark
 job book (name, p, posix) = bgroup name
@@ -81,6 +85,7 @@ byLines count book = (sum (map fst cs), sum (map snd cs))
 --    two numbers as the other languages print.
 -- 件数と、2番のグループがあればその数の合計。ほかの言語が出すのと
 -- 同じ2つの数
+-- ANCHOR: countby
 countMini :: Regex -> Text -> (Int, Int)
 countMini = countBy findAll
 
@@ -92,6 +97,7 @@ countBy finder re t = (length ms, sum (map second ms))
   where
     ms = finder re t
     second m = maybe 0 number (group 2 m)
+-- ANCHOR_END: countby
 
 -- (partly applied, pcre2 compiles the pattern once)
 -- （部分適用すると、pcre2 はパターンを1度だけコンパイルする）

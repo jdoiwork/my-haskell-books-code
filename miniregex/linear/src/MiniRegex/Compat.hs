@@ -160,11 +160,13 @@ judge t = case (flagsOf (testModifiers t), decodeSubject (testSubject t)) of
   (Left m, _)             -> NotYet ("modifier " <> m)
   (_, Nothing)            -> NotYet "subject modifier"
   (Right mods, Just subj) ->
+    -- ANCHOR: judgelinear
     case compileWith (modOptions mods) (patternOf mods t) of
       Left (Unsupported _ what) -> NotYet what
       Left (Invalid _ _)        -> Fail
       -- (not reached: the meter never asks for Linear / 来ない)
       Left (NotLinear _)        -> Fail
+      -- ANCHOR_END: judgelinear
       Right re
         | oneByteCase mods (testPattern t) subj ->
             NotYet "caseless without UTF"
@@ -183,7 +185,7 @@ judge t = case (flagsOf (testModifiers t), decodeSubject (testSubject t)) of
             | showFound mods subj found == testExpected t -> Pass
             | otherwise                                   -> Fail
         -- each search may take meterLimit steps at most
-        -- どの探しものも、多くても meterLimit 手まで
+        -- どの探しものも、多くても meterLimit ステップまで
         matches re
           | modGlobal mods = findAllWithin meterLimit re
           | otherwise      = fmap maybeToList . findWithin meterLimit re

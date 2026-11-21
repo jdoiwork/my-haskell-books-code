@@ -152,7 +152,7 @@ errorOffset (NotLinear _)     = 0
 --    of group g at place p, it called g at p again, and would go round
 --    for ever (PCRE2's error -52, "nested recursion at the same subject
 --    position"). From the chapter on recursion.
--- VM があきらめた。GaveUp n：n 手を使っても、終わらなかった（PCRE2 の
+-- VM があきらめた。GaveUp n：n ステップを使っても、終わらなかった（PCRE2 の
 -- error -47「match limit exceeded」）。Looping g p：場所 p で g を
 -- 呼んだ中で、また p で g を呼んだ。いつまでも回り続ける（PCRE2 の
 -- error -52「nested recursion at the same subject position」）。

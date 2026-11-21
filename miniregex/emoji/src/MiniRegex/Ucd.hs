@@ -1,3 +1,4 @@
+-- ANCHOR: header
 {-# LANGUAGE TemplateHaskell #-}
 -- ANCHOR: all
 -- | The tables of Unicode 17.0, read from the files in ucd/ while the
@@ -21,6 +22,7 @@ module MiniRegex.Ucd
   , conjunct
   , isExtendedPictographic
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 -- The tables, as arrays of range ends

@@ -21,8 +21,10 @@ import Text.Regex.Pcre2 qualified as Pcre2
 import Text.Regex.TDFA qualified as TDFA
 import Text.Regex.TDFA.Text ()
 
+-- ANCHOR: miniimports
 import MiniRegex
 import MiniRegex.Examples (eachText, fieldOf, guildBook, surely)
+-- ANCHOR_END: miniimports
 -- ANCHOR_END: imports
 
 -- ANCHOR: jobs
@@ -44,6 +46,7 @@ jobs =
 -- ANCHOR_END: jobs
 
 -- ANCHOR: main
+-- ANCHOR: mainfn
 -- ⏱️ Twenty thousand lines; each job with the three libraries, as
 --    multiples of MiniRegex. Then the name field, with eight names, and
 --    (from the chapter on learning from other lands) the texts looked
@@ -56,6 +59,7 @@ main = do
   let book = guildBook 20000
   _ <- evaluate (T.length book)
   defaultMain (map (job book) jobs ++ [field, oneByOne (guildBook 2000)])
+-- ANCHOR_END: mainfn
 
 job :: Text -> (String, Text, Text) -> Benchmark
 job book (name, p, posix) = bgroup name

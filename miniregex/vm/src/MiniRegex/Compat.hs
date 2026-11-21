@@ -175,7 +175,7 @@ judge t = case (flagsOf (testModifiers t), decodeSubject (testSubject t)) of
             | showFound mods subj found == testExpected t -> Pass
             | otherwise                                   -> Fail
         -- each search may take meterLimit steps at most
-        -- どの探しものも、多くても meterLimit 手まで
+        -- どの探しものも、多くても meterLimit ステップまで
         matches re
           | modGlobal mods = findAllWithin meterLimit re
           | otherwise      = fmap maybeToList . findWithin meterLimit re

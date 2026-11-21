@@ -170,11 +170,13 @@ runVM prog limit accept start =
         withFence k = case cut stack of
           Just (w, below) -> k w below
           Nothing         -> failed n stack  -- (not reached / 来ない)
+        -- ANCHOR: looping
         -- the latest call of the same group: at the same place?
         -- 同じグループのいちばん新しい呼び出しは、同じ場所だったか
         looping g fs = case [f | f <- fs, calledAs f == g] of
           f : _ -> calledAt f == here
           []    -> False
+        -- ANCHOR_END: looping
       -- ANCHOR_END: where
 
     -- ANCHOR: failed

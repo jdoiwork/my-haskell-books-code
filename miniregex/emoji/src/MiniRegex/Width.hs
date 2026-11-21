@@ -76,10 +76,12 @@ atomWidth a = case a of
   Look _ _ _  -> Width 0 (Just 0)
   Backref _   -> Width 0 Nothing
   Call _      -> Width 0 Nothing
+  -- ANCHOR: widthcluster
   -- \X takes at least one character, and has no limit (PCRE2: error
   -- 125 in a lookbehind)
   -- \X は少なくとも1文字で、上限がない（PCRE2 でも、後読みの中はエラー 125）
   Cluster     -> Width 1 Nothing
+  -- ANCHOR_END: widthcluster
   NoCase x    -> atomWidth x
   _           -> Width 1 (Just 1)  -- Lit, AnyChar, Anything, Class
 -- ANCHOR_END: width

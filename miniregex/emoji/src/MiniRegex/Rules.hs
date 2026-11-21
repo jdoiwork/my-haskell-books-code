@@ -39,7 +39,9 @@ fitsChar (Backref _)          _ = False
 fitsChar (Atomic _)           _ = False
 fitsChar (Look _ _ _)         _ = False
 fitsChar (Call _)             _ = False
+-- ANCHOR: fitscluster
 fitsChar Cluster              _ = False
+-- ANCHOR_END: fitscluster
 -- ANCHOR_END: char
 
 -- ANCHOR: eatall

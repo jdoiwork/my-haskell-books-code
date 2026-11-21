@@ -82,11 +82,11 @@ runnerFor re = case engine re of
 -- ANCHOR_END: choose
 
 -- ANCHOR: search
--- 🏃 A VM that tries the places in turn: the pure one (scanVM) or the
---    one with ST (scanVMST). Both have this type, so the engine can run
---    either.
--- 場所を1つずつ試す VM：純粋なもの（scanVM）か、ST のもの
--- （scanVMST）。どちらもこの型なので、エンジンはどちらでも動かせる
+-- 🏃 A VM that tries the places in turn: the pure one (scanVM), the
+--    one with ST (scanVMST), or the Pike VM (scanPike). All have this
+--    type, so the engine can run any of them.
+-- 場所を1つずつ試す VM：純粋なもの（scanVM）、ST のもの（scanVMST）、
+-- Pike VM（scanPike）。どれもこの型なので、エンジンはどれでも動かせる
 type Runner
   =  Program -> Int -> (Cursor -> Bool) -> [Cursor]
   -> (Maybe Cursor, Answer, Int)

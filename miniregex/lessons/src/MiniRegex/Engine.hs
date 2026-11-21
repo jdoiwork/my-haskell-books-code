@@ -59,7 +59,9 @@ import MiniRegex.Parser (parsePattern)
 import MiniRegex.Pike (blocker)
 import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (Program, instructions)
+-- ANCHOR: prefilterimport
 import MiniRegex.Prefilter (Prefilter (..), Start (..), places)
+-- ANCHOR_END: prefilterimport
 import MiniRegex.STVM (scanVMST, scanVMSTUntil)
 import MiniRegex.Syntax (Pattern)
 import MiniRegex.Types
@@ -175,11 +177,17 @@ budgetFor prog c =
 -- ANCHOR_END: switching
 
 -- ANCHOR: search
--- 🏃 A VM that tries the places in turn: the pure one (scanVM) or the
---    one with ST (scanVMST). Both have this type, so the engine can run
---    either.
--- 場所を1つずつ試す VM：純粋なもの（scanVM）か、ST のもの
--- （scanVMST）。どちらもこの型なので、エンジンはどちらでも動かせる
+-- 🏃 A VM that tries the places in turn: the pure one (scanVM), the
+--    one with ST (scanVMST), the Pike VM (scanPike, scanPikeST), the
+--    switch between them (scanSwitching), or the one that remembers
+--    where it has been (scanBounded, scanShortFirst). All have this
+--    type, so the engine can run any of them; so does literalRunner,
+--    which answers a pattern of only strings without a VM.
+-- 場所を1つずつ試す VM：純粋なもの（scanVM）、ST のもの（scanVMST）、
+-- Pike VM（scanPike・scanPikeST）、その乗り換え（scanSwitching）、
+-- 通った所を覚えておくもの（scanBounded・scanShortFirst）。どれもこの型
+-- なので、エンジンはどれでも動かせる。文字列だけのパターンを VM なしで
+-- 答える literalRunner も、同じ型
 type Runner
   =  Program -> Int -> (Cursor -> Bool) -> [Cursor]
   -> (Maybe Cursor, Answer, Int)
@@ -243,7 +251,8 @@ searchFrom re subject from =
 --    steps run out, or (searchAt) GaveUp thrown.
 -- しおりから、正規表現が選んだエンジンで。ステップ数が尽きたら Left、
 -- searchAt なら GaveUp を投げる
-searchWithinAt :: Int -> Regex -> Cursor -> Either GaveUp (Maybe (Match, Cursor))
+searchWithinAt
+  :: Int -> Regex -> Cursor -> Either GaveUp (Maybe (Match, Cursor))
 searchWithinAt limit re = fst . searchAtBy (runnerFor re) limit re
 
 searchAt :: Regex -> Cursor -> Maybe (Match, Cursor)

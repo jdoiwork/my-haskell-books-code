@@ -28,6 +28,7 @@ books =
   [ ("testdata/testoutput1", Latin1)
   , ("testdata/testoutput4", Utf8) ]
 
+-- ANCHOR: allflag
 -- 📟 cabal run compat-meter [-- FILE] [-- --all]
 --    (--all: every thing that is wanted, not only the first five)
 -- （--all：足りないものを、多い順の5つだけでなく、全部）
@@ -42,6 +43,7 @@ main = do
   verdicts <- concat <$> mapM book chosen
   putStrLn "most wanted:"
   mapM_ showWanted (shown (mostWanted verdicts))
+-- ANCHOR_END: allflag
 
 -- 📖 One book: read it, run every test (a million steps at most for
 --    each search), and print its lines.
@@ -57,7 +59,9 @@ book (file, enc) = do
       -- the passed tests that the Pike VM can run (in linear time)
       -- 通ったテストのうち、Pike VM で動かせるもの（線形時間で）
       byPike = length [ () | (t, Pass) <- zip tests verdicts
-                           , engineOf t `elem` [Just PikeVM, Just Switching, Just Bounded] ]
+                           , engineOf t `elem` [ Just PikeVM
+                                               , Just Switching
+                                               , Just Bounded ] ]
   putStrLn (file ++ ":")
   printf "  parsed:  %4d / %d (%.1f%%), misread %d\n"
     readOk total (percent readOk total) misread

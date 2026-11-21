@@ -47,6 +47,7 @@ pattern (Pattern branches) =
 branch :: Branch -> Writer Text
 branch (Branch ps) = T.concat <$> traverse piece ps
 
+-- ANCHOR: renderlook
 piece :: Piece -> Writer Text
 piece (Anchor a)       = anchor a
 piece KeepOut          = pure "\\K"
@@ -86,6 +87,7 @@ atom a = case a of
     look Ahead  Negative = "(?!"
     look Behind Positive = "(?<="
     look Behind Negative = "(?<!"
+    -- ANCHOR_END: renderlook
     -- a letter with another case needs the flag i set as it was
     -- ほかの形のある文字は、フラグ i が元のとおりであることが要る
     caseOf want c

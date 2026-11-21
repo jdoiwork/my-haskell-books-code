@@ -1,4 +1,5 @@
 -- ANCHOR: all
+-- ANCHOR: header
 -- | A cursor: where the matcher is in the text. It keeps the place
 --   (counted in characters), the character just before it, and the
 --   rest of the text, so that each step forward costs the same, however
@@ -13,6 +14,7 @@ module MiniRegex.Cursor
   , onwards
   , taken
   ) where
+-- ANCHOR_END: header
 
 -- ANCHOR: imports
 import Data.Text (Text)

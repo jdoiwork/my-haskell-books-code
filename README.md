@@ -231,7 +231,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 
 | 章 | コード |
 |---|---|
-| 設計：使う側から決めて、パターンを型で描く | [`miniregex/design/`](miniregex/design/)、[`langs/regex-design/`](langs/regex-design/)、[`langs/cargo/`](langs/cargo/) |
+| 設計：使う側から決めて、パターンを型で描く | [`miniregex/design/`](miniregex/design/)、[`miniregex/dfa/`](miniregex/dfa/)、[`langs/regex-design/`](langs/regex-design/)、[`langs/cargo/`](langs/cargo/) |
 | パターンを読む：パーサー | [`miniregex/parser/`](miniregex/parser/)、[`miniregex/design/`](miniregex/design/)、[`langs/regex-parser/`](langs/regex-parser/)、[`langs/cargo/`](langs/cargo/) |
 | 最初のマッチャー：バックトラックで全部試す | [`miniregex/backtrack/`](miniregex/backtrack/)、[`miniregex/parser/`](miniregex/parser/)、[`langs/regex-backtrack/`](langs/regex-backtrack/)、[`langs/cargo/`](langs/cargo/) |
 | グループとキャプチャ：使いやすい顔を仕上げる | [`miniregex/captures/`](miniregex/captures/)、[`miniregex/backtrack/`](miniregex/backtrack/)、[`langs/regex-captures/`](langs/regex-captures/)、[`langs/cargo/`](langs/cargo/) |
@@ -241,13 +241,13 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 書き換えて速くする：ST で VM を書き直す | [`miniregex/vm-st/`](miniregex/vm-st/)、[`miniregex/vm/`](miniregex/vm/)、[`langs/cargo/`](langs/cargo/) |
 | 自分を呼ぶ：再帰とサブルーチン | [`miniregex/recursion/`](miniregex/recursion/)、[`miniregex/vm-st/`](miniregex/vm-st/)、[`langs/regex-recursion/`](langs/regex-recursion/) |
 | 止まらないパターンと戦う：線形時間の Pike VM | [`miniregex/linear/`](miniregex/linear/)、[`miniregex/recursion/`](miniregex/recursion/)、[`langs/regex-linear/`](langs/regex-linear/)、[`langs/cargo/`](langs/cargo/) |
-| 先に探す：探す場所を絞る | [`miniregex/prefilter/`](miniregex/prefilter/)、[`miniregex/linear/`](miniregex/linear/)、[`langs/regex-prefilter/`](langs/regex-prefilter/) |
+| 先に探す：探す場所を絞る | [`miniregex/prefilter/`](miniregex/prefilter/)、[`miniregex/linear/`](miniregex/linear/)、[`miniregex/dfa/`](miniregex/dfa/)、[`langs/regex-prefilter/`](langs/regex-prefilter/) |
 | しおりと命令を磨く：バイトの場所と1文字のくり返し | [`miniregex/cursor/`](miniregex/cursor/)、[`miniregex/prefilter/`](miniregex/prefilter/)、[`langs/regex-cursor/`](langs/regex-cursor/) |
 | エンジンを乗り換える：バックトラックと Pike VM | [`miniregex/engines/`](miniregex/engines/)、[`miniregex/cursor/`](miniregex/cursor/)、[`langs/cargo/`](langs/cargo/) |
 | 測って比べる：pcre2・Rust・Python とベンチマーク | [`miniregex/benchmarks/`](miniregex/benchmarks/)、[`miniregex/engines/`](miniregex/engines/)、[`langs/regex-benchmarks/`](langs/regex-benchmarks/)、[`langs/cargo/`](langs/cargo/) |
 | よその国に学ぶ：Rust の regex は、なぜ速い？ | [`miniregex/lessons/`](miniregex/lessons/)、[`miniregex/benchmarks/`](miniregex/benchmarks/)、[`langs/cargo/`](langs/cargo/)、[`langs/regex-lessons/`](langs/regex-lessons/) |
 | その場で作る DFA：lazy DFA で範囲を先に | [`miniregex/dfa/`](miniregex/dfa/)、[`miniregex/lessons/`](miniregex/lessons/)、[`langs/cargo/`](langs/cargo/) |
-| Haskell の仲間に入る：regex-base と `=~` | [`miniregex/base/`](miniregex/base/)、[`miniregex/dfa/`](miniregex/dfa/)、[`langs/regex-base/`](langs/regex-base/) |
+| Haskell の仲間に入る：regex-base と `=~` | [`miniregex/dfa/`](miniregex/dfa/)、[`miniregex/base/`](miniregex/base/)、[`langs/regex-base/`](langs/regex-base/) |
 | 絵文字を探す：`\p{Emoji}` と `\X` | [`miniregex/emoji/`](miniregex/emoji/)、[`miniregex/base/`](miniregex/base/)、[`langs/regex-emoji/`](langs/regex-emoji/)、[`langs/cargo/`](langs/cargo/) |
 | 道具に仕上げる：grep・準クォート・型付きのグループ | [`miniregex/polish/`](miniregex/polish/)、[`miniregex/emoji/`](miniregex/emoji/)、[`langs/regex-polish/`](langs/regex-polish/)、[`langs/cargo/`](langs/cargo/) |
 | 第13部のふりかえり | [`miniregex/polish/`](miniregex/polish/)、[`review-miniregex/`](review-miniregex/) |
