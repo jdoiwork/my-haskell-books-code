@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 総合演習：PCRE2 互換の正規表現エンジンを作る
--- （15. Haskell の仲間に入る：regex-base と =~）
+-- （16. Haskell の仲間に入る：regex-base と =~）
 
 common shared
   default-language: GHC2024

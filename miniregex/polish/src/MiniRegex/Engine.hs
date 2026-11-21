@@ -59,7 +59,7 @@ import MiniRegex.Parser (parsePattern)
 import MiniRegex.Pike (blocker)
 import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (Program, instructions)
-import MiniRegex.Prefilter (places)
+import MiniRegex.Prefilter (Prefilter (..), Start (..), places)
 import MiniRegex.STVM (scanVMST, scanVMSTUntil)
 import MiniRegex.Syntax (Pattern)
 import MiniRegex.Types
@@ -95,12 +95,33 @@ chooseEngine opts prog = case blocker prog of
 -- 🏃 The VM of the engine the regex chose.
 -- 正規表現が選んだエンジンの VM
 runnerFor :: Regex -> Runner
-runnerFor re = case engine re of
-  Switching    -> scanSwitching
-  PikeVM       -> scanPikeST
-  Backtracking -> scanVMST
-  Bounded      -> scanShortFirst
+runnerFor re
+  -- from the chapter on learning from other lands: only texts, no VM
+  -- よその国に学ぶ章から：文字列だけなら、VM を使わない
+  | Literals ws <- start (prefilter re) = literalRunner ws
+  | otherwise = case engine re of
+      Switching    -> scanSwitching
+      PikeVM       -> scanPikeST
+      Backtracking -> scanVMST
+      Bounded      -> scanShortFirst
 -- ANCHOR_END: choose
+
+-- ANCHOR: literalrunner
+-- 📜 No VM at all, as Rust's regex does for a pattern that is only
+--    texts: at each place, the first of the texts (in the order of the
+--    branches) that is there. Each place costs one step.
+-- VM を使わない。文字列だけのパターンに、Rust の regex がするのと同じ。
+-- 場所ごとに、そこにある最初の文字列（枝の順）。1つの場所で1手
+literalRunner :: [Text] -> Runner
+literalRunner ws _ limit accept = go limit
+  where
+    go left []         = (Nothing, NotFound, left)
+    go left _ | left <= 0 = (Nothing, OutOfSteps, 0)
+    go left (c : cs)   =
+      case [e | w <- ws, Just e <- [stepOver w c], accept e] of
+        e : _ -> (Just c, Found e noCaps, left - 1)
+        []    -> go (left - 1) cs
+-- ANCHOR_END: literalrunner
 
 -- ANCHOR: shortfirst
 -- 📏 Like Rust's regex: the backtracking VM that remembers where it

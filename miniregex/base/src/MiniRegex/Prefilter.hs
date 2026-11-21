@@ -2,31 +2,42 @@
 -- | Look before the VM runs. From the program, find out where a match
 --   can start (only at the first place, with this text, or with one of
 --   these characters) and which character it surely needs. Then only
---   the places that pass are handed to the VM.
+--   the places that pass are handed to the VM. From the chapter on
+--   learning from other lands: a text inside the pattern to step back
+--   from, and patterns that are only texts.
 -- VM を動かす前に見る。プログラムから、一致がどこで始まりうるか
 -- （最初の場所だけ、この文字列で、この文字のどれかで）と、必ず要る
--- 文字を調べる。VM には、それに合う場所だけを渡す
+-- 文字を調べる。VM には、それに合う場所だけを渡す。よその国に学ぶ章
+-- から：パターンの内側の文字列から戻る形と、文字列だけのパターン
 module MiniRegex.Prefilter
   ( Prefilter (..)
   , Start (..)
+  , Lead (..)
   , Finder (..)
   , prefilterOf
   , noPrefilter
   , startOf
+  , innerOf
+  , literalsOf
   , literalPrefix
   , firstAtoms
   , neededChars
   , places
   , textPlaces
+  , charPlaces
+  , stepBackFrom
   , kmpPlaces
   , kmpTable
   ) where
 
 -- ANCHOR: imports
 import Data.Array (Array, bounds, listArray, (!))
+import Data.Array.Unboxed (UArray, accumArray)
+import Data.Array.Unboxed qualified as U
+import Data.List.NonEmpty qualified as NE
 import Data.IntSet qualified as IntSet
 import Data.List (delete, insert, nub)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Unsafe (lengthWord8)
@@ -34,7 +45,9 @@ import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Cursor
 import MiniRegex.Program
 import MiniRegex.Rules (fitsChar)
-import MiniRegex.Syntax (Anchor (..), Atom (..))
+import MiniRegex.Syntax
+  (Anchor (..), Atom (..), Branch (..), Pattern (..), Piece (..), once)
+import MiniRegex.Unicode (caseVariants)
 -- ANCHOR_END: imports
 
 -- ANCHOR: types
@@ -46,11 +59,32 @@ data Start
   | Prefix Text       -- with this text / この文字列で始まる
   | FirstChar [Atom]  -- with a character that fits one of these
                       -- 最初の文字が、このどれかに合う
+  -- ANCHOR: newstarts
+  | Inner [Lead] Text -- these leads, and then this text
+                      -- この前置きのあとに、この文字列
+  | Literals [Text]   -- only one of these texts, nothing else
+                      -- この文字列のどれか。ほかには何もない
+  -- ANCHOR_END: newstarts
   deriving (Show, Eq)
 
--- 🔎 How to look for a Prefix: Text's own search, or KMP.
--- Prefix の探し方：Text の検索か、KMP か
-data Finder = ByText | ByKmp
+-- ANCHOR: lead
+-- 👣 What comes before the inner text: one character that fits the
+--    atom, or a run of one or more of them.
+-- 内側の文字列の前に来るもの：アトムに合う1文字か、合う文字が1つ以上
+-- 続くもの
+data Lead
+  = One Atom
+  | Run Atom
+  deriving (Show, Eq)
+-- ANCHOR_END: lead
+
+-- 🔎 How to look for a Prefix: Text's own search, or KMP. (EachText,
+--    from the chapter on learning from other lands, is only to compare
+--    with: for Literals, each text with Text's search, put in order.)
+-- Prefix の探し方：Text の検索か、KMP か。（EachText は、よその国に
+-- 学ぶ章から、くらべるためだけのもの：Literals を、文字列ごとに Text の
+-- 検索で探して、並べ直す）
+data Finder = ByText | ByKmp | EachText
   deriving (Show, Eq)
 
 -- 🧹 What we know before running the VM.
@@ -62,14 +96,19 @@ data Prefilter = Prefilter
   }
   deriving (Show, Eq)
 
--- 🧹 Look at the program, once, when the regex is compiled.
--- 正規表現をコンパイルするときに、1度だけプログラムを見る
-prefilterOf :: Program -> Prefilter
-prefilterOf prog = Prefilter
-  { start  = startOf prog
+-- ANCHOR: prefilterof
+-- 🧹 Look at the tree and the program, once, when the regex is
+--    compiled (the tree from the chapter on learning from other lands:
+--    to see a pattern that is only texts).
+-- 正規表現をコンパイルするときに、1度だけ木とプログラムを見る（木は
+-- よその国に学ぶ章から：文字列だけのパターンを見つけるため）
+prefilterOf :: Pattern -> Program -> Prefilter
+prefilterOf tr prog = Prefilter
+  { start  = maybe (startOf prog) Literals (literalsOf tr)
   , needed = nub (neededChars prog)
   , finder = ByText
   }
+-- ANCHOR_END: prefilterof
 
 -- 🐢 Knowing nothing: try every place, as the chapters before did.
 -- 何も知らない：前の章までと同じく、全部の場所を試す
@@ -78,14 +117,17 @@ noPrefilter = Prefilter Anywhere [] ByText
 -- ANCHOR_END: types
 
 -- ANCHOR: start
--- 🚦 Where a match can start: a prefix of two characters or more, or
---    else the first characters.
+-- 🚦 Where a match can start: a prefix of two characters or more; or
+--    else a text inside, after leads we can step back over; or else
+--    the first characters.
 -- 一致がどこで始まりうるか。2文字以上の文字列で始まるなら、それ。
--- そうでなければ、最初の文字
+-- そうでなければ、戻れる前置きのあとの、内側の文字列。それもなければ、
+-- 最初の文字
 startOf :: Program -> Start
 startOf prog
-  | T.length prefix >= 2 = Prefix prefix
-  | otherwise            = firstAtoms prog
+  | T.length prefix >= 2         = Prefix prefix
+  | Just (ls, t) <- innerOf prog = Inner ls t
+  | otherwise                    = firstAtoms prog
   where
     prefix = literalPrefix prog
 
@@ -104,6 +146,65 @@ literalPrefix prog = T.pack (go 0)
       SetMark _    -> go (pc + 1)
       _            -> []
 -- ANCHOR_END: start
+
+-- ANCHOR: inner
+-- 🔙 Like Rust's "reverse inner", in a small way: from 0, characters
+--    that each take one character (One), maybe with a run at the very
+--    left (Run: a take and a takeall of the same atom), and then plain
+--    characters. The run must not take the first of those characters:
+--    then stepping back from the text stops where the run starts, and
+--    no character is stepped back over twice.
+-- Rust の「reverse inner」を小さく：0 番から、1文字ずつ食べるもの
+-- （One）が並び、いちばん左には続く文字（Run：同じアトムの take と
+-- takeall）があってもよく、そのあとに、ただの文字が来る。Run は、その
+-- 文字列の最初の文字を食べてはいけない。そうすれば、文字列から戻るのは
+-- Run の始まりで止まり、同じ文字を2度戻ることはない
+innerOf :: Program -> Maybe ([Lead], Text)
+innerOf prog = leads (skip 0) []
+  where
+    -- instructions that take no character and do not move
+    -- 文字を食べず、動きもしない命令は、とばす
+    skip pc = case prog ! pc of
+      Open _    -> skip (pc + 1)
+      Close _   -> skip (pc + 1)
+      SetMark _ -> skip (pc + 1)
+      _         -> pc
+    leads pc acc = case prog ! pc of
+      Take (Lit _) | not (null acc) -> text pc (reverse acc) []
+      Take a
+        | null acc, TakeAll b <- prog ! skip (pc + 1), a == b
+                    -> leads (skip (skip (pc + 1) + 1)) [Run a]
+        | otherwise -> leads (skip (pc + 1)) (One a : acc)
+      _             -> Nothing
+    text pc ls cs = case prog ! pc of
+      Take (Lit c) -> text (skip (pc + 1)) ls (c : cs)
+      _            -> case (ls, reverse cs) of
+        (Run a : _, c : _) | fitsChar a c -> Nothing
+        (_, cs')                          -> Just (ls, T.pack cs')
+-- ANCHOR_END: inner
+
+-- ANCHOR: literals
+-- 📜 Like Rust's first way: is the whole pattern only a choice of plain
+--    texts? (With (?i), each character becomes its case variants:
+--    (?i)perl is 16 texts. At most 64 texts.) In the order of the
+--    branches: at one place, the first text there is the match, as the
+--    VM would find it.
+-- Rust の最初の手：パターン全体が、ただの文字列のどれか、というだけか？
+-- （(?i) なら、1文字ずつ大文字・小文字に開く。(?i)perl は 16 個。多くて
+-- 64 個。）枝の順に並べる。1つの場所では、そこにある最初の文字列が一致に
+-- なる。VM が見つけるのと同じ
+literalsOf :: Pattern -> Maybe [Text]
+literalsOf (Pattern bs) = do
+  ws <- concat <$> traverse texts (NE.toList bs)
+  if length ws <= 64 && not (any T.null ws) then Just ws else Nothing
+  where
+    texts (Branch ps) = map T.pack . sequence <$> traverse piece ps
+    piece (Quantified a q) | q == once = case a of
+      Lit c          -> Just [c]
+      NoCase (Lit c) -> Just (caseVariants c)
+      _              -> Nothing
+    piece _ = Nothing
+-- ANCHOR_END: literals
 
 -- ANCHOR: first
 -- 🌱 Follow every way from 0 through the instructions that take no
@@ -226,12 +327,87 @@ places pf c
       Prefix t      -> case finder pf of
         ByText -> textPlaces t c
         ByKmp  -> kmpPlaces t c
-      FirstChar as' -> filter (startsWithOneOf as') (onwards c)
+        _      -> textPlaces t c
+      FirstChar as'
+        | Just cs <- plainChars as' -> charPlaces cs c
+        | otherwise -> filter (startsWithOneOf as') (onwards c)
+      Inner ls t    -> stepBackFrom c ls (textPlaces t c)
+      Literals ws
+        | finder pf == EachText -> eachTextPlaces (nub ws) c
+        | otherwise -> charPlaces (nub (mapMaybe firstChar ws)) c
   where
     startsWithOneOf as' d = case step d of
       Just (x, _) -> any (`fitsChar` x) as'
       Nothing     -> False
+    firstChar = fmap fst . T.uncons
+    -- the characters, if every atom is a plain one (or one with (?i))
+    -- どのアトムも、ただの文字（か (?i) の文字）なら、その文字
+    plainChars = fmap concat . traverse plain
+    plain (Lit x)          = Just [x]
+    plain (NoCase (Lit x)) = Just (caseVariants x)
+    plain _                = Nothing
 -- ANCHOR_END: places
+
+-- ANCHOR: stepback
+-- 🔙 From each place where the inner text starts, step back over the
+--    leads, from the right; never to before `from`, where the search
+--    began. A place that the leads do not fit is dropped.
+-- 内側の文字列が始まる場所ごとに、前置きを右から戻る。探し始めた from
+-- より前には戻らない。前置きが合わない場所は、捨てる
+stepBackFrom :: Cursor -> [Lead] -> [Cursor] -> [Cursor]
+stepBackFrom from ls = mapMaybe (backOver (reverse ls))
+  where
+    backOver [] d             = Just d
+    backOver (One a : more) d = backOne a d >>= backOver more
+    backOver (Run a : more) d = backOne a d >>= backOver more . backAll a
+    -- one character that fits a, if we are still after `from`
+    -- a に合う1文字。まだ from より後ろなら
+    backOne a d = case before d of
+      Just x | at d > at from, fitsChar a x -> back 1 d
+      _                                    -> Nothing
+    backAll a d = maybe d (backAll a) (backOne a d)
+-- ANCHOR_END: stepback
+
+-- ANCHOR: charplaces
+-- 🔦 The places where one of these characters is: one run of Text's
+--    `break` to the next, with a table for ASCII (not a walk with `step`
+--    and `elem`, a character at a time).
+-- この文字のどれかがある場所。Text の break を1回走らせて次へ。ASCII は
+-- 表で引く（step と elem で1文字ずつ歩くのではなく）
+charPlaces :: [Char] -> Cursor -> [Cursor]
+charPlaces cs = go
+  where
+    go d = case T.break isOne (rest d) of
+      (_, r) | T.null r -> []
+      (skipped, _) ->
+        let here = jumpTo (T.length skipped) (lengthWord8 skipped) d
+        in here : maybe [] (go . snd) (step here)
+    table = accumArray (\_ b -> b) False (0, 127)
+              [(fromEnum x, True) | x <- cs, x < '\x80'] :: UArray Int Bool
+    others = filter (>= '\x80') cs
+    isOne x
+      | x < '\x80' = table U.! fromEnum x
+      | otherwise  = x `elem` others
+-- ANCHOR_END: charplaces
+
+-- ANCHOR: eachtext
+-- 🐌 Each text with Text's search, and the places put in order. To
+--    know which place comes first, every search must find its next
+--    place: a text that is not there is looked for to the very end,
+--    again at each match.
+-- 文字列ごとに Text の検索で探し、場所を並べ直す。どれが先かを知るには、
+-- どの検索も次の場所を見つけないといけない。ない文字列は、一致のたびに、
+-- 最後まで探し直す
+eachTextPlaces :: [Text] -> Cursor -> [Cursor]
+eachTextPlaces ws c = foldr merge [] [textPlaces w c | w <- ws]
+  where
+    merge xs [] = xs
+    merge [] ys = ys
+    merge (x : xs) (y : ys)
+      | at x < at y = x : merge xs (y : ys)
+      | at x > at y = y : merge (x : xs) ys
+      | otherwise   = x : merge xs ys
+-- ANCHOR_END: eachtext
 
 -- ANCHOR: textplaces
 -- 🔦 The places where t starts, with Text's own search (breakOn). The

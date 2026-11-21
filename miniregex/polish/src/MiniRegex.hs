@@ -85,7 +85,7 @@ compileWith opts src = do
   tree <- compilePattern opts src
   let prog = compileTree tree
   eng <- chooseEngine opts prog
-  pure (Regex src opts tree prog eng (prefilterOf prog) defaultLimit)
+  pure (Regex src opts tree prog eng (prefilterOf tree prog) defaultLimit)
 -- ANCHOR_END: compile
 
 -- ANCHOR: explain

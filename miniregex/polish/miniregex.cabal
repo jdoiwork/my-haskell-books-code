@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 総合演習：PCRE2 互換の正規表現エンジンを作る
--- （16. 道具に仕上げる：grep・準クォート・型付きのグループ）
+-- （17. 道具に仕上げる：grep・準クォート・型付きのグループ）
 
 common shared
   default-language: GHC2024

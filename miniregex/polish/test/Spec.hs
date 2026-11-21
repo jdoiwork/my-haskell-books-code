@@ -21,13 +21,14 @@ import MiniRegex.Compat
 import MiniRegex.Compile (listing)
 import MiniRegex.Engine
   ( nonEmptyAt, nonEmptyWithinBy, scanSwitching, searchCounting
-  , searchCountingBy, searchWithin
+  , searchCountingBy, searchFrom, searchWithin
   , searchFromCont, searchFromList, budgetFor )
 import MiniRegex.Pike (scanPike)
 import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (instructions)
 import MiniRegex.Race (findRacing)
-import MiniRegex.Prefilter (kmpPlaces, kmpTable, textPlaces)
+import MiniRegex.Prefilter
+  (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
 import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Cursor (Cursor, at, back, before, byte, cursorAt, rest, taken)
 import Data.Foldable (toList)
@@ -108,6 +109,26 @@ genText = T.pack <$> listOf (elements "ab日")
 -- a・b と改行の短い文字列（^・$・. のため）
 genLines :: Gen Text
 genLines = T.pack <$> listOf (frequency [(3, elements "ab"), (1, pure '\n')])
+
+-- 🎲 For the chapter on learning from other lands: patterns with a
+--    text inside, or of texts only, and characters to make texts of.
+-- よその国に学ぶ章のため：内側に文字列のあるパターンと、文字列だけの
+-- パターン。文字列を作る文字
+lessonPatterns :: [Text]
+lessonPatterns =
+  [ "\\d{4}-\\d{2}", "\\d{2}-\\d", "[\\w.+-]+@[\\w-]+\\.[\\w.-]+"
+  , "(\\w+) sold (\\d+)", "\\w+ s", "a\\w-", "(\\w+)@", "\\w+@\\w"
+  , "(?i)\\w+@", "[a@]+@b", "Go|Gold", "Gold|Go", "ab|b|abc", "a|aa"
+  , "(?i)ok", "(?i)sold|so", "日|日本" ]
+
+lessonChars :: [Char]
+lessonChars = "12a-@.b s+é日本soldGOgOKkK\x212A"
+
+-- 📍 Is it a start with a text inside?
+-- 内側の文字列の始まりか？
+isInner :: Start -> Bool
+isInner (Inner _ _) = True
+isInner _           = False
 
 -- 🎲 Short texts of a and b only.
 -- a と b だけの短い文字列
@@ -978,10 +999,14 @@ main = hspec $ do
           , ("one of \\d", "\"-\"")
           , ("only the first place", "\"\"")
           , ("one of c g", "\"r\"")
-          , ("one of \\w", "\".@cmo\"")
+          -- (from the chapter on learning from other lands: a text
+          -- inside to step back from, and a pattern of texts only)
+          -- （よその国に学ぶ章から：戻る内側の文字列と、文字列だけの
+          -- パターン）
+          , ("\\w+, then \"@\"", "\".@cmo\"")
           , ("one of a b", "\"b\"")
           , ("anywhere", "\"\"")
-          , ("one of (?i)d", "\"\"")
+          , ("only 64 texts: \"DRAGON\" ... \"dragon\"", "\"\"")
           , ("one of \\d", "\"\"") ]
     -- the VM is handed fewer places
     -- VM に渡す場所が減る
@@ -2313,6 +2338,59 @@ main = hspec $ do
       fmap color (parse ["--color=never", "x"]) `shouldBe` Just ColorNever
       fmap color (parse ["--color=pink", "x"]) `shouldBe` Nothing
 
+  describe "learning from other lands / よその国に学ぶ" $ do
+    -- the new starts: a text inside to step back from, and texts only
+    -- 新しい始まり：戻る内側の文字列と、文字列だけのパターン
+    it "sees a text inside, and a pattern of texts only" $
+      map describePrefilter
+        [ "\\d{4}-\\d{2}-\\d{2}", "[\\w.+-]+@[\\w-]+\\.[\\w.-]+"
+        , "(\\w+) sold (\\d+) (\\w+)", "Mira|Ruby|Lam|Go", "(?i)perl"
+        , "[a@]+@b" ]
+        `shouldBe`
+          [ ("\\d \\d \\d \\d, then \"-\"", "\"-\"")
+          , ("[\\w.+\\-]+, then \"@\"", "\".@\"")
+          , ("\\w+, then \" sold \"", "\" dlos\"")
+          , ("only \"Mira\" \"Ruby\" \"Lam\" \"Go\"", "\"\"")
+          , ("only 16 texts: \"PERL\" ... \"perl\"", "\"\"")
+          , ("one of [a@]", "\"@b\"") ]
+    -- stepping back stops where the search began
+    -- 戻るのは、探し始めた場所まで
+    it "steps back no further than where the search began" $ do
+      triedPlaces "\\w+@" "ab@ cd@" `shouldBe` [0, 4]
+      fmap matchText (searchFrom (surely "\\w+@") "ab@" 1)
+        `shouldBe` Just "b@"
+      fmap matchText (searchFrom (surely "\\d{4}-") "12345-" 0)
+        `shouldBe` Just "2345-"
+    -- texts only: the first branch there wins, as with the VM
+    -- 文字列だけ：VM と同じく、そこにある最初の枝が勝つ
+    it "takes the first branch that is there" $ do
+      map matchText (findAll (surely "Go|Gold") "Gold Go")
+        `shouldBe` ["Go", "Go"]
+      map matchText (findAll (surely "Gold|Go") "Gold Go")
+        `shouldBe` ["Gold", "Go"]
+      map matchText (findAll (surely "(?i)k") "kK\x212A")
+        `shouldBe` ["k", "K", "\x212A"]
+    -- the same answers as trying every place, with the VM
+    -- 全部の場所を VM で試したときと同じ答え
+    prop "finds what trying every place with the VM finds" $
+      forAll (elements lessonPatterns) $ \p ->
+        forAll (listOf (elements lessonChars)) $ \cs ->
+        forAll (chooseInt (0, length cs)) $ \from ->
+          let re = surely p
+              t  = T.pack cs
+          in  counterexample (T.unpack p) $
+                (findAll re t === findAll (everywhere re) t)
+                .&&. (searchWithin 20000 re t from
+                        === searchWithin 20000 (everywhere re) t from)
+    -- the guild's book: the same counts as before
+    -- ギルドの帳面：前と同じ件数
+    it "counts the same in the guild's book" $ do
+      let book  = guildBook 2000
+          count = length . flip findAll book
+      [ count re == count (everywhere re)
+        | p <- ["Mira|Ruby|Lam|GHC|Perl|Rust|Python|Go", "(?i)perl"]
+        , let re = surely p ]
+        `shouldBe` [True, True]
   -- ANCHOR: answers
   describe "the training / トレーニング" $ do
     -- step 1: -x is the whole line

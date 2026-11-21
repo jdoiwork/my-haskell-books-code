@@ -59,6 +59,7 @@ module MiniRegex.Examples
   , safeCompile
   , everywhere
   , byKmp
+  , eachText
   , seePrefilter
   , describePrefilter
   , triedPlaces
@@ -94,7 +95,7 @@ import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.STVM (scanVMST, scanVMSTEach, slotsOf)
 import MiniRegex.Pike (blocker)
 import MiniRegex.Prefilter
-  ( Finder (..), Prefilter (..), Start (..), noPrefilter, places
+  ( Finder (..), Lead (..), Prefilter (..), Start (..), noPrefilter, places
   , prefilterOf )
 import MiniRegex.Program (Inst (Take), instructions)
 import MiniRegex.Types (Regex (..), program, tree)
@@ -551,6 +552,13 @@ everywhere re = re { prefilter = noPrefilter }
 byKmp :: Regex -> Regex
 byKmp re = re { prefilter = (prefilter re) { finder = ByKmp } }
 
+-- 🐌 The same regex, looking for each of its texts with Text's search
+--    (from the chapter on learning from other lands: to compare with).
+-- 同じ正規表現で、文字列を1つずつ Text の検索で探す（よその国に学ぶ章
+-- から：くらべる相手）
+eachText :: Regex -> Regex
+eachText re = re { prefilter = (prefilter re) { finder = EachText } }
+
 -- 🔍 For GHCi: what is known before the VM runs, as pcre2test's /I
 --    shows it.
 -- GHCi で試す用：VM を動かす前にわかっていること。pcre2test の /I の
@@ -572,6 +580,14 @@ describePrefilter p = (showStart (start pf), show (needed pf))
       OnlyFirst    -> "only the first place"
       Prefix t     -> "prefix " ++ show t
       FirstChar as -> "one of " ++ unwords (map atomText as)
+      Inner ls t   -> unwords (map leadText ls) ++ ", then " ++ show t
+      Literals ws -> case ws of
+        w : _ : _ : _ : _ : _ ->
+          "only " ++ show (length ws) ++ " texts: "
+            ++ show w ++ " ... " ++ show (last ws)
+        _ -> "only " ++ unwords (map show ws)
+    leadText (One a) = atomText a
+    leadText (Run a) = atomText a ++ "+"
     -- the atom, as `take` shows it in a listing
     -- アトムを、listing の take と同じ書き方で
     atomText a = T.unpack (T.drop 5 (showInst (Take a)))
@@ -617,7 +633,8 @@ safeCompile = compileWith [Linear]
 --    chapter before).
 -- 同じ正規表現を、所有的な輪にせずにコンパイルしたもの（前の章と同じ）
 unpossessed :: Regex -> Regex
-unpossessed re = re { program = prog, prefilter = prefilterOf prog }
+unpossessed re =
+  re { program = prog, prefilter = prefilterOf (tree re) prog }
   where
     prog = compilePlain (tree re)
 
