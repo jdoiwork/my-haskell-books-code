@@ -1,0 +1,5 @@
+-- 「第13部のふりかえり」の総合トレーニングのコード（別のプロジェクト）。
+-- 最後の段階の MiniRegex（miniregex/polish）を使う
+packages:
+  .
+  ../miniregex/polish

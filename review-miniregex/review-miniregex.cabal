@@ -1,0 +1,34 @@
+cabal-version: 3.0
+name:          review-miniregex
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第13部のふりかえり」の総合トレーニング：記録室の帳簿を直す
+
+common shared
+  default-language: GHC2024
+  default-extensions: OverloadedStrings
+  ghc-options:      -Wall
+  build-depends:
+    , base             >=4.20 && <5
+    , miniregex
+    , containers       ^>=0.8
+    , text             ^>=2.1
+
+library
+  import:           shared
+  exposed-modules:  Review.Ledger
+  hs-source-dirs:   src
+
+test-suite review-miniregex-test
+  import:           shared
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , review-miniregex
+    , hspec            ^>=2.11
+    , QuickCheck       ^>=2.19
+    -- The real PCRE2, to compare with (the C library comes inside)
+    -- くらべる相手の本物の PCRE2（C のライブラリが中に入っている）
+    , pcre2            ^>=2.3

@@ -247,6 +247,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 測って比べる：pcre2・Rust・Python とベンチマーク | [`miniregex/benchmarks/`](miniregex/benchmarks/)、[`miniregex/engines/`](miniregex/engines/)、[`langs/regex-benchmarks/`](langs/regex-benchmarks/)、[`langs/cargo/`](langs/cargo/) |
 | Haskell の仲間に入る：regex-base と `=~` | [`miniregex/base/`](miniregex/base/)、[`miniregex/benchmarks/`](miniregex/benchmarks/)、[`langs/regex-base/`](langs/regex-base/) |
 | 道具に仕上げる：grep・準クォート・型付きのグループ | [`miniregex/polish/`](miniregex/polish/)、[`miniregex/base/`](miniregex/base/)、[`langs/regex-polish/`](langs/regex-polish/)、[`langs/cargo/`](langs/cargo/) |
+| 第13部のふりかえり | [`miniregex/polish/`](miniregex/polish/)、[`review-miniregex/`](review-miniregex/) |
 
 ### 第14部 Lam を育てる：言語の機能
 
