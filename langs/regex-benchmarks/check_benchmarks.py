@@ -1,12 +1,14 @@
 # The chapter on measuring (MiniRegex): run the same jobs in Python, C
 # (PCRE2, without and with the JIT), Rust (the regex crate) and Perl
-# 5.44 (in Docker), and check that they all count the same. check-langs
-# runs it small (2000 lines, 3 rounds); with --full, 20000 lines and 11
-# rounds, and a table of the times (the one in the chapter).
+# 5.44 (Homebrew's, on the Mac like the others), and check that they
+# all count the same. check-langs runs it small (2000 lines, 3 rounds);
+# with --full, 20000 lines and 11 rounds, and a table of the times (the
+# one in the chapter).
 # 測って比べる章（MiniRegex）：同じ仕事を、Python・C（PCRE2 の JIT
-# なし・あり）・Rust（regex クレート）・Perl 5.44（Docker）で動かし、
-# どれも同じ数を数えるかを確かめる。check-langs は小さく動かす（2000 行、
-# 3回）。--full なら 2万行・11回で、時間の表も出す（章に載せた表）
+# なし・あり）・Rust（regex クレート）・Perl 5.44（Homebrew。ほかと同じく
+# Mac の上で）で動かし、どれも同じ数を数えるかを確かめる。check-langs は
+# 小さく動かす（2000 行、3回）。--full なら 2万行・11回で、時間の表も出す
+# （章に載せた表）
 import os
 import subprocess
 import sys
@@ -56,15 +58,20 @@ out = subprocess.run(
      lines, rounds], capture_output=True, text=True, check=True).stdout
 results.update({("rust", j): v for (_, j), v in table(out).items()})
 
-# Perl 5.44 (Docker)
-if subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
-    print("skip: no Docker for Perl")
+# Perl 5.44 (Homebrew's; macOS's own perl is older). Measured on the
+# Mac itself, like the other languages: an earlier version ran it in
+# Docker, on Linux.
+# Perl 5.44（Homebrew。macOS に入っている perl は古い）。ほかの言語と同じく
+# Mac の上で測る（前の版は、Docker の中の Linux で動かしていた）
+perl = "/opt/homebrew/bin/perl"
+version = subprocess.run([perl, "-e", "print $^V"], capture_output=True,
+                         text=True).stdout if os.path.exists(perl) else ""
+if not version.startswith("v5.44"):
+    print("skip: no Perl 5.44 (brew install perl)")
 else:
-    out = subprocess.run(
-        ["docker", "run", "--rm", "--network", "none", "-i",
-         "perl:5.44-slim", "perl", "-", lines, rounds],
-        stdin=open(os.path.join(run_dir, "bench.pl")),
-        capture_output=True, text=True, check=True).stdout
+    out = subprocess.run([perl, os.path.join(run_dir, "bench.pl"), lines,
+                          rounds], capture_output=True, text=True,
+                         check=True).stdout
     results.update({("perl", j): v for (_, j), v in table(out).items()})
 
 # The counts: the same in every language (and the same as MiniRegex's

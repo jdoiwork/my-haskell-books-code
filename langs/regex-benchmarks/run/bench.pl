@@ -1,6 +1,6 @@
 # The chapter on measuring (MiniRegex): the same jobs as MiniRegex's
 # benchmark, with Perl's own regexes. Run as: perl bench.pl LINES ROUNDS
-# (check_benchmarks.py runs it with Perl 5.44 in Docker).
+# (check_benchmarks.py runs it with Homebrew's Perl 5.44).
 # Prints one line for each job: the job, the count, the checksum, and
 # the middle time of the rounds in microseconds.
 # 測って比べる章（MiniRegex）：MiniRegex のベンチマークと同じ仕事を、
