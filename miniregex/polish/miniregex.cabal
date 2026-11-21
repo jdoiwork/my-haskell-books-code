@@ -4,7 +4,7 @@ version:       0.1.0.0
 build-type:    Simple
 
 -- 総合演習：PCRE2 互換の正規表現エンジンを作る
--- （17. 道具に仕上げる：grep・準クォート・型付きのグループ）
+-- （18. 道具に仕上げる：grep・準クォート・型付きのグループ）
 
 common shared
   default-language: GHC2024
@@ -39,6 +39,7 @@ library
                     MiniRegex.Bounded
                     MiniRegex.Race
                     MiniRegex.Prefilter
+                    MiniRegex.LazyDFA
                     MiniRegex.Engine
                     MiniRegex.Template
                     MiniRegex.Examples

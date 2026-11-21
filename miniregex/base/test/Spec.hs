@@ -41,6 +41,8 @@ import MiniRegex.Bounded
 import MiniRegex.STVM (scanVMST, scanVMSTFresh)
 import MiniRegex.Unicode (caseVariants, fold)
 import MiniRegex.VM (scanVM)
+import MiniRegex.LazyDFA (canDfa, dfaFind, dfaFor, reversePattern)
+import Data.Maybe (fromMaybe, isJust)
 import RegexAnswers
 import RegexBaseAnswers
 import Data.Array (elems, (!))
@@ -390,6 +392,23 @@ genTreeLinear = goP <$> genTree [Greedy, Lazy] 2
       NoCase (Backref _) -> Lit 'a'
       _                  -> a
 -- ANCHOR_END: genlinear
+
+-- 🎲 For the chapter on the lazy DFA: the same, without anchors and \K
+--    (the DFA does not run them), so that more patterns go by the DFA.
+-- lazy DFA の章のため：同じ木から、アンカーと \K を抜いたもの（DFA は
+-- 動かさないので）。DFA を通るパターンが増える
+genTreeDfa :: Gen Pattern
+genTreeDfa = goP <$> genTreeLinear
+  where
+    goP (Pattern bs) = Pattern (fmap goB bs)
+    goB (Branch ps)  = Branch [goPiece p | p <- ps, keep p]
+    keep (Anchor _) = False
+    keep KeepOut    = False
+    keep _          = True
+    goPiece (Quantified a q) = Quantified (goA a) q
+    goPiece other            = other
+    goA (Group c p) = Group c (goP p)
+    goA a           = a
 
 -- 🌳 Random trees whose references and looks are all right.
 -- 参照と「見る」ものが、どれも正しい、でたらめな木
@@ -2251,6 +2270,46 @@ main = hspec $ do
         | p <- ["Mira|Ruby|Lam|GHC|Perl|Rust|Python|Go", "(?i)perl"]
         , let re = surely p ]
         `shouldBe` [True, True]
+  describe "the lazy DFA / lazy DFA" $ do
+    -- what it takes, and what it leaves to the VM
+    -- 引き受けるものと、VM にまかせるもの
+    it "runs only what it can run" $
+      map (canDfa . program . surely)
+        [ "\\d{4}-\\d{2}-\\d{2}", "[\\w.+-]+@[\\w-]+\\.[\\w.-]+"
+        , "Mira|Ruby|Lam|GHC|Perl|Rust|Python|Go", "(?i)perl"
+        , "(\\w+) sold (\\d+) (\\w+)", "\\bgold\\b", "(a)\\1"
+        , "a(?=b)", "a++a", "x*" ]
+        `shouldBe` replicate 5 True ++ replicate 5 False
+    -- the pattern backwards
+    -- 逆向きのパターン
+    it "turns a pattern backwards" $
+      render (reversePattern (tree (surely "ab(c|de)+f")))
+        `shouldBe` "f(c|ed)+ba"
+    -- the same matches as the VM, on random patterns and texts
+    -- でたらめなパターンと文字列で、VM と同じ一致
+    prop "finds all that the VM finds" $
+      forAll genTreeDfa $ \tr ->
+        forAll genLines $ \t ->
+          case compile (render tr) of
+            Left _   -> property True
+            Right re -> counterexample (T.unpack (render tr)) $
+              classify (isJust (dfaFor re)) "by the DFA" $
+                findAll re t === findAllVM re t
+    prop "finds the first that the VM finds" $
+      forAll genTreeDfa $ \tr ->
+        forAll genLines $ \t ->
+        forAll (chooseInt (0, T.length t)) $ \from ->
+          case compile (render tr) of
+            Left _   -> property True
+            Right re -> counterexample (T.unpack (render tr)) $
+              fromMaybe (searchFrom re t from) (dfaFind re t from)
+                === searchFrom (everywhere re) t from
+    prop "finds the guild's jobs as the VM does" $
+      forAll (elements lessonPatterns) $ \p ->
+        forAll (listOf (elements lessonChars)) $ \cs ->
+          let re = surely p
+              t  = T.pack cs
+          in  counterexample (T.unpack p) (findAll re t === findAllVM re t)
   -- ANCHOR: answers
   describe "the training / トレーニング" $ do
     -- step 2: in a ByteString, the places are bytes

@@ -1,0 +1,9 @@
+/^(\w+\s?)+$/utf,ucp
+    Mira Ruby Lam GHC Perl!
+    Mira Ruby Lam GHC Perl Mira!
+    Mira Ruby Lam GHC Perl Mira Ruby!
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!
+
+/^(\w+\s?)+$/utf,ucp,jit
+    Mira Ruby Lam GHC Perl Mira Ruby!
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!

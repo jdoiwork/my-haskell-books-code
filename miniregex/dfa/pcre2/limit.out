@@ -1,0 +1,15 @@
+/^(\w+\s?)+$/utf,ucp
+    Mira Ruby Lam GHC Perl!
+No match
+    Mira Ruby Lam GHC Perl Mira!
+No match
+    Mira Ruby Lam GHC Perl Mira Ruby!
+No match
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!
+Failed: error -47: match limit exceeded
+
+/^(\w+\s?)+$/utf,ucp,jit
+    Mira Ruby Lam GHC Perl Mira Ruby!
+No match
+    Mira Ruby Lam GHC Perl Mira Ruby Lam!
+Failed: error -47: match limit exceeded

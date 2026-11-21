@@ -24,6 +24,8 @@ module MiniRegex
   , isMatch
   , find
   , findAll
+  , findVM
+  , findAllVM
     -- * With a limit on the steps / 手数の上限つきで
   , GaveUp (..)
   , defaultLimit
@@ -56,7 +58,7 @@ module MiniRegex
 import Data.Char (ord)
 import Data.Functor.Identity (Identity (..))
 import Data.Map.Strict qualified as Map
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Foreign (lengthWord8)
@@ -65,6 +67,7 @@ import MiniRegex.Cursor (Cursor, headOf, step)
 import MiniRegex.Engine
   ( chooseEngine, compilePattern, compileTree, nonEmptyAtCursor
   , nonEmptyWithinAt, searchAt, searchFrom, searchWithin, searchWithinAt )
+import MiniRegex.LazyDFA (dfaFind, dfaFindAll)
 import MiniRegex.Prefilter (prefilterOf)
 import MiniRegex.Template (Template, expand, template)
 import MiniRegex.Types
@@ -127,11 +130,18 @@ isMatch :: Regex -> Text -> Bool
 isMatch re t = isJust (find re t)
 
 -- 🔍 The first match. If the steps run out (ten million, unless
---    told otherwise), GaveUp is thrown.
+--    told otherwise), GaveUp is thrown. From the chapter on the lazy
+--    DFA: the DFA first, if it can run the regex (it never gives up).
 -- 最初に見つかったもの。手数が尽きたら（ことわりがなければ 1000万手）、
--- GaveUp を投げる
+-- GaveUp を投げる。lazy DFA の章から：DFA で動かせるなら、まず DFA で
+-- （DFA は、あきらめない）
 find :: Regex -> Text -> Maybe Match
-find re t = searchFrom re t 0
+find re t = fromMaybe (findVM re t) (dfaFind re t 0)
+
+-- 🔍 The same, with the VM only (the chapters before).
+-- 同じものを、VM だけで（前の章まで）
+findVM :: Regex -> Text -> Maybe Match
+findVM re t = searchFrom re t 0
 
 -- ANCHOR_END: find
 
@@ -143,8 +153,15 @@ find re t = searchFrom re t 0
 -- 見つかったもの全部。左から順に、重ならないように。空の一致のあとは、
 -- まず同じ場所で、空でない一致を探す。それがなければ、1文字先へ進む
 -- （PCRE2 の決まり。pcre2test の /g、Perl、Python と同じ）
+-- ANCHOR: findalldfa
 findAll :: Regex -> Text -> [Match]
-findAll re t = runIdentity (walk (Identity . searchAt re')
+findAll re t = fromMaybe (findAllVM re t) (dfaFindAll re t)
+-- ANCHOR_END: findalldfa
+
+-- 🔎 The same, with the VM only (the chapters before).
+-- 同じものを、VM だけで（前の章まで）
+findAllVM :: Regex -> Text -> [Match]
+findAllVM re t = runIdentity (walk (Identity . searchAt re')
                                  (Identity . nonEmptyAtCursor re')
                                  (headOf t))
   where

@@ -38,6 +38,7 @@ module MiniRegex.Engine
   , scanSwitching
   , scanShortFirst
   , budgetFor
+  , toMatch
   ) where
 
 -- ANCHOR: imports
