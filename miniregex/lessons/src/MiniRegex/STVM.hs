@@ -6,7 +6,7 @@
 --   over one, it puts the old value on the trail; going back to a way
 --   to try, it puts back the old values, down to where the trail was.
 -- バックトラックの VM を、ST でもう一度。MiniRegex.VM と同じ
--- プログラムを、同じく1命令1手で動かす。ちがうのは、持ち物だけ。
+-- プログラムを、同じく1命令1ステップで動かす。ちがうのは、持ち物だけ。
 -- グループと印は、書き換えられる配列を1つずつ持ち、その場で書き換える。
 -- 書き換えるたびに、前の値を「取り消しの記録」に積む。ほかの試し方へ
 -- 戻るときは、そのときの記録の高さまで、前の値を書き戻す
@@ -129,7 +129,7 @@ newMachine (groups, marks) =
 --    the places; between two places, the trail puts everything back.
 --    Outside, nobody can tell it writes over anything: runST shuts the
 --    writing in.
--- scanVM と同じ型：場所を1つずつ、手数を分け合いながら動かす。機械の
+-- scanVM と同じ型：場所を1つずつ、ステップ数を分け合いながら動かす。機械の
 -- 持ち物は、どの場所にも使えるように1度だけ作る。場所と場所のあいだは、
 -- 取り消しの記録が全部を元に戻す。書き換えていることは、外からは
 -- わからない。runST が閉じ込める
@@ -147,7 +147,7 @@ scanVMST prog limit accept places =
 --    done: the one it ran out at, and the ones after it. So whoever
 --    goes on (the Pike VM) does not have to start again from the
 --    first place, and nobody holds on to the places already done.
--- 同じだが、手数が尽きたら、まだ済んでいない場所を返す：尽きた場所と、
+-- 同じだが、ステップ数が尽きたら、まだ済んでいない場所を返す：尽きた場所と、
 -- そのあとの場所。続きを引き受ける人（Pike VM）は、最初の場所から
 -- やり直さなくてよい。済んだ場所を、だれも持ち続けない
 scanVMSTUntil
@@ -160,8 +160,8 @@ scanVMSTUntil = scanVMSTEach maxBound
 -- 🪙 The same, but each place gets at most cap steps of its own (and
 --    no more than are left). A place that uses them all up stops the
 --    run there, as if the steps had run out.
--- 同じだが、どの場所にも、その場所だけの手数を cap まで渡す（残りより
--- 多くは渡さない）。使い切った場所があれば、手数が尽きたときと同じく、
+-- 同じだが、どの場所にも、その場所だけのステップ数を cap まで渡す（残りより
+-- 多くは渡さない）。使い切った場所があれば、ステップ数が尽きたときと同じく、
 -- そこで止める
 scanVMSTEach
   :: Int -> Program -> Int -> (Cursor -> Bool) -> [Cursor]
@@ -188,7 +188,7 @@ scanVMSTEach cap prog limit accept places = runST $ do
         -- the text, sp: ways on the stack, tp: entries on the trail,
         -- cs: the calls we are in. Gives back the trail's height, too,
         -- to clean up after.
-        -- n：残りの手数、pc：次の命令、cur：文字列の中の場所、
+        -- n：残りのステップ数、pc：次の命令、cur：文字列の中の場所、
         -- sp：スタックの道の数、tp：取り消しの記録の数、cs：いま中に
         -- いる呼び出し。あとで片付けるために、記録の高さも返す
         go :: Int -> Int -> Cursor -> Int -> Int -> [Called]
@@ -200,7 +200,7 @@ scanVMSTEach cap prog limit accept places = runST $ do
 
         -- ANCHOR: exec
         -- ⚙️ Run one instruction; n steps are left after it.
-        -- 命令を1つ動かす。そのあとの残りの手数は n
+        -- 命令を1つ動かす。そのあとの残りのステップ数は n
         exec n inst pc cur sp tp cs = case inst of
           Take a -> case step cur of
             Just (x, c) | fitsChar a x -> go n (pc + 1) c sp tp cs

@@ -26,7 +26,7 @@ module MiniRegex
   , findAll
   , findVM
   , findAllVM
-    -- * With a limit on the steps / 手数の上限つきで
+    -- * With a limit on the steps / ステップ数の上限つきで
   , GaveUp (..)
   , defaultLimit
   , findWithin
@@ -132,7 +132,7 @@ isMatch re t = isJust (find re t)
 -- 🔍 The first match. If the steps run out (ten million, unless
 --    told otherwise), GaveUp is thrown. From the chapter on the lazy
 --    DFA: the DFA first, if it can run the regex (it never gives up).
--- 最初に見つかったもの。手数が尽きたら（ことわりがなければ 1000万手）、
+-- 最初に見つかったもの。ステップ数が尽きたら（既定は 1000万ステップ）、
 -- GaveUp を投げる。lazy DFA の章から：DFA で動かせるなら、まず DFA で
 -- （DFA は、あきらめない）
 find :: Regex -> Text -> Maybe Match
@@ -213,13 +213,13 @@ walk search nonEmpty = go
 -- ANCHOR: within
 -- ⏱️ The first match, with at most this many steps; Left when they run
 --    out. Nothing is thrown.
--- 最初に見つかったもの。手数は多くてもこれだけ。尽きたら Left。
+-- 最初に見つかったもの。ステップ数は多くてもこれだけ。尽きたら Left。
 -- 何も投げない
 findWithin :: Int -> Regex -> Text -> Either GaveUp (Maybe Match)
 findWithin limit re t = searchWithin limit re t 0
 
 -- ⏱️ All the matches; each search for one may take this many steps.
--- 見つかったもの全部。1つを探すごとに、この手数まで使ってよい
+-- 見つかったもの全部。1つを探すごとに、このステップ数まで使ってよい
 findAllWithin :: Int -> Regex -> Text -> Either GaveUp [Match]
 findAllWithin limit re t =
   walk (searchWithinAt limit re') (nonEmptyWithinAt limit re') (headOf t)

@@ -472,7 +472,7 @@ main = hspec $ do
       -- (short texts and shallow trees: a deep tree on a long text
       --  can take PCRE2 past its limit of steps)
       -- （短い文字列と浅い木で。深い木を長い文字列に当てると、
-      --   PCRE2 の手数の上限を超えることがある）
+      --   PCRE2 のステップ数の上限を超えることがある）
       forAll (genTree 1) $ \tree -> forAll (resize 12 genAscii) $ \t ->
         Pcre2.match (render (simplify tree)) t
           === (Pcre2.match (render tree) t :: [Text])

@@ -2,7 +2,7 @@
 # that the re module compiles a pattern into, and a search with no
 # limit on its steps.
 # MiniRegex の命令の列の章の Python のコード：re モジュールがパターンから
-# 作るプログラムと、手数に上限のない探しもの
+# 作るプログラムと、ステップ数に上限のない探しもの
 import contextlib
 import io
 import re
@@ -23,7 +23,7 @@ assert "BRANCH" in program and "MARK 0" in program and "JUMP" in program
 # ANCHOR: nolimit
 # Python: no limit on the steps. One more name, and the time is
 #   four times as long
-# Python：手数に上限はない。名前が1つ増えると、時間は4倍
+# Python：ステップ数に上限はない。名前が1つ増えると、時間は4倍
 names = ["Mira", "Ruby", "Lam", "GHC", "Perl"] * 2
 times = []
 for n in [7, 8, 9]:

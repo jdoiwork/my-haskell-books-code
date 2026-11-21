@@ -369,7 +369,7 @@ seeProgram p = TIO.putStr (listing (program (surely p)))
 -- 👣 For GHCi: how many steps the VM takes to search the text (with
 --    no limit). From the linear-time chapter on, the VM is the one the
 --    regex chose.
--- GHCi で試す用：VM が文字列を探すのに使う手数（上限なしで）。線形時間の
+-- GHCi で試す用：VM が文字列を探すのに使うステップ数（上限なし）。線形時間の
 -- 章からは、正規表現が選んだ VM で
 stepsOf :: Text -> Text -> Int
 stepsOf p t = snd (searchCounting maxBound (surely p) t 0)
@@ -389,7 +389,7 @@ wordsOnly :: Regex
 wordsOnly = surely "^(\\w+\\s?)+$"
 
 -- 🪟 The window takes at most a hundred thousand steps for a check.
--- 窓口は、1回の確かめに、多くても10万手
+-- 窓口は、1回の確かめに、多くても10万ステップ
 windowLimit :: Int
 windowLimit = 100_000
 
@@ -402,7 +402,7 @@ checkName t = isJust <$> findWithin windowLimit wordsOnly t
 -- ANCHOR: twovms
 -- 👣 For GHCi: the steps of the pure VM, and of the VM with ST (with
 --    no limit). They are always the same.
--- GHCi で試す用：純粋な VM と ST の VM の手数（上限なしで）。いつも同じ
+-- GHCi で試す用：純粋な VM と ST の VM のステップ数（上限なしで）。いつも同じ
 stepsBoth :: Text -> Text -> (Int, Int)
 stepsBoth p t = (steps scanVM, steps scanVMST)
   where
@@ -490,7 +490,7 @@ backtracking re = re { engine = Backtracking }
 
 -- 👣 For GHCi: the steps of a search with the engine you name (with no
 --    limit). The Pike VM cannot run every pattern.
--- GHCi で試す用：名前を言ったエンジンで探したときの手数（上限なしで）。
+-- GHCi で試す用：名前を言ったエンジンで探したときのステップ数（上限なしで）。
 -- Pike VM は、どのパターンでも動かせるわけではない
 stepsWith :: Engine -> Text -> Text -> Int
 stepsWith e p t

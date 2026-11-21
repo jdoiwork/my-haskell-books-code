@@ -84,7 +84,7 @@ data Thread = Thread
 --    reverse while they are added), the states already taken there,
 --    and the steps left (-1: they ran out).
 -- ある場所で待っているスレッド（よいものが先。足すあいだは逆順に
--- 持つ）、そこで、もう使われた状態、残りの手数（-1 なら尽きた）
+-- 持つ）、そこで、もう使われた状態、残りのステップ数（-1 なら尽きた）
 data Crowd = Crowd
   { waiting :: ![Thread]
   , visited :: !(Set (Int, [Mark]))
@@ -111,7 +111,7 @@ stateAt c t = (pc t, [m | (m, p) <- IntMap.toList (marks t), p == at c])
 --    followed is one step.
 -- 場所 c にスレッドを足し、文字を食べない命令を、よい道から順にたどる。
 -- take か match で待つまで。c でもう使われた状態には、もう入らない。
--- 先に来たスレッドのほうがよいから。たどった命令1つが1手
+-- 先に来たスレッドのほうがよいから。たどった命令1つが1ステップ
 follow :: Program -> Cursor -> Thread -> Crowd -> Crowd
 follow prog c t crowd
   | left crowd < 0                  = crowd
@@ -145,13 +145,13 @@ follow prog c t crowd
     state  = stateAt c t
     marked = crowd { visited = Set.insert state (visited crowd) }
     -- wait here for the next character (the step is counted then)
-    -- ここで次の文字を待つ（手数は、そのときに数える）
+    -- ここで次の文字を待つ（ステップ数は、そのときに数える）
     wait   = marked { waiting = t : waiting marked }
     spent  = spend marked
     next t' cr = follow prog c t' { pc = pc t + 1 } (spend cr)
 
 -- 👣 One step. With none left, the crowd has run out.
--- 1手使う。もう残っていなければ、尽きた印を付ける
+-- 1ステップ使う。もう残っていなければ、尽きた印を付ける
 spend :: Crowd -> Crowd
 spend crowd
   | left crowd <= 0 = crowd { left = -1 }
@@ -166,7 +166,7 @@ spend crowd
 --    steps left: the same as the backtracking VM's scanVM.
 -- 場所を順に（続いた場所のリストか、場所1つ）、いっぺんに探す。ある場所で
 -- 始まる一致のための新しいスレッドは、ほかのスレッドのあとに足す。いちばん
--- 悪いから。一致が始まった場所、答え、残りの手数を返す。バックトラックの
+-- 悪いから。一致が始まった場所、答え、残りステップ数を返す。バックトラックの
 -- VM の scanVM と同じ
 scanPike
   :: Program -> Int -> (Cursor -> Bool) -> [Cursor]

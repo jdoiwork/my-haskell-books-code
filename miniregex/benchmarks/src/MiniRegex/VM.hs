@@ -4,8 +4,8 @@
 --   Each instruction it runs is one step; when the steps run out, it
 --   gives up instead of going on for ever.
 -- バックトラックの VM。プログラムを1命令ずつ動かし、ほかの試し方を、
--- 自分で持つスタックに、データとして積む。命令を1つ動かすのが1手。
--- 手数が尽きたら、いつまでも続けずに、あきらめる
+-- 自分で持つスタックに、データとして積む。命令を1つ動かすのが1ステップ。
+-- ステップ数が尽きたら、いつまでも続けずに、あきらめる
 module MiniRegex.VM
   ( Thread (..)
   , Frame (..)
@@ -83,9 +83,9 @@ data Answer
 --    `accept` says whether a Match at a place counts (for findAll, a
 --    place where the match is empty may not). Gives back the answer and
 --    the steps that are left.
--- しおりから、多くてもこの手数で、プログラムを動かす。accept は、その
+-- しおりから、多くてもこのステップ数で、プログラムを動かす。accept は、その
 -- 場所の Match を認めるか（findAll では、空の一致を認めないことがある）。
--- 答えと、残りの手数を返す
+-- 答えと、残りのステップ数を返す
 runVM :: Program -> Int -> (Cursor -> Bool) -> Cursor -> (Answer, Int)
 runVM prog limit accept start =
   go limit (Thread 0 start noCaps IntMap.empty IntMap.empty []) []
@@ -98,7 +98,7 @@ runVM prog limit accept start =
 
     -- ANCHOR: exec
     -- ⚙️ Run one instruction; n steps are left after it.
-    -- 命令を1つ動かす。そのあとの残りの手数は n
+    -- 命令を1つ動かす。そのあとの残りのステップ数は n
     exec n inst t stack = case inst of
       Take a -> case step (cursor t) of
         Just (x, c) | fitsChar a x -> next t { cursor = c }
@@ -200,8 +200,8 @@ runVM prog limit accept start =
 --    one finds a match or the steps run out. Gives back the place it
 --    stopped at (Nothing if every place failed), the answer, and the
 --    steps left.
--- 場所を1つずつ、手数を分け合いながら、一致が見つかるか手数が尽きるまで
--- 動かす。止まった場所（どこも失敗なら Nothing）、答え、残りの手数を返す
+-- 場所を1つずつ、ステップ数を分け合って、一致が見つかるか尽きるまで
+-- 動かす。止まった場所（失敗なら Nothing）、答え、残りのステップ数を返す
 scanVM
   :: Program -> Int -> (Cursor -> Bool) -> [Cursor]
   -> (Maybe Cursor, Answer, Int)

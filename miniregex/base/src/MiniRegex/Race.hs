@@ -32,7 +32,7 @@ import MiniRegex.Types
 --    backtracking VM runs out of steps, it steps aside and waits: the
 --    Pike VM goes on. A pattern the Pike VM cannot run has only the
 --    backtracking VM.
--- 最初の一致を、先に終わったエンジンから。バックトラックの VM の手数が
+-- 最初の一致を、先に終わったエンジンから。バックトラックの VM のステップ数が
 -- 尽きたら、脇によけて待つ。Pike VM は続ける。Pike VM で動かせない
 -- パターンは、バックトラックの VM だけ
 findRacing :: Regex -> Text -> IO (Maybe Match)

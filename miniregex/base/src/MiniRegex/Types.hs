@@ -48,7 +48,7 @@ data Regex = Regex
   -- ANCHOR: limitfield
   -- the steps a search may take (defaultLimit, unless regex-base's
   -- setExecOpts says otherwise; from the chapter on regex-base)
-  -- 1回の探しものに使ってよい手数（ことわりがなければ defaultLimit。
+  -- 1回の探しものに使ってよいステップ数（ことわりがなければ defaultLimit。
   -- regex-base の setExecOpts で変えられる。regex-base の章から）
   , stepLimit :: Int
   -- ANCHOR_END: limitfield
@@ -187,8 +187,8 @@ instance Exception GaveUp
 
 -- 🔟 The steps a search may take, unless told otherwise: ten million,
 --    the same number as PCRE2's default match limit.
--- ことわりがなければ、1回の探しものに使ってよい手数：1000万。PCRE2 の
--- 手数の上限の既定値と同じ数
+-- ことわりがなければ、1回の探しものに使ってよいステップ数：1000万。PCRE2 の
+-- ステップ数の上限の既定値と同じ数
 defaultLimit :: Int
 defaultLimit = 10_000_000
 -- ANCHOR_END: gaveup

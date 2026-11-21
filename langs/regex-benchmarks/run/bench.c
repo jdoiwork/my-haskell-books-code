@@ -82,7 +82,7 @@ static long count(pcre2_code *re, const char *text, size_t len,
   }
   pcre2_match_data_free(md);
   // no more matches, or an error (such as the match limit): -1
-  // もう一致がないか、エラー（手数の上限など）なら -1
+  // もう一致がないか、エラー（ステップ数の上限など）なら -1
   return rc == PCRE2_ERROR_NOMATCH ? n : -1;
 }
 // ANCHOR_END: count

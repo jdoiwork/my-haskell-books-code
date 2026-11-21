@@ -67,7 +67,7 @@ cursorAt t n
 -- The matchers call these three at every step: INLINE asks GHC to put
 -- their bodies where they are called (the evening's measuring found it
 -- worth it).
--- マッチャーは、この3つを1手ごとに呼ぶ。INLINE は、呼ぶ所に中身を
+-- マッチャーは、この3つを1ステップごとに呼ぶ。INLINE は、呼ぶ所に中身を
 -- 埋めこむよう GHC に頼む（夕方に測って、効き目を確かめた）
 
 -- 👀 The character just behind (Nothing at the head).

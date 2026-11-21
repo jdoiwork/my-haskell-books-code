@@ -51,7 +51,7 @@ newtype CompOption = CompOption [Option]
   deriving (Show, Eq)
 
 -- ⏱️ The settings for running it: how many steps a search may take.
--- 動かすときの設定：1回の探しものに使ってよい手数
+-- 動かすときの設定：1回の探しものに使ってよいステップ数
 newtype ExecOption = ExecOption { execLimit :: Int }
   deriving (Show, Eq)
 

@@ -7,4 +7,4 @@
 pcre2test limit.txt | tail -n +2 | diff - limit.out
 ```
 
-`limit.txt` は、名前の欄のパターン `^(\w+\s?)+$` を、名前の数を変えて試します。名前が7個までは「No match」と答え、8個で、手数の上限（match limit、既定は 1000万）を超えて `error -47` になります。JIT でも同じです。
+`limit.txt` は、名前の欄のパターン `^(\w+\s?)+$` を、名前の数を変えて試します。名前が7個までは「No match」と答え、8個で、ステップ数の上限（match limit、既定は 1000万）を超えて `error -47` になります。JIT でも同じです。

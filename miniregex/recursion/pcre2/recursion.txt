@@ -24,7 +24,7 @@
     xb
 
 # Without ++, the steps double for each a
-# ++ がないと、a が1つ増えるごとに手数が2倍
+# ++ がないと、a が1つ増えるごとにステップ数が2倍
 /\((?:[^()]+|(?R))*\)/
     (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa()
 

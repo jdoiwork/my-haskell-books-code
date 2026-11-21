@@ -42,7 +42,7 @@ main = do
 -- 📖 One book: read it, run every test (a million steps at most for
 --    each search), and print its lines.
 -- 1冊ぶん：読んで、全部のテストを動かし（1回の探しものに多くても
--- 100万手）、行を書く
+-- 100万ステップ）、行を書く
 book :: (FilePath, Encoding) -> IO [Verdict]
 book (file, enc) = do
   tests <- readTestFile enc file

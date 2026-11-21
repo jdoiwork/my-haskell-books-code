@@ -740,14 +740,14 @@ main = hspec $ do
       findAllWithin 100000 (backtracking (surely "(a+)+b")) as
         `shouldBe` Left (GaveUp 100000)
     -- one more a, twice the steps
-    -- a が1つ増えると、手数は2倍
+    -- a が1つ増えると、ステップ数は2倍
     it "takes twice the steps for one more a" $
       [ stepsWith Backtracking "(a+)+b" (T.replicate n "a" <> "c")
       | n <- [10 .. 13] ]
         `shouldBe` [24480, 49048, 98192, 196488]
     -- the steps used are never more than the limit, and with enough of
     -- them, the answer is find's
-    -- 使った手数は上限を超えない。手数が足りれば、答えは find と同じ
+    -- 使ったステップ数は上限以下。ステップ数が足りれば、答えは find と同じ
     prop "keeps to the limit" $
       forAll (genTreeRefs [Greedy, Lazy, Possessive] 2) $ \tr ->
         forAll (resize 12 genLines) $ \t ->
@@ -781,7 +781,7 @@ main = hspec $ do
   describe "the VM with ST / ST の VM" $ do
     -- the same answer, and the same steps used, as the pure VM's, with
     -- any limit (with no limit, too)
-    -- 純粋な VM と、同じ答え、同じ手数。どんな上限でも（上限なしでも）
+    -- 純粋な VM と、同じ答え、同じステップ数。どんな上限でも（上限なしでも）
     prop "agrees with the pure VM, step for step" $
       forAll (genTreeRefs [Greedy, Lazy, Possessive] 2) $ \tr ->
         forAll (resize 12 genLines) $ \t ->
@@ -864,7 +864,7 @@ main = hspec $ do
                     m === find re t .&&. property (used <= limit)
     -- ANCHOR: pikesteps
     -- one more a, the same few steps more (not twice)
-    -- a が1つ増えると、同じ数だけ手数が増える（2倍ではない）
+    -- a が1つ増えると、同じ数だけステップ数が増える（2倍ではない）
     it "takes the same few steps more for one more a" $ do
       let steps = [ stepsWith PikeVM "(a+)+b" (T.replicate n "a" <> "c")
                   | n <- [10 .. 13] ]
@@ -1573,7 +1573,7 @@ main = hspec $ do
                   Left e   -> counterexample (show e) False
                   Right re -> ioProperty $ do
                     -- PCRE2 may give up (its match limit): skip those
-                    -- PCRE2 があきらめる（手数の上限）ものは飛ばす
+                    -- PCRE2 があきらめる（ステップ数の上限）ものは飛ばす
                     theirs <- try (evaluate
                       (Pcre2.capturesOpt (pcre2Options opts) p t))
                     pure $ case theirs of

@@ -9,7 +9,7 @@
 --   the prefilter lets through.
 -- エンジン。compilePattern はパーサーで読み、compileTree が木を VM の
 -- プログラムにする。searchFrom は、場所を1つずつずらしながら VM（この章
--- からは ST の VM）を動かす。手数には上限があり、いつまでも続けずに、
+-- からは ST の VM）を動かす。ステップ数には上限があり、いつまでも続けずに、
 -- あきらめる（GaveUp を投げる）。searchWithin は、それを Left で知らせる。
 -- 純粋な VM と、候補のリストと継続のマッチャーは、くらべる相手として残す。
 -- 先に探す章からは、VM には、先に見て通した場所だけを渡す
@@ -112,7 +112,7 @@ runnerFor re
 --    texts: at each place, the first of the texts (in the order of the
 --    branches) that is there. Each place costs one step.
 -- VM を使わない。文字列だけのパターンに、Rust の regex がするのと同じ。
--- 場所ごとに、そこにある最初の文字列（枝の順）。1つの場所で1手
+-- 場所ごとに、そこにある最初の文字列（枝の順）。1つの場所で1ステップ
 literalRunner :: [Text] -> Runner
 literalRunner ws _ limit accept = go limit
   where
@@ -147,8 +147,8 @@ scanShortFirst prog limit accept tries = case tries of
 --    backtracking VM's speed; the others cost at most about twice the
 --    Pike VM's worst, so still linear time.
 -- まずバックトラック、時間がかかりすぎたら Pike VM。バックトラックの VM
--- には、Pike VM が最悪でもかかる手数（budgetFor）だけ渡す。尽きたら、
--- 尽きた場所から（そこより前に始まる一致はない）、Pike VM が残りの手数で
+-- には、Pike VM が最悪でもかかるステップ数（budgetFor）だけ渡す。尽きたら、
+-- 尽きた場所から（そこより前に始まる一致はない）Pike VM が残りのステップ数で
 -- 続ける。たいていの探しものは予算のうちに、バックトラックの VM の速さで
 -- 終わる。そうでないものも、Pike VM の最悪の2倍ほどで済むので、やはり
 -- 線形時間
@@ -167,7 +167,7 @@ scanSwitching prog limit accept tries = case tries of
 --    instruction once at each place, twice over (once to follow, once
 --    to move on). Bytes are counted, not characters: no need to count
 --    from the head, and there are never fewer bytes than characters.
--- この場所から、Pike VM が最悪でもかかる手数：どの命令も、場所ごとに
+-- この場所から、Pike VM が最悪でもかかるステップ数：どの命令も、場所ごとに
 -- 1度ずつ、それを2回分（たどるのと、進めるのと）。数えるのは文字では
 -- なくバイト：頭から数えずに済み、バイトが文字より少ないことはない
 budgetFor :: Program -> Cursor -> Int
@@ -190,7 +190,7 @@ type Runner
 --    places share one limit on the steps, as PCRE2's match limit does.
 --    Gives back the steps used, too.
 -- from の位置か、それより後ろで始まる、最初の一致を VM で。どの場所も、
--- 1つの手数の上限を分け合う（PCRE2 の手数の上限と同じ）。使った手数も
+-- 1つの上限を分け合う（PCRE2 の上限と同じ）。使ったステップ数も
 -- 返す
 searchCountingBy
   :: Runner -> Int -> Regex -> Text -> Int
@@ -229,7 +229,7 @@ searchCounting
 searchCounting limit re = searchCountingBy (runnerFor re) limit re
 
 -- 📮 The same, with Left when the steps ran out.
--- 同じもの。手数が尽きたら Left
+-- 同じもの。ステップ数が尽きたら Left
 searchWithin :: Int -> Regex -> Text -> Int -> Either GaveUp (Maybe Match)
 searchWithin limit re subject from =
   fst (searchCounting limit re subject from)
@@ -246,7 +246,7 @@ searchFrom re subject from =
 
 -- 🔖 From a cursor, with the engine the regex chose: Left when the
 --    steps run out, or (searchAt) GaveUp thrown.
--- しおりから、正規表現が選んだエンジンで。手数が尽きたら Left、
+-- しおりから、正規表現が選んだエンジンで。ステップ数が尽きたら Left、
 -- searchAt なら GaveUp を投げる
 searchWithinAt :: Int -> Regex -> Cursor -> Either GaveUp (Maybe (Match, Cursor))
 searchWithinAt limit re = fst . searchAtBy (runnerFor re) limit re
@@ -275,7 +275,7 @@ toMatch re from to caps = Match
 -- ANCHOR: others
 -- 🧪 The tree-walking matchers of the chapters before, to compare with.
 --    They take no limit.
--- 前の章までの、木を歩くマッチャー。くらべる相手。手数の上限はない
+-- 前の章までの、木を歩くマッチャー。くらべる相手。ステップ数の上限はない
 searchWith
   :: (Pattern -> Cursor -> Maybe (Cursor, Caps))
   -> Regex -> Text -> Int -> Maybe Match

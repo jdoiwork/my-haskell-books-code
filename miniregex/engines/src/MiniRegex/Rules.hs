@@ -45,8 +45,8 @@ fitsChar (Call _)             _ = False
 -- 🍽️ For takeall: go past every character that fits the atom, one
 --    step each, with n steps left. Gives back where it stopped, and
 --    the steps left (0 or less: they ran out on the way).
--- takeall のため：アトムに合う文字を全部、1文字1手で通りすぎる。残りの
--- 手数は n。止まった場所と、残りの手数を返す（0 以下なら、途中で尽きた）
+-- takeall のため：アトムに合う文字を全部、1文字1ステップで通りすぎる。残りの
+-- ステップ数は n。止まった場所と残りを返す（0 以下なら途中で尽きた）
 eatAll :: Atom -> Int -> Cursor -> (Cursor, Int)
 eatAll a = go
   where

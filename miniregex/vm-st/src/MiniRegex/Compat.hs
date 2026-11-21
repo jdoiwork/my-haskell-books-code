@@ -181,9 +181,9 @@ judge t = case (flagsOf (testModifiers t), decodeSubject (testSubject t)) of
 --    matcher can take for ever on some patterns; the test is then
 --    "not yet (limit)". Counting steps, not seconds, gives the same
 --    answer on any machine.
--- メーターで、1回の探しものに使ってよい手数。バックトラックのマッチャーは、
+-- メーターで1回の探しものに使えるステップ数。バックトラックのマッチャーは、
 -- パターンによっては終わらない。そのテストは「まだ（limit）」。秒ではなく
--- 手数で数えるので、どの機械でも同じ答えになる
+-- ステップ数で数えるので、どの機械でも同じ答えになる
 meterLimit :: Int
 meterLimit = 1_000_000
 

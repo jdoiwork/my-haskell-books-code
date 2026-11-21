@@ -77,7 +77,7 @@ else:
 # The counts: the same in every language (and the same as MiniRegex's
 # test). PCRE2 gives up on the name field at its match limit (-1).
 # 件数：どの言語でも同じ（MiniRegex のテストとも同じ）。名前の欄では、
-# PCRE2 は手数の上限であきらめる（-1）
+# PCRE2 はステップ数の上限であきらめる（-1）
 n = int(lines)
 expected = {
     "dates": (n, 0),

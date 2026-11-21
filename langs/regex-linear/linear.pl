@@ -1,7 +1,7 @@
 # Perl's cache of places it has tried (the VM chapter) is turned off
 # when the pattern has a back reference: the steps grow again.
 # Perl が試した場所を覚えておく工夫（VM の章）は、パターンに後方参照が
-# あると、使われない。手数が、また増えていく
+# あると、使われない。ステップ数が、また増えていく
 use strict;
 use warnings;
 use Time::HiRes qw(time);

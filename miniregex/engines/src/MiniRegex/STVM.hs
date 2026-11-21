@@ -6,7 +6,7 @@
 --   over one, it puts the old value on the trail; going back to a way
 --   to try, it puts back the old values, down to where the trail was.
 -- バックトラックの VM を、ST でもう一度。MiniRegex.VM と同じ
--- プログラムを、同じく1命令1手で動かす。ちがうのは、持ち物だけ。
+-- プログラムを、同じく1命令1ステップで動かす。ちがうのは、持ち物だけ。
 -- グループと印は、書き換えられる配列を1つずつ持ち、その場で書き換える。
 -- 書き換えるたびに、前の値を「取り消しの記録」に積む。ほかの試し方へ
 -- 戻るときは、そのときの記録の高さまで、前の値を書き戻す
@@ -126,7 +126,7 @@ newMachine (groups, marks) =
 --    the places; between two places, the trail puts everything back.
 --    Outside, nobody can tell it writes over anything: runST shuts the
 --    writing in.
--- scanVM と同じ型：場所を1つずつ、手数を分け合いながら動かす。機械の
+-- scanVM と同じ型：場所を1つずつ、ステップ数を分け合いながら動かす。機械の
 -- 持ち物は、どの場所にも使えるように1度だけ作る。場所と場所のあいだは、
 -- 取り消しの記録が全部を元に戻す。書き換えていることは、外からは
 -- わからない。runST が閉じ込める
@@ -152,7 +152,7 @@ scanVMST prog limit accept places = runST $ do
         -- the text, sp: ways on the stack, tp: entries on the trail,
         -- cs: the calls we are in. Gives back the trail's height, too,
         -- to clean up after.
-        -- n：残りの手数、pc：次の命令、cur：文字列の中の場所、
+        -- n：残りのステップ数、pc：次の命令、cur：文字列の中の場所、
         -- sp：スタックの道の数、tp：取り消しの記録の数、cs：いま中に
         -- いる呼び出し。あとで片付けるために、記録の高さも返す
         go :: Int -> Int -> Cursor -> Int -> Int -> [Called]
@@ -164,7 +164,7 @@ scanVMST prog limit accept places = runST $ do
 
         -- ANCHOR: exec
         -- ⚙️ Run one instruction; n steps are left after it.
-        -- 命令を1つ動かす。そのあとの残りの手数は n
+        -- 命令を1つ動かす。そのあとの残りのステップ数は n
         exec n inst pc cur sp tp cs = case inst of
           Take a -> case step cur of
             Just (x, c) | fitsChar a x -> go n (pc + 1) c sp tp cs

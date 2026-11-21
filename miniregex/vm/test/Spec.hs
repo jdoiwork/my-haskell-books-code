@@ -678,13 +678,13 @@ main = hspec $ do
       findAllWithin 100000 (surely "(a+)+b") as
         `shouldBe` Left (GaveUp 100000)
     -- one more a, twice the steps
-    -- a が1つ増えると、手数は2倍
+    -- a が1つ増えると、ステップ数は2倍
     it "takes twice the steps for one more a" $
       [ stepsOf "(a+)+b" (T.replicate n "a" <> "c") | n <- [10 .. 13] ]
         `shouldBe` [24480, 49048, 98192, 196488]
     -- the steps used are never more than the limit, and with enough of
     -- them, the answer is find's
-    -- 使った手数は上限を超えない。手数が足りれば、答えは find と同じ
+    -- 使ったステップ数は上限以下。ステップ数が足りれば、答えは find と同じ
     prop "keeps to the limit" $
       forAll (genTreeRefs [Greedy, Lazy, Possessive] 2) $ \tr ->
         forAll (resize 12 genLines) $ \t ->
@@ -1227,7 +1227,7 @@ main = hspec $ do
                   Left e   -> counterexample (show e) False
                   Right re -> ioProperty $ do
                     -- PCRE2 may give up (its match limit): skip those
-                    -- PCRE2 があきらめる（手数の上限）ものは飛ばす
+                    -- PCRE2 があきらめる（ステップ数の上限）ものは飛ばす
                     theirs <- try (evaluate
                       (Pcre2.capturesOpt (pcre2Options opts) p t))
                     pure $ case theirs of
@@ -1397,7 +1397,7 @@ main = hspec $ do
       r <- findIO wordsOnly "Mira Ruby"
       fmap (fmap matchText) r `shouldBe` Right (Just "Mira Ruby")
     -- step 3: the smallest limit is the steps that the search takes
-    -- ステップ3：いちばん小さい上限は、その探しものが使う手数
+    -- ステップ3：いちばん小さい上限は、その探しものが使うステップ数
     it "finds the smallest limit" $ do
       smallestLimit wordsOnly "Mira Ruby!" `shouldBe` Just 1969
       smallestLimit wordsOnly nameField `shouldBe` Nothing

@@ -37,7 +37,7 @@ No match
 Failed: error -52: nested recursion at the same subject position
 
 # Without ++, the steps double for each a
-# ++ がないと、a が1つ増えるごとに手数が2倍
+# ++ がないと、a が1つ増えるごとにステップ数が2倍
 /\((?:[^()]+|(?R))*\)/
     (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa()
 Failed: error -47: match limit exceeded

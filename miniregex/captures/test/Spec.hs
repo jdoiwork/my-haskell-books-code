@@ -684,7 +684,7 @@ main = hspec $ do
                   Left e   -> counterexample (show e) False
                   Right re -> ioProperty $ do
                     -- PCRE2 may give up (its match limit): skip those
-                    -- PCRE2 があきらめる（手数の上限）ものは飛ばす
+                    -- PCRE2 があきらめる（ステップ数の上限）ものは飛ばす
                     theirs <- try (evaluate
                       (Pcre2.capturesOpt (pcre2Options opts) p t))
                     pure $ case theirs of

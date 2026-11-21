@@ -7,7 +7,7 @@
 --   compare with.
 -- エンジン。compilePattern はパーサーで読み、compileTree が木を VM の
 -- プログラムにする。searchFrom は、場所を1つずつずらしながら VM を
--- 動かす。手数には上限があり、いつまでも続けずに、あきらめる（GaveUp を
+-- 動かす。ステップ数には上限があり、いつまでも続けずに、あきらめる（GaveUp を
 -- 投げる）。searchWithin は、それを Left で知らせる。候補のリストと継続の
 -- マッチャーは、くらべる相手として残す
 module MiniRegex.Engine
@@ -56,8 +56,8 @@ compilePattern = parsePattern
 --    each place from the left. All the places share one limit on the
 --    steps, as PCRE2's match limit does. Gives back the steps used, too.
 -- from の位置か、それより後ろで始まる、最初の一致を VM で。左から
--- 1つずつ、その場所で試す。どの場所も、1つの手数の上限を分け合う
--- （PCRE2 の手数の上限と同じ）。使った手数も返す
+-- 1つずつ、その場所で試す。どの場所も、1つのステップ数の上限を分け合う
+-- （PCRE2 のステップ数の上限と同じ）。使ったステップ数も返す
 searchCounting
   :: Int -> Regex -> Text -> Int -> (Either GaveUp (Maybe Match), Int)
 searchCounting limit re subject from = case cursorAt subject from of
@@ -72,7 +72,7 @@ searchCounting limit re subject from = case cursorAt subject from of
     used left = limit - left
 
 -- 📮 The same, with Left when the steps ran out.
--- 同じもの。手数が尽きたら Left
+-- 同じもの。ステップ数が尽きたら Left
 searchWithin :: Int -> Regex -> Text -> Int -> Either GaveUp (Maybe Match)
 searchWithin limit re subject from =
   fst (searchCounting limit re subject from)
@@ -104,7 +104,7 @@ toMatch re from to caps = Match
 -- ANCHOR: others
 -- 🧪 The tree-walking matchers of the chapters before, to compare with.
 --    They take no limit.
--- 前の章までの、木を歩くマッチャー。くらべる相手。手数の上限はない
+-- 前の章までの、木を歩くマッチャー。くらべる相手。ステップ数の上限はない
 searchWith
   :: (Pattern -> Cursor -> Maybe (Cursor, Caps))
   -> Regex -> Text -> Int -> Maybe Match

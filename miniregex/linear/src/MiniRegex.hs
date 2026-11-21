@@ -24,7 +24,7 @@ module MiniRegex
   , isMatch
   , find
   , findAll
-    -- * With a limit on the steps / 手数の上限つきで
+    -- * With a limit on the steps / ステップ数の上限つきで
   , GaveUp (..)
   , defaultLimit
   , findWithin
@@ -126,7 +126,7 @@ isMatch re t = isJust (find re t)
 
 -- 🔍 The first match. If the steps run out (ten million, unless
 --    told otherwise), GaveUp is thrown.
--- 最初に見つかったもの。手数が尽きたら（ことわりがなければ 1000万手）、
+-- 最初に見つかったもの。ステップ数が尽きたら（既定は 1000万ステップ）、
 -- GaveUp を投げる
 find :: Regex -> Text -> Maybe Match
 find re t = searchFrom re t 0
@@ -175,13 +175,13 @@ walk search nonEmpty len = go 0
 -- ANCHOR: within
 -- ⏱️ The first match, with at most this many steps; Left when they run
 --    out. Nothing is thrown.
--- 最初に見つかったもの。手数は多くてもこれだけ。尽きたら Left。
+-- 最初に見つかったもの。ステップ数は多くてもこれだけ。尽きたら Left。
 -- 何も投げない
 findWithin :: Int -> Regex -> Text -> Either GaveUp (Maybe Match)
 findWithin limit re t = searchWithin limit re t 0
 
 -- ⏱️ All the matches; each search for one may take this many steps.
--- 見つかったもの全部。1つを探すごとに、この手数まで使ってよい
+-- 見つかったもの全部。1つを探すごとに、このステップ数まで使ってよい
 findAllWithin :: Int -> Regex -> Text -> Either GaveUp [Match]
 findAllWithin limit re t =
   walk (searchWithin limit re t) (nonEmptyWithin limit re t) (T.length t)

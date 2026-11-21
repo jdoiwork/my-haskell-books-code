@@ -2,7 +2,7 @@
 -- | Run the backtracking VM with ST on the name field, many times, for
 --   the profiler: where do the steps spend their time?
 -- 名前の欄で、ST のバックトラックの VM を何度も動かす。プロファイラーで、
--- 手数がどこで時間を使っているかを見るため
+-- ステップ数がどこで時間を使っているかを見るため
 module Main (main) where
 
 import Control.Monad (forM_)

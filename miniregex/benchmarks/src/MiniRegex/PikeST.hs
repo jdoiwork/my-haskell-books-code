@@ -161,7 +161,7 @@ data Env s = Env
 -- ANCHOR: scan
 -- 🔁 The same type as scanPike, and the same steps (but see `follow`:
 --    two threads waiting at the same take are one here).
--- scanPike と同じ型で、同じ手数（ただし follow を見てほしい。同じ take で
+-- scanPike と同じ型で同じステップ数（ただし follow を見てほしい。同じ take で
 -- 待つ2本のスレッドは、ここでは1本）
 scanPikeST
   :: Program -> Int -> (Cursor -> Bool) -> [Cursor]
@@ -273,7 +273,7 @@ advance env c now later left0 best0 = do
 -- 場所 c で、番地 pc0 からスレッドをたどる。よい道から順に、文字を
 -- 食べない命令を。スロットは作業用の行にある。待つ所（take・takeall・
 -- match）で、その番地の世代の行に、スロットを写す。たどった命令1つが
--- 1手（scanPike と同じ）
+-- 1ステップ（scanPike と同じ）
 follow :: Env s -> Gen s -> Cursor -> Int -> Int -> ST s Int
 follow env gen c pc0 left0 = explore 0 pc0 left0
   where
@@ -407,7 +407,7 @@ frozen env rs pc c = do
 -- ANCHOR_END: frozen
 
 -- 👣 One step. With none left, -1: they ran out.
--- 1手使う。もう残っていなければ -1：尽きた
+-- 1ステップ使う。もう残っていなければ -1：尽きた
 {-# INLINE spend #-}
 spend :: Int -> Int
 spend left

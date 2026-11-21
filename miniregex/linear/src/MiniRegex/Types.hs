@@ -166,8 +166,8 @@ instance Exception GaveUp
 
 -- 🔟 The steps a search may take, unless told otherwise: ten million,
 --    the same number as PCRE2's default match limit.
--- ことわりがなければ、1回の探しものに使ってよい手数：1000万。PCRE2 の
--- 手数の上限の既定値と同じ数
+-- ことわりがなければ、1回の探しものに使ってよいステップ数：1000万。PCRE2 の
+-- ステップ数の上限の既定値と同じ数
 defaultLimit :: Int
 defaultLimit = 10_000_000
 -- ANCHOR_END: gaveup

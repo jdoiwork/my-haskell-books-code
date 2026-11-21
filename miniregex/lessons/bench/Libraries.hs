@@ -115,7 +115,7 @@ number = either (const 0) fst . R.decimal
 -- ANCHOR: field
 -- 🪪 The name field with eight names: pcre2 gives up at its limit of
 --    ten million steps, and throws.
--- 名前が8個の名前の欄：pcre2 は手数の上限（1000万）で、あきらめて投げる
+-- 名前が8個の名前の欄：pcre2 はステップ数の上限（1000万）で、あきらめて投げる
 field :: Benchmark
 field = bgroup "field"
   [ bench "miniregex" (nf (isMatch (surely names)) t)
