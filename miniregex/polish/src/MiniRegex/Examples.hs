@@ -71,6 +71,11 @@ module MiniRegex.Examples
   , scanSwitchingAgain
   , scanSwitchingEach
   , guildBook
+  , board
+  , emojiIn
+  , emojiOf
+  , cutPreview
+  , preview
   ) where
 -- ANCHOR_END: header
 
@@ -89,6 +94,7 @@ import MiniRegex.Cursor (at, cursorAt, headOf)
 import MiniRegex.Engine
   ( Runner, budgetFor, nonEmptyAt, runnerFor, searchCounting
   , searchCountingBy, searchFrom )
+import MiniRegex.Grapheme (clusterCount, takeClusters)
 import MiniRegex.Parser (parsePattern)
 import MiniRegex.Pretty (drawPattern)
 import MiniRegex.PikeST (scanPikeST)
@@ -730,4 +736,55 @@ guildBook n = T.concat (map line [0 .. n - 1])
     num  = T.pack . show
     two k = T.justifyRight 2 '0' (num k)
 -- ANCHOR_END: guild
+
+-- ANCHOR: board
+-- 📌 The new message board of the guild: posts with emoji. (GHC does
+--    not take a ZWJ itself in a string: the family is written with
+--    \x200D.)
+-- ギルドの新しい伝言板：絵文字の入った書き込み。（GHC は文字列の中の
+-- ZWJ そのものを読まないので、家族は \x200D で書く）
+board :: [Text]
+board =
+  [ "Mira: ゴブリン 3体 たおした👍🏽"
+  , "Ruby: \x1F468\x200D\x1F469\x200D\x1F467 で参加します🇯🇵"
+  , "Lam: No.7 の依頼、#1 から順に☀️"
+  ]
+-- ANCHOR_END: board
+
+-- ANCHOR: emojiin
+-- 🔎 The emoji in a post, by a property.
+-- 書き込みの中の絵文字を、性質で
+emojiIn :: Text -> Text -> [Text]
+emojiIn property post = map matchText (findAll (surely pattern) post)
+  where
+    pattern = "\\p{" <> property <> "}"
+-- ANCHOR_END: emojiin
+
+-- ANCHOR: emojiof
+-- 😀 The emoji a person sees: a cluster that starts with a picture or
+--    a regional indicator (the skin tone, the ZWJs and the ️ come with
+--    it).
+-- 人が見る絵文字：絵か地域指示子で始まるクラスター（肌の色・ZWJ・
+-- 絵文字にする印も、いっしょに付いてくる）
+emojiOf :: Text -> [Text]
+emojiOf post = map matchText (findAll seen post)
+  where
+    seen = surely "(?=[\\p{ExtPict}\\p{RI}])\\X"
+-- ANCHOR_END: emojiof
+
+-- ANCHOR: preview
+-- ✂️ The first n characters of a post, and … when there is more: first
+--    with T.take (it cuts a family in half), then with clusters.
+-- 書き込みの最初の n 文字と、続きがあれば …。はじめは T.take で
+-- （家族を半分に切る）、それからクラスターで
+cutPreview :: Int -> Text -> Text
+cutPreview n post
+  | T.length post <= n = post
+  | otherwise          = T.take n post <> "…"
+
+preview :: Int -> Text -> Text
+preview n post
+  | clusterCount post <= n = post
+  | otherwise              = takeClusters n post <> "…"
+-- ANCHOR_END: preview
 -- ANCHOR_END: all

@@ -27,6 +27,7 @@ import Data.Maybe (fromMaybe)
 
 import MiniRegex.Caps
 import MiniRegex.Cursor hiding (before, rest)
+import MiniRegex.Grapheme (clusterEnd)
 import MiniRegex.Groups
 import MiniRegex.Rules
 import MiniRegex.Syntax
@@ -176,6 +177,11 @@ run whole = matcher [] 1 whole
               p : _ -> p == at c
               []    -> False
         -- ANCHOR_END: call
+        -- \X: go on from where the cluster ends (and only from there)
+        -- \X：クラスターの終わった所から先へ（そこからだけ）
+        atom _ Cluster k c caps = do
+          c' <- clusterEnd c
+          k c' caps
         atom _ a k c caps = case step c of
           Just (x, c') | fitsChar a x -> k c' caps
           _                                -> Nothing

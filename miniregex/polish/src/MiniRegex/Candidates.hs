@@ -18,6 +18,7 @@ import Data.Maybe (fromMaybe)
 
 import MiniRegex.Caps
 import MiniRegex.Cursor hiding (before, rest)
+import MiniRegex.Grapheme (clusterEnd)
 import MiniRegex.Groups
 import MiniRegex.Rules
 import MiniRegex.Syntax
@@ -95,6 +96,9 @@ ends p c = pattern 1 p (c, noCaps)
     -- 呼び出し：このマッチャーにはない（再帰の章）
     atom _ (Call _) _ =
       error "the list of candidates cannot call a group"
+    -- \X: the one place where the cluster ends
+    -- \X：クラスターの終わる場所1つ
+    atom _ Cluster (cur, caps) = [(end, caps) | Just end <- [clusterEnd cur]]
     atom _ a (cur, caps) = case step cur of
       Just (x, cur') | fitsChar a x -> [(cur', caps)]
       _                                  -> []

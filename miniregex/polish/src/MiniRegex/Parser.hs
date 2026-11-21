@@ -411,7 +411,7 @@ atom = do
     '.'  -> anySingle *> dot
     '['  -> Class <$> charClass
     '('  -> group
-    '\\' -> anyNewline <|> reference <|> typeEscape
+    '\\' -> anyNewline <|> cluster <|> reference <|> typeEscape
               <|> (Lit <$> escaped OutsideClass)
     _ | c == '|' || c == ')' -> fail "the end of a branch"
       -- ^ and $ are pieces; * + ? and {n,m} were caught by
@@ -427,6 +427,13 @@ atom = do
       s <- on S
       pure (if s then Anything else AnyChar)
 -- ANCHOR_END: atom
+
+-- ANCHOR: cluster
+-- 🧩 \X: one grapheme cluster ([\X] is error 107, in escaped).
+-- \X：書記素クラスター1つ（[\X] はエラー 107。escaped の中で）
+cluster :: Parser Atom
+cluster = Cluster <$ try (string "\\X")
+-- ANCHOR_END: cluster
 
 -- ANCHOR: newline
 -- ↩️ \R: any one newline, \r\n taken as one. Inside, it is an atomic
@@ -543,7 +550,6 @@ typeLetters = "dDwWsShHvVpP"
 -- 項目として。\d \s \w が ASCII だけかは、フラグ (?aD) (?aS) (?aW) が言う
 typeItem :: Parser ClassItem
 typeItem = do
-  at <- getOffset
   _ <- char '\\'
   c <- satisfy (`elem` typeLetters)
   let opposite = isUpperAscii c
@@ -554,20 +560,18 @@ typeItem = do
       | c `elem` ("wW" :: String) -> Builtin opposite . Word  <$> reachOf AW
       | c `elem` ("hH" :: String) -> pure (Builtin opposite HSpace)
       | c `elem` ("vV" :: String) -> pure (Builtin opposite VSpace)
-      | otherwise                 -> property at opposite
+      | otherwise                 -> property opposite
   where
     isUpperAscii c = c >= 'A' && c <= 'Z'
 -- ANCHOR_END: types
 
 -- ANCHOR: property
--- 🏷️ \p{Han}, \p{^Lu}, \pL. A name MiniRegex does not know is "not
---    yet" if PCRE2 knows it (\p{Alphabetic}, \p{bc:AL}), and wrong if
---    PCRE2 does not either (\p{Letter}, error 147).
--- \p{Han}・\p{^Lu}・\pL。MiniRegex の知らない名前は、PCRE2 が知って
--- いれば「まだ」（\p{Alphabetic}・\p{bc:AL}）、PCRE2 も知らなければ
--- まちがい（\p{Letter}。エラー 147）
-property :: Int -> Bool -> Parser ClassItem
-property at opposite = do
+-- 🏷️ \p{Han}, \p{^Lu}, \pL, \p{Emoji}, \p{bc:AL}. A name that
+--    neither MiniRegex nor PCRE2 knows is wrong (\p{Letter}, error 147).
+-- \p{Han}・\p{^Lu}・\pL・\p{Emoji}・\p{bc:AL}。MiniRegex も PCRE2 も
+-- 知らない名前は、まちがい（\p{Letter}。エラー 147）
+property :: Bool -> Parser ClassItem
+property opposite = do
   next <- option Nothing (Just <$> anySingle)
   case next of
     Nothing  -> malformed
@@ -593,42 +597,8 @@ property at opposite = do
       end <- getOffset
       case propertyNamed written of
         Just p -> pure (Builtin neg (Property p))
-        Nothing
-          | pcre2Knows written -> unsupported at "\\p{binary property}"
-          | otherwise ->
-              invalid end "unknown property after \\P or \\p"  -- 147
+        Nothing -> invalid end "unknown property after \\P or \\p"  -- 147
 
--- 📋 The names PCRE2 10.49 knows that MiniRegex does not: the
---    yes-or-no properties (pcre2test -LP), and Bidi_Class.
--- PCRE2 10.49 が知っていて、MiniRegex が知らない名前：はい・いいえの
--- 性質（pcre2test -LP）と、Bidi_Class
-pcre2Knows :: Text -> Bool
-pcre2Knows written =
-  loose `elem` binaryProperties
-    || any (`T.isPrefixOf` loose) ["bc:", "bidiclass:"]
-  where
-    loose = T.toLower (T.filter (`notElem` (" \t\n\v\f\r-_" :: String))
-                                (T.replace "=" ":" written))
-
-binaryProperties :: [Text]
-binaryProperties = T.words
-  "ahex alpha alphabetic ascii asciihexdigit bidic bidicontrol bidim \
-  \bidimirrored cased caseignorable changeswhencasefolded \
-  \changeswhencasemapped changeswhenlowercased changeswhentitlecased \
-  \changeswhenuppercased ci cwcf cwcm cwl cwt cwu dash \
-  \defaultignorablecodepoint dep deprecated di dia diacritic ebase ecomp \
-  \emod emoji emojicomponent emojimodifier emojimodifierbase \
-  \emojipresentation epres ext extendedpictographic extender extpict \
-  \graphemebase graphemeextend graphemelink grbase grext grlink hex \
-  \hexdigit idc idcompatmathcontinue idcompatmathstart idcontinue ideo \
-  \ideographic ids idsb idsbinaryoperator idst idstart idstrinaryoperator \
-  \idsu idsunaryoperator incb joinc joincontrol loe \
-  \logicalorderexception lower lowercase math mcm modifiercombiningmark \
-  \nchar noncharactercodepoint patsyn patternsyntax patternwhitespace \
-  \patws pcm prependedconcatenationmark qmark quotationmark radical \
-  \regionalindicator ri sd sentenceterminal softdotted space sterm term \
-  \terminalpunctuation uideo unifiedideograph upper uppercase \
-  \variationselector vs whitespace wspace xidc xidcontinue xids xidstart"
 -- ANCHOR_END: property
 
 -- ANCHOR: numbers

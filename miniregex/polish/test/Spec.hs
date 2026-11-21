@@ -28,7 +28,7 @@ import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (instructions)
 import MiniRegex.Race (findRacing)
 import MiniRegex.Prefilter
-  (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
+  (kmpPlaces, kmpTable, textPlaces)
 import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Cursor (Cursor, at, back, before, byte, cursorAt, rest, taken)
 import Data.Foldable (toList)
@@ -43,6 +43,15 @@ import MiniRegex.Bounded
 import MiniRegex.STVM (scanVMST, scanVMSTFresh)
 import MiniRegex.Unicode (caseVariants, fold)
 import MiniRegex.VM (scanVM)
+import MiniRegex.Cursor (headOf)
+import MiniRegex.Grapheme
+import MiniRegex.Ucd
+  ( GraphemeBreak (..), Conjunct (..), bidiClassNamed, binaryNamed
+  , conjunct, graphemeBreak, isExtendedPictographic )
+import Data.Array.Unboxed qualified as U
+import Data.Map.Strict qualified as Map
+import Data.Text.IO qualified as TIO
+import Numeric (readHex)
 import MiniRegex.LazyDFA (canDfa, dfaFind, dfaFor, reversePattern)
 import Data.Maybe (fromMaybe, isJust)
 import RegexAnswers
@@ -53,7 +62,6 @@ import Text.Regex.TDFA qualified as TDFA
 import Neighbor qualified
 import NeighborMini qualified
 import Data.Set qualified as Set
-import Data.Maybe (isJust)
 import Data.List (intercalate)
 import MiniRegex.Grep
 import MiniRegex.Groups (alwaysGroups)
@@ -126,11 +134,6 @@ lessonPatterns =
 lessonChars :: [Char]
 lessonChars = "12a-@.b s+é日本soldGOgOKkK\x212A"
 
--- 📍 Is it a start with a text inside?
--- 内側の文字列の始まりか？
-isInner :: Start -> Bool
-isInner (Inner _ _) = True
-isInner _           = False
 
 -- 🎲 Short texts of a and b only.
 -- a と b だけの短い文字列
@@ -543,6 +546,125 @@ genChar :: Gen Char
 genChar = elements "ab日 .*+?|()[]{}^$\\-,]0#:"
 -- ANCHOR_END: trees
 
+-- ANCHOR: emojihelpers
+-- 🏷️ The ranges the real PCRE2 gave, by name ("emoji 23 23" is #).
+-- 本物の PCRE2 の答えの範囲を、名前ごとに（"emoji 23 23" は #）
+realRanges :: String -> Map.Map String [(Int, Int)]
+realRanges out = Map.fromListWith (flip (++))
+  [ (n, [(hexOf a, hexOf b)]) | l <- lines out, [n, a, b] <- [words l] ]
+  where
+    hexOf s = case readHex s of
+      [(x, "")] -> x
+      _         -> error s
+
+-- 🏷️ MiniRegex's ranges for a name, without the surrogates (they
+--    cannot be in UTF-8, so PCRE2 did not try them).
+-- MiniRegex の範囲を名前で。サロゲートは抜く（UTF-8 に書けないので、
+-- PCRE2 は試さなかった）
+oursOf :: String -> [(Int, Int)]
+oursOf name = concatMap noSurrogates (pairs (U.elems table))
+  where
+    table = case name of
+      'b' : 'c' : ':' : short -> snd (surelyJust (bidiClassNamed short))
+      _                       -> snd (surelyJust (binaryNamed name))
+    surelyJust = fromMaybe (error ("no table: " ++ name))
+    pairs (a : b : more) = (a, b) : pairs more
+    pairs _              = []
+    noSurrogates (a, b)
+      | b < 0xD800 || a > 0xDFFF = [(a, b)]
+      | otherwise = [ r | r@(x, y) <- [(a, 0xD7FF), (0xE000, b)], x <= y ]
+
+-- 🧪 GraphemeBreakTest.txt: each line's text, and its clusters
+--    ("÷ 0061 × 0308 ÷" is one cluster, a and the umlaut).
+-- GraphemeBreakTest.txt：行ごとの文字列と、そのクラスター
+-- （"÷ 0061 × 0308 ÷" はクラスター1つ。a とウムラウト）
+breakTests :: String -> [(String, [String])]
+breakTests file =
+  [ (concat parts, parts)
+  | l <- lines file, take 1 l == "÷"
+  , let parts = cut (words (takeWhile (/= '#') l)) [] [] ]
+  where
+    cut [] _ done = reverse done
+    cut ("÷" : more) now done
+      | null now  = cut more [] done
+      | otherwise = cut more [] (reverse now : done)
+    cut ("×" : more) now done = cut more now done
+    cut (h : more) now done = case readHex h of
+      [(x, "")] -> cut more (toEnum x : now) done
+      _         -> error h
+
+-- ✂️ Cut with some rules, from the start.
+-- 規則を渡して、頭から切る
+cutBy :: (Seen -> Char -> Bool) -> String -> [String]
+cutBy rules s = go (headOf (T.pack s))
+  where
+    go k = case clusterEndBy rules k of
+      Nothing -> []
+      Just k' -> T.unpack (taken k k') : go k'
+
+-- 📍 From every place of the line, where the cluster ends ("1 2 4 4"),
+--    the way pcre2/tables.c tells it.
+-- 行のどの場所から始めても、クラスターがどこで終わるか（"1 2 4 4"）。
+-- pcre2/tables.c と同じ書き方で
+endsBy :: (Seen -> Char -> Bool) -> Text -> String
+endsBy rules t = unwords
+  [ show (maybe 0 at (clusterEndBy rules c))
+  | i <- [0 .. T.length t - 1], Just c <- [cursorAt t i] ]
+
+-- 👨‍👩‍👧 A family: a man, a woman and a girl, with ZWJs between (GHC
+--    does not take a ZWJ itself in a string: write it \x200D).
+-- 家族：男の人、女の人、女の子のあいだに ZWJ（GHC は文字列の中の ZWJ
+-- そのものを読まないので、\x200D と書く）
+family :: Text
+family = "\x1F468\x200D\x1F469\x200D\x1F467"
+
+-- ANCHOR: pcre2breaks
+-- 🐪 The rules of the real PCRE2 10.49: Unicode's, but (1) no GB9c,
+--    (2) a regional indicator is cut from an Extend, a ZWJ or a
+--    SpacingMark after it, and (3) a Prepend from an emoji after it.
+-- 本物の PCRE2 10.49 の規則：Unicode のものから、(1) GB9c がない、
+-- (2) 地域指示子のあとの Extend・ZWJ・SpacingMark を切り離す、(3) Prepend の
+-- あとの絵文字を切り離す
+pcre2Breaks :: Seen -> Char -> Bool
+pcre2Breaks seen c
+  | p == RegionalIndicator, n `elem` [Extend, ZWJ, SpacingMark] = True
+  | p == Prepend, isExtendedPictographic c                       = True
+  | conjunctRun seen == ConsLinker, conjunct c == Consonant      = True
+  | otherwise = breaksBefore seen c
+  where
+    p = lastBreak seen
+    n = graphemeBreak c
+-- ANCHOR_END: pcre2breaks
+
+-- 🎲 Random trees with \X: some # become \X (not in a lookbehind,
+--    where \X cannot be).
+-- \X のある、でたらめな木：# のいくつかを \X に（後読みの中は別。
+-- \X は書けない）
+genTreeClusters :: Gen Pattern
+genTreeClusters = goP False <$> genTreeRefs [Greedy, Lazy, Possessive] 2
+  where
+    goP behind (Pattern bs) = Pattern (fmap (goB behind) bs)
+    goB behind (Branch ps) = Branch (map (goPiece behind) ps)
+    goPiece behind (Quantified a q) = Quantified (goA behind a) q
+    goPiece _ other = other
+    goA behind a = case a of
+      Lit '#' | not behind -> Cluster
+      Group c p            -> Group c (goP behind p)
+      Atomic p             -> Atomic (goP behind p)
+      Look Behind s p      -> Look Behind s (goP True p)
+      Look d s p           -> Look d s (goP behind p)
+      _                    -> a
+
+-- 🎲 Short texts of what \X looks at: flags, families, skin tones,
+--    marks, Hangul, Devanagari, and a, b, # and \n.
+-- \X が見るものの短い文字列：国旗、家族、肌の色、結合文字、ハングル、
+-- デーヴァナーガリー、a・b・#・\n
+genEmojiLines :: Gen Text
+genEmojiLines = T.pack <$> listOf (elements
+  "ab#\n\r\x301\x200D\xFE0F\x1F1EF\x1F1F5\x1F468\x1F469\x1F467\x1F44D\
+  \\x1F3FD\x1100\x1161\xAC00\x915\x94D\x924\x600")
+-- ANCHOR_END: emojihelpers
+
 main :: IO ()
 main = hspec $ do
   -- ANCHOR: syntax
@@ -730,11 +852,11 @@ main = hspec $ do
       tally verdicts `shouldBe` Tally 1929 0 719
     -- the second book, with UTF: no wrong answers either
     -- 2冊目（UTF あり）も、ちがう答えは1つもない
-    it "passes 1181 tests of testoutput4, and fails none" $ do
+    it "passes 1361 tests of testoutput4, and fails none" $ do
       tests <- readTestFile Utf8 "testdata/testoutput4"
-      tally (map readable tests) `shouldBe` Tally 1184 0 349
+      tally (map readable tests) `shouldBe` Tally 1364 0 169
       let verdicts = map judge tests
-      tally verdicts `shouldBe` Tally 1181 0 352
+      tally verdicts `shouldBe` Tally 1361 0 172
     -- every line counts now: the groups', too
     -- いまは全部の行をくらべる。グループの行も
     it "compares the groups' lines too" $ do
@@ -2069,8 +2191,6 @@ main = hspec $ do
       parsePattern [] "x(?(1)y)" `shouldBe` Left (Unsupported 1 "(?(")
       parsePattern [] "(?1(1))(a)" `shouldBe` Left (Unsupported 3 "(?n(")
       parsePattern [] "(?J)a" `shouldBe` Left (Unsupported 0 "(?J)")
-      parsePattern [] "\\p{Alphabetic}"
-        `shouldBe` Left (Unsupported 0 "\\p{binary property}")
   -- ANCHOR_END: parser
 
   -- ANCHOR: errors
@@ -2451,6 +2571,119 @@ main = hspec $ do
               t  = T.pack cs
           in  counterexample (T.unpack p) (findAll re t === findAllVM re t)
   -- ANCHOR: answers
+  -- ANCHOR: emojitests
+  describe "emoji / 絵文字" $ do
+    -- every \p{...} that is yes or no, and every \p{bc:...}: the same
+    -- characters as the real PCRE2 10.49 (pcre2/tables.c asked it about
+    -- every code point)
+    -- はい・いいえの \p{...} と \p{bc:...} の全部：本物の PCRE2 10.49 と
+    -- 同じ文字（pcre2/tables.c が、全部のコードポイントについて聞いた）
+    -- ANCHOR: realprops
+    it "knows every property of the real PCRE2, character for character" $ do
+      names <- lines <$> readFile "pcre2/properties.names"
+      real <- realRanges <$> readFile "pcre2/properties.out"
+      length names `shouldBe` 81
+      [ (n, oursOf n) | n <- names ]
+        `shouldBe` [ (n, Map.findWithDefault [] n real) | n <- names ]
+    -- ANCHOR_END: realprops
+    -- \p{Emoji} is not "the emoji": 0 to 9, # and * are in it
+    -- \p{Emoji} は「絵文字」ではない：0 から 9、#、* も入る
+    it "finds digits with \\p{Emoji}, and not with \\p{Emoji_Presentation}" $ do
+      map matchText (findAll (surely "\\p{Emoji}") "No.7 #1 ☀️")
+        `shouldBe` ["7", "#", "1", "☀"]
+      map matchText (findAll (surely "\\p{EPres}") "No.7 #1 ☀️ 🍣")
+        `shouldBe` ["🍣"]
+      map matchText (findAll (surely "\\p{ExtPict}") "No.7 #1 ☀️ 🍣")
+        `shouldBe` ["☀", "🍣"]
+    -- the official tests of Unicode 17.0: all 766 cut as they say
+    -- Unicode 17.0 の公式のテスト：766 問とも、そのとおりに切る
+    -- ANCHOR: official
+    it "cuts GraphemeBreakTest.txt as Unicode does" $ do
+      cases <- breakTests <$> readFile "ucd/GraphemeBreakTest.txt"
+      length cases `shouldBe` 766
+      [ c | c@(t, want) <- cases, map T.unpack (clusters (T.pack t)) /= want ]
+        `shouldBe` []
+    -- ANCHOR_END: official
+    -- \X with findAll is the same as clusters
+    -- findAll の \X は、clusters と同じ
+    it "finds the clusters with \\X" $ do
+      map matchText (findAll (surely "\\X") (family <> "🇯🇵👍🏽e\x301"))
+        `shouldBe` [family, "🇯🇵", "👍🏽", "e\x301"]
+      cases <- breakTests <$> readFile "ucd/GraphemeBreakTest.txt"
+      and [ map matchText (findAll (surely "\\X") (T.pack t))
+              == clusters (T.pack t)
+          | (t, _) <- cases ] `shouldBe` True
+    -- the real PCRE2 cuts in three other ways: with them, MiniRegex
+    -- cuts all 3000 lines as the real one does, from every place
+    -- 本物の PCRE2 は、3つのところで別に切る。それを写せば、3000 行の
+    -- 全部を、どの場所から始めても、本物と同じに切る
+    -- ANCHOR: likepcre2
+    it "cuts like the real PCRE2, with PCRE2's three differences" $ do
+      ins <- T.lines <$> TIO.readFile "pcre2/clusters.in"
+      outs <- lines <$> readFile "pcre2/clusters.out"
+      length ins `shouldBe` 3000
+      [ t | (t, o) <- zip ins outs, endsBy pcre2Breaks t /= o ] `shouldBe` []
+      length [ t | (t, o) <- zip ins outs, endsBy breaksBefore t /= o ]
+        `shouldBe` 400
+    -- and with them, 41 of Unicode's tests come out otherwise
+    -- それを写すと、Unicode のテストのうち 43 問がちがう答えになる
+    it "with PCRE2's three differences, misses 43 of Unicode's tests" $ do
+      cases <- breakTests <$> readFile "ucd/GraphemeBreakTest.txt"
+      length [ c | c@(t, want) <- cases, cutBy pcre2Breaks t /= want ]
+        `shouldBe` 43
+    -- ANCHOR_END: likepcre2
+    -- counting and cutting what a person sees
+    -- 人が見る文字を数える・切る
+    it "counts and cuts what a person sees" $ do
+      T.length family `shouldBe` 5
+      clusterCount family `shouldBe` 1
+      T.take 2 (family <> "🇯🇵") `shouldBe` "👨\x200D"
+      takeClusters 1 (family <> "🇯🇵") `shouldBe` family
+      takeClusters 9 "🇯🇵" `shouldBe` "🇯🇵"
+    -- \X runs on the backtracking VM only: it takes a cluster at once
+    -- \X は、バックトラックの VM でだけ動く。クラスターを一度に食べるから
+    it "runs \\X on the backtracking VM, and \\p{Emoji} anywhere" $ do
+      engine (surely "\\X+") `shouldBe` Backtracking
+      engine (surely "\\p{Emoji}+") `shouldNotBe` Backtracking
+      fmap (const ()) (compileWith [Linear] "\\X+")
+        `shouldBe` Left (NotLinear "cluster")
+      isJust (dfaFor (surely "\\p{EPres}+")) `shouldBe` True
+      isJust (dfaFor (surely "\\X+")) `shouldBe` False
+      listing (program (surely "\\X{2}"))
+        `shouldBe` T.unlines ["  0  cluster", "  1  cluster", "  2  match"]
+    -- the mistakes, as PCRE2 10.49 tells them
+    -- まちがい。PCRE2 10.49 と同じ
+    it "tells the mistakes PCRE2 tells" $ do
+      fmap (const ()) (compile "[\\X]")
+        `shouldBe` Left (Invalid 3 "escape sequence is invalid in character class")
+      fmap (const ()) (compile "(?<=\\X)a")
+        `shouldBe` Left (Invalid 0 "length of lookbehind assertion is not limited")
+      fmap (const ()) (compile "\\p{bc:Arabic_Letter}")
+        `shouldBe` Left (Invalid 20 "unknown property after \\P or \\p")
+      fmap (const ()) (compile "\\p{emoji=yes}")
+        `shouldBe` Left (Invalid 13 "unknown property after \\P or \\p")
+    -- \X in random patterns: the two VMs take the same steps, and the
+    -- list and the continuations give the same answer
+    -- でたらめなパターンの中の \X：2つの VM が同じステップ数、候補のリストと
+    -- 継続も同じ答え
+    prop "the matchers agree on \\X" $
+      forAll genTreeClusters $ \tr ->
+        forAll (resize 8 genEmojiLines) $ \t ->
+          let re = surely (render tr)
+              st = searchCountingBy scanVMST 20000 re t 0
+          in  counterexample (T.unpack (render tr)) $
+                st === searchCountingBy scanVM 20000 re t 0
+                  .&&. case fst st of
+                    Left _       -> property True
+                    Right answer -> answer === searchFromCont re t 0
+                                      .&&. answer === searchFromList re t 0
+    -- the tree comes back the same through render, \X and all
+    -- render を通しても、\X ごと同じ木に戻る
+    prop "writes \\X and the properties back" $
+      forAll genTreeClusters $ \tr ->
+        parsePattern [] (render tr) === Right tr
+  -- ANCHOR_END: emojitests
+
   describe "the training / トレーニング" $ do
     -- step 1: -x is the whole line
     -- ステップ1：-x は行の全体

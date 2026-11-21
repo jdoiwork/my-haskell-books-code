@@ -248,7 +248,8 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | よその国に学ぶ：Rust の regex は、なぜ速い？ | [`miniregex/lessons/`](miniregex/lessons/)、[`miniregex/benchmarks/`](miniregex/benchmarks/)、[`langs/cargo/`](langs/cargo/)、[`langs/regex-lessons/`](langs/regex-lessons/) |
 | その場で作る DFA：lazy DFA で範囲を先に | [`miniregex/dfa/`](miniregex/dfa/)、[`miniregex/lessons/`](miniregex/lessons/)、[`langs/cargo/`](langs/cargo/) |
 | Haskell の仲間に入る：regex-base と `=~` | [`miniregex/base/`](miniregex/base/)、[`miniregex/dfa/`](miniregex/dfa/)、[`langs/regex-base/`](langs/regex-base/) |
-| 道具に仕上げる：grep・準クォート・型付きのグループ | [`miniregex/polish/`](miniregex/polish/)、[`miniregex/base/`](miniregex/base/)、[`langs/regex-polish/`](langs/regex-polish/)、[`langs/cargo/`](langs/cargo/) |
+| 絵文字を探す：`\p{Emoji}` と `\X` | [`miniregex/emoji/`](miniregex/emoji/)、[`miniregex/base/`](miniregex/base/)、[`langs/regex-emoji/`](langs/regex-emoji/)、[`langs/cargo/`](langs/cargo/) |
+| 道具に仕上げる：grep・準クォート・型付きのグループ | [`miniregex/polish/`](miniregex/polish/)、[`miniregex/emoji/`](miniregex/emoji/)、[`langs/regex-polish/`](langs/regex-polish/)、[`langs/cargo/`](langs/cargo/) |
 | 第13部のふりかえり | [`miniregex/polish/`](miniregex/polish/)、[`review-miniregex/`](review-miniregex/) |
 
 ### 第14部 Lam を育てる：言語の機能

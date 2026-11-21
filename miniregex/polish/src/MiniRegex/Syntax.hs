@@ -112,6 +112,13 @@ data Atom
   -- 動かす（0 はパターン全体）。名前は、\1 と同じく番号にする
   | Call Int
   -- ANCHOR_END: call
+  -- ANCHOR: cluster
+  -- \X: one extended grapheme cluster, what a person sees as one
+  -- character (👨‍👩‍👧 is five code points). Never taken back in part.
+  -- \X：拡張書記素クラスター1つ。人が1文字と見るもの（👨‍👩‍👧 は
+  -- コードポイント5つ）。一部だけを返すことはない
+  | Cluster
+  -- ANCHOR_END: cluster
   deriving (Show, Eq)
 
 -- 👀 Which way to look, and whether it should be there or not.
@@ -185,14 +192,21 @@ data CharType
 data Reach = AsciiOnly | AllUnicode
   deriving (Show, Eq)
 
--- 🏷️ \p{...}: a general category (L, Lu, ...), a script, or Any.
--- \p{...}：一般カテゴリー（L・Lu など）、文字体系、Any
+-- 🏷️ \p{...}: a general category (L, Lu, ...), a script, Any, a
+--    yes-or-no property, or a bidi class.
+-- \p{...}：一般カテゴリー（L・Lu など）、文字体系、Any、はい・いいえの
+-- 性質、双方向のクラス
 data Property
   = Category Text      -- \p{L}, \p{Lu}, \p{Lc}
   | Script Script      -- \p{sc:Han}: the script of the character
   | ScriptExt Script   -- \p{Han}: the script, or one it is used with
   | AnyCode            -- \p{Any}
   | Special Text       -- \p{Xan}, \p{Xps}, \p{Xsp}, \p{Xwd}
+  -- ANCHOR: binary
+  | Binary Text        -- \p{Emoji}, \p{EPres}: the long name, loose
+                       --   (emojipresentation)
+  | BidiClass Text     -- \p{bc:AL}: the short name, loose (al)
+  -- ANCHOR_END: binary
   deriving (Show, Eq)
 -- ANCHOR_END: chartype
 

@@ -3,8 +3,12 @@ name:          miniregex
 version:       0.1.0.0
 build-type:    Simple
 
+-- The tables of Unicode 17.0, read while building
+-- ビルドするときに読む、Unicode 17.0 の表
+extra-source-files: ucd/*.txt
+
 -- 総合演習：PCRE2 互換の正規表現エンジンを作る
--- （18. 道具に仕上げる：grep・準クォート・型付きのグループ）
+-- （19. 道具に仕上げる：grep・準クォート・型付きのグループ）
 
 common shared
   default-language: GHC2024
@@ -25,7 +29,10 @@ library
                     MiniRegex.Width
                     MiniRegex.Cursor
                     MiniRegex.Caps
+                    MiniRegex.UcdFile
+                    MiniRegex.Ucd
                     MiniRegex.Unicode
+                    MiniRegex.Grapheme
                     MiniRegex.Rules
                     MiniRegex.Candidates
                     MiniRegex.Continuation
@@ -77,8 +84,10 @@ library
     -- To compare with regex-tdfa in GHCi
     -- GHCi で regex-tdfa とくらべるため
     , regex-tdfa       ^>=1.3
-    -- The quasi-quoters [re|…|] and [typed|…|]
-    -- 準クォート [re|…|] と [typed|…|]
+    -- The quasi-quoters [re|…|] and [typed|…|], and reading Unicode's
+    -- files while building (\p{Emoji}, \X)
+    -- 準クォート [re|…|] と [typed|…|]。ビルドするときに Unicode の
+    -- ファイルを読む（\p{Emoji}・\X）
     , template-haskell ^>=2.24
     -- The command line of minigrep
     -- minigrep のコマンドライン

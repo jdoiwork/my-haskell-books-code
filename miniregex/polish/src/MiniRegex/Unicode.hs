@@ -35,6 +35,7 @@ import Data.Text (Text)
 import Data.Text qualified as T
 
 import MiniRegex.Syntax (CharType (..), Property (..), Reach (..))
+import MiniRegex.Ucd (bidiClassNamed, binaryNamed, inTable)
 -- ANCHOR_END: imports
 
 -- ANCHOR: fold
@@ -231,9 +232,17 @@ hasProperty p c = case p of
                        || hasProperty (Category "Mn") c
                        || hasProperty (Category "Pc") c
   Special _       -> False
+  -- ANCHOR: tables
+  Binary name     -> inNamed binaryNamed name
+  BidiClass name  -> inNamed bidiClassNamed name
+  -- ANCHOR_END: tables
   where
     letter    = hasProperty (Category "L") c
     number    = hasProperty (Category "N") c
+    -- look the table up by its name, and the character in it
+    -- 名前で表を引いて、その中に文字を探す
+    inNamed find name =
+      maybe False ((`inTable` c) . snd) (find (T.unpack name))
 
 -- 📇 The general categories, by their two-letter names. A name of one
 --    letter is all the categories that start with it; Lc (or L&) is
@@ -270,11 +279,19 @@ propertyNamed written = case T.breakOn ":" loose of
         _ | kind `elem` ["sc", "script"] -> Script <$> scriptNamed v
           | kind `elem` ["scx", "scriptextensions"] ->
               ScriptExt <$> scriptNamed v
+          -- ANCHOR: bcname
+          | kind `elem` ["bc", "bidiclass"] ->
+              BidiClass . T.pack . fst <$> bidiClassNamed (T.unpack v)
+          -- ANCHOR_END: bcname
           | otherwise -> Nothing
   _ | loose `elem` ["any"] -> Just AnyCode
     | loose `elem` ["l&", "lc"] -> Just (Category "Lc")
     | Just n <- lookup loose categories -> Just (Category n)
     | Just n <- lookup loose specials -> Just (Special n)
+    -- ANCHOR: binaryname
+    | Just (long, _) <- binaryNamed (T.unpack loose) ->
+        Just (Binary (T.pack long))
+    -- ANCHOR_END: binaryname
     | otherwise -> ScriptExt <$> scriptNamed loose
   where
     loose = T.toLower (T.filter (`notElem` (" \t\n\v\f\r-_" :: String))

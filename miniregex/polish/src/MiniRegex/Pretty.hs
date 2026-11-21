@@ -73,6 +73,7 @@ atom a = case a of
   Backref n                -> (<> backref n) <$> need [(I, False)]
   NoCase (Backref n)       -> (<> backref n) <$> need [(I, True)]
   NoCase other             -> atom other
+  Cluster                  -> pure "\\X"
   Group kind inner         -> inParens (open kind) inner
   Atomic inner             -> inParens "(?>" inner
   Look d sense inner       -> inParens (look d sense) inner
@@ -229,6 +230,8 @@ builtin o t = case t of
     prop (ScriptExt s) = T.pack (show s)
     prop AnyCode       = "Any"
     prop (Special n)   = n
+    prop (Binary n)    = n
+    prop (BidiClass n) = "bc:" <> n
 
 -- 🛡️ A character outside [ ], with a \ when it has a meaning.
 -- [ ] の外の文字。意味のある記号なら \ を付ける
@@ -286,6 +289,7 @@ pieceTree (Quantified a q) = case a of
     label (Backref n) = "\\" <> T.pack (show n) <> " same as group "
                           <> T.pack (show n)
     label (NoCase x)  = "(?i) " <> label x
+    label Cluster     = "\\X one cluster (what a person sees as one)"
     label (Call 0)    = "(?R) call the whole pattern"
     label (Call n)    = "(?" <> T.pack (show n) <> ") call group "
                           <> T.pack (show n)

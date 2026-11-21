@@ -22,6 +22,7 @@ import Data.IntMap.Strict qualified as IntMap
 
 import MiniRegex.Caps
 import MiniRegex.Cursor hiding (before, rest)
+import MiniRegex.Grapheme (clusterEnd)
 import MiniRegex.Program
 import MiniRegex.Rules (eatAll, fitsChar, holds)
 import MiniRegex.Types (Span (..))
@@ -116,6 +117,13 @@ runVM prog limit accept start =
         Nothing   -> failed n stack  -- (not reached / 来ない)
       Ref g       -> again stepOver g
       RefNoCase g -> again (stepOverBy sameCase) g
+      -- ANCHOR: cluster
+      -- \X: jump to where the cluster ends
+      -- \X：クラスターの終わりへ飛ぶ
+      TakeCluster -> case clusterEnd (cursor t) of
+        Just c  -> next t { cursor = c }
+        Nothing -> failed n stack
+      -- ANCHOR_END: cluster
       Keep  -> next t { caps = keepOut (cursor t) (caps t) }
       Match
         | accept (cursor t) -> (Found (cursor t) (caps t), n)

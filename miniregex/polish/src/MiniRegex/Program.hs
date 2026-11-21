@@ -45,6 +45,11 @@ data Inst l
   -- \1 と (?i)\1：n 番のグループが見つけた文字列を、もう一度
   | Ref Int
   | RefNoCase Int
+  -- ANCHOR: cluster
+  -- \X: take one grapheme cluster, however many characters it is.
+  -- \X：書記素クラスターを1つ食べる（何文字あっても）
+  | TakeCluster
+  -- ANCHOR_END: cluster
   -- \K: the match that is told starts here.
   -- \K：知らせる一致は、ここから始まる
   | Keep

@@ -22,10 +22,10 @@ import MiniRegex.Unicode (caseVariants, hasType, sameCase)
 
 -- ANCHOR: char
 -- 🔤 Does this character fit an atom of one character? (A group, a
---    back reference, an atomic group and a look are not one character;
---    the matchers see to them themselves.)
+--    back reference, an atomic group, a look and \X are not one
+--    character; the matchers see to them themselves.)
 -- この1文字は、1文字のアトムに合うか（グループ・後方参照・アトミック
--- グループ・「見る」ものは1文字ではないので、マッチャーが自分で見る）
+-- グループ・「見る」もの・\X は1文字ではないので、マッチャーが自分で見る）
 fitsChar :: Atom -> Char -> Bool
 fitsChar (Lit x)              c = c == x
 fitsChar AnyChar              c = c /= '\n'
@@ -39,6 +39,7 @@ fitsChar (Backref _)          _ = False
 fitsChar (Atomic _)           _ = False
 fitsChar (Look _ _ _)         _ = False
 fitsChar (Call _)             _ = False
+fitsChar Cluster              _ = False
 -- ANCHOR_END: char
 
 -- ANCHOR: eatall

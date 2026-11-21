@@ -31,6 +31,7 @@ import Data.Vector.Unboxed.Mutable qualified as MU
 
 import MiniRegex.Caps (Caps, keptAt, spanBetween)
 import MiniRegex.Cursor hiding (before, rest)
+import MiniRegex.Grapheme (clusterEnd)
 import MiniRegex.Program
 import MiniRegex.Rules (eatAll, fitsChar, holds)
 import MiniRegex.Stack
@@ -224,6 +225,11 @@ scanVMSTEach cap prog limit accept places = runST $ do
               Nothing   -> failed n sp tp  -- (not reached / 来ない)
           Ref g       -> again stepOver g
           RefNoCase g -> again (stepOverBy sameCase) g
+          -- ANCHOR: cluster
+          TakeCluster -> case clusterEnd cur of
+            Just c  -> go n (pc + 1) c sp tp cs
+            Nothing -> failed n sp tp
+          -- ANCHOR_END: cluster
           Keep -> setCap 0 (Just (keptAt cur)) tp >>= next
           Match
             | accept cur -> do

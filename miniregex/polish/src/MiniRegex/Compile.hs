@@ -192,6 +192,9 @@ atom n (Group _ inner) = do
   pure ([Do (Open n)] ++ body ++ [Do (Close n)])
 atom _ (Backref r)          = pure [Do (Ref r)]
 atom _ (NoCase (Backref r)) = pure [Do (RefNoCase r)]
+-- ANCHOR: atomcluster
+atom _ Cluster              = pure [Do TakeCluster]
+-- ANCHOR_END: atomcluster
 atom n (Atomic inner)       = atomic (pattern n inner)
 atom n (Look Ahead sense inner) = looking sense (pattern n inner)
 atom n (Look Behind sense inner) = do
@@ -409,6 +412,7 @@ showInst i = case i of
   Close n     -> "close " <> num n
   Ref n       -> "ref " <> num n
   RefNoCase n -> "ref (?i)" <> num n
+  TakeCluster -> "cluster"
   Keep        -> "keep"
   Match       -> "match"
   SetMark m   -> "mark m" <> num m
