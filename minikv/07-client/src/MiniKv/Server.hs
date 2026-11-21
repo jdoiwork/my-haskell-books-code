@@ -155,33 +155,47 @@ changeAndLog env step = case journal env of
     failed <- readIORef (logFailure env)
     case failed of
       Just why -> pure (Left why)
-      Nothing  -> do
-        store <- readTVarIO (storeVar env)
-        let ((a, entries), store') = step store
-        outcome <- try @SomeException $ do
-          unless (null entries) $ do
-            BS.hPut handle (foldMap encodeEntry entries)
-            hFlush handle
-          atomically (writeTVar (storeVar env) $! store')
-        case outcome of
-          Right () -> pure (Right a)
-          Left err -> do
-            -- The log and the store may differ now: no more changes.
-            -- ログとストアが食い違ったかもしれない：もう変えない
-            let why = BC.pack (filter (`notElem` ("\r\n" :: String))
-                                      (displayException err))
-            writeIORef (logFailure env) (Just why)
-            -- The entry we could not write is still in the handle's
-            -- buffer. Close the handle now, while writing still fails:
-            -- closed later (the disk may have room again), it would
-            -- write the change we refused.
-            -- 書けなかった1件は、Handle のバッファーに残っている。
-            -- まだ書けない今のうちに閉じる。あとで閉じると（ディスクが
-            -- 空いているかもしれない）、断った変更が書かれてしまう
-            _ <- try @SomeException (hClose handle)
-            case fromException @IOException err of
-              Just _  -> pure (Left why)
-              Nothing -> throwIO err    -- e.g. cancel / cancel など
+      Nothing  -> writeThenChange env handle step
+
+-- 📝 Work out the new store, write what the step says to the log, and
+--    put the new store in only when writing worked. The caller holds
+--    the log's lock.
+-- 新しいストアを計算し、step が言うものをログに書き、書けたときだけ、
+-- 新しいストアを入れる。呼ぶ側が、ログの錠をとっている
+writeThenChange :: Env -> Handle -> (Store -> ((a, [Command]), Store))
+                -> IO (Either ByteString a)
+writeThenChange env handle step = do
+  store <- readTVarIO (storeVar env)
+  let ((a, entries), store') = step store
+  outcome <- try @SomeException $ do
+    unless (null entries) $ do
+      BS.hPut handle (foldMap encodeEntry entries)
+      hFlush handle
+    atomically (writeTVar (storeVar env) $! store')
+  case outcome of
+    Right () -> pure (Right a)
+    Left err -> stopChanges env handle err
+
+-- 🛑 Writing failed. The log and the store may differ now: write down
+--    why, and refuse every change from then on.
+-- 書けなかった。ログとストアが食い違ったかもしれない：理由を書き留めて、
+-- それからあとの変更を、全部断る
+stopChanges :: Env -> Handle -> SomeException -> IO (Either ByteString a)
+stopChanges env handle err = do
+  let why = BC.pack (filter (`notElem` ("\r\n" :: String))
+                            (displayException err))
+  writeIORef (logFailure env) (Just why)
+  -- The entry we could not write is still in the handle's buffer.
+  -- Close the handle now, while writing still fails: closed later
+  -- (the disk may have room again), it would write the change we
+  -- refused.
+  -- 書けなかった1件は、Handle のバッファーに残っている。まだ書けない
+  -- 今のうちに閉じる。あとで閉じると（ディスクが空いているかも
+  -- しれない）、断った変更が書かれてしまう
+  _ <- try @SomeException (hClose handle)
+  case fromException @IOException err of
+    Just _  -> pure (Left why)
+    Nothing -> throwIO err    -- e.g. cancel / cancel など
 
 -- 🧮 Like stateTVar, but the new state is worked out before it goes
 --    into the TVar (stateTVar puts in the recipe, not the result).
