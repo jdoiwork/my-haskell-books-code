@@ -95,7 +95,9 @@ genUnicodeChar = frequency
   , (1, chooseEnum ('\x10A0', '\x10FF'))  -- Georgian
   , (1, chooseEnum ('\x13A0', '\x13F5'))  -- Cherokee
   , (1, chooseEnum ('\x1E00', '\x1FFF'))  -- Latin and Greek extended
-  , (1, chooseEnum ('\x2000', '\x215F'))  -- spaces, signs, numbers
+  -- (but U+20C1, the Saudi riyal sign, is new in Unicode 17)
+  -- （ただし U+20C1 のサウジ・リヤルの記号は、Unicode 17 で足された）
+  , (1, chooseEnum ('\x2000', '\x215F') `suchThat` (/= '\x20C1'))
   , (1, chooseEnum ('\x3000', '\x30FF'))  -- CJK signs, kana
   , (1, chooseEnum ('\x4E00', '\x4E80'))  -- kanji
   , (1, chooseEnum ('\xFF00', '\xFF5E'))  -- full width
