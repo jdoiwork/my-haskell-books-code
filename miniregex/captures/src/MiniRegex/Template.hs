@@ -57,16 +57,15 @@ template re = fmap (Template . merge) . go 0 . T.unpack
           (p :) <$> go (end + 1) rest
         _          -> Left (Invalid end
           "expected closing curly bracket in replacement string")  -- -58
-    go i ('$' : cs) = case cs of
-      d : _ | isDigit d ->
-        -- $12 is group 12; PCRE2 points just after the first digit
-        -- $12 は12番のグループ。PCRE2 は最初の数字のすぐうしろを指す
-        let (w, rest) = span isDigit cs
-        in  (:) <$> insert (i + 2) w <*> go (i + 1 + length w) rest
-      _ -> case span isNameChar cs of
-        ([], _)   -> wrong (i + 1)                          -- $ alone
-        (w, rest) -> let end = i + 1 + length w
-                     in  (:) <$> insert end w <*> go end rest
+    go i ('$' : cs@(d : _)) | isDigit d =
+      -- $12 is group 12; PCRE2 points just after the first digit
+      -- $12 は12番のグループ。PCRE2 は最初の数字のすぐうしろを指す
+      let (w, rest) = span isDigit cs
+      in  (:) <$> insert (i + 2) w <*> go (i + 1 + length w) rest
+    go i ('$' : cs) = case span isNameChar cs of
+      ([], _)   -> wrong (i + 1)                            -- $ alone
+      (w, rest) -> let end = i + 1 + length w
+                   in  (:) <$> insert end w <*> go end rest
     go i (c : cs) = (Plain (T.singleton c) :) <$> go (i + 1) cs
 
     -- a group by number or by name; `at` is where PCRE2 points if it is

@@ -323,25 +323,28 @@ serveClient env sock = loop BS.empty
       Broken why ->
         sendAll sock (render (WError ("ERR protocol: " <> BC.pack why)))
       Parsed [] rest -> answerAll rest
-      Parsed words' rest -> case toRequest words' of
-        Left message -> do
-          sendAll sock (render (WError ("ERR " <> encodeUtf8 message)))
-          answerAll rest
-        Right (Subscribe channels) ->
-          subscribe env sock channels     -- this connection now listens
-        Right (BLPop key secs) -> do
-          waited <- blockingPop env sock key secs
-          case waited of
-            Nothing             -> pure ()  -- the client left / 帰った
-            Just (reply, early) -> do
-              sendAll sock (render reply)
-              answerAll (rest <> early)
-        Right other -> do
-          reply <- case other of
-            Plain command   -> runCommand env command
-            Publish c m     -> publish env c m
-          sendAll sock (render reply)
-          answerAll rest
+      Parsed words' rest -> answer (toRequest words') rest
+    -- Answer one request, then go on with the rest of the buffer.
+    -- 要求に1つ答えて、バッファーの残りに進む
+    answer request rest = case request of
+      Left message -> do
+        sendAll sock (render (WError ("ERR " <> encodeUtf8 message)))
+        answerAll rest
+      Right (Subscribe channels) ->
+        subscribe env sock channels     -- this connection now listens
+      Right (BLPop key secs) -> do
+        waited <- blockingPop env sock key secs
+        case waited of
+          Nothing             -> pure ()  -- the client left / 帰った
+          Just (reply, early) -> do
+            sendAll sock (render reply)
+            answerAll (rest <> early)
+      Right other -> do
+        reply <- case other of
+          Plain command   -> runCommand env command
+          Publish c m     -> publish env c m
+        sendAll sock (render reply)
+        answerAll rest
 -- ANCHOR_END: client
 
 -- 👂 Listen on 127.0.0.1.

@@ -116,18 +116,22 @@ hello server message = object
 -- AI が名指しした道具を、その引数で呼ぶ。名前がない・ない道具は、MCP の
 -- 仕様のとおりプロトコルのエラー。道具そのものの断りは isError の結果
 call :: [Tool] -> Value -> IO (Either (Int, Text) Value)
-call tools message = case parseMaybe nameOf message of
-  Nothing -> pure (Left (-32602, "params.name is missing"))
-  Just wanted -> case parseMaybe argsOf message of
-    Nothing -> pure (Left (-32602, "params.arguments must be an object"))
-    Just args -> case [ t | t <- tools, t.name == wanted ] of
-      []    -> pure (Left (-32602, "Unknown tool: " <> wanted))
-      t : _ -> do
-        reply <- runSafely (t.run args)
-        pure $ Right $ case reply of
-          Answer text -> result False text
-          Refuse text -> result True  text
+call tools message = case picked of
+  Left err        -> pure (Left err)
+  Right (t, args) -> Right . toResult <$> runSafely (t.run args)
   where
+    -- The tool and its arguments, or the first thing that is wrong.
+    -- 道具とその引数か、最初に見つかったまちがい
+    picked = do
+      wanted <- required "params.name is missing" (parseMaybe nameOf message)
+      args   <- required "params.arguments must be an object"
+                         (parseMaybe argsOf message)
+      case [ t | t <- tools, t.name == wanted ] of
+        []    -> Left (-32602, "Unknown tool: " <> wanted)
+        t : _ -> Right (t, args)
+    required why = maybe (Left (-32602, why)) Right
+    toResult (Answer text) = result False text
+    toResult (Refuse text) = result True  text
     nameOf = withObject "message" $ \o -> o .: "params" >>= (.: "name")
     argsOf = withObject "message" $ \o -> do
       params <- o .: "params"

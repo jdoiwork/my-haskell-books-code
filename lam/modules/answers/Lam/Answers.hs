@@ -41,12 +41,15 @@ importGraph files session file source =
             Left _ -> pure (Left ("cannot read " <> T.pack path))
             Right prog -> do
               let names = map importName (programImports prog)
-                  label = case programHeader prog of
-                    Just (Header _ m _) -> m
-                    Nothing             -> T.pack path
+                  label = labelOf path prog
               found <- traverse (locate path) (filter (not . standard) names)
               foldM visit (Right (path : seen, (label, names) : edges))
                     [ f | Just f <- found ]
+    -- A module by its name, a program by its path.
+    -- モジュールは名前で、プログラムは道で
+    labelOf path prog = case programHeader prog of
+      Just (Header _ m _) -> m
+      Nothing             -> T.pack path
     standard name = maybe False moduleStandard
                       (Map.lookup name (sessionModules session))
     -- The first place where the module's file is, like findModule.

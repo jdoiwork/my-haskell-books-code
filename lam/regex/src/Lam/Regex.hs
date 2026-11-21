@@ -131,14 +131,7 @@ regexBuiltins =
           | Just (VString w)  <- Map.lookup "text" fields
           , Just (VList gs)   <- Map.lookup "groups" fields
           , Just (VMap names) <- Map.lookup "named" fields ->
-          Right $ case T.unpack key of
-            ds | not (null ds), all (`elem` ['0' .. '9']) ds ->
-              let n = read ds :: Int
-              in if n == 0 then VString w
-                 else case drop (n - 1) gs of
-                        g : _ -> g
-                        []    -> VString ""
-            _ -> Map.findWithDefault (VString "") (Key (VString key)) names
+          Right (pickGroup key w gs names)
         _ -> Left (BuiltinFailed "$group" "got a value of the wrong type")
 
   -- Cut a string at every match:  Regex.split re", *" "a, b,c".
@@ -149,6 +142,22 @@ regexBuiltins =
   ]
   where
     tResult e a = TCon "Result" [e, a]
+
+-- 🧩 One group of a match, for $group: 0 is the whole match, 1 the
+--    first group, and a name a named group. A group that took no part
+--    (or is not there) is "".
+-- 見つけたもののグループを1つ（$group のため）：0 は全体、1 は1つ目の
+-- グループ、名前は名前つきのグループ。使われなかった（ない）グループは ""
+pickGroup :: Text -> Text -> [Value] -> Map.Map Key Value -> Value
+pickGroup key w gs names = case T.unpack key of
+  ds | not (null ds), all (`elem` ['0' .. '9']) ds -> numbered (read ds)
+  _ -> Map.findWithDefault (VString "") (Key (VString key)) names
+  where
+    numbered :: Int -> Value
+    numbered 0 = VString w
+    numbered n = case drop (n - 1) gs of
+      g : _ -> g
+      []    -> VString ""
 -- ANCHOR_END: table
 
 -- ANCHOR: search

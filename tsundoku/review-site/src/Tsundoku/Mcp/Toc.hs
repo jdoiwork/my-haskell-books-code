@@ -24,8 +24,9 @@ module Tsundoku.Mcp.Toc
   , maxItems
   ) where
 
--- bits and words for the key, lists, text, and trees
--- 鍵のためのビットと数、リスト、文字列、木
+-- `first` for Either, bits and words for the key, lists, text, and trees
+-- Either の first、鍵のためのビットと数、リスト、文字列、木
+import Data.Bifunctor (first)
 import Data.Bits (xor)
 import Data.Char (isControl, ord)
 import Data.Text (Text)
@@ -205,13 +206,17 @@ data Plan
   deriving (Show, Eq)
 
 planToc :: [(WorkId, Card)] -> TocDraft -> Plan
-planToc shelf d = case draftWork d of
-  Left problems -> Problems (map explainToc problems)
-  Right w       -> case checkWork w of
-    Left mistake -> Problems (explain mistake)
-    Right good   ->
-      case [ wid | (wid, c) <- shelf, workKey c.work == workKey good ] of
-        wid : _ -> Already wid
-        []      -> Ready good (workKey good)
+planToc shelf d = case checked of
+  Left problems -> Problems problems
+  Right good    ->
+    case [ wid | (wid, c) <- shelf, workKey c.work == workKey good ] of
+      wid : _ -> Already wid
+      []      -> Ready good (workKey good)
+  where
+    -- The draft as a work, or what is wrong with it.
+    -- 下書きを作品にしたものか、まずいところ
+    checked = do
+      w <- first (map explainToc) (draftWork d)
+      first explain (checkWork w)
 -- ANCHOR_END: plan
 -- ANCHOR_END: all

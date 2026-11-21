@@ -209,9 +209,9 @@ advance clock handle k action = case action of
       [] -> finish clock handle k (Right v)
       rest : more -> do
         setThread k th { thStack = more }
-        case rest v of
-          Left err   -> finish clock handle k (Left (Failed err))
-          Right next -> advance clock handle k next
+        either (finish clock handle k . Left . Failed)
+               (advance clock handle k)
+               (rest v)
   Bind first rest -> do
     modifyThread k (\th -> th { thStack = rest : thStack th })
     advance clock handle k first

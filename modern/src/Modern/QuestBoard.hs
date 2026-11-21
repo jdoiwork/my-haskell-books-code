@@ -83,21 +83,19 @@ applyOp op (Board qs) =
     Take n who
       -- 「誰が引き受けますか？」
       | T.null (T.strip who) -> Left "who takes it?"
-      | otherwise            -> do
-          quest <- find n
-          case questStage quest of
-            Open -> Right (put quest {questStage = TakenBy (T.strip who)})
-            -- 「依頼 #n は募集中ではありません」
-            _    -> Left (label n <> " is not open")
-    Finish n -> do
-      quest <- find n
-      case questStage quest of
-        TakenBy who -> Right (put quest {questStage = DoneBy who})
-        -- 「依頼 #n は、まだ誰も引き受けていません」
-        Open        -> Left (label n <> " has not been taken yet")
-        -- 「依頼 #n は、もう終わっています」
-        DoneBy _    -> Left (label n <> " is already done")
+      | otherwise            -> find n >>= takeBy (T.strip who)
+    Finish n -> find n >>= finish
   where
+    takeBy who quest = case questStage quest of
+      Open -> Right (put quest {questStage = TakenBy who})
+      -- 「依頼 #n は募集中ではありません」
+      _    -> Left (label (questId quest) <> " is not open")
+    finish quest = case questStage quest of
+      TakenBy who -> Right (put quest {questStage = DoneBy who})
+      -- 「依頼 #n は、まだ誰も引き受けていません」
+      Open        -> Left (label (questId quest) <> " has not been taken yet")
+      -- 「依頼 #n は、もう終わっています」
+      DoneBy _    -> Left (label (questId quest) <> " is already done")
     put q = Board (Map.insert (questId q) q qs)
     find n =
       case Map.lookup n qs of

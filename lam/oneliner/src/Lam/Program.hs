@@ -200,15 +200,16 @@ evaluate handle session e =
     Left err -> pure (Errored (joined (placedType (explain session err))))
     Right t  -> case eval (sessionValues session) e of
       Left err -> pure (Errored (joined (placedEval err)))
-      Right (VIO action) -> do
-        done <- runAction handle action
-        pure $ case done of
-          Left (Failed err) -> Errored (joined (placedEval err))
-          Left (Exited n)   -> ExitedWith n
-          Right (VTuple []) -> Finished ""
-          Right v           -> Finished (renderValue v <> " : " <> inside t)
+      Right (VIO action) -> ran t <$> runAction handle action
       Right v -> pure (Finished (renderValue v <> " : " <> renderScheme t))
   where
+    -- What the IO action gave, as the REPL shows it.
+    -- IO がくれたものを、REPL が見せる形で
+    ran t done = case done of
+      Left (Failed err) -> Errored (joined (placedEval err))
+      Left (Exited n)   -> ExitedWith n
+      Right (VTuple []) -> Finished ""
+      Right v           -> Finished (renderValue v <> " : " <> inside t)
     -- The type of what the action gives: String for IO String.
     -- 頼みごとがくれる値の型。IO String なら String
     inside (Forall vs ns ty) = case ty of

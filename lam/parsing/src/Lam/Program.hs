@@ -271,17 +271,18 @@ evaluate handle session e =
     -- ANCHOR_END: evaluateOpen
     Right (sc, e') -> case eval (sessionValues session) e' of
       Left err -> pure (Errored (joined (placedEval err)))
-      Right (VIO action) -> do
-        done <- runAction handle action
-        pure $ case done of
-          Left stop         -> stopped stop
-          Right (VTuple []) -> Finished ""
-          Right v           -> Finished (renderValue v <> " : " <> inside sc)
+      Right (VIO action) -> ran sc <$> runAction handle action
       -- A number of any type is shown as an Int: 1 + 2 is 3 : Int.
       -- どの型でもよい数は、Int にして見せる
       Right v -> pure (Finished (renderValue v <> " : "
                                    <> renderScheme (defaultNumbers sc)))
   where
+    -- What the IO action gave, as the REPL shows it.
+    -- IO がくれたものを、REPL が見せる形で
+    ran sc done = case done of
+      Left stop         -> stopped stop
+      Right (VTuple []) -> Finished ""
+      Right v           -> Finished (renderValue v <> " : " <> inside sc)
     table = sessionData session
     types = sessionTypes session
     -- ANCHOR: defaultIO

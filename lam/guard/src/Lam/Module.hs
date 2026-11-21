@@ -89,12 +89,8 @@ makeModule standard file (Header loc m exposing) builtin decls inside = do
         | otherwise          -> notDefined x
       ExposeType t which -> case lookup t ownTypes of
         Nothing -> notDefined t
-        Just cs -> case which of
-          NoConstructors       -> Right (Right (t, []))
-          AllConstructors      -> Right (Right (t, cs))
-          TheseConstructors ds -> case filter (`notElem` cs) ds of
-            []    -> Right (Right (t, ds))
-            d : _ -> notDefined d
+        Just cs -> either notDefined (\ds -> Right (Right (t, ds)))
+                     (shownOf cs which)
     -- 「Shapes は area を見せると言っていますが、area を決めていません」
     notDefined x = Left (renderLoc loc <> ": error: the module " <> m
                          <> " exposes " <> x <> ", but does not define it")
@@ -170,16 +166,23 @@ importInto session imp m = do
         | otherwise            -> notShown x
       ExposeType t which -> case Map.lookup t (moduleShown m) of
         Nothing -> notShown t
-        Just (cs, _) -> case which of
-          NoConstructors       -> Right []
-          AllConstructors      -> Right cs
-          TheseConstructors ds -> case filter (`notElem` cs) ds of
-            []    -> Right ds
-            d : _ -> notShown d
+        Just (cs, _) -> either notShown Right (shownOf cs which)
     -- 「モジュール Json は JDec を見せていません」
     notShown x = Left $ errorAt ("the module " <> moduleName m
                                  <> " does not expose " <> x)
     errorAt msg = renderLoc (importLoc imp) <> ": error: " <> msg
+
+-- 🧱 The constructors (or methods) an item of the list shows, out of
+--    cs. Left is the first one that is not in cs.
+-- 一覧の1つが見せる構成子（メソッド）を、cs の中から。Left は、cs に
+-- ない最初の1つ
+shownOf :: [Name] -> Shown -> Either Name [Name]
+shownOf cs which = case which of
+  NoConstructors       -> Right []
+  AllConstructors      -> Right cs
+  TheseConstructors ds -> case filter (`notElem` cs) ds of
+    []    -> Right ds
+    d : _ -> Left d
 
 -- 👀 Each visible name (as written, the name inside the module), with
 --    what look finds for it.
@@ -313,24 +316,25 @@ findModule files base stack from imp =
                       <> T.intercalate ", " (map T.pack places) <> ")")
     look (path : rest) = do
       cached <- lift (gets (Map.lookup path))
-      case cached of
-        Just m -> pure m
-        Nothing -> do
-          found <- lift (lift (readSource files path))
-          case found of
-            Nothing -> look rest
-            Just source -> do
-              -- ANCHOR: cycle
-              -- Already being loaded: the imports go around in a ring.
-              -- もう読んでいる途中：import が輪になっている
-              when (path `elem` stack) $
-                throwError $ errorAt ("the imports go around in a ring: "
-                        <> T.intercalate " -> "
-                             (map T.pack (reverse (path : stack))))
-              -- ANCHOR_END: cycle
-              m <- loadModule files base (path : stack) path name source
-              lift (modify (Map.insert path m))
-              pure m
+      maybe (load path rest) pure cached
+    -- Not loaded yet: read the file, if it is there.
+    -- まだ読んでいない：ファイルがあれば読む
+    load path rest = do
+      found <- lift (lift (readSource files path))
+      case found of
+        Nothing -> look rest
+        Just source -> do
+          -- ANCHOR: cycle
+          -- Already being loaded: the imports go around in a ring.
+          -- もう読んでいる途中：import が輪になっている
+          when (path `elem` stack) $
+            throwError $ errorAt ("the imports go around in a ring: "
+                    <> T.intercalate " -> "
+                         (map T.pack (reverse (path : stack))))
+          -- ANCHOR_END: cycle
+          m <- loadModule files base (path : stack) path name source
+          lift (modify (Map.insert path m))
+          pure m
     errorAt msg = renderLoc (importLoc imp) <> ": error: " <> msg
 
 -- 📦 Load a module file: the same as a program, but it must start

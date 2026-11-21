@@ -40,21 +40,26 @@ loop session = do
     Nothing       -> pure ()
     Just ":quit"  -> pure ()
     Just ""       -> loop session
-    Just text     -> case parseInput text of
-      Right (Load file) -> do
-        loaded <- liftIO (loadFile session file)
-        loop loaded
-      _ -> do
-        let (session', out) = step session text
-        shown <- liftIO (try (evaluate (T.length out `seq` out)))
-        case shown of
-          Right o -> do
-            liftIO (TIO.putStrLn o)
-            loop session'
-          Left NonTermination -> do
-            liftIO (TIO.putStrLn
-              "error: this never finishes (it needs its own value)")
-            loop session
+    Just text     -> answerLine session text
+
+-- 💬 Answer one line (not :quit): load a file, import, or run it.
+-- 1行（:quit ではない）に答える：ファイルを読む、import、動かす
+answerLine :: Session -> T.Text -> InputT IO ()
+answerLine session text = case parseInput text of
+  Right (Load file) -> do
+    loaded <- liftIO (loadFile session file)
+    loop loaded
+  _ -> do
+    let (session', out) = step session text
+    shown <- liftIO (try (evaluate (T.length out `seq` out)))
+    case shown of
+      Right o -> do
+        liftIO (TIO.putStrLn o)
+        loop session'
+      Left NonTermination -> do
+        liftIO (TIO.putStrLn
+          "error: this never finishes (it needs its own value)")
+        loop session
 
 -- 📂 :load a file into the session.
 -- ファイルを、セッションに読みこむ

@@ -270,17 +270,18 @@ evaluateIt handle session e =
       pure (Errored (joined (placedType (explain session err))), Nothing)
     Right t  -> case eval (sessionValues session) e of
       Left err -> pure (Errored (joined (placedEval err)), Nothing)
-      Right (VIO action) -> do
-        done <- runAction handle action
-        pure $ case done of
-          Left (Failed err) -> (Errored (joined (placedEval err)), Nothing)
-          Left (Exited n)   -> (ExitedWith n, Nothing)
-          Right v@(VTuple []) -> (Finished "", Just (insideOf t, v))
-          Right v           -> ( Finished (renderValue v <> " : " <> inside t)
-                               , Just (insideOf t, v) )
+      Right (VIO action) -> ran t <$> runAction handle action
       Right v -> pure ( Finished (renderValue v <> " : " <> shown t)
                       , Just (t, v) )
   where
+    -- What the IO action gave, as the REPL shows it.
+    -- IO がくれたものを、REPL が見せる形で
+    ran t done = case done of
+      Left (Failed err) -> (Errored (joined (placedEval err)), Nothing)
+      Left (Exited n)   -> (ExitedWith n, Nothing)
+      Right v@(VTuple []) -> (Finished "", Just (insideOf t, v))
+      Right v           -> ( Finished (renderValue v <> " : " <> inside t)
+                           , Just (insideOf t, v) )
     -- A number of any type is shown as an Int: 1 + 2 is 3 : Int.
     -- どの型でもよい数は、Int にして見せる
     shown = renderScheme . defaultNumbers

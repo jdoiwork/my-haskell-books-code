@@ -140,9 +140,7 @@ runAction handle action = case action of
     answer <- runAction handle first
     case answer of
       Left stop -> pure (Left stop)
-      Right v   -> case rest v of
-        Left err   -> pure (Left (Failed err))
-        Right next -> runAction handle next
+      Right v   -> either (pure . Left . Failed) (runAction handle) (rest v)
 -- ANCHOR_END: runAction
 -- ANCHOR_END: all
 

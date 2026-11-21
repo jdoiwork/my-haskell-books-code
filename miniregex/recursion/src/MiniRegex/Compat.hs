@@ -165,17 +165,20 @@ judge t = case (flagsOf (testModifiers t), decodeSubject (testSubject t)) of
       Right re
         | oneByteCase mods (testPattern t) subj ->
             NotYet "caseless without UTF"
-        | otherwise -> case matches re subj of
-            Left (GaveUp _) -> NotYet "limit"
-            -- PCRE2 stops the whole search with an error, too
-            -- PCRE2 も、探しもの全体をエラーで止める
-            Left (Looping _ _)
-              | testExpected t == [looped] -> Pass
-              | otherwise                  -> Fail
-            Right found
-              | showFound mods subj found == testExpected t -> Pass
-              | otherwise                                   -> Fail
+        | otherwise -> verdictOf (matches re subj)
       where
+        -- Compare what was found with what pcre2test printed.
+        -- 見つけたものを、pcre2test が書いたものとくらべる
+        verdictOf result = case result of
+          Left (GaveUp _) -> NotYet "limit"
+          -- PCRE2 stops the whole search with an error, too
+          -- PCRE2 も、探しもの全体をエラーで止める
+          Left (Looping _ _)
+            | testExpected t == [looped] -> Pass
+            | otherwise                  -> Fail
+          Right found
+            | showFound mods subj found == testExpected t -> Pass
+            | otherwise                                   -> Fail
         -- each search may take meterLimit steps at most
         -- どの探しものも、多くても meterLimit 手まで
         matches re

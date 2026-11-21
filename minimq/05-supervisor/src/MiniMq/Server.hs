@@ -146,16 +146,19 @@ serveClient (Env var) conn = do
             Got request -> do
               ids   <- readIORef mine       -- only this reader writes it
               reply <- atomically (answer var ids request)
-              case reply of
-                Say response -> tell response
-                Quiet        -> pure ()
-                Joined who q limit -> do
-                  tell Ok
-                  modifyIORef mine (who :)
-                  spawn (consumer var who limit q outbox)
+              carryOut spawn reply
               readLoop spawn
             Garbled bad -> tell (Refused ("cannot read: " <> bad))
             Closed      -> pure ()
+          -- Do what the broker's reply asks for.
+          -- ブローカーの答えが頼むことをする
+          carryOut spawn reply = case reply of
+            Say response -> tell response
+            Quiet        -> pure ()
+            Joined who q limit -> do
+              tell Ok
+              modifyIORef mine (who :)
+              spawn (consumer var who limit q outbox)
           writeLoop = atomically (readTQueue outbox) >>= \case
             Just response -> send conn response >> writeLoop
             Nothing       -> pure ()                  -- that is all

@@ -254,15 +254,16 @@ evaluate handle session e =
     Left err -> pure (Errored (joined (placedType (explain session err))))
     Right t  -> case eval (sessionValues session) e of
       Left err -> pure (Errored (joined (placedEval err)))
-      Right (VIO action) -> do
-        done <- runAction handle action
-        pure $ case done of
-          Left (Failed err) -> Errored (joined (placedEval err))
-          Left (Exited n)   -> ExitedWith n
-          Right (VTuple []) -> Finished ""
-          Right v           -> Finished (renderValue v <> " : " <> inside t)
+      Right (VIO action) -> ran t <$> runAction handle action
       Right v -> pure (Finished (renderValue v <> " : " <> shown t))
   where
+    -- What the IO action gave, as the REPL shows it.
+    -- IO がくれたものを、REPL が見せる形で
+    ran t done = case done of
+      Left (Failed err) -> Errored (joined (placedEval err))
+      Left (Exited n)   -> ExitedWith n
+      Right (VTuple []) -> Finished ""
+      Right v           -> Finished (renderValue v <> " : " <> inside t)
     -- A number of any type is shown as an Int: 1 + 2 is 3 : Int.
     -- どの型でもよい数は、Int にして見せる
     shown = renderScheme . defaultNumbers

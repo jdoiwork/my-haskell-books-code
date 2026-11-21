@@ -45,34 +45,39 @@ loop session = do
     Nothing       -> pure ()
     Just ":quit"  -> pure ()
     Just ""       -> loop session
-    Just text     -> case parseInput (sessionOperators session) text of
-      Right (Load file) -> do
-        loaded <- liftIO (loadFile session file)
-        loop loaded
-      -- ANCHOR: replImport
-      -- import, from the folder the REPL runs in (and LAM_PATH).
-      -- import は、REPL を動かしたフォルダー（と LAM_PATH）から
-      Right (ImportLine imp) -> do
-        files <- liftIO realFiles
-        imported <- liftIO (importAt files preludeSession session imp)
-        case imported of
-          Left err -> liftIO (TIO.putStrLn err) >> loop session
-          Right session' -> loop session'
-      -- ANCHOR_END: replImport
-      _ -> do
-        -- An IO expression is done here, in the real world.
-        -- IO の式は、ここで本物の世界でやる
-        shown <- liftIO $ try $ do
-          (session', out) <- step realWorld session text
-          evaluate (T.length out `seq` (session', out))
-        case shown of
-          Right (session', o) -> do
-            liftIO (unless (T.null o) (TIO.putStrLn o))
-            loop session'
-          Left NonTermination -> do
-            liftIO (TIO.putStrLn
-              "error: this never finishes (it needs its own value)")
-            loop session
+    Just text     -> answerLine session text
+
+-- 💬 Answer one line (not :quit): load a file, import, or run it.
+-- 1行（:quit ではない）に答える：ファイルを読む、import、動かす
+answerLine :: Session -> T.Text -> InputT IO ()
+answerLine session text = case parseInput (sessionOperators session) text of
+  Right (Load file) -> do
+    loaded <- liftIO (loadFile session file)
+    loop loaded
+  -- ANCHOR: replImport
+  -- import, from the folder the REPL runs in (and LAM_PATH).
+  -- import は、REPL を動かしたフォルダー（と LAM_PATH）から
+  Right (ImportLine imp) -> do
+    files <- liftIO realFiles
+    imported <- liftIO (importAt files preludeSession session imp)
+    case imported of
+      Left err -> liftIO (TIO.putStrLn err) >> loop session
+      Right session' -> loop session'
+  -- ANCHOR_END: replImport
+  _ -> do
+    -- An IO expression is done here, in the real world.
+    -- IO の式は、ここで本物の世界でやる
+    shown <- liftIO $ try $ do
+      (session', out) <- step realWorld session text
+      evaluate (T.length out `seq` (session', out))
+    case shown of
+      Right (session', o) -> do
+        liftIO (unless (T.null o) (TIO.putStrLn o))
+        loop session'
+      Left NonTermination -> do
+        liftIO (TIO.putStrLn
+          "error: this never finishes (it needs its own value)")
+        loop session
 
 -- 📂 :load a file into the session.
 -- ファイルを、セッションに読みこむ

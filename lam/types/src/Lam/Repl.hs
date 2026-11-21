@@ -85,21 +85,28 @@ step session line =
     Right (Evaluate e) ->
       case inferType (sessionTypes session) e of
         Left err -> (session, "type error: " <> renderTypeError err)
-        Right t  -> case eval (sessionValues session) e of
-          Left err -> (session, "error: " <> renderError err)
-          Right v  -> (session, renderValue v <> " : " <> renderType t)
+        Right t  -> (session, evaluated t e)
     Right (Define x e) ->
       case inferDefinition (sessionTypes session) x e of
         Left err -> (session, "type error: " <> renderTypeError err)
-        Right sc ->
-          let env'   = Map.insert x v (sessionValues session)
-              result = eval env' e
-              v      = either (const (VInt 0)) id result
-          in case result of
-               Left err -> (session, "error: " <> renderError err)
-               Right _  ->
-                 ( Session (Map.insert x sc (sessionTypes session)) env'
-                 , x <> " : " <> renderScheme sc )
+        Right sc -> define x e sc
+  where
+    -- The value with its type, or the error.
+    -- 値と、その型。または、エラー
+    evaluated t e = case eval (sessionValues session) e of
+      Left err -> "error: " <> renderError err
+      Right v  -> renderValue v <> " : " <> renderType t
+    -- Compute the definition (it may use itself), and keep it.
+    -- 定義を計算して（自分を使ってもよい）、覚える
+    define x e sc =
+      let env'   = Map.insert x v (sessionValues session)
+          result = eval env' e
+          v      = either (const (VInt 0)) id result
+      in case result of
+           Left err -> (session, "error: " <> renderError err)
+           Right _  ->
+             ( Session (Map.insert x sc (sessionTypes session)) env'
+             , x <> " : " <> renderScheme sc )
 -- ANCHOR_END: step
 
 -- ANCHOR: run

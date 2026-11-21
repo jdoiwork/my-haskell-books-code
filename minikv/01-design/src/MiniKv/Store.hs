@@ -107,16 +107,7 @@ apply command store@(Store m) = case command of
   Incr key ->
     apply (IncrBy key 1) store
   IncrBy key n ->
-    case asString key store of
-      Left err -> (Failed err, store)
-      Right current ->
-        case maybe (Just 0) readInt current of
-          Nothing -> (Failed (NotAnInteger key), store)
-          Just old
-            | overflows old n -> (Failed (Overflow key), store)
-            | otherwise ->
-                let new = old + n
-                in  (Number new, put key (Str (T.pack (show new))) store)
+    change (asString key store) (addTo key n)
   LPush key items ->
     change (asList key store) $ \l ->
       let l' = Seq.fromList (reverse items) >< l
@@ -176,6 +167,15 @@ apply command store@(Store m) = case command of
     change :: Either KvError v -> (v -> (Reply, Store)) -> (Reply, Store)
     change (Left err) _ = (Failed err, store)
     change (Right v)  k = k v
+    -- Add n to the number in the key (none is 0).
+    -- キーの数に n を足す（なければ 0）
+    addTo key n current = case maybe (Just 0) readInt current of
+      Nothing -> (Failed (NotAnInteger key), store)
+      Just old
+        | overflows old n -> (Failed (Overflow key), store)
+        | otherwise ->
+            let new = old + n
+            in  (Number new, put key (Str (T.pack (show new))) store)
 -- ANCHOR_END: apply
 
 -- ANCHOR: helpers

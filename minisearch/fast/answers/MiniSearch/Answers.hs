@@ -10,6 +10,7 @@ module MiniSearch.Answers
   ) where
 
 import Control.Exception (IOException, try)
+import Control.Monad (when)
 import qualified Data.Binary as Binary
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
@@ -53,17 +54,22 @@ saveVersioned path index =
 loadVersioned :: FilePath -> IO (Either String Index)
 loadVersioned path = do
   result <- try (BS.readFile path)
-  pure $ case result of
-    Left err    -> Left (show (err :: IOException))
-    Right bytes -> case Binary.decodeOrFail (BL.fromStrict bytes) of
-      Left (_, _, msg) -> Left msg
-      Right (rest, _, v)
-        | v /= formatVersion ->
-            Left ("this index is version " <> show (v :: Int)
-                  <> ", but this program reads version "
-                  <> show formatVersion <> ": run index again")
-        | otherwise -> case Binary.decodeOrFail rest of
-            Left (_, _, msg)    -> Left msg
-            Right (_, _, index) -> Right index
+  pure $ do
+    bytes     <- either (Left . showError) Right result
+    (rest, v) <- decodeFront (BL.fromStrict bytes)
+    when (v /= formatVersion) $
+      Left ("this index is version " <> show (v :: Int)
+            <> ", but this program reads version "
+            <> show formatVersion <> ": run index again")
+    (_, index) <- decodeFront rest
+    pure index
+  where
+    showError :: IOException -> String
+    showError = show
+    -- Decode one value from the front, and keep the bytes after it.
+    -- 先頭から値を1つ読み、うしろのバイトを残す
+    decodeFront bytes = case Binary.decodeOrFail bytes of
+      Left (_, _, msg)   -> Left msg
+      Right (rest, _, x) -> Right (rest, x)
 -- ANCHOR_END: versioned
 -- ANCHOR_END: all

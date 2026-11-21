@@ -191,9 +191,7 @@ runReal me handle action = case action of
     answer <- runReal me handle first
     case answer of
       Left stop -> pure (Left stop)
-      Right v   -> case rest v of
-        Left err   -> pure (Left (Failed err))
-        Right next -> runReal me handle next
+      Right v   -> either (pure . Left . Failed) (runReal me handle) (rest v)
   -- ANCHOR: runGather
   Gather n early actions -> do
     jobs <- mapM job actions

@@ -176,9 +176,7 @@ runAction handle action = case action of
     answer <- runAction handle first
     case answer of
       Left stop -> pure (Left stop)
-      Right v   -> case rest v of
-        Left err   -> pure (Left (Failed err))
-        Right next -> runAction handle next
+      Right v   -> either (pure . Left . Failed) (runAction handle) (rest v)
   -- ANCHOR: runFinally
   -- The cleanup comes after the body, whatever the body did: an
   -- error, or exit. If the cleanup stops too, that stop is the one we

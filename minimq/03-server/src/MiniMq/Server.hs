@@ -120,12 +120,14 @@ serveClient (Env var) conn = do
         Got request -> do
           reply <- atomically (answer var request)
           tell reply
-          case (request, reply) of
-            (Consume q, Ok) -> spawn (consumer var q outbox)
-            _               -> pure ()
+          startConsumer spawn request reply
           readLoop spawn
         Garbled bad -> tell (Refused ("cannot read: " <> bad))
         Closed      -> pure ()
+      -- A CONSUME that went through starts a consumer.
+      -- 通った CONSUME は、受け手を始める
+      startConsumer spawn (Consume q) Ok = spawn (consumer var q outbox)
+      startConsumer _     _           _  = pure ()
       writeLoop = atomically (readTQueue outbox) >>= \case
         Just response -> send conn response >> writeLoop
         Nothing       -> pure ()                      -- that is all

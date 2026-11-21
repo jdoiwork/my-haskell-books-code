@@ -40,9 +40,7 @@ readRequest input = case request of
   where
     request
       | BC.take 1 input == "*" = case parseWire input of
-          Parsed (WArray items) rest -> case traverse bulkText items of
-            Just ws -> Parsed ws rest
-            Nothing -> Broken "a request must be an array of bulk strings"
+          Parsed (WArray items) rest -> wordsOf items rest
           Parsed _ _ -> Broken "a request must be an array"
           NeedMore   -> NeedMore
           Broken why -> Broken why
@@ -50,6 +48,11 @@ readRequest input = case request of
           let (line, rest) = BC.break (== '\n') input
           in  if BC.null rest then NeedMore
                               else Parsed (BC.words line) (BC.drop 1 rest)
+    -- Every item must be a bulk string.
+    -- 中身は、どれも文字列でないといけない
+    wordsOf items rest = case traverse bulkText items of
+      Just ws -> Parsed ws rest
+      Nothing -> Broken "a request must be an array of bulk strings"
     bulkText (WBulk (Just s)) = Just s
     bulkText _                = Nothing
 

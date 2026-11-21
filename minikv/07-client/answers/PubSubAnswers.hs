@@ -182,21 +182,22 @@ serveClient2 env sock = loop BS.empty
       Broken why ->
         sendAll sock (render (WError ("ERR protocol: " <> BC.pack why)))
       Parsed [] rest -> answerAll rest
-      Parsed words' rest -> case toRequest2 words' of
-        Left message -> do
-          sendAll sock (render (WError ("ERR " <> encodeUtf8 message)))
-          answerAll rest
-        Right (PopAny keys secs)     -> popAny keys secs rest
-        Right (Old (BLPop key secs))   -> popAny [key] secs rest
-        Right (Old (Subscribe channels)) -> do
-          back <- listenTo env sock channels rest
-          mapM_ answerAll back           -- Nothing: the client left
-        Right (Old other) -> do
-          reply <- case other of
-            Publish c m   -> publish env c m
-            Plain command -> runCommand env command
-          sendAll sock (render reply)
-          answerAll rest
+      Parsed words' rest -> answer (toRequest2 words') rest
+    answer request rest = case request of
+      Left message -> do
+        sendAll sock (render (WError ("ERR " <> encodeUtf8 message)))
+        answerAll rest
+      Right (PopAny keys secs)     -> popAny keys secs rest
+      Right (Old (BLPop key secs))   -> popAny [key] secs rest
+      Right (Old (Subscribe channels)) -> do
+        back <- listenTo env sock channels rest
+        mapM_ answerAll back           -- Nothing: the client left
+      Right (Old other) -> do
+        reply <- case other of
+          Publish c m   -> publish env c m
+          Plain command -> runCommand env command
+        sendAll sock (render reply)
+        answerAll rest
     popAny keys secs rest = do
       waited <- blockingPopAny env sock keys secs
       case waited of
