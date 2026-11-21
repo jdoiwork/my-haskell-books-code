@@ -90,8 +90,8 @@ main = hspec $ do
 
   -- ANCHOR: compare
   describe "the real PCRE2" $ modifyMaxSuccess (const 2000) $ do
-    -- 「\d のままだと、本物の PCRE2 と答えがちがう（QuickCheck が破る）」
-    prop "draft: the same answer as PCRE2 (QuickCheck breaks it)" $
+    -- 「(?a) なしでは、本物の PCRE2 と答えがちがう（QuickCheck が破る）」
+    prop "without (?a): the same answer as PCRE2 (QuickCheck breaks it)" $
       expectFailure $ \(Line t) ->
         fixLine t === fixLinePcre2 t
     -- 「(?a) を付ければ、本物の PCRE2 と同じ答え」
