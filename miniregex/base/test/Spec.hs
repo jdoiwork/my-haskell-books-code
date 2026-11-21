@@ -26,7 +26,7 @@ import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (instructions)
 import MiniRegex.Race (findRacing)
 import MiniRegex.Prefilter
-  (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
+  (kmpPlaces, kmpTable, textPlaces)
 import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Cursor (Cursor, at, back, before, byte, cursorAt, rest, taken)
 import Data.Foldable (toList)
@@ -81,12 +81,6 @@ lessonPatterns =
 
 lessonChars :: [Char]
 lessonChars = "12a-@.b s+é日本soldGOgOKkK\x212A"
-
--- 📍 Is it a start with a text inside?
--- 内側の文字列の始まりか？
-isInner :: Start -> Bool
-isInner (Inner _ _) = True
-isInner _           = False
 
 -- 🎲 Short texts of a and b only.
 -- a と b だけの短い文字列
