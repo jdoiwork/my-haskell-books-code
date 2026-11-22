@@ -11,10 +11,9 @@ type alias Member = { name : String, lang : String, days : Int }
 -- ANCHOR: crew
 crew : [Member]
 crew =
-  [ { name = "Python", lang = "py", days = 20 }
-  , { name = "TS", lang = "ts", days = 18 }
-  , { name = "Rust", lang = "rs", days = 15 }
-  , { name = "GHC", lang = "hs", days = 20 } ]
+  [ { name = "Python", lang = "py", days = 9 }
+  , { name = "TS", lang = "ts", days = 9 }
+  , { name = "Rust", lang = "rs", days = 7 } ]
 -- ANCHOR_END: crew
 
 -- ANCHOR: label
@@ -35,15 +34,13 @@ nextDay m = { m | days = m.days + 1 }
 -- 📋 One line, with the fields taken out by a pattern.
 -- パターンでフィールドを取り出して、1行に
 line : Member -> String
-line m = case m of
-  | { name, lang, days } -> f"{name:<8} .{lang}  day {days}"
+line { name, lang, days } = name ++ " ." ++ lang ++ "  day " ++ showInt days
 -- ANCHOR_END: line
 
--- ANCHOR: main
-main : IO ()
-main = do
-  forEach (sortOn .days crew) (\m -> putStrLn (line m))
-  putStrLn (show (map .name crew))
-  putStrLn (label (nextDay { name = "Lam", lang = "lam", days = 19 }))
-  putStrLn (label { name = "Ruby", version = "4.0" })
--- ANCHOR_END: main
+-- ANCHOR: final
+( map line crew
+, crew |> map .days |> sum
+, map (.name >> toUpper) crew
+, label (nextDay { name = "Lam", lang = "lam", days = 9 })
+, label { name = "Ruby", version = "4.0" } )
+-- ANCHOR_END: final

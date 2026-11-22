@@ -8,11 +8,13 @@ import Dex (Mon, fetch, line)
 -- ANCHOR: race
 -- The first to end wins; the other is stopped.
 -- 先に終わったほうが勝ち。もう片方は取り消す
+runner : String -> Int -> IO String
 runner name ms = do
   sleep ms
   pure name
 
 -- ANCHOR_END: race
+main : IO ()
 main = do
   -- ANCHOR: raceMain
   winner <- IO.race [runner "tortoise" 900, runner "hare" 300]

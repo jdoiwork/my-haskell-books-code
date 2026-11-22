@@ -1,0 +1,7 @@
+-- ANCHOR: all
+-- 🎨 Colors with putStrLn: the marks go everywhere, even into a file.
+-- putStrLn で色を付けると、印はどこにでも行く。ファイルの中にも
+main = do
+  putStrLn (Term.green "merged" ++ "  fix-typo")
+  putStrLn (Term.red "kept" ++ "    main")
+-- ANCHOR_END: all

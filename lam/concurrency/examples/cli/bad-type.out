@@ -1,2 +1,2 @@
-in main: the field since has the type Time, which cannot be read from the command line
+in main: the field since has the type Time, which cannot be read from the command line (there is no instance FromArg Time)
 [exit 1]

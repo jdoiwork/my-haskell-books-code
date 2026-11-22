@@ -83,6 +83,21 @@ async def within(name: str) -> str | None:
 # ANCHOR_END: timeout
 
 
+# ANCHOR: cleanup
+# A cancelled task gets CancelledError where it waits, so its finally
+# still runs (as defer of Lam does)
+# 取り消されたタスクは、待っている所で CancelledError を受け取るので、
+# finally は動く（Lam の defer と同じ）
+async def save(parts: list[str]) -> None:
+    parts.append("report.txt.part")
+    try:
+        await asyncio.sleep(2.0)            # the slow rest / 遅い残り
+        parts.append("report.txt")
+    finally:
+        parts.remove("report.txt.part")
+# ANCHOR_END: cleanup
+
+
 async def timed(coro) -> tuple[object, float]:
     start = time.perf_counter()
     value = await coro
@@ -128,6 +143,16 @@ async def main() -> None:
 
     assert await within("pikachu") == "PIKACHU"
     assert await within("snorlax") is None
+
+    # The time limit cancels the save, and its finally cleans up.
+    # 制限時間が保存を取り消し、finally が片付ける
+    parts: list[str] = []
+    try:
+        async with asyncio.timeout(0.3):
+            await save(parts)
+    except TimeoutError:
+        pass
+    assert parts == [], parts
     print("ok")
 
 

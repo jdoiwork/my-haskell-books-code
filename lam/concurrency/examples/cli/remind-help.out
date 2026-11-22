@@ -1,0 +1,11 @@
+Usage: remind.lam [OPTIONS] WHAT AT
+
+  Say what to remember, and when.
+
+Arguments:
+  WHAT  What to remember  [required]
+  AT    When (2026-11-27T09:00:00Z)  [required]
+
+Options:
+  -l, --level LEVEL  How loud: quiet, normal or loud  [default: Normal]
+  --help             Show this message and exit

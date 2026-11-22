@@ -1,0 +1,61 @@
+-- ANCHOR: all
+-- 🧾 The sales at the counter, from the register's CSV: first every
+--    field as a string, then the numbers read by the columns.
+--   lam examples/decode/register.lam examples/decode/register.csv
+-- 店頭の売り上げを、レジの CSV から読む。まずはどのフィールドも
+-- 文字のまま。次に、列ごとに数として読む
+
+-- ANCHOR: parse
+-- 🗒️ Every row as a Map from the header to the text.
+-- どの行も、見出しから文字への Map に
+peek : String -> IO ()
+peek text =
+  case Csv.parse text of
+    | Ok rows ->
+        forEach rows (\row ->
+          putStrLn f"{Map.lookup "count" row} {Map.lookup "memo" row}")
+    | Err problems -> putStrLn (Decode.explain problems)
+-- ANCHOR_END: parse
+
+-- ANCHOR: columns
+-- 🔧 How to read the columns that are not text. memo may be empty.
+-- 文字でない列の読み方。memo は空でもよい
+columns : Map String Column
+columns =
+  { count: Csv.int
+  , price: Csv.int
+  , memo: Csv.optional Csv.text }
+-- ANCHOR_END: columns
+
+-- ANCHOR: sale
+type alias Sale = { item : String, count : Int, price : Int }
+
+-- 🔍 After the columns, a row is a JSON object: the same decoders
+--    as for the orders of the web shop.
+-- 列を読んだあとの1行は、JSON のオブジェクト。ウェブのお店の注文と
+-- 同じ Decoder で読める
+sale : Decoder Sale
+sale =
+  Decode.map3
+    (\item count price -> { item = item, count = count, price = price })
+    (Decode.field "item" Decode.string)
+    (Decode.field "count" Decode.int)
+    (Decode.field "price" Decode.int)
+-- ANCHOR_END: sale
+
+-- ANCHOR: main
+main : [String] -> IO ()
+main paths =
+  forEach paths (\path -> do
+    putStrLn f"== {path}"
+    read <- readFile path
+    case read of
+      | Err e -> putStrLn e
+      | Ok text -> do
+          peek text
+          case Csv.decode columns sale text of
+            | Ok sales ->
+                putStrLn f"total {sum [s.count * s.price | s <- sales]:,}"
+            | Err problems -> putStrLn (Decode.explain problems))
+-- ANCHOR_END: main
+-- ANCHOR_END: all

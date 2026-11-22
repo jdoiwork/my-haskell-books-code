@@ -5,11 +5,13 @@
 -- 6匹を1匹ずつ：どれも、前の1匹を待ってから
 import Dex (Mon, fetch, line)
 
+names : [String]
 names = ["bulbasaur", "charmander", "squirtle", "pikachu", "eevee", "snorlax"]
 
 -- ANCHOR: main
+main : IO ()
 main = do
-  done <- IO.timed (IO.mapM fetch names)
+  done <- IO.timed (mapM fetch names)
   forEach done.value (\r -> case r of
     | Ok m -> putStrLn (line m)
     | Err e -> ePutStrLn e)

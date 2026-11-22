@@ -5,16 +5,20 @@
 
 -- 📣 "readFile: ok", or the reason of the Err
 -- 「ok」か、Err のわけ
-let tell name result =
+tell : String -> Result String a -> IO ()
+tell name result =
   case result of
-    | Ok _ -> putStrLn f"{name}: ok"
+    | Ok _  -> putStrLn f"{name}: ok"
     | Err e -> putStrLn f"{name}: {e}"
 
-let main = do
-  file <- readFile "examples/orders.json"
+main : IO ()
+main = do
+  file <- readFile "examples/guard/data/note.txt"
   tell "readFile" file
   saved <- writeFile "peek.txt" "hello"
   tell "writeFile" saved
+  removed <- File.remove "peek.txt"
+  tell "File.remove" removed
   web <- Http.get "https://pokeapi.co/api/v2/pokemon/pikachu"
   tell "Http.get" web
   db <- Sql.open "peek.db"

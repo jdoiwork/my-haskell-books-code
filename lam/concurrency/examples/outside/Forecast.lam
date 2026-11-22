@@ -1,0 +1,180 @@
+-- ANCHOR: all
+-- 🌦️ Forecast: the forecast of the week from Open-Meteo, read with a
+--    decoder, and kept in a table of SQLite. weather.lam and half.lam
+--    (next to this file) use it.
+-- Forecast：Open-Meteo の1週間の予報を Decoder で読み、SQLite の表に
+-- しまう道具。隣の weather.lam と half.lam が使う
+--   Weather data by Open-Meteo.com (https://open-meteo.com/), CC BY 4.0
+module Forecast exposing
+  (Day, urlFor, forecast, schema, save, saveAll, kept)
+
+-- ANCHOR: url
+-- 🔗 The URL of the forecast: the place, and the three numbers we want.
+-- 予報の URL：場所と、ほしい3つの数
+urlFor : String -> String -> String
+urlFor lat lon =
+  "https://api.open-meteo.com/v1/forecast"
+    ++ f"?latitude={lat}&longitude={lon}"
+    ++ "&daily=temperature_2m_max,temperature_2m_min,"
+    ++ "precipitation_probability_max&timezone=auto"
+-- ANCHOR_END: url
+
+-- ANCHOR: day
+-- 📅 One day of the forecast. A number may be missing (null).
+-- 予報の1日。数は、ないこともある（null）
+type alias Day =
+  { day : String, pop : Maybe Int, tmax : Maybe Float, tmin : Maybe Float }
+-- ANCHOR_END: day
+
+-- ANCHOR: forecast
+-- 🤐 Four lists, as one list of days.
+-- 4つのリストを、日のリストに
+days : [String] -> [Maybe Int] -> [Maybe Float] -> [Maybe Float] -> [Day]
+days ds ps xs ns =
+  case (ds, ps, xs, ns) of
+    | (d : ds2, p : ps2, x : xs2, n : ns2) ->
+        { day = d, pop = p, tmax = x, tmin = n } : days ds2 ps2 xs2 ns2
+    | _ -> []
+
+-- 🔍 How to read the forecast: four lists of the same length under
+--    "daily", made into one list of days.
+-- 予報の読み方："daily" の下の、同じ長さの4つのリストを、1つの日の
+-- リストにする
+forecast : Decoder [Day]
+forecast =
+  Decode.field "daily" (Decode.map4 days
+    (Decode.field "time" (Decode.list Decode.string))
+    (Decode.field "precipitation_probability_max" (numbers Decode.int))
+    (Decode.field "temperature_2m_max" (numbers Decode.float))
+    (Decode.field "temperature_2m_min" (numbers Decode.float)))
+  where
+    numbers d = Decode.list (Decode.nullable d)
+
+-- ANCHOR_END: forecast
+
+-- ANCHOR: schema
+-- 🗄️ The table: a place and a day are the key. The rain is 0 to 100:
+--    the table itself says no to other numbers (CHECK).
+-- 表：場所と日がキー。降水確率は 0〜100。ほかの数は、表そのものが
+-- 断る（CHECK）
+schema : String
+schema =
+  "CREATE TABLE IF NOT EXISTS weather (place TEXT, day TEXT,"
+    ++ " pop INTEGER CHECK (pop BETWEEN 0 AND 100),"
+    ++ " tmax REAL, tmin REAL, PRIMARY KEY (place, day))"
+-- ANCHOR_END: schema
+
+-- ANCHOR: stored
+-- 🗃️ A row of the table, read back as a Day: the same record.
+-- 表の行を、Day として読み戻す。同じレコード
+stored : Decoder Day
+stored = do
+  d <- Decode.field "day" Decode.string
+  p <- Decode.field "pop" (Decode.nullable Decode.int)
+  x <- Decode.field "tmax" (Decode.nullable Decode.float)
+  n <- Decode.field "tmin" (Decode.nullable Decode.float)
+  pure { day = d, pop = p, tmax = x, tmin = n }
+
+-- 🔎 The row of a place and a day: [] or [the day].
+-- 場所と日の行：[] か [その日]
+row : Db -> String -> String -> IO (Result String [Day])
+row db place day =
+  Sql.queryAs stored db
+    "SELECT day, pop, tmax, tmin FROM weather WHERE place = ? AND day = ?"
+    [JStr place, JStr day]
+-- ANCHOR_END: stored
+
+-- ANCHOR: report
+-- 🌡️ Numbers for people: "-" when there is none.
+-- 人が読む数：ないときは "-"
+temp : Maybe Float -> String
+temp t = case t of | Just x -> f"{x:.1}" | Nothing -> "-"
+
+percent : Maybe Int -> String
+percent p = case p of | Just n -> f"{n}%" | Nothing -> "-"
+
+-- 📝 What changed since the last run: ["max 13.1 -> 14.6"], or [].
+-- 前に動かしたときから変わったこと
+change : String -> (Maybe a -> String) -> Maybe a -> Maybe a -> [String]
+change label shown before now =
+  if shown before == shown now then []
+  else [f"{label} {shown before} -> {shown now}"]
+
+-- 🖨️ The line of a day, as the table holds it, and what changed.
+-- 表が持っている日の1行と、変わったこと
+report : [Day] -> [Day] -> String
+report before after =
+  case (before, after) of
+    | (b : _, d : _) ->
+        let changes = change "rain" percent b.pop d.pop
+                      ++ change "max" temp b.tmax d.tmax
+                      ++ change "min" temp b.tmin d.tmin
+        in if changes == [] then line d
+           else f"{line d}  {join ", " changes}"
+    | ([], d : _) -> f"{line d}  new"
+    | _ -> "?"
+  where
+    line d =
+      f"{d.day}  rain {percent d.pop:>4}  "
+        ++ f"max {temp d.tmax:>5}  min {temp d.tmin:>5}"
+-- ANCHOR_END: report
+
+-- ANCHOR: save
+-- 🧱 A Maybe as a cell: Nothing is null.
+-- Maybe をマスに。Nothing は null
+orNull : (a -> Json) -> Maybe a -> Json
+orNull f m = case m of | Just x -> f x | Nothing -> JNull
+
+-- 💾 Save one day of a place (insert it, or update it), and give a
+--    line to show. A number that did not come (null) does not wipe
+--    out the one the table has (coalesce).
+-- 1か所の1日分を貯め（足すか、書き換える）、見せる1行を返す。
+-- 来なかった数（null）で、表が持っている数を消さない（coalesce）
+save : Db -> String -> Day -> IO (Result String String)
+save db place d = do
+  before <- row db place d.day ?
+  Sql.exec db
+    ("INSERT INTO weather (place, day, pop, tmax, tmin)"
+      ++ " VALUES (?, ?, ?, ?, ?)"
+      ++ " ON CONFLICT (place, day) DO UPDATE SET"
+      ++ " pop = coalesce(excluded.pop, pop),"
+      ++ " tmax = coalesce(excluded.tmax, tmax),"
+      ++ " tmin = coalesce(excluded.tmin, tmin)")
+    [ JStr place, JStr d.day, orNull JInt d.pop
+    , orNull Json.fromFloat d.tmax, orNull Json.fromFloat d.tmin ] ?
+  after <- row db place d.day ?
+  pure (Ok (report before after))
+
+-- 🔁 Save the days in order, and show each line. Stop at the first
+--    one that fails (?): the days after it are not tried.
+-- 日を順に貯め、1行ずつ見せる。最初に失敗した日で止まる（?）。その
+-- あとの日は、やってみない
+saveAll : Db -> String -> [Day] -> IO (Result String ())
+saveAll db place week =
+  case week of
+    | [] -> pure (Ok ())
+    | d : rest -> do
+        line <- save db place d ?
+        putStrLn line
+        saveAll db place rest
+-- ANCHOR_END: save
+
+
+-- ANCHOR: kept
+-- 📊 How many days the table keeps for a place, and the hottest.
+-- 表が、その場所について持っている日の数と、いちばん暑い日
+kept : Db -> String -> IO (Result String String)
+kept db place = do
+  rows <- Sql.queryAs counted db
+            ("SELECT count(*) AS n, max(tmax) AS hottest"
+               ++ " FROM weather WHERE place = ?") [JStr place] ?
+  pure (Ok (case rows of
+    | [(n, hottest)] -> f"kept {n} days, the hottest {temp hottest}"
+    | _ -> "kept nothing"))
+  where
+    counted =
+      Decode.map2 (\n h -> (n, h))
+        (Decode.field "n" Decode.int)
+        (Decode.field "hottest" (Decode.nullable Decode.float))
+-- ANCHOR_END: kept
+-- ANCHOR_END: all

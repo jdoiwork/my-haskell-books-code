@@ -1,0 +1,34 @@
+-- ANCHOR: all
+-- 🛒 The orders of shop.json, as types of our own, and how to read
+--    them from JSON (Decodable). For lam -MShop --as=Order.
+-- shop.json の注文を、自分の型に。JSON からの読み方（Decodable）も。
+-- lam -MShop --as=Order のため
+module Shop exposing (Order (..), Item (..), total)
+
+import Decode (Decodable (..))
+
+data Item = Item { name : String, price : Int }
+
+data Order = Order { id : Int, user : String, items : [Item] }
+
+instance Decodable Item where
+  decoder =
+    Decode.map2 (\n p -> Item { name = n, price = p })
+      (Decode.field "name" decoder)
+      (Decode.field "price" decoder)
+
+instance Decodable Order where
+  decoder =
+    Decode.map3 (\i u xs -> Order { id = i, user = u, items = xs })
+      (Decode.field "id" decoder)
+      (Decode.field "user" decoder)
+      (Decode.field "items" decoder)
+
+-- 💴 The price of all the items.
+-- 品物の値段の合計
+total : [Item] -> Int
+total xs =
+  case xs of
+    | [] -> 0
+    | Item { price } : rest -> price + total rest
+-- ANCHOR_END: all

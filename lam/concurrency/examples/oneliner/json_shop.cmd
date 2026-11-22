@@ -1,1 +1,1 @@
---json -pe 'Json.get "shop" json |> fromMaybe JNull'
+--json -pe 'Json.get "shop" json ?: JNull'

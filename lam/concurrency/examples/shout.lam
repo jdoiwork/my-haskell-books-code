@@ -1,9 +1,0 @@
--- 📢 Shout: read all of the standard input, and write it in capitals.
---    How many lines were read is told on the standard error.
---      cat notes.txt | lam shout.lam
--- 標準入力を全部読み、大文字にして書く。読んだ行の数は、標準エラーに書く
-
-let main = do
-  text <- getContents
-  putStr (toUpper text)
-  ePutStrLn f"shout: {length (lines text)} lines"

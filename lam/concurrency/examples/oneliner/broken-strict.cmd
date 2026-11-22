@@ -1,0 +1,1 @@
+--decoding=strict -ne 'when (line =~ m/ERROR/) (putStrLn line)' examples/oneliner/broken.log

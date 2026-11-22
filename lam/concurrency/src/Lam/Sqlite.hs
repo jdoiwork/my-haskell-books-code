@@ -105,10 +105,9 @@ sqlRequest dbs request = case request of
   SqlQuery n sql cells -> Just $ withDb n $ \db -> do
     result <- runSql db sql cells
     pure $ case result of
-      Left e -> failed sql e
+      Left e -> failed (short sql) e
       Right (names, rows) ->
-        con "Ok" [VList [ VMap (Map.fromList (zip names (map cellValue row)))
-                        | row <- rows ]]
+        con "Ok" [VList [ rowValue names row | row <- rows ]]
   SqlExec n sql cells -> Just $ withDb n $ \db -> do
     -- The rows changed by this statement only. (changes would keep the
     -- count of the last INSERT after a CREATE.)
@@ -117,7 +116,7 @@ sqlRequest dbs request = case request of
     before <- totalChanges db
     result <- runSql db sql cells
     case result of
-      Left e -> pure (failed sql e)
+      Left e -> pure (failed (short sql) e)
       Right _ -> do
         after <- totalChanges db
         pure (con "Ok" [VInt (toInteger (after - before))])
@@ -135,6 +134,17 @@ sqlRequest dbs request = case request of
         -- 「閉じたデータベースです」
         Nothing -> pure (con "Err" [VString "Sql: this database is closed"])
     failed what e = con "Err" [VString (what <> ": " <> e)]
+    -- A long SQL is cut, so that the error fits on a line.
+    -- 長い SQL は切って、エラーが1行に収まるように
+    short sql
+      | T.length sql > 32 = T.take 30 sql <> "…"
+      | otherwise         = sql
+
+-- 🧱 One row, as a Map from the names of the columns.
+-- 1行を、列の名前から引く Map に
+rowValue :: [Text] -> [Cell] -> Value
+rowValue names row =
+  VMap (Map.fromList (zip (map (Key . VString) names) (map cellValue row)))
 
 -- 🔒 Close every database still open (at the end of a run).
 -- まだ開いているデータベースを、全部閉じる（動かし終えたとき）

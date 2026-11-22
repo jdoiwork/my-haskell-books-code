@@ -1,0 +1,1 @@
+-MDex -n --begin '[]' -e 'acc ++ [line]' --end 'IO.oks (map fetch acc) |> IO.andThen (\ms -> forEach ms (line >> putStrLn))' names.txt

@@ -1,0 +1,99 @@
+-- ANCHOR: all
+-- 🏪 The sales of the day, at closing time: the settings from TOML,
+--    the web orders from JSON, the counter's sales from CSV. All of
+--    them become the same record, Sale, and are added up by item.
+--   lam examples/decode/sales.lam shop.toml orders.json register.csv
+-- 閉店のときの、1日の売り上げ。設定は TOML、ウェブの注文は JSON、
+-- 店頭の売り上げは CSV から。どれも同じレコード Sale にして、品物
+-- ごとに足す
+
+-- ANCHOR: types
+type alias Sale = { item : String, count : Int, price : Int }
+
+type alias Discount = { item : String, percent : Int, minCount : Int }
+
+type alias Config = { name : String, tax : Int, discounts : [Discount] }
+-- ANCHOR_END: types
+
+-- ANCHOR: decoders
+-- 🔍 One decoder for a sale, for JSON and CSV alike.
+-- 売り上げ1つの Decoder。JSON にも CSV にも
+sale : Decoder Sale
+sale =
+  Decode.map3
+    (\item count price -> { item = item, count = count, price = price })
+    (Decode.field "item" Decode.string)
+    (Decode.field "count" Decode.int)
+    (Decode.field "price" Decode.int)
+
+discount : Decoder Discount
+discount =
+  Decode.map3
+    (\item percent n -> { item = item, percent = percent, minCount = n })
+    (Decode.field "item" Decode.string)
+    (Decode.field "percent" Decode.int)
+    (map (\n -> n ?: 1) (Decode.optionalField "min_count" Decode.int))
+
+config : Decoder Config
+config =
+  Decode.map3
+    (\name tax ds -> { name = name, tax = tax, discounts = ds })
+    (Decode.at ["shop", "name"] Decode.string)
+    (Decode.at ["shop", "tax_percent"] Decode.int)
+    (Decode.field "discount" (Decode.list discount))
+-- ANCHOR_END: decoders
+
+-- ANCHOR: read
+-- 📂 Read a file, and decode it with read. The problems become one
+--    string, with the path of the file at the head of each line.
+-- ファイルを読み、read で読み解く。問題は、どの行にもファイルの道を
+-- 頭に付けた1つの文字列にする
+load : String -> (String -> Result [Problem] a) -> IO (Result String a)
+load path read = do
+  text <- readFile path ?
+  pure (read text |> Result.mapError (\ps ->
+    join "\n" [ f"{path}: {line}" | line <- lines (Decode.explain ps) ]))
+-- ANCHOR_END: read
+
+-- ANCHOR: report
+-- 🧮 The price of n of an item, after its discount (if n is enough).
+-- n 個の値段。数が足りていれば、割引のあと
+cost : [Discount] -> String -> Int -> Int -> Int
+cost discounts item n price =
+  case [ d | d <- discounts, d.item == item, n >= d.minCount ] of
+    | d : _ -> n * price * (100 - d.percent) // 100
+    | [] -> n * price
+
+-- 📊 Add up the sales by item: how many, and the first price seen.
+-- 品物ごとに足す：いくつ売れたかと、最初に見た値段
+byItem : [Sale] -> Map String (Int, Int)
+byItem sales =
+  foldl
+    (\m s -> Map.insertWith (\(n, p) (n0, _) -> (n0 + n, p)) s.item
+               (s.count, s.price) m)
+    {}
+    sales
+-- ANCHOR_END: report
+
+-- ANCHOR: main
+main : [String] -> IO (Result String ())
+main args =
+  case args of
+    | [toml, json, csv] -> do
+        c <- load toml (Toml.decode config) ?
+        web <- load json (Decode.fromString (Decode.field "orders"
+                                               (Decode.list sale))) ?
+        shop <- load csv (Csv.decode {count: Csv.int, price: Csv.int}
+                                     sale) ?
+        let rows = Map.toList (byItem (web ++ shop))
+        putStrLn f"{c.name}: the sales of the day"
+        forEach rows (\(item, (n, price)) ->
+          putStrLn f"  {item:<16} {n:>3} {cost c.discounts item n price:>7,}")
+        let total = sum [ cost c.discounts item n price
+                        | (item, (n, price)) <- rows ]
+        putStrLn f"  {"total":<20} {total:>7,}"
+        putStrLn f"  {"with tax":<20} {total * (100 + c.tax) // 100:>7,}"
+        pure (Ok ())
+    | _ -> pure (Err "usage: lam sales.lam SHOP.toml ORDERS.json SALES.csv")
+-- ANCHOR_END: main
+-- ANCHOR_END: all

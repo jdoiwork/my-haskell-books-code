@@ -1,0 +1,5 @@
+wc -l 'my notes.txt'
+wc -l a.txt b.txt
+tar -cf out.tar --exclude=a.txt --exclude=b.txt
+git commit -m 'read my notes.txt'
+head -n 3 007.log

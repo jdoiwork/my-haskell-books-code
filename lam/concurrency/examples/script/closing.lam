@@ -1,0 +1,13 @@
+-- 🧹 exit, and the cleanups: defer is done on the way out, but
+--    IO.try does not catch exit.
+--      lam examples/script/closing.lam
+-- exit と後始末：defer は出口でやる。でも IO.try は exit をつかまえない
+
+main : IO ()
+main = do
+  -- 「開店」「閉店」
+  putStrLn "the shop opens"
+  defer putStrLn "the shop closes"
+  caught <- IO.try (exit 3)
+  -- 「ここには来ない」
+  putStrLn f"never here: {caught}"

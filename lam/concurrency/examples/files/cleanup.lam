@@ -1,59 +1,62 @@
+-- ANCHOR: all
 -- 🧹 Remove the .log files in a folder that are some days old or more
 --    (7 if not given). Look first with --dry-run: it only tells.
 -- フォルダーの .log ファイルのうち、何日か（なければ7日）以上たった
 -- ものを消す。先に --dry-run で見る：知らせるだけで、消さない
---   lam --dry-run cleanup.lam logs 7
---   lam --allow-read=logs --allow-write=logs cleanup.lam logs 7
+--   lam examples/files/cleanup.lam --dry-run examples/files/logs 7
+--   lam examples/files/cleanup.lam examples/files/logs 7
 
--- ANCHOR: oldFile
--- 📄 A file: where it is, how many whole days old, and its size.
--- ファイル：道、まる何日たったか、大きさ
-type alias LogFile = { path : String, days : Int, bytes : Int }
--- ANCHOR_END: oldFile
+-- ANCHOR: row
+-- 📋 A log file, how many whole days old it is, and its size.
+-- ログのファイルと、まる何日たったか、大きさ
+type alias Row = { path : String, age : Int, bytes : Int }
+-- ANCHOR_END: row
 
 -- ANCHOR: describe
--- 📋 A file, with how many whole days old it is and its size.
---    A file that cannot be read gives [] (it is left alone).
--- ファイルと、まる何日たったか、大きさ。読めないファイルは []
--- （手を出さない）
-describe : Time -> String -> IO [LogFile]
+-- 🔎 The row of a file. A file that cannot be read gives [] (it is
+--    left alone).
+-- ファイルの行。読めないファイルは []（手を出さない）
+describe : Time -> String -> IO [Row]
 describe now path = do
   found <- File.info path
   pure (case found of
     | Ok info ->
-        [{ path = path
-         , days = Time.diffDays now info.modified
+        [{ path = path, age = Time.diffDays now info.modified
          , bytes = info.size }]
     | Err _ -> [])
 -- ANCHOR_END: describe
 
 -- ANCHOR: removeOne
--- 🗑️ Remove one file, and say so.
--- 1つ消して、そう知らせる
-removeOne : LogFile -> IO ()
-removeOne file = do
-  done <- File.remove file.path
-  case done of
-    | Ok _ ->
-        putStrLn f"removed {file.path} ({file.days} days, {file.bytes} bytes)"
-    | Err e -> ePutStrLn e
+-- 🗑️ Remove one file and say so, or, on a dry run, only say what it
+--    would do.
+-- 1つ消して、そう知らせる。--dry-run なら、するはずのことを言うだけ
+removeOne : Bool -> Row -> IO ()
+removeOne dry row =
+  let what = f"{row.path} ({row.age} days, {row.bytes} bytes)" in
+  if dry then
+    -- 「消すはず」
+    putStrLn f"would remove {what}"
+  else do
+    done <- File.remove row.path
+    case done of
+      | Ok _ -> putStrLn f"removed {what}"
+      | Err e -> ePutStrLn e
 -- ANCHOR_END: removeOne
 
 -- ANCHOR: main
-main : [String] -> IO ()
+-- 🚪 [--dry-run] [the folder] [the days]
+main : [String] -> IO (Result String ())
 main args = do
-  now <- Time.now
-  found <- File.glob (Path.join dir "*.log")
-  case found of
-    | Err e -> do
-        ePutStrLn e
-        exit 1
-    | Ok paths -> do
-        rows <- IO.mapM (describe now) paths
-        let old = filter (\f -> f.days >= days) (concat rows)
-        forEach old removeOne
-        putStrLn f"{length old} of {length paths} files: {days} days or more"
-  where
-    dir = case args of | d : _ -> d | [] -> "logs"
-    days = case drop 1 args of | n : _ -> toIntOr 7 n | [] -> 7
+  let dry  = elem "--dry-run" args
+  let rest = filter (\a -> a /= "--dry-run") args
+  let dir  = case rest of | d : _ -> d | [] -> "logs"
+  let days = case drop 1 rest of | n : _ -> String.toInt n ?: 7 | [] -> 7
+  now   <- Time.now
+  paths <- File.glob (Path.join dir "*.log") ?
+  rows  <- mapM (describe now) paths
+  let old = filter (\r -> r.age >= days) (concat rows)
+  forEach old (removeOne dry)
+  putStrLn f"{length old} of {length paths} files: {days} days or more"
+  pure (Ok ())
 -- ANCHOR_END: main
+-- ANCHOR_END: all

@@ -1,0 +1,64 @@
+-- 🏆 A class above another: whatever is Ranked can also be described.
+-- 上位のクラス：Ranked に入るものは、説明もできる
+--   lam examples/classes/ranked.lam
+
+data Shape
+  = Circle { radius : Int }
+  | Rect { width : Int, height : Int }
+
+data Money = Yen Int
+
+class Describe a where
+  describe : a -> String
+
+instance Describe Shape where
+  describe s =
+    case s of
+      | Circle { radius } -> "a circle of radius " ++ showInt radius
+      | Rect { width, height } ->
+          "a " ++ showInt width ++ "x" ++ showInt height ++ " rect"
+
+instance Describe Money where
+  describe m =
+    case m of
+      | Yen n -> showInt n ++ " yen"
+
+-- ANCHOR: class
+-- Describe a => Ranked a: a type in Ranked must be in Describe first.
+-- Ranked に入る型は、先に Describe に入っていなければならない
+class Describe a => Ranked a where
+  rank : a -> Int
+-- ANCHOR_END: class
+
+-- ANCHOR: instances
+-- The area ranks a shape (pi is 3), and the amount ranks money.
+-- 図形は面積で（円周率は 3）、お金は金額で順位を付ける
+instance Ranked Shape where
+  rank s =
+    case s of
+      | Circle { radius } -> 3 * radius * radius
+      | Rect { width, height } -> width * height
+
+instance Ranked Money where
+  rank m =
+    case m of
+      | Yen n -> n
+-- ANCHOR_END: instances
+
+-- ANCHOR: best
+-- 🏆 Describe the one with the highest rank. Ranked a is enough:
+--    it brings Describe a with it.
+-- いちばん順位の高いものを説明する。Ranked a だけでよい：
+-- Describe a を連れてくる
+best : Ranked a => [a] -> String
+best xs =
+  case xs of
+    | [] -> "nothing"
+    | x : rest ->
+        describe (foldl (\b y -> if rank y > rank b then y else b) x rest)
+-- ANCHOR_END: best
+
+-- ANCHOR: main
+( best [Circle { radius = 2 }, Rect { width = 3, height = 5 }]
+, best [Yen 300, Yen 450, Yen 80] )
+-- ANCHOR_END: main
