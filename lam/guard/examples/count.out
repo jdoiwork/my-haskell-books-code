@@ -1,1 +1,0 @@
-({"and": 2, "bat": 1, "cat": 1, "hat": 1, "the": 3}, ("the", 3)) : (Map Int, (String, Int))

@@ -1,0 +1,15 @@
+Lam REPL. Type :help for help, :quit to quit.
+lam> loaded examples/decode/try.lam
+"mug"
+lam> Decoder Int
+lam> Ok 42 : Result [{ message : String, path : String }] Int
+lam> .: expected an Int, got "42"
+lam> 1200
+lam> .: missing field "cost"
+lam> .[2]: expected an Int, got "three"
+.[3]: expected an Int, got 4.5
+lam> .shop.tax: expected an Int, got "10"
+lam> .: not JSON: ',' or ']': not enough input
+lam> (a -> b -> c) -> Decoder a -> Decoder b -> Decoder c
+lam> Decoder (Int, Int)
+lam> 

@@ -1,12 +1,8 @@
 -- ANCHOR: head
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
--- | lam: the REPL, or run a file.
---     lam [flags]  /  lam [flags] program.lam args...
---   The flags (--allow-net=pokeapi.co, --trace, ...) come before the
---   file.
--- lam：REPL、またはファイルを動かす。フラグ（--allow-net、--trace など）
--- はファイルより前に。ファイルの後ろは、スクリプトの引数
+-- | lam: the REPL, or run a file.  lam  /  lam program.lam args...
+-- lam：REPL、またはファイルを動かす。ファイルの後ろは、スクリプトの引数
 module Main (main) where
 
 import Control.Exception (NonTermination (..), evaluate, try)
@@ -16,124 +12,150 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Text.IO.Utf8 as Utf8
 import System.Console.Haskeline
-import System.Environment (getArgs, withArgs)
+import System.Environment (getArgs, lookupEnv, withArgs)
 import System.Exit (ExitCode (..), exitWith)
+import System.FilePath (splitSearchPath)
 import System.IO (stderr)
 
-import Lam.Guard (guarded, readOptions)
-import Lam.Io (Handler)
-import Lam.Module (importAt, loadProgram, runProgram)
+import Lam.Module (Files, diskFiles, importAt, loadProgram, runProgram)
 import Lam.Prelude (preludeSession)
-import Lam.Program (Ending (..), Session)
-import Lam.Repl (Input (..), endingText, parseInput, step)
+import Lam.Program (Ending (..), Session (..))
 import qualified Lam.Program as Program
-import Lam.World (realFiles, realWorld, withOutside)
+import Lam.Repl (Input (..), endingText, parseInput, step)
+import Lam.Guard (Options (..), guarded, readOptions, usage)
+import Lam.Io (Handler)
+import Lam.World (newDesk, newDice, realWorld, withOutside)
 
 main :: IO ()
 main = do
   args <- getArgs
-  case readOptions args of
-    Left err -> do
-      -- 「使い方：lam [フラグ] [ファイル 引数…]」
-      TIO.hPutStrLn stderr (T.pack err)
-      TIO.hPutStrLn stderr "usage: lam [--allow-net[=hosts]] \
-        \[--allow-read[=folders]] [--allow-write[=folders]] \
-        \[--allow-env[=names]] [--deny-all] [--trace] [--dry-run] \
-        \[file args...]"
+  -- ANCHOR: flags
+  -- The flags of lam come before the file; the rest is for the script.
+  -- An unknown flag stops lam, with how to use it (exit code 2).
+  -- lam のフラグはファイルの前に。残りはスクリプトのもの。知らない
+  -- フラグなら、使い方を見せて止まる（終了コード 2）
+  fromEnv <- lookupEnv "LAM_SEED"
+  (opts, rest) <- case readOptions args fromEnv of
+    Right found -> pure found
+    Left why    -> do
+      TIO.hPutStrLn stderr why
+      TIO.hPutStr stderr usage
       exitWith (ExitFailure 2)
-    Right (opts, rest) -> withOutside $ \outside -> do
-      -- The real world, with the guards of the flags around it.
-      -- 本物の世界に、フラグの見張りをかぶせる
-      let handle = guarded opts (realWorld outside)
-      case rest of
-        -- The rest is for the script: its getArgs sees only them.
-        -- 残りはスクリプトのもの。スクリプトの getArgs には、これだけが見える
-        file : scriptArgs -> withArgs scriptArgs (runFile handle file)
-        []                -> do
-          -- 「Lam の REPL です。:help で使い方、:quit で終わります」
-          putStrLn "Lam REPL. Type :help for help, :quit to quit."
-          runInputT defaultSettings (loop handle preludeSession)
--- ANCHOR_END: head
+  dice <- newDice (randomSeed opts)
+  -- The desk keeps the files a script has open.
+  -- 机には、スクリプトが開いているファイルを置いておく
+  desk <- newDesk
+  -- The guards for the flags, put around the real world.
+  -- フラグに合わせた見張りを、本物の世界にかぶせる
+  guard <- guarded opts
+  withOutside $ \outside ->
+    start (guard (realWorld dice desk outside)) rest
+  -- ANCHOR_END: flags
 
+-- ▶️ Run the file, or the REPL with no file.
+-- ファイルを動かす。ファイルがなければ REPL
+start :: Handler IO -> [String] -> IO ()
+start world rest = case rest of
+  -- Its getArgs sees only the ones after the file.
+  -- スクリプトの getArgs には、ファイルより後ろだけが見える
+  file : more -> withArgs more (runFile world file)
+  []          -> do
+    -- 「Lam の REPL です。:help で使い方、:quit で終わります」
+    putStrLn "Lam REPL. Type :help for help, :quit to quit."
+    runInputT defaultSettings (loop world preludeSession)
+-- ANCHOR_END: head
 
 -- ANCHOR: loop
 -- 🔁 Read a line, run one step, show, and go around again.
 -- 1行読み、1回分動かし、見せて、また回る
 loop :: Handler IO -> Session -> InputT IO ()
-loop handle session = do
+loop world session = do
   line <- getInputLine "lam> "
   case fmap (T.strip . T.pack) line of
     Nothing       -> pure ()
     Just ":quit"  -> pure ()
-    Just ""       -> loop handle session
-    Just text     -> answerLine handle session text
+    Just ""       -> loop world session
+    Just text     -> answerLine world session text
 
 -- 💬 Answer one line (not :quit): load a file, import, or run it.
 -- 1行（:quit ではない）に答える：ファイルを読む、import、動かす
 answerLine :: Handler IO -> Session -> T.Text -> InputT IO ()
-answerLine handle session text = case parseInput text of
-  Right (Load file) -> do
-    loaded <- liftIO (loadFile handle session file)
-    loop handle loaded
-  -- ANCHOR: replImport
-  -- import, from the folder the REPL runs in (and LAM_PATH).
-  -- import は、REPL を動かしたフォルダー（と LAM_PATH）から
-  Right (ImportLine imp) -> do
-    files <- liftIO realFiles
-    imported <- liftIO (importAt files session imp)
-    case imported of
-      Left err -> liftIO (TIO.putStrLn err) >> loop handle session
-      Right session' -> loop handle session'
-  -- ANCHOR_END: replImport
-  _ -> do
-    -- An IO expression is done here, in the real world.
-    -- IO の式は、ここで本物の世界でやる
-    shown <- liftIO $ try $ do
-      (session', out) <- step handle session text
-      evaluate (T.length out `seq` (session', out))
-    case shown of
-      Right (session', o) -> do
-        liftIO (unless (T.null o) (TIO.putStrLn o))
-        loop handle session'
-      Left NonTermination -> do
-        liftIO (TIO.putStrLn
-          "error: this never finishes (it needs its own value)")
-        loop handle session
+answerLine world session text =
+  case parseInput (sessionOperators session) text of
+    Right (Load file) -> do
+      loaded <- liftIO (loadFile world session file)
+      loop world loaded
+    -- ANCHOR: replImport
+    -- import, from the folder the REPL runs in (and LAM_PATH).
+    -- import は、REPL を動かしたフォルダー（と LAM_PATH）から
+    Right (ImportLine imp) -> do
+      files <- liftIO realFiles
+      imported <- liftIO (importAt files preludeSession session imp)
+      case imported of
+        Left err -> liftIO (TIO.putStrLn err) >> loop world session
+        Right session' -> loop world session'
+    -- ANCHOR_END: replImport
+    _ -> do
+      -- An IO expression is done here, in the real world.
+      -- IO の式は、ここで本物の世界でやる
+      shown <- liftIO $ try $ do
+        (session', out) <- step world session text
+        evaluate (T.length out `seq` (session', out))
+      case shown of
+        Right (session', o) -> do
+          liftIO (unless (T.null o) (TIO.putStrLn o))
+          loop world session'
+        Left NonTermination -> do
+          liftIO (TIO.putStrLn
+            "error: this never finishes (it needs its own value)")
+          loop world session
 
 -- 📂 :load a file into the session.
 -- ファイルを、セッションに読みこむ
 loadFile :: Handler IO -> Session -> FilePath -> IO Session
-loadFile handle session file = do
+loadFile world session file = do
   source <- Utf8.readFile file
-  files <- realFiles
-  loaded <- loadProgram files session file source
+  files  <- realFiles
+  loaded <- loadProgram files preludeSession session file source
   case loaded of
     Left err -> TIO.putStrLn err >> pure session
     Right (session', final) -> do
       -- 「読みこみました」
       TIO.putStrLn ("loaded " <> T.pack file)
+      -- The expression at the end is done in the real world too.
+      -- 最後の式も、本物の世界でやる
       forM_ final $ \e -> do
-        out <- Program.evaluate handle session' e
-        TIO.putStrLn (endingText out)
+        out <- Program.evaluate world session' e
+        unless (out == Finished "") (TIO.putStrLn (endingText out))
       pure session'
 -- ANCHOR_END: loop
 
 -- ANCHOR: runFile
--- 📜 lam program.lam: main (if there is one) runs in the real world.
+-- 📜 lam program.lam: load it, then run it in the real world.
 --    How it ended becomes the exit code: 0, 1 for an error, n for exit n.
--- main（あれば）は、本物の世界で動く。終わり方が終了コードになる：
+-- 読みこんでから、本物の世界で動かす。終わり方が終了コードになる：
 -- 0、エラーなら 1、exit n なら n
 runFile :: Handler IO -> FilePath -> IO ()
-runFile handle file = do
+runFile world file = do
   source <- Utf8.readFile file
   files  <- realFiles
-  ending <- runProgram handle files preludeSession file source
+  loaded <- loadProgram files preludeSession preludeSession file source
+  ending <- case loaded of
+    Left err             -> pure (Errored err)
+    Right (done, final)  -> runProgram world done final
   case ending of
-    Finished out -> unless (T.null out) (TIO.putStrLn out)
+    Finished _   -> pure ()
     Errored err  -> do
       TIO.hPutStrLn stderr err
       exitWith (ExitFailure 1)
     ExitedWith 0 -> exitWith ExitSuccess
     ExitedWith n -> exitWith (ExitFailure n)
+
+-- 💽 The disk, and the folders of LAM_PATH (lib:more, as PATH).
+-- ディスクと、LAM_PATH のフォルダー（PATH と同じ形の lib:more）
+realFiles :: IO (Files IO)
+realFiles = do
+  path <- lookupEnv "LAM_PATH"
+  pure (diskFiles (maybe [] splitSearchPath path))
 -- ANCHOR_END: runFile
 -- ANCHOR_END: all

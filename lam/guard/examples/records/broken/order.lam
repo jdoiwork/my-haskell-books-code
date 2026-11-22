@@ -1,0 +1,10 @@
+-- 🐛 A part of where uses a part below it: the parts are opened into
+--    let ... in from the top, so once is not there yet.
+-- where の部品が、下の部品を使う。部品は上から let ... in に開くので、
+-- once はまだない
+double x = twice
+  where
+    twice = once + once
+    once = x
+
+double 21

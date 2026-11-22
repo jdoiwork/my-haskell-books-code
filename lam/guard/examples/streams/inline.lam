@@ -1,0 +1,13 @@
+-- ANCHOR: all
+-- 🖼️ Put a picture inside HTML: the bytes as base64, in a data: URL.
+--   lam inline.lam photos/lam.png > card.html
+-- 絵を HTML の中に入れる：バイト列を base64 にして、data: の URL に
+main : [String] -> IO (Result String ())
+main args = do
+  let path = case args of | p : _ -> p | [] -> "photos/lam.png"
+  picture <- File.readBytes path ?
+  let url = f"data:image/png;base64,{Base64.encode picture}"
+  putStrLn f"<img alt=\"{Path.basename path}\" src=\"{url}\">"
+  ePutStrLn f"{length picture} bytes, {length url} letters"
+  pure (Ok ())
+-- ANCHOR_END: all

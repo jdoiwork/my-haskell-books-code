@@ -51,17 +51,18 @@ tracedAnswers handle request = case request of
 -- ANCHOR: limitWrites
 -- ✍️ Step 3: --max-write=1000. A file longer than the limit is not
 --    written: the answer is Err, and the file stays as it was.
+--    File.append is the same.
 -- ステップ3：上限より長い中身は書かない。答えは Err で、ファイルは
--- そのまま
+-- そのまま。File.append も同じ
 limitWrites :: Applicative m => Int -> Handler m -> Handler m
 limitWrites limit handle request = case request of
-  WriteFile path text
-    | T.length text > limit ->
-        pure (con "Err" [VString (path <> ": " <> count text
-          <> " letters is more than --max-write=" <> count' limit)])
+  WriteFile path text  | T.length text > limit -> pure (tooLong path text)
+  AppendFile path text | T.length text > limit -> pure (tooLong path text)
   _ -> handle request
   where
-    count t = T.pack (show (T.length t))
-    count' n = T.pack (show n)
+    tooLong path text = con "Err" [VString (path <> ": "
+      <> count (T.length text) <> " letters is more than --max-write="
+      <> count limit)]
+    count n = T.pack (show n)
 -- ANCHOR_END: limitWrites
 -- ANCHOR_END: all

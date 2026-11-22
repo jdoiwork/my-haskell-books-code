@@ -3,12 +3,13 @@
 -- ANCHOR: head
 -- | The builtins behind f"...": turn a value into text, and line the
 --   text up. They are ordinary functions, so a program can call them
---   too (with a width it computes, for example).
+--   too (with a width it computes, for example). display, the one for
+--   people, is a class of Lam in the prelude (Display).
 -- f"..." の裏で働く組み込みの関数：値を文字にし、文字の桁をそろえる。
 -- ふつうの関数なので、プログラムから呼んでもよい（計算した幅で、など）。
+-- 人に見せる display は、プレリュードの Lam のクラス（Display）。
 module Lam.Format
   ( formatBuiltins
-  , display
   , padLeft
   , padRight
   , center
@@ -16,11 +17,13 @@ module Lam.Format
   , zeroPad
   ) where
 
+import Data.Char (isDigit)
 import Data.Text (Text)
 import qualified Data.Text as T
 
 import Lam.Builtins
 import Lam.Eval
+import Lam.Pretty (showFloat)
 import Lam.Types
 -- ANCHOR_END: head
 
@@ -29,14 +32,22 @@ import Lam.Types
 -- 組み込みの関数の表の行
 formatBuiltins :: [Builtin]
 formatBuiltins =
-  -- A value as text: show is what the REPL shows ("hi" with quotes),
-  -- display is for people (a string as it is, without quotes).
-  -- 値を文字に。show は REPL が見せる形（"hi" は引用符つき）、
-  -- display は人に見せる形（文字列は、引用符なしのそのまま）
+  -- ANCHOR: show
+  -- A value as the REPL shows it ("hi" with quotes), for any type in
+  -- Showable (any type but a function).
+  -- 値を、REPL が見せる形の文字に（"hi" は引用符つき）。Showable の
+  -- 型なら何でも（関数のほかは何でも）
   [ requiring [(Showable, 0)] $
       prim1 "show" (a ~> tString) (Right . VString . renderValue)
-  , requiring [(Showable, 0)] $
-      prim1 "display" (a ~> tString) (Right . VString . display)
+  -- A number, Int or Float, as text: showNumber 7 is "7",
+  -- showNumber 2.5 is "2.5".
+  -- 数（Int か Float）を文字に
+  , requiring [(Number, 0)] $
+      prim1 "showNumber" (a ~> tString) $ \v -> case v of
+        VInt n   -> Right (VString (T.pack (show n)))
+        VFloat x -> Right (VString (showFloat x))
+        _        -> wrong "showNumber"
+  -- ANCHOR_END: show
 
   -- Line a string up in a width:  padLeft 5 "ab"  is  "   ab".
   -- 文字列を、幅の中でそろえる
@@ -44,35 +55,19 @@ formatBuiltins =
   , prim2 "padRight" (TInt ~> tString ~> tString) (withWidth padRight)
   , prim2 "center"   (TInt ~> tString ~> tString) (withWidth center)
 
-  -- Numbers:  groupDigits 1234567  is  "1,234,567",
-  --           zeroPad 5 42  is  "00042".
-  -- 数：3桁ごとに区切る、0 で埋める
-  , prim1 "groupDigits" (TInt ~> tString) $ \v -> case v of
-      VInt n -> Right (VString (groupDigits n))
-      _      -> wrongType "groupDigits"
-  , prim2 "zeroPad" (TInt ~> TInt ~> tString) $ \w v -> case (w, v) of
-      (VInt width, VInt n) -> Right (VString (zeroPad width n))
-      _                    -> wrongType "zeroPad"
+  -- The text of a number:  groupDigits "1234567.5"  is  "1,234,567.5",
+  --                        zeroPad 5 "-42"  is  "-0042".
+  -- 数の文字：3桁ごとに区切る、0 で埋める
+  , prim1 "groupDigits" (tString ~> tString) $ \v ->
+      VString . groupDigits <$> string v
+  , prim2 "zeroPad" (TInt ~> tString ~> tString) (withWidth zeroPad)
   ]
   where
     a = TVar 0
     withWidth f w s = case w of
       VInt width -> VString . f width <$> string s
-      _          -> wrongType "a width"
-    wrongType what =
-      Left (BuiltinFailed what "got a value of the wrong type")
+      _          -> wrong "a width"
 -- ANCHOR_END: table
-
--- ANCHOR: display
--- 🖨️ A value for people: a string as it is, anything else as the REPL
---    shows it. Inside a list, a string keeps its quotes: ["a", "b"].
--- 人に見せる値：文字列はそのまま、ほかは REPL と同じ形。
--- リストの中の文字列は、引用符つきのまま
-display :: Value -> Text
-display v = case v of
-  VString s -> s
-  _         -> renderValue v
--- ANCHOR_END: display
 
 -- ANCHOR: pad
 -- 📏 Put spaces on the left, on the right, or on both sides, until the
@@ -98,10 +93,14 @@ spaces n = T.replicate (fromIntegral n) " "
 -- ANCHOR_END: pad
 
 -- ANCHOR: numbers
--- 🔢 1234567 is "1,234,567", and -1234 is "-1,234".
--- 3桁ごとにカンマで区切る
-groupDigits :: Integer -> Text
-groupDigits n = sign n <> T.intercalate "," (groups (T.pack (show (abs n))))
+-- 🔢 A comma every 3 digits, in the digits before the point:
+--    "1234567" is "1,234,567", "-1234.5" is "-1,234.5".
+-- 小数点より前の数字に、3桁ごとにカンマを入れる
+groupDigits :: Text -> Text
+groupDigits t =
+  let (sign, rest)    = T.span (== '-') t
+      (digits, after) = T.span isDigit rest
+  in sign <> T.intercalate "," (groups digits) <> after
   where
     -- "1234567" -> ["1", "234", "567"]: cut 3 letters at a time,
     -- from the right.
@@ -109,15 +108,11 @@ groupDigits n = sign n <> T.intercalate "," (groups (T.pack (show (abs n))))
     groups ds = reverse (map T.reverse (T.chunksOf 3 (T.reverse ds)))
 
 -- 🔢 Fill with 0 to make w letters, after the sign:
---    zeroPad 5 42 is "00042", zeroPad 5 (0 - 42) is "-0042".
+--    zeroPad 5 "42" is "00042", zeroPad 5 "-42" is "-0042".
 -- 符号のあとを 0 で埋めて、w 文字にする
-zeroPad :: Integer -> Integer -> Text
-zeroPad w n =
-  let digits = T.pack (show (abs n))
-      width  = max 0 (w - fromIntegral (T.length (sign n)))
-  in sign n <> T.replicate (fromIntegral (missing width digits)) "0" <> digits
-
-sign :: Integer -> Text
-sign n = if n < 0 then "-" else ""
+zeroPad :: Integer -> Text -> Text
+zeroPad w t =
+  let (sign, rest) = T.span (== '-') t
+  in sign <> T.replicate (fromIntegral (missing w t)) "0" <> rest
 -- ANCHOR_END: numbers
 -- ANCHOR_END: all

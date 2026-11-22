@@ -1,0 +1,35 @@
+-- ANCHOR: all
+-- 🧺 Prices added with an operator of our own: <+>.
+-- 自分の演算子 <+> で、値段を足す
+--   lam examples/operators/basket.lam
+data Price = Price Int
+
+yen : Price -> Int
+yen p = case p of | Price n -> n
+
+instance Display Price where
+  display p = f"{yen p:,} yen"
+
+-- ANCHOR: addPrice
+-- ➕ Two prices together.
+-- 2つの値段を足す
+addPrice : Price -> Price -> Price
+addPrice a b = Price (yen a + yen b)
+
+-- <+> is another name for addPrice: it leans left, at level 7 (as +).
+-- <+> は addPrice の別名。左に寄り、強さは 7（+ と同じ）
+infixl 7 addPrice as <+>
+-- ANCHOR_END: addPrice
+
+sticker = Price 300
+mug     = Price 1200
+tshirt  = Price 2500
+
+-- ANCHOR: total
+-- Before:  addPrice (addPrice sticker mug) tshirt
+-- 前の書き方
+total = sticker <+> mug <+> tshirt
+-- ANCHOR_END: total
+
+f"{total}"
+-- ANCHOR_END: all

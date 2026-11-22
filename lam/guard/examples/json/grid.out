@@ -1,0 +1,1 @@
+{ cells = 6, found = ["elixir", "herb"], steps = 6 } : { cells : Int, found : [String], steps : Int }
