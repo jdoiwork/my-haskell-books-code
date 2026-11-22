@@ -91,17 +91,29 @@ data OneLiner = OneLiner
   , oneInput    :: Input        -- --json, --jsonl
   , onePath     :: [Text]       -- --path=orders.items: ["orders", "items"]
   , oneAs       :: Maybe Text   -- --as=Order: read each piece as an Order
-  , oneDecoding :: Decoding     -- --decoding=strict: broken bytes
+  , oneDecoding :: Maybe Decoding  -- --decoding=strict: broken bytes
   , oneModules  :: [Text]       -- -MPrice: import Price (..)
   , oneScript   :: Maybe Form   -- --print-script: show it, run nothing
   }
   deriving (Eq, Show)
 
--- Broken bytes are skipped unless a flag says otherwise.
--- 壊れたバイトは、フラグがなければ飛ばす
 noOneLiner :: OneLiner
 noOneLiner = OneLiner [] Once NoSplit Nothing Nothing Nothing TextLines
-  [] Nothing Ignore [] Nothing
+  [] Nothing Nothing [] Nothing
+
+-- ANCHOR: decodingOf
+-- 🧹 How broken bytes are read, when --decoding does not say: skipped
+--    for the screen, but a stop for -i. Lam reads text, not bytes, so
+--    a skipped byte would leave the file it writes back, quietly.
+-- --decoding がなければ、壊れたバイトの読み方は：画面に出すだけなら
+-- 飛ばす。-i なら止まる。Lam はバイトではなく文字として読むので、
+-- 飛ばしたバイトは、書き戻すファイルから黙って消えてしまう
+decodingOf :: OneLiner -> Decoding
+decodingOf one = case (oneDecoding one, oneInPlace one) of
+  (Just how, _)      -> how
+  (Nothing, Just _)  -> Strict
+  (Nothing, Nothing) -> Ignore
+-- ANCHOR_END: decodingOf
 
 -- 🧭 What lam was asked to do.
 -- lam が頼まれたこと
@@ -214,9 +226,9 @@ longFlag one flag
       if T.null (T.strip ty) then Left "lam: --as needs a type: --as=Order"
       else Right one { oneAs = Just ty }
   | Just how <- T.stripPrefix "--decoding=" flag = Just $ case how of
-      "strict"  -> Right one { oneDecoding = Strict }
-      "replace" -> Right one { oneDecoding = Replace }
-      "ignore"  -> Right one { oneDecoding = Ignore }
+      "strict"  -> Right one { oneDecoding = Just Strict }
+      "replace" -> Right one { oneDecoding = Just Replace }
+      "ignore"  -> Right one { oneDecoding = Just Ignore }
       _ -> Left "lam: --decoding=strict, --decoding=replace or \
                 \--decoding=ignore"
   | otherwise = Nothing
@@ -385,8 +397,7 @@ oneLinerLine one = T.unwords ("lam" : map shellWord flags)
       , [ "--path=" <> T.intercalate "." (onePath one)
         | not (null (onePath one)) ]
       , [ "--as=" <> t | Just t <- [oneAs one] ]
-      , [ "--decoding=" <> decodingName (oneDecoding one)
-        | oneDecoding one /= Ignore ]
+      , [ "--decoding=" <> decodingName how | Just how <- [oneDecoding one] ]
       , [ "-i" <> ext | Just ext <- [oneInPlace one] ]
       , [ if oneMode one == Printing then "-p" else "-n" ]
       , concat [ ["--begin", b] | Just b <- [oneBegin one] ]
@@ -713,7 +724,7 @@ defining name ls = case ls of
 mainChunks :: OneLiner -> [Chunk]
 mainChunks one = [ Lines (readAll <> mainLines) ]
   where
-    how = decodingCon (oneDecoding one)
+    how = decodingCon (decodingOf one)
     visiting = case oneInput one of
       TextLines -> "visit"
       _         -> "(visit file)"
@@ -757,8 +768,28 @@ mainChunks one = [ Lines (readAll <> mainLines) ]
         , "    | file : rest -> do"
         , "        edit file ?"
         , "        editAll rest"
-        , "" ]
+        , "" ] <> checkLines
       -- ANCHOR_END: editLines
+    -- ANCHOR: checkLines
+    -- Strict: read every file to the end first. A broken byte in any
+    -- of them stops it before one file is changed.
+    -- Strict なら、先にどのファイルも終わりまで読む。どれかに壊れた
+    -- バイトがあれば、1つも書き換えないうちに止まる
+    checkLines
+      | decodingOf one == Strict =
+          [ "-- 🔎 Strict: read every file first. A broken byte in any of"
+          , "--    them stops it here, before one file is changed."
+          , "-- Strict：先にどのファイルも読む。どれかに壊れたバイトが"
+          , "-- あれば、1つも書き換えないうちに、ここで止まる"
+          , "checkAll files ="
+          , "  case files of"
+          , "    | [] -> pure (Ok ())"
+          , "    | file : rest -> do"
+          , "        _ <- File.forLines Strict file () (\\_ _ _ -> pure ()) ?"
+          , "        checkAll rest"
+          , "" ]
+      | otherwise = []
+    -- ANCHOR_END: checkLines
     files = case oneScript one of
       Just PlainForm -> "files"
       _              -> "o.files"
@@ -775,7 +806,12 @@ mainChunks one = [ Lines (readAll <> mainLines) ]
         , "main o =" )
     orStdin = "(if null " <> files <> " then [\"-\"] else " <> files <> ")"
     mainLines = signature <> case (oneInPlace one, oneEnd one) of
-      (Just _, _) -> [ start <> " editAll " <> files ]
+      (Just _, _)
+        | decodingOf one == Strict ->
+            [ start <> " do"
+            , "  checkAll " <> files <> " ?"
+            , "  editAll " <> files ]
+        | otherwise -> [ start <> " editAll " <> files ]
       (_, Just _) ->
         [ start <> " do"
         , "  last <- readAll start " <> orStdin <> " ?"

@@ -38,7 +38,7 @@ edit file = do
   let tmp = file ++ ".lam-tmp"
   defer File.remove tmp
   writeFile tmp "" ?
-  File.forLines Ignore file tmp visit ?
+  File.forLines Strict file tmp visit ?
   File.copy file (file ++ ".bak") ?
   File.rename tmp file ?
   pure (Ok ())
@@ -50,7 +50,20 @@ editAll files =
         edit file ?
         editAll rest
 
+-- 🔎 Strict: read every file first. A broken byte in any of
+--    them stops it here, before one file is changed.
+-- Strict：先にどのファイルも読む。どれかに壊れたバイトが
+-- あれば、1つも書き換えないうちに、ここで止まる
+checkAll files =
+  case files of
+    | [] -> pure (Ok ())
+    | file : rest -> do
+        _ <- File.forLines Strict file () (\_ _ _ -> pure ()) ?
+        checkAll rest
+
 --- Run the one-liner on each file (none: the standard input)
 -- ファイルごとに、ワンライナーを動かす（なければ標準入力）
 main : { files : [String] } -> IO (Result String ())
-main o = editAll o.files
+main o = do
+  checkAll o.files ?
+  editAll o.files

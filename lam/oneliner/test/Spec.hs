@@ -4981,7 +4981,7 @@ main = hspec $ do
            ["--name", "Lam", "-n"])
       one ["--decoding=strict", "-ne", "x", "--", "-"] `shouldBe` Right
         (RunOneLiner noOneLiner { oneProgram = ["x"], oneMode = EachLine
-                                , oneDecoding = Strict } ["-"])
+                                , oneDecoding = Just Strict } ["-"])
     -- 「一緒に使えないフラグや、知らないフラグは、動かす前に止める」
     it "stops flags that do not go together, before running" $
       map (either Left (const (Right ())) . flip readCommand Nothing)
@@ -5117,6 +5117,35 @@ main = hspec $ do
       (_, dry) <- run ["--dry-run", "-i", "-pe", "toUpper", "a.txt"]
       worldFiles dry `shouldBe` worldFiles world
     -- ANCHOR_END: inPlaceTest
+
+    -- ANCHOR: inPlaceStrictTest
+    -- 「-i は、--decoding がなければ strict。壊れたバイトのあるファイルが
+    --   1つでもあれば、どのファイルも書き換えない。ignore と書けば通る」
+    it "changes no file with -i when one has a broken byte" $ do
+      let files = Map.fromList
+            [("a.txt", "red\n"), ("b.txt", "blue \xff sky\n")]
+          world = emptyWorld { worldFiles = files }
+          run args = do
+            (opts, command) <- either (fail . T.unpack) pure
+                                 (readCommand args Nothing)
+            (one, rest) <- case command of
+              RunOneLiner one rest -> pure (one, rest)
+              other -> fail (show other)
+            dbs <- memoryDatabases
+            guard <- guarded opts
+            runFakeIO world { worldArgs = map T.pack rest }
+              (runOneLiner (guard (fakeWorldIO dbs)) noFiles preludeSession
+                 one)
+      (stopped, kept) <- run ["-i", "-pe", "toUpper", "a.txt", "b.txt"]
+      stopped `shouldBe`
+        Errored "error: b.txt: line 1: not UTF-8 from byte 5"
+      worldFiles kept `shouldBe` files
+      (ending, after) <-
+        run ["--decoding=ignore", "-i", "-pe", "toUpper", "a.txt", "b.txt"]
+      ending `shouldBe` Finished ""
+      worldFiles after `shouldBe` Map.fromList
+        [("a.txt", "RED\n"), ("b.txt", "BLUE  SKY\n")]
+    -- ANCHOR_END: inPlaceStrictTest
 
     -- ANCHOR: forLinesTest
     -- 「File.forLines は、"-" なら標準入力を、番号つきで1行ずつ読む」
