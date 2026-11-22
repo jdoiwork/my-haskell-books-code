@@ -8,7 +8,7 @@
 callWithin : Int -> Pid msg -> (Pid r -> msg) -> IO (Maybe r)
 callWithin ms pid ask = do
   me <- Actor.new
-  Actor.send pid (ask me)
+  pid ! ask me
   receive me
     | answer -> pure (Just answer)
     after ms -> pure Nothing
@@ -24,7 +24,7 @@ slowpoke ms me =
     | Question from -> do
         sleep ms
         -- 「はい、どうぞ」
-        Actor.send from "here you are"
+        from ! "here you are"
         slowpoke ms me
 
 main = do

@@ -1,0 +1,5 @@
+== examples/oneliner/broken.log ==
+2026-11-29 09:00:01 INFO  start
+2026-11-29 09:00:05 WARN disk  full
+2026-11-29 09:01:10 INFO  caf open
+2026-11-29 09:02:00 WARN timeout

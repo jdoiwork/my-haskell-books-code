@@ -1,1 +1,1 @@
-examples/records/broken/largest.lam:3:1: in the definition of largest: type error: the annotation of largest must say Comparable a (the definition needs it)
+in the definition of largest: type error: the annotation of largest must say Comparable a (the definition needs it)

@@ -1,2 +1,2 @@
 average of []: no answer
-it crashed: examples/channels/Average.lam:16:33: divided by zero
+it crashed: examples/channels/Average.lam:16:24: divided by zero

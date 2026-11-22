@@ -1,0 +1,1 @@
+-e 'Shell.out $"git log -1 --format='%an: %s'"'

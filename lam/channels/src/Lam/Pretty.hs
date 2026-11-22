@@ -11,6 +11,7 @@ module Lam.Pretty
   , opSymbol
   , showFloat
   , floatLiteral
+  , renderTypeExpr
   ) where
 
 import Data.Text (Text)
@@ -28,14 +29,13 @@ level expr = case expr of
   -- A mark of a place is not shown: the expression inside decides.
   -- 場所の印は見せない。中の式で決まる
   At _ e        -> level e
+  -- re"\d+" stands alone, like a string.  re"…" は文字列と同じく1つの部品
+  App (Var "$regex") (Lit (LString _)) -> 9
   Lam {}        -> 0   -- \x -> ...     （右の端まで続く）
   Let {}        -> 0   -- let ... in ...
   If {}         -> 0   -- if ... then ... else ...
   Case {}       -> 0   -- case ... of | ...
   BinOp op _ _  -> opLevel op
-  -- re"\d+" is one piece, like a string.
-  -- re"\d+" は、文字列と同じく、ひとかたまり
-  App (Var "$regex") (Lit (LString _)) -> 9
   App {}        -> 8   -- f x
   Lit _         -> 9   -- 42
   Var _         -> 9   -- x
@@ -114,29 +114,23 @@ plain expr = case expr of
   Lit (LBool False) -> "false"
   Lit (LString s)   -> renderString s
   Var x             -> x
+  -- ANCHOR: renderRegex
+  -- $regex "\\d+" is sugar for re"\d+": show it as it was written.
+  -- $regex "…" は re"…" の糖衣構文。書いたとおりに見せる
+  App (Var "$regex") (Lit (LString s)) -> "re\"" <> s <> "\""
+  -- ANCHOR_END: renderRegex
   -- ANCHOR: renderAccessor
   -- .name is sugar for  \$r -> $r.name: show it as it was written.
   -- .name は \$r -> $r.name の糖衣構文。書いたとおりに見せる
   Lam "$r" (Field (Var "$r") x) -> "." <> x
   -- ANCHOR_END: renderAccessor
   Lam x body        -> "\\" <> x <> " -> " <> at 0 body
-  -- re"\d+" is shown as it was written.
-  -- re"\d+" は、書いたとおりに見せる
-  App (Var "$regex") (Lit (LString s)) -> "re\"" <> s <> "\""
-  App (At _ f) a    -> plain (App f a)
   App f a           -> at 8 f <> " " <> at 9 a
   Let x e body      -> "let " <> x <> " = " <> at 0 e <> " in " <> at 0 body
   If c a b          -> "if " <> at 0 c <> " then " <> at 0 a
                          <> " else " <> at 0 b
   Tuple es          -> "(" <> T.intercalate ", " (map (at 0) es) <> ")"
   List es           -> "[" <> T.intercalate ", " (map (at 0) es) <> "]"
-  -- ANCHOR: renderRecordExpr
-  Record fs         -> "{ " <> fieldsOf fs <> " }"
-  -- r.name, and (f x).name: only a name can go before the dot as it is.
-  -- 点の前にそのまま置けるのは、名前だけ
-  Field e x         -> beforeDot e <> "." <> x
-  Update e fs       -> "{ " <> plain e <> " | " <> fieldsOf fs <> " }"
-  -- ANCHOR_END: renderRecordExpr
   BinOp op l r      ->
     let n = opLevel op
         -- How each operator leans. 1 - 2 - 3 is (1 - 2) - 3,
@@ -161,10 +155,16 @@ plain expr = case expr of
             <> at (if i < n then 1 else 0) body
     in "case " <> at 0 e <> " of" <> T.concat (zipWith branch [1 ..] alts)
   -- ANCHOR_END: renderCase
+  -- ANCHOR: renderRecordExpr
+  Record fs         -> "{ " <> fieldsOf fs <> " }"
+  -- r.name, and (f x).name: only a name can go before the dot as it is.
+  -- 点の前にそのまま置けるのは、名前だけ
+  Field e x         -> beforeDot e <> "." <> x
+  Update e fs       -> "{ " <> plain e <> " | " <> fieldsOf fs <> " }"
+  -- ANCHOR_END: renderRecordExpr
   where
     fieldsOf fs = T.intercalate ", " [ x <> " = " <> at 0 e | (x, e) <- fs ]
     beforeDot e = case e of
-      At _ e'   -> beforeDot e'
       Var _     -> plain e
       Field _ _ -> plain e
       _         -> "(" <> plain e <> ")"
@@ -264,4 +264,24 @@ floatLiteral x
   where
     shown = showFloat x
 -- ANCHOR_END: floatLiteral
+-- ANCHOR: renderTypeExpr
+-- 🖨️ A type as written (with its own names), in a place of this
+--    strength: 0 alone, 1 left of ->, 2 an argument (Maybe a needs ( )).
+-- 書いたとおりの型（書いた名前のまま）。強さ 0 は単独、1 は -> の左、
+-- 2 は引数（Maybe a には括弧が要る）
+renderTypeExpr :: Int -> TypeExpr -> Text
+renderTypeExpr strength te = case te of
+  TyVar a     -> a
+  TyApp f ts  -> wrap 2 (T.unwords (f : map (renderTypeExpr 2) ts))
+  TyCon c []  -> c
+  TyCon c ts  -> wrap 2 (T.unwords (c : map (renderTypeExpr 2) ts))
+  TyFun a b   -> wrap 1 (renderTypeExpr 1 a <> " -> " <> renderTypeExpr 0 b)
+  TyList t    -> "[" <> renderTypeExpr 0 t <> "]"
+  TyTuple ts  -> "(" <> T.intercalate ", " (map (renderTypeExpr 0) ts) <> ")"
+  TyRecord fs r -> "{ " <> maybe "" (<> " | ") r
+    <> T.intercalate ", " [ fieldName f <> " : " <> renderTypeExpr 0 (fieldType f) | f <- fs ]
+    <> " }"
+  where
+    wrap needed t = if strength >= needed then "(" <> t <> ")" else t
+-- ANCHOR_END: renderTypeExpr
 -- ANCHOR_END: all

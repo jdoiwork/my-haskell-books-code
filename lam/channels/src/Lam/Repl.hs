@@ -9,8 +9,10 @@ module Lam.Repl
   , step
   , endingText
   , helpText
+  , showFixity
   ) where
 
+import Data.List (sortOn)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -18,6 +20,7 @@ import Text.Megaparsec
 
 import Lam.Io (Concurrent, Handler)
 import Lam.Parser
+import Lam.Pretty (render)
 import Lam.Program
 import Lam.Syntax
 import Lam.Types
@@ -30,27 +33,40 @@ data Input
   = Define Name Expr     -- let double x = x * 2
   | DefineType DataDecl  -- data Shape = Circle Int | Rect Int Int
   -- ANCHOR: replRecords
-  | DefineAlias AliasDecl  -- type alias User = { name : String }
+  | DefineAlias AliasDecl  -- type alias Member = { name : String }
   -- add : Int -> Int -> Int; add x y = x + y   (; joins the two lines)
   -- （; で2行をつなぐ）
-  | DefineTyped Loc Name Signature Expr
+  | DefineTyped Name Signature Expr
   -- ANCHOR_END: replRecords
+  -- ANCHOR: replClasses
+  | DefineClass ClassDecl        -- class Describe a where describe : a -> String
+  | DefineInstance InstanceDecl  -- instance Describe Int where describe n = ...
+  -- ANCHOR_END: replClasses
+  -- ANCHOR: replInfix
+  | DefineInfix Text Fixity      -- infixl 7 addPrice as <+>
+  -- ANCHOR_END: replInfix
   | Evaluate Expr        -- double 21
   | ShowType Expr        -- :type double
-  | ShowNames            -- :env
-  | Load FilePath        -- :load examples/fib.lam
+  -- ANCHOR: replDicts
+  | ShowDicts Expr       -- :dicts describe (Circle 2)
+  -- ANCHOR_END: replDicts
+  -- ANCHOR: replPrint
+  | PrintText Expr       -- :print receipt
+  -- ANCHOR_END: replPrint
   -- ANCHOR: importInput
   | ImportLine Import    -- import Json as J
   | Browse Name          -- :browse Json
   -- ANCHOR_END: importInput
+  | ShowNames            -- :env
+  | Load FilePath        -- :load examples/fib.lam
   | Help                 -- :help
   deriving (Eq, Show)
 
 -- 📖 A definition, a command, or an expression.
 -- 定義、コマンド、または式
-parseInput :: Text -> Either Text Input
-parseInput line =
-  case runLamParser (spaces *> input <* eof) "<repl>" line of
+parseInput :: Operators -> Text -> Either Text Input
+parseInput ops line =
+  case runLamParser ops (spaces *> input <* eof) "<repl>" line of
     Left err -> Left (T.pack (errorBundlePretty err))
     -- One line is right in front of you: the errors need no places.
     -- 1行は目の前にあるので、エラーに場所は要らない
@@ -60,19 +76,29 @@ parseInput line =
       [ ShowNames <$ symbol ":env"
       , Help <$ symbol ":help"
       , ShowType <$> (symbol ":type" *> expr)
+      , ShowDicts <$> (symbol ":dicts" *> expr)
+      , PrintText <$> (symbol ":print" *> expr)
       , Load . T.unpack . T.strip <$> (symbol ":load" *> takeRest)
       , Browse <$> (symbol ":browse" *> conName)
       , ImportLine <$> importLine
       , DefineType <$> dataDecl
       , DefineAlias <$> aliasDecl
-      , try typed
+      , DefineClass <$> classDecl
+      , DefineInstance <$> instanceDecl
+      , infixInput
+      , typed
       , try (uncurry Define <$> topDefinition <* eof)
       , Evaluate <$> expr ]
+    infixInput = do
+      d <- infixDecl
+      case d of
+        DefInfix _ o f -> pure (DefineInfix o f)
+        _              -> empty
     typed = do
-      sig <- signatureHead <* symbol ";"
+      sig <- try (signatureHead <* symbol ";")
       (x, e) <- topDefinition
       case sig of
-        DefSig loc y s | x == y -> pure (DefineTyped loc x s e)
+        DefSig y s | x == y -> pure (DefineTyped x s e)
         -- 「注釈と定義の名前がちがいます」
         _ -> fail "the annotation and the definition have different names"
 
@@ -80,78 +106,36 @@ parseInput line =
 -- 同じ入力から、場所の印を取る
 withoutPlaces :: Input -> Input
 withoutPlaces i = case i of
-  Define x e -> Define x (stripLocations e)
-  DefineTyped l x s e -> DefineTyped l x s (stripLocations e)
-  Evaluate e -> Evaluate (stripLocations e)
-  ShowType e -> ShowType (stripLocations e)
-  other      -> other
+  Define x e        -> Define x (stripLocations e)
+  DefineTyped x s e -> DefineTyped x s (stripLocations e)
+  DefineClass c     -> case stripDecl (DefClass c) of
+    DefClass c' -> DefineClass c'
+    _           -> DefineClass c
+  DefineInstance d  -> case stripDecl (DefInstance d) of
+    DefInstance d' -> DefineInstance d'
+    _              -> DefineInstance d
+  Evaluate e        -> Evaluate (stripLocations e)
+  ShowType e        -> ShowType (stripLocations e)
+  ShowDicts e       -> ShowDicts (stripLocations e)
+  PrintText e       -> PrintText (stripLocations e)
+  other             -> other
 -- ANCHOR_END: input
 
 -- ANCHOR: step
 -- 🔁 One turn of the REPL. (:load is done by Main, which reads files.)
---    An IO expression is done by the handler, so step runs in its monad.
--- REPL の1回分（:load は、ファイルを読む Main がする）。
--- IO の式はハンドラーがやるので、step はそのモナドの中で動く
+--    An IO expression is done by the handler, so step runs in its
+--    monad; everything else is answered as before.
+-- REPL の1回分（:load は、ファイルを読む Main がする）。IO の式は
+-- ハンドラーがやるので、step はそのモナドの中で動く。ほかは前と同じ
 step :: Concurrent m => Handler m -> Session -> Text -> m (Session, Text)
 step handle session line =
-  case parseInput line of
-    Left err -> pure (session, err)
-    Right Help -> pure (session, helpText)
-    -- ANCHOR: showNames
-    -- The names a program can write: not $regex, which only
-    -- re"..." opens into.
-    -- プログラムが書ける名前だけ。re"..." が開く $regex は見せない
-    Right ShowNames ->
-      pure ( session
-           , T.unwords (filter (not . T.isPrefixOf "$")
-                               (Map.keys (sessionValues session))) )
-    -- ANCHOR_END: showNames
-    Right (ShowType e) -> pure $
-      case inferType (sessionData session) (sessionTypes session) e of
-        Left err -> (session, uncurry (<>) (placedType (explain session err)))
-        Right t  -> (session, renderScheme t)
+  case parseInput (sessionOperators session) line of
     Right (Evaluate e) -> do
       out <- evaluate handle session e
       pure (session, endingText out)
-    Right (Define x e) -> pure $ case define session x e of
-      Left err           -> (session, err)
-      Right (s', shown)  -> (s', shown)
-    Right (DefineType d) -> pure $ case defineData session d of
-      Left err           -> (session, err)
-      Right (s', shown)  -> (s', shown)
-    -- ANCHOR: stepRecords
-    Right (DefineAlias a) -> pure $ case defineAlias session a of
-      Left err           -> (session, err)
-      Right (s', shown)  -> (s', shown)
-    Right (DefineTyped loc x sig e) ->
-      pure $ case defineTyped session loc x sig e of
-        Left err           -> (session, err)
-        Right (s', shown)  -> (s', shown)
-    -- ANCHOR_END: stepRecords
-    Right (Load file) -> pure
-      (session, "(:load " <> T.pack file <> " is handled by the REPL)")
-    Right (ImportLine _) -> pure
-      (session, "(import is handled by the REPL)")
-    -- ANCHOR: browse
-    -- What a module shows: its names and types, and what it hides.
-    -- モジュールが見せるもの：名前と型、それに隠しているもの
-    Right (Browse m) -> pure $ case Map.lookup m (sessionModules session) of
-      Nothing  -> (session, "no module " <> m <> " (import it first)")
-      Just md  -> (session, T.intercalate "\n" (browse md))
-    -- ANCHOR_END: browse
+    other -> pure (answer session other)
 
--- ANCHOR: browseLines
--- 📖 The lines of :browse:  m.x : type, and the hidden constructors.
--- :browse の行
-browse :: Module -> [Text]
-browse md =
-  [ moduleName md <> "." <> x <> " : " <> renderScheme sc
-  | (x, (sc, _)) <- Map.toList (moduleExports md) ]
-  <> [ "(hidden: " <> T.intercalate ", " hidden <> ")"
-     | let hidden = concatMap snd (Map.elems (moduleShown md))
-     , not (null hidden) ]
--- ANCHOR_END: browseLines
-
+-- ANCHOR: endingText
 -- 🏁 What the REPL shows for an ending. exit does not end the REPL:
 --    :quit does.
 -- REPL が見せるもの。exit では REPL は終わらない（終わるのは :quit）
@@ -161,25 +145,133 @@ endingText ending = case ending of
   Errored t    -> t
   -- 「（exit 2。REPL は続きます）」
   ExitedWith n -> "(exit " <> T.pack (show n) <> "; the REPL goes on)"
+-- ANCHOR_END: endingText
+
+-- 💬 The answer to everything but an expression: no IO here.
+-- 式のほかの全部への答え。ここに IO はない
+answer :: Session -> Either Text Input -> (Session, Text)
+answer session input =
+  case input of
+    Left err -> (session, err)
+    Right Help -> (session, helpText)
+    Right ShowNames ->
+      (session, T.unwords (filter (not . T.isPrefixOf "$")
+                             (Map.keys (sessionValues session))))
+    Right (ShowType e) ->
+      case inferType (sessionData session) (sessionTypes session) e of
+        Left err -> (session, "type error: " <> renderTypeError err)
+        Right (t, _) -> (session, renderUsual t)
+    -- ANCHOR: stepDicts
+    -- The expression the evaluator gets: with the dictionaries put in.
+    -- 評価器が受け取る式：辞書を入れたもの
+    Right (ShowDicts e) ->
+      case inferType (sessionData session) (sessionTypes session) e of
+        Left err      -> (session, "type error: " <> renderTypeError err)
+        Right (_, e') -> (session, render e')
+    -- ANCHOR_END: stepDicts
+    Right (Evaluate _) -> (session, "(an expression is done by step)")
+    -- ANCHOR: stepPrint
+    Right (PrintText e) -> (session, either id id (printText session e))
+    -- ANCHOR_END: stepPrint
+    Right (Define x e) -> case define session x e of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    Right (DefineType d) -> case defineData session d of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    -- ANCHOR: stepRecords
+    Right (DefineAlias a) -> case defineAlias session a of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    Right (DefineTyped x sig e) -> case defineTyped session x sig e of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    -- ANCHOR_END: stepRecords
+    -- ANCHOR: stepClasses
+    Right (DefineClass c) -> case defineClass session c of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    Right (DefineInstance i) -> case defineInstance session i of
+      Left err           -> (session, err)
+      Right (s', shown)  -> (s', shown)
+    -- ANCHOR_END: stepClasses
+    -- ANCHOR: stepInfix
+    Right (DefineInfix o f) ->
+      (defineInfix session o f, showFixity o f)
+    -- ANCHOR_END: stepInfix
+    Right (Load file) ->
+      (session, "(:load " <> T.pack file <> " is handled by the REPL)")
+    Right (ImportLine _) ->
+      (session, "(import is handled by the REPL)")
+    -- ANCHOR: browse
+    -- What a module shows: its names and types, what it hides, and
+    -- the instances it declares.
+    -- モジュールが見せるもの：名前と型、隠しているもの、宣言したインスタンス
+    Right (Browse m) -> case Map.lookup m (sessionModules session) of
+      Nothing -> (session, "no module " <> m <> " (import it first)")
+      Just md -> (session, T.intercalate "\n" (browse md))
+    -- ANCHOR_END: browse
+
+-- ANCHOR: browseLines
+-- 📖 The lines of :browse:  m.x : type, the hidden constructors, and
+--    the instances.
+-- :browse の行
+browse :: Module -> [Text]
+browse md =
+  [ moduleName md <> "." <> x <> " : " <> renderUsual sc
+  | (x, (sc, _)) <- Map.toList (moduleExports md) ]
+  <> [ showFixity o f
+     | (o, f) <- sortOn (\(o, f) -> (negate (fixityLevel f), o))
+                   (Map.toList (moduleOperators md)) ]
+  <> [ "(hidden: " <> T.intercalate ", " secret <> ")"
+     | let secret = concatMap snd (Map.elems (moduleShown md))
+     , not (null secret) ]
+  <> [ "(instances: " <> T.intercalate ", " own <> ")"
+     | let own = [ c <> " " <> t
+                 | ((c, t), home) <- Map.toList (moduleInstances md)
+                 , home == moduleName md ]
+     , not (null own) ]
+-- ANCHOR_END: browseLines
+
+-- ANCHOR: showFixity
+-- ➕ infixl 7 addPrice as <+>
+showFixity :: Text -> Fixity -> Text
+showFixity o f =
+  word (fixityAssoc f) <> " " <> T.pack (show (fixityLevel f)) <> " "
+    <> fixityTarget f <> " as " <> o
+  where
+    word a = case a of
+      LeftA  -> "infixl"
+      RightA -> "infixr"
+      NoneA  -> "infix"
+-- ANCHOR_END: showFixity
 
 -- 📖 :help
 helpText :: Text
 helpText = T.intercalate "\n"
-  [ "name args = expr       define a name (it can call itself; let is ok)"
-  , "name : type; name ...  define it with a type annotation"
-  , "type alias T = type    give a type a new name"
+  [ "name args = expr       define a name (let may be left out)"
+  , "name : T; name x = e   define a name with a type annotation"
   , "data T a = C a | D      define a data type"
+  , "type alias R = { x : Int }   give a type another name"
+  , "class C a where m : a -> T    declare a class (one line here)"
+  , "instance C T where m x = e    give a type to a class"
+  , "infixl 7 f as <+>      make <+> another name for f (0 to 9)"
+  , "{\"key\": expr, ...}     a Map: {\"Python\": 82}, {1: \"one\"}"
   , "expr                   compute an expression"
-  , "{\"key\": expr, ...}     a map (the keys are strings)"
-  , "do x <- e; f x         IO, line by line (an IO expression is done)"
-  , "f\"x = {x:>5}\"          a string with values in it (< > ^ 0 , =)"
-  , "re\"\\d+\"                a regular expression (Regex.find, ...)"
-  , "Parser.do x <- p; ...  a parser, line by line (Parser.run p text)"
-  , "x |> f                 f x  (text |> words |> length)"
   , ":type expr             show the type of an expression"
+  , ":dicts expr            show it with the dictionaries put in"
+  , "do x <- e; f x         one line after another (an IO is done)"
+  , "do x <- e ?; ...       a failure (Nothing, Err) is the answer at once"
+  , "do defer c; ...        do c at the end, whatever happens (IO)"
+  , ":print expr            write a String (or a [String]) as it is"
+  , "f\"x = {x:>5.1}\"        put values in a string"
+  , "re\"\\d+\"  m/\\d+/i  s/a/b/g    a regex, and a replacing function"
+  , "Parser.run p text      read text with a parser (do x <- p; ...)"
+  , "Http.getAs d url       ask the web, and read the JSON with a decoder"
+  , "Sql.withDb file f      open a database, use it, and close it"
   , ":load file.lam         load the definitions in a file"
-  , "import M as N (x)      use a module (M.lam, or a standard one)"
-  , ":browse M              list what the module M shows"
+  , "import M as N (x)      import a module (from here, and LAM_PATH)"
+  , ":browse M              list what a module shows"
   , ":env                   list the names you can use"
   , ":quit                  quit" ]
 -- ANCHOR_END: step

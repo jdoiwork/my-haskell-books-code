@@ -1,0 +1,6 @@
+-- 🐛 A string used as a number. check gives the type String to s first,
+--    so the error is about the + that uses it.
+-- 文字列を数として使った。check が先に s に String を渡すので、
+-- エラーは、それを使う + の話になる
+len : String -> Int
+len s = s + 1

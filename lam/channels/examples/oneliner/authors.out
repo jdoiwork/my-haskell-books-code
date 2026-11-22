@@ -1,0 +1,3 @@
+src/main.lam: Python
+src/run.lam: Rust
+src/table.lam: Ruby

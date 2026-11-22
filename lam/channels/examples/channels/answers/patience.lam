@@ -16,7 +16,7 @@ main = do
   c <- Chan.new 0
   _ <- spawn (do
     sleep 300
-    Chan.send c "late letter"
+    c ! "late letter"
     Chan.close c)
   first <- recvWithin 100 c
   putStrLn f"after 0.1 s: {display first}"

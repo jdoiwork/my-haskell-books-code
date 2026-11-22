@@ -2,4 +2,4 @@
 --    the first one twice.
 -- 注釈は a と b がちがってよいと言うが、定義は1つ目を2回返す
 swap : (a, b) -> (b, a)
-swap p = case p of | (x, y) -> (x, x)
+swap (x, y) = (x, x)

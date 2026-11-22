@@ -1,0 +1,46 @@
+-- ANCHOR: all
+-- 🛒 The orders of the web shop, read with decoders: each order
+--    becomes a record, and the problems say where they are.
+--   lam examples/decode/orders.lam examples/decode/orders.json
+-- ウェブのお店の注文を、Decoder で読む。注文はレコードになり、
+-- 問題は場所を言う
+
+-- ANCHOR: alias
+-- 📦 One order.
+-- 注文1つ
+type alias Order = { item : String, count : Int, price : Int }
+-- ANCHOR_END: alias
+
+-- ANCHOR: order
+-- 🔍 How to read one order: three fields, one line each.
+-- 注文1つの読み方：3つの項目を、1行に1つずつ
+order : Decoder Order
+order = do
+  item <- Decode.field "item" Decode.string
+  count <- Decode.field "count" Decode.int
+  price <- Decode.field "price" Decode.int
+  pure { item = item, count = count, price = price }
+-- ANCHOR_END: order
+
+-- ANCHOR: orders
+-- 📚 The orders are a list under the key "orders".
+-- 注文は、キー "orders" の下のリスト
+orders : Decoder [Order]
+orders = Decode.field "orders" (Decode.list order)
+-- ANCHOR_END: orders
+
+-- ANCHOR: main
+main : [String] -> IO (Result String ())
+main args =
+  case args of
+    | [path] -> do
+        text <- readFile path ?
+        os <- pure (Decode.fromString orders text
+                      |> Result.mapError Decode.explain) ?
+        forEach os (\o ->
+          putStrLn f"{o.item:<16} {o.count:>2} x {o.price:>5,}")
+        putStrLn f"total {sum [o.count * o.price | o <- os]:,}"
+        pure (Ok ())
+    | _ -> pure (Err "usage: lam orders.lam FILE")
+-- ANCHOR_END: main
+-- ANCHOR_END: all

@@ -1,0 +1,12 @@
+-- ANCHOR: all
+-- 🌿 The same, with $"...": the command is written as it is typed.
+--    {opts.base} is one word, whatever is in it.
+-- 同じものを $"…" で。コマンドは、打つとおりに書く。{opts.base} は、
+-- 中身が何でも1つの語
+main : { base : String = "main" } -> IO (Result String ())
+main opts = do
+  names <- Shell.lines
+    $"git branch --merged {opts.base} --format=%(refname:short)" ?
+  forEach names putStrLn
+  pure (Ok ())
+-- ANCHOR_END: all

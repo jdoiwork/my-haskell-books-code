@@ -1,0 +1,4 @@
+2026-11-17  rain 100%  max  12.7  min   9.2  new
+2026-11-18  rain 100%  max  20.4  min   9.5  new
+2026-11-19  rain   6%  max  17.9  min   9.5  new
+error: INSERT INTO weather (place, da…: CHECK constraint failed: pop BETWEEN 0 AND 100

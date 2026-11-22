@@ -1,0 +1,9 @@
+failed (1) checks/divide.lam
+ok         checks/hello.lam
+ok         checks/json.lam
+ok         checks/sum.lam
+ok         checks/upper.lam
+ok         checks/words.lam
+6 checks, 1 failed
+took 0.0 s, 4 at once
+[exit 1]

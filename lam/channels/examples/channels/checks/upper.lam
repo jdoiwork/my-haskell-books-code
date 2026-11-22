@@ -1,0 +1,4 @@
+-- ✅ A check that passes: toUpper.
+-- 通る確かめ：toUpper
+main : IO ()
+main = if toUpper "lam" == "LAM" then putStrLn "LAM" else exit 1

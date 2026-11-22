@@ -1,0 +1,28 @@
+-- ANCHOR: all
+-- 🔬 A place to try decoders in the REPL:  :load examples/decode/try.lam
+-- REPL で Decoder を試す場所
+
+-- ANCHOR: check
+-- Read JSON text with d, and show the value, or every problem.
+-- d で JSON の文字を読み、値か、問題ぜんぶを見せる
+check : Showable a => Decoder a -> String -> IO ()
+check d text =
+  case Decode.fromString d text of
+    | Ok v -> putStrLn (show v)
+    | Err ps -> putStrLn (Decode.explain ps)
+-- ANCHOR_END: check
+
+-- ANCHOR: sample
+-- 📦 One order of the web shop, to try on.
+-- 試しに読む、ウェブのお店の注文1つ
+sample : String
+sample = "{\"item\": \"mug\", \"count\": 1, \"price\": 1200}"
+
+-- 🏪 The settings of the shop, where tax is a string by mistake.
+-- お店の設定。tax が、まちがえて文字になっている
+settings : String
+settings = "{\"shop\": {\"tax\": \"10\"}}"
+-- ANCHOR_END: sample
+
+check (Decode.field "item" Decode.string) sample
+-- ANCHOR_END: all

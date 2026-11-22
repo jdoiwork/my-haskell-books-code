@@ -1,0 +1,20 @@
+-- ANCHOR: all
+-- 💣 A file with a strange name: a space, a ; and a command after it.
+-- 変な名前のファイル：空白と ; と、その後ろにコマンド
+name = "notes; echo INJECTED.txt"
+
+main : IO (Result String ())
+main = do
+  writeFile name "one\ntwo\n" ?
+  -- $"...": the name is one word. No shell reads it.
+  -- 名前は1つの語。シェルは読まない
+  counted <- Shell.out $"wc -l {name}" ?
+  putStrLn (String.trim counted)
+  -- Making one string for sh -c lets a shell read it again: the ;
+  -- ends the command, and echo runs.
+  -- sh -c に渡す1つの文字列を作ると、シェルが読み直す。; でコマンドが
+  -- 終わり、echo が動いてしまう
+  oops <- Shell.out $"sh -c {"wc -l " ++ name}"
+  putStrLn (show oops)
+  pure (Ok ())
+-- ANCHOR_END: all

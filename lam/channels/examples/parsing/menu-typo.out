@@ -1,0 +1,6 @@
+error: examples/parsing/menu-typo.txt:3:3:
+  |
+3 |   itme "mug" 1200
+  |   ^^^^^
+unexpected "itme "
+expecting "group", "item", '}', or white space

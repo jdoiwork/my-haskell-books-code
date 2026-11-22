@@ -1,0 +1,1 @@
+--decoding=ignore -i -pe 's/ERROR/WARN/' examples/oneliner/broken.log

@@ -1,0 +1,1 @@
+-MShop --json --path=orders --as=Order -pe 'let Order { user } = json in user' examples/oneliner/shop-bad.json
