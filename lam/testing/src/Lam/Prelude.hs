@@ -1150,7 +1150,7 @@ testSource = """
   -- name, or a test made from the seed of the fake world. lam test
   -- walks this tree. The constructors are hidden: make tests with the
   -- functions below.
-  -- データとしてのテスト：通った、落ちた（とわけ）、名前のついた組、
+  -- データとしてのテスト：通った、失敗した（とわけ）、名前のついた組、
   -- 偽物の世界の種から作るテスト。lam test がこの木をたどる。構成子は
   -- 隠してあるので、下の関数で作る
   data Test
@@ -1174,7 +1174,7 @@ testSource = """
     else Fail name f"expected: {show expected}\\nactual:   {show actual}"
 
   -- Always fails, with the reason.
-  -- いつも落ちる。わけを添えて
+  -- いつも失敗する。わけを添えて
   fail : String -> String -> Test
   fail name why = Fail name why
 
@@ -1228,8 +1228,8 @@ testSource = """
   -- ANCHOR: forAll
   -- 🔁 A property: it must hold for 100 values from the generator
   -- (seed 618). If it fails, show the smallest value it fails for.
-  -- 性質：生成器からの100個の値で成り立つこと（種は 618）。落ちたら、
-  -- 落ちるいちばん小さい値を見せる
+  -- 性質：生成器からの100個の値で成り立つこと（種は 618）。破れたら、
+  -- 性質を破るいちばん小さい値を見せる
   steps : Int -> String
   steps n =
     if n == 0 then "none smaller"

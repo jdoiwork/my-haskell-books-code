@@ -334,7 +334,7 @@ withShelfOn app test = do
     test shelf env
 
 -- ✅ Ask, and fail the test if the server said no.
--- 聞いて、サーバーが断ったらテストを落とす
+-- 聞いて、サーバーが断ったらテストを失敗にする
 ok :: ClientEnv -> ClientM a -> IO a
 ok env ask = call env ask >>= either (fail . show) pure
 

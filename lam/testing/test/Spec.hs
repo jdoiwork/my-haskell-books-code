@@ -3317,7 +3317,7 @@ main = hspec $ do
       testsOfText "tests = [Test.that \"t\" true]\n" `shouldBe` Right ()
 
     -- ANCHOR: shrinkSpec
-    -- 「縮めた値は、まだ落ちる。それより小さいものは、どれも通る」
+    -- 「縮めた値は、まだ性質を破る。それより小さいものは、どれも通る」
     it "shrinks to a value that still fails" $ do
       let e = "Gen.check 618 (Gen.list Gen.int) "
               <> "(\\xs -> sum xs < 30)"

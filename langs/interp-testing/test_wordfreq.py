@@ -42,7 +42,7 @@ def main(args):
 
 # ANCHOR: plain
 # Python (plain asserts: pytest shows both sides when one fails)
-# Python（ただの assert。落ちると、pytest が両側を見せる）
+# Python（ただの assert。失敗すると、pytest が両側を見せる）
 def test_makes_lowercase_words():
     assert split_into_words("Hello, World!") == ["hello", "world"]
 

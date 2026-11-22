@@ -5,7 +5,7 @@
 --   walk the tree, and show what passed and what failed. With --seeds,
 --   the same tests are walked again with each seed of the fake world.
 -- lam test：テストのファイルを読み、その tests（Test のリスト）を取り、
--- 木をたどって、通ったものと落ちたものを見せる。--seeds なら、偽物の世界の
+-- 木をたどって、通ったものと失敗したものを見せる。--seeds なら、偽物の世界の
 -- 種ごとに、同じテストをもう一度たどる。
 module Lam.TestRun
   ( Seeds (..)
@@ -84,7 +84,7 @@ readTestArgs = go (TestArgs InOrder [])
 
 -- ANCHOR: outcome
 -- ✅ How one test ended: passed, or failed and why.
--- テスト1つの終わり方：通った、か、落ちたとわけ
+-- テスト1つの終わり方：通った、か、失敗したとわけ
 data Outcome = Passed | FailedWith Text
   deriving (Eq, Show)
 -- ANCHOR_END: outcome
@@ -111,7 +111,7 @@ testsOf session =
 --    the seed here; if computing it fails, that is a failure, too.
 -- テストの木をたどる：テストごとに、上からの名前（組 > テスト）と、
 -- 終わり方。種から作るテストには、ここで種を渡す。その計算が失敗しても、
--- 落ちたことにする
+-- 失敗したことにする
 walk :: Maybe Integer -> [Name] -> Value -> [([Name], Outcome)]
 walk seed path v = case v of
   VList ts -> concatMap (walk seed path) ts
@@ -128,7 +128,7 @@ walk seed path v = case v of
 -- ANCHOR: report
 -- 📋 One test, over all the seeds tried: its names, and the seeds it
 --    failed with (with why). With no seed, the seed is Nothing.
--- 試した種のぜんぶにわたる、テスト1つ：名前と、落ちた種（とわけ）。
+-- 試した種のぜんぶにわたる、テスト1つ：名前と、失敗した種（とわけ）。
 -- 種なしなら Nothing
 data Report = Report
   { reportNames :: [Name]
@@ -182,7 +182,7 @@ renderReport file seeds tried reports =
       ManySeeds _ -> "        "
       _           -> "      "
     -- With many seeds: how many failed, and which.
-    -- 種がたくさんなら：いくつ落ちたか、どれか
+    -- 種がたくさんなら：いくつ失敗したか、どれか
     manyLine fails = case seeds of
       ManySeeds _ ->
         [ "      failed with " <> showT (length fails) <> " of "
@@ -208,7 +208,7 @@ renderReport file seeds tried reports =
 --    run them with the seeds. The answer is the text to show, and how
 --    many tests passed and failed (Left: the file itself is broken).
 -- テストのファイル1つ：読み（import も）、tests を取り、種で動かす。
--- 答えは、見せる文字と、通ったテストと落ちたテストの数（Left なら、
+-- 答えは、見せる文字と、通ったテストと失敗したテストの数（Left なら、
 -- ファイルそのものがこわれている）
 testFile :: Files IO -> Session -> Seeds -> FilePath
          -> IO (Either Text (Text, Int, Int))
@@ -264,7 +264,7 @@ runTests files session args = do
   let passed = sum [ a | (a, _, _) <- done ]
       failed = sum [ b | (_, b, _) <- done ]
       broken = sum [ c | (_, _, c) <- done ]
-  -- 「n 個のテスト：m 個が通り、k 個が落ちた」
+  -- 「n 個のテスト：m 個が通り、k 個が失敗した」
   TIO.putStrLn $ T.pack (show (passed + failed))
     <> (if passed + failed == 1 then " test: " else " tests: ")
     <> T.pack (show passed) <> " passed, " <> T.pack (show failed)

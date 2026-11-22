@@ -139,7 +139,7 @@ main = hspec $ do
     -- 「最適化しても、答えは変わらない」
     it "keeps the same answer" propSameAnswer
 
-    -- 「型がいつもまったく同じとは限らない（propSameType は落ちる）」
+    -- 「型がいつもまったく同じとは限らない（propSameType には反例がある）」
     it "does NOT always keep exactly the same type" $
       expectFailure (withMaxSuccess 5000 propSameType)
 
