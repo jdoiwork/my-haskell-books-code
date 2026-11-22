@@ -1,0 +1,12 @@
+Usage: bill.lam [OPTIONS] TOTAL
+
+  Split a bill among some people, with a tip.
+
+Arguments:
+  TOTAL  The total of the bill  [required]
+
+Options:
+  -p, --people INT  How many people pay  [default: 2]
+  --tip FLOAT       The tip (0.1 is 10%)  [default: 0.1]
+  --payer STRING    Who paid it (to pay back)
+  --help            Show this message and exit

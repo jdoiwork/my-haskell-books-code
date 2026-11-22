@@ -1,0 +1,51 @@
+-- ANCHOR: all
+-- 💪 Three operators of the shop, at two levels:
+--   *$  (8)  some of an item: 4 *$ sticker
+--   <+> (7)  two prices together
+--   -%  (7)  a discount in percent: total -% 10
+-- お店の演算子を3つ、2つの強さで
+--   lam examples/operators/strength.lam
+data Price = Price Int
+
+yen : Price -> Int
+yen p = case p of | Price n -> n
+
+instance Display Price where
+  display p = f"{yen p:,} yen"
+
+addPrice : Price -> Price -> Price
+addPrice a b = Price (yen a + yen b)
+
+-- ✖️ n of the same item.
+-- 同じ品物を n 個
+times : Int -> Price -> Price
+times n p = Price (n * yen p)
+
+-- 🏷️ A discount of some percent, rounded down to a yen.
+-- 何パーセントかの割引。1円より下は切り捨て
+off : Price -> Int -> Price
+off p percent = Price (yen p * (100 - percent) // 100)
+
+-- ANCHOR: declare
+infixl 8 times as *$
+infixl 7 addPrice as <+>
+infixl 7 off as -%
+-- ANCHOR_END: declare
+
+sticker = Price 300
+mug     = Price 1200
+tshirt  = Price 2500
+
+-- ANCHOR: today
+-- *$ is tighter than <+>: (4 *$ sticker) <+> mug <+> (3 *$ tshirt)
+-- *$ は <+> より強い
+today = 4 *$ sticker <+> mug <+> 3 *$ tshirt
+
+-- <+> and -% lean left at the same level: the 10% is off the two.
+-- (4 *$ sticker <+> mug) -% 10
+-- <+> と -% は同じ強さで左に寄る。10% 引きは、2つを足したものから
+sale = 4 *$ sticker <+> mug -% 10
+-- ANCHOR_END: today
+
+(f"{today}", f"{sale}")
+-- ANCHOR_END: all

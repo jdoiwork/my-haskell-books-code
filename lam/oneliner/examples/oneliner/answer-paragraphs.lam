@@ -1,0 +1,38 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 📄 Step 3: paragraphs, as Perl's -00: the lines are gathered until
+--    an empty line (or a line of spaces), and each paragraph is shown
+--    on one line, its lines joined with " ". Many empty lines in a row
+--    are one cut. The acc is the lines of the paragraph so far, last
+--    first.
+--   lam examples/oneliner/answer-paragraphs.lam examples/oneliner/poem.txt
+-- ステップ3：Perl の -00 のような段落。空の行（か空白だけの行）まで行を
+-- ためて、段落を1行で見せる（行は " " でつなぐ）。空の行が続いても、
+-- 切れ目は1つ。acc は、ここまでの段落の行（新しいものが先）
+
+-- 🖨️ Show a paragraph, if there is one.
+-- 段落があれば見せる
+flush lines =
+  when (not (null lines)) (putStrLn (join " " (reverse lines)))
+
+-- 👣 One line: an empty one ends the paragraph.
+-- 1行。空の行なら、段落はおしまい
+visit lines n line =
+  if String.trim line == "" then do
+    flush lines
+    pure []
+  else pure (line : lines)
+
+readAll acc files =
+  case files of
+    | [] -> pure (Ok acc)
+    | file : rest -> do
+        next <- File.forLines Ignore file acc visit ?
+        readAll next rest
+
+main : [String] -> IO (Result String ())
+main files = do
+  last <- readAll [] (if null files then ["-"] else files) ?
+  flush last
+  pure (Ok ())
+-- ANCHOR_END: all

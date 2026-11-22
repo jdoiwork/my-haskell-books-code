@@ -1,0 +1,32 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🔢 Step 2: the script of --print-script=plain (lam -ne 'when (line
+--    =~ m/ERROR/) (putStrLn line)'), grown: step gets the number of
+--    the line too, as Perl's $. and awk's NR.
+--   lam examples/oneliner/answer-numbered.lam examples/oneliner/app.log
+-- ステップ2：--print-script=plain のスクリプトを育てた。step は行の番号
+-- ももらう（Perl の $.、awk の NR）
+
+-- 🔁 The program, with the number of the line.
+-- プログラム。行の番号つき
+step n line =
+  when (line =~ m/ERROR/) (putStrLn f"{n:>3}: {line}")
+
+-- 👣 One line, with its number: now step gets it, too.
+-- 1行（と番号）。番号を step にも渡す
+visit acc n line = do
+  step n line
+  pure acc
+
+readAll acc files =
+  case files of
+    | [] -> pure (Ok acc)
+    | file : rest -> do
+        next <- File.forLines Ignore file acc visit ?
+        readAll next rest
+
+main : [String] -> IO (Result String ())
+main files = do
+  _ <- readAll () (if null files then ["-"] else files) ?
+  pure (Ok ())
+-- ANCHOR_END: all

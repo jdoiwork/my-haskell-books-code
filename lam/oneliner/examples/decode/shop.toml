@@ -1,0 +1,16 @@
+# The settings of the Lam Shop
+# Lam のお店の設定
+
+[shop]
+name = "Lam Shop"
+opened = 2026-11-01
+tax_percent = 10
+
+[[discount]]
+item = "sticker"
+percent = 20
+
+[[discount]]
+item = "mug"
+percent = 10
+min_count = 3

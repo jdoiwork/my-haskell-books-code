@@ -1,0 +1,4 @@
+error: AT needs a time like 2026-11-27T09:00:00Z, not "tomorrow"
+Usage: remind.lam [OPTIONS] WHAT AT
+Try "remind.lam --help" for help.
+[exit 2]

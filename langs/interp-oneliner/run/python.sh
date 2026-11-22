@@ -19,4 +19,13 @@ for line in sys.stdin:
     if "ERROR" in line:
         print(line, end="")' < app.log
 # ANCHOR_END: grepLoop
+
+# ANCHOR: broken
+# broken bytes skipped, as lam does it without --decoding
+# 壊れたバイトは飛ばす（--decoding のない lam と同じ）
+python3 -c 'import sys
+for line in open("broken.log", errors="ignore"):
+    if "ERROR" in line:
+        print(line, end="")'
+# ANCHOR_END: broken
 # ANCHOR_END: book

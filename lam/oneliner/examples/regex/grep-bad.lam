@@ -1,0 +1,42 @@
+-- ANCHOR: all
+-- 🔎 grep, in Lam: show the lines of a file that a regex finds, with
+--    their numbers, one line at a time. The regex comes from the
+--    arguments, so it is compiled as the script runs: a mistake in it
+--    is an Err, not an error of the parser.
+--   lam grep.lam "ERROR|WARN" shop.log
+-- Lam の grep：正規表現が見つける行を、行の番号と一緒に、1行ずつ見せる。
+-- 正規表現は引数から来るので、動いているときにコンパイルする。まちがいは、
+-- パーサーのエラーではなく Err
+
+-- ANCHOR: each
+-- 🔁 Read the lines from line n on; hits is how many were shown.
+-- n 行目から読んでいく。hits は、見せた行の数
+each : Regex -> String -> Handle -> Int -> Int -> IO Int
+each regex path h n hits = do
+  next <- File.readLine h
+  case next of
+    | Nothing -> pure hits
+    | Just line ->
+        if line =~ regex
+          then do
+            putStrLn f"{path}:{n}: {line}"
+            each regex path h (n + 1) (hits + 1)
+          else each regex path h (n + 1) hits
+-- ANCHOR_END: each
+
+-- ANCHOR: grep
+grep : String -> String -> IO (Result String ())
+grep pattern path = do
+  regex <- pure (Regex.compile pattern) ?
+  hits  <- File.withFile path (\h -> each regex path h 1 0) ?
+  -- Like grep: exit code 1 when no line was found.
+  -- grep と同じく、1行も見つからなければ終了コード 1
+  if hits == 0 then exit 1 else pure (Ok ())
+-- ANCHOR_END: grep
+
+main : [String] -> IO (Result String ())
+main args =
+  case args of
+    | [pattern, path] -> grep pattern path
+    | _ -> pure (Err "usage: lam grep.lam PATTERN FILE")
+-- ANCHOR_END: all

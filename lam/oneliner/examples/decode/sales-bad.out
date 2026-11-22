@@ -1,0 +1,2 @@
+error: examples/decode/shop-bad.toml: .shop.tax_percent: expected an Int, got "10"
+examples/decode/shop-bad.toml: .discount[0].percent: expected an Int, got 20.5

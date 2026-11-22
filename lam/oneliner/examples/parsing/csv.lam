@@ -1,0 +1,49 @@
+-- ANCHOR: all
+-- 📄 A line of CSV, where a field in quotes may hold commas, and "" is
+--    one quote inside it.
+--   lam csv.lam
+-- CSV の1行。引用符で囲んだフィールドはカンマを持てて、中の "" は
+-- 引用符1つ
+
+-- ANCHOR: csv
+-- "Lam T-shirt, large": the letters up to the closing quote.
+-- 閉じる引用符までの文字
+quoted : Parser String
+quoted = do
+  Parser.string "\""
+  parts <- Parser.many (Parser.label "a letter" (Parser.oneOf
+    [ map (\_ -> "\"") (Parser.string "\"\"")
+    , Parser.satisfy (\c -> c /= "\"") ]))
+  Parser.label "a closing quote" (Parser.string "\"")
+  pure (join "" parts)
+
+-- 2500: the letters up to the next comma (maybe none).
+-- 次のカンマまでの文字（なくてもよい）
+plain : Parser String
+plain =
+  map (join "")
+    (Parser.many (Parser.satisfy (\c -> c /= "," && c /= "\"")))
+
+-- A field, and a line: fields with commas between them.
+-- フィールドと、それをカンマで区切った1行
+field : Parser String
+field = Parser.oneOf [quoted, plain]
+
+row : Parser [String]
+row = Parser.sepBy field (Parser.string ",")
+-- ANCHOR_END: csv
+
+samples : [String]
+samples =
+  [ "\"Lam T-shirt, large\",2500,3"
+  , "mug,1200,"
+  , "\"say \"\"hi\"\"\",0,1"
+  , "\"open,1" ]
+
+main : IO ()
+main =
+  forEach samples (\line ->
+    case Parser.run row line of
+      | Ok fields -> putStrLn f"{length fields} fields: {fields}"
+      | Err e -> putStrLn e.pretty)
+-- ANCHOR_END: all

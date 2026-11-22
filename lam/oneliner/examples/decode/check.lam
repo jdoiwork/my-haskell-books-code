@@ -1,0 +1,79 @@
+-- ANCHOR: all
+-- 🩺 The same orders, read in several ways: with do, which stops at
+--    the first problem of an order, and with Decode.map3 (andMap, ado),
+--    which runs all three fields and gives back every problem.
+--   lam examples/decode/check.lam examples/decode/orders-bad.json
+-- 同じ注文を、いくつかの書き方で読む。do は注文の最初の問題で止まる。
+-- Decode.map3（andMap、ado）は3つの項目を全部動かし、問題を全部返す
+
+type alias Order = { item : String, count : Int, price : Int }
+
+-- With do: one line after another.
+-- do で。1行ずつ
+orderDo : Decoder Order
+orderDo = do
+  item <- Decode.field "item" Decode.string
+  count <- Decode.field "count" Decode.int
+  price <- Decode.field "price" Decode.int
+  pure { item = item, count = count, price = price }
+
+-- ANCHOR: map3
+-- 🤝 With map3: three decoders side by side, and a function that
+--    puts the three values together.
+-- map3 で。3つの Decoder を並べ、3つの値をまとめる関数を渡す
+orderAll : Decoder Order
+orderAll =
+  Decode.map3
+    (\item count price -> { item = item, count = count, price = price })
+    (Decode.field "item" Decode.string)
+    (Decode.field "count" Decode.int)
+    (Decode.field "price" Decode.int)
+-- ANCHOR_END: map3
+
+-- ANCHOR: andMap
+-- 🧩 The same, as a pipeline: one more field each line.
+-- 同じものを、パイプラインで。1行に1つずつ項目を足す
+orderPipe : Decoder Order
+orderPipe =
+  Decode.succeed
+    (\item count price -> { item = item, count = count, price = price })
+    |> Decode.andMap (Decode.field "item" Decode.string)
+    |> Decode.andMap (Decode.field "count" Decode.int)
+    |> Decode.andMap (Decode.field "price" Decode.int)
+-- ANCHOR_END: andMap
+
+-- ANCHOR: ado
+-- 🧩 With ado: lines as in a do, but they do not look at each other,
+--    so the Applicative of Decoder runs all three.
+-- ado で。行は do と同じだが、おたがいを見ないので、Decoder の
+-- Applicative が3つとも動かす
+orderAdo : Decoder Order
+orderAdo = ado
+  item <- Decode.field "item" Decode.string
+  count <- Decode.field "count" Decode.int
+  price <- Decode.field "price" Decode.int
+  pure { item = item, count = count, price = price }
+-- ANCHOR_END: ado
+
+-- ANCHOR: main
+report : String -> Decoder Order -> String -> IO ()
+report name d text =
+  case Decode.fromString (Decode.field "orders" (Decode.list d)) text of
+    | Ok os -> putStrLn f"{name}: {length os} orders"
+    | Err ps -> do
+        putStrLn f"{name}: {length ps} problems"
+        putStrLn (Decode.explain ps)
+
+main : [String] -> IO (Result String ())
+main args =
+  case args of
+    | [path] -> do
+        text <- readFile path ?
+        report "do" orderDo text
+        report "map3" orderAll text
+        report "andMap" orderPipe text
+        report "ado" orderAdo text
+        pure (Ok ())
+    | _ -> pure (Err "usage: lam check.lam FILE")
+-- ANCHOR_END: main
+-- ANCHOR_END: all

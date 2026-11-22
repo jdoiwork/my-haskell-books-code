@@ -1,0 +1,53 @@
+-- ANCHOR: all
+-- ⚙️ The settings of the shop, from TOML: the builtin Toml.parse makes
+--    it Json, and the decoders read it as they read JSON.
+--   lam examples/decode/config.lam examples/decode/shop.toml
+-- お店の設定を TOML から読む。組み込みの Toml.parse が Json にして、
+-- あとは JSON と同じ Decoder で読む
+
+-- ANCHOR: config
+-- 🏷️ A discount: percent off an item, when at least minCount of it
+--    are bought (1 if the file does not say).
+-- 割引：品物を minCount 個以上買えば、percent だけ安くなる（ファイルに
+-- なければ 1）
+type alias Discount = { item : String, percent : Int, minCount : Int }
+
+type alias Config =
+  { name : String, opened : String, tax : Int, discounts : [Discount] }
+
+discount : Decoder Discount
+discount =
+  Decode.map3
+    (\item percent n -> { item = item, percent = percent, minCount = n })
+    (Decode.field "item" Decode.string)
+    (Decode.field "percent" Decode.int)
+    (map (\n -> n ?: 1) (Decode.optionalField "min_count" Decode.int))
+
+config : Decoder Config
+config =
+  Decode.map4
+    (\name opened tax ds ->
+       { name = name, opened = opened, tax = tax, discounts = ds })
+    (Decode.at ["shop", "name"] Decode.string)
+    (Decode.at ["shop", "opened"] Decode.string)
+    (Decode.at ["shop", "tax_percent"] Decode.int)
+    (Decode.field "discount" (Decode.list discount))
+-- ANCHOR_END: config
+
+-- ANCHOR: main
+main : [String] -> IO ()
+main paths =
+  forEach paths (\path -> do
+    putStrLn f"== {path}"
+    read <- readFile path
+    case read of
+      | Err e -> putStrLn e
+      | Ok text ->
+          case Toml.decode config text of
+            | Ok c -> do
+                putStrLn f"{c.name}, since {c.opened}, tax {c.tax}%"
+                forEach c.discounts (\d ->
+                  putStrLn f"  {d.item}: {d.percent}% off from {d.minCount}")
+            | Err problems -> putStrLn (Decode.explain problems))
+-- ANCHOR_END: main
+-- ANCHOR_END: all

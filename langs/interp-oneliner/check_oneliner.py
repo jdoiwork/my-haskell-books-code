@@ -11,7 +11,7 @@ import os, re, shlex, shutil, subprocess, sys, tempfile
 here = os.path.dirname(os.path.abspath(__file__))
 lam = os.path.join(here, "../../lam/oneliner/examples/oneliner")
 data = ["app.log", "notes.txt", "sales.csv", "scores.txt", "fruits.txt",
-        "shop.json", "events.jsonl"]
+        "shop.json", "events.jsonl", "broken.log"]
 perl_image = "perl:5.44-slim"
 jq_image = "ghcr.io/jqlang/jq:1.8.2"
 

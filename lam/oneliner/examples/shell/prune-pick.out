@@ -1,0 +1,14 @@
+branch     author  date
+---------  ------  ----------
+add-shell  Rust    2026-11-24
+fix-typo   Python  2026-11-20
+機能/表    Ruby    2026-11-26
+1) add-shell
+2) fix-typo
+3) 機能/表
+delete which? (a number from 1 to 3)
+delete which? deleted 1 of 3
+  add-shell
+* main
+  try-colors
+  機能/表

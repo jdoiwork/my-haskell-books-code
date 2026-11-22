@@ -1,0 +1,31 @@
+-- 👋 Three ways to get the arguments and the environment.
+--      lam examples/script/greet.lam Lam Haskell
+-- 引数と環境変数をもらう、3つのやり方
+
+-- ANCHOR: getArgs
+-- 1. Ask for them inside do, like any other IO.
+--    ほかの IO と同じく、do の中で頼む
+greetAll : IO ()
+greetAll = do
+  names <- getArgs
+  forEach names (\name -> putStrLn f"Hello, {name}!")
+-- ANCHOR_END: getArgs
+
+-- ANCHOR: lookupEnv
+-- 2. One environment variable: it may be missing, so Maybe.
+--    環境変数を1つ。ないかもしれないので Maybe
+whoAmI : IO ()
+whoAmI = do
+  user <- lookupEnv "LAM_USER"
+  putStrLn f"I am {user ?: "a stranger"}."
+-- ANCHOR_END: lookupEnv
+
+-- ANCHOR: mainArgsEnv
+-- 3. main can take them: the arguments, and all the environment.
+--    main が受け取ってもよい：引数と、環境変数の全部
+main : [String] -> Map String String -> IO ()
+main args env = do
+  greetAll
+  whoAmI
+  putStrLn f"{length args} names, {Map.size env} environment variables"
+-- ANCHOR_END: mainArgsEnv

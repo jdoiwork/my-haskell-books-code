@@ -1,0 +1,9 @@
+-- ANCHOR: all
+type alias Copy =
+  { from : [String]
+  , to : String
+  }
+
+main : Copy -> IO ()
+main opts = putStrLn opts.to
+-- ANCHOR_END: all

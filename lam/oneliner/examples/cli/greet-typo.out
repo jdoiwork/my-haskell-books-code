@@ -1,0 +1,4 @@
+error: unknown option --cont
+Usage: greet.lam [OPTIONS] NAME
+Try "greet.lam --help" for help.
+[exit 2]

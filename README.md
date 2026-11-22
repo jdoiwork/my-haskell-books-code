@@ -284,7 +284,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 鍵をかける：権限のフラグと見張り | [`lam/guard/`](lam/guard/)、[`lam/outside/`](lam/outside/)、[`langs/interp-guard/`](langs/interp-guard/) |
 | CLI を手軽に作る：型から作る Typer 風のオプション | [`lam/cli/`](lam/cli/)、[`lam/guard/`](lam/guard/)、[`langs/interp-cli/`](langs/interp-cli/)、[`langs/cargo/`](langs/cargo/) |
 | シェルのように：`$"…"` のコマンドと端末の見た目 | [`lam/shell/`](lam/shell/)、[`lam/cli/`](lam/cli/)、[`langs/interp-shell/`](langs/interp-shell/)、[`langs/cargo/`](langs/cargo/) |
-| ワンライナーで動かす：Perl のように | [`lam/oneliner/`](lam/oneliner/)、[`lam/guard/`](lam/guard/)、[`langs/interp-oneliner/`](langs/interp-oneliner/) |
+| ワンライナーで動かす：Perl のように | [`lam/oneliner/`](lam/oneliner/)、[`lam/shell/`](lam/shell/)、[`langs/interp-oneliner/`](langs/interp-oneliner/) |
 
 ### 第16部 Lam を仕上げる
 

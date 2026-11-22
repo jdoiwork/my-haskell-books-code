@@ -1,0 +1,32 @@
+-- ANCHOR: all
+-- 🌦️ The first weather.lam: save the days of the week one by one. If a
+--    day fails on the way, the days before it stay saved: half a week.
+--      lam half.lam                (Tokyo)
+--      lam half.lam 34.69 135.50   (latitude and longitude: Osaka)
+-- 最初の weather.lam。週の日を1日ずつ貯める。途中の日で失敗すると、
+-- その前の日は貯まったまま：半分の週
+import Forecast
+
+-- ANCHOR: place
+-- 📍 The place: Tokyo, or the latitude and the longitude given.
+-- 場所：東京か、渡された緯度と経度
+placeOf : [String] -> Result String (String, String)
+placeOf args =
+  case args of
+    | [] -> Ok ("35.68", "139.76")
+    | [lat, lon] -> Ok (lat, lon)
+    | _ -> Err "give a latitude and a longitude, or nothing for Tokyo"
+-- ANCHOR_END: place
+
+-- ANCHOR: main
+main : [String] -> IO (Result String ())
+main args = do
+  (lat, lon) <- pure (placeOf args) ?
+  let place = f"{lat},{lon}"
+  week <- Http.getAs Forecast.forecast (Forecast.urlFor lat lon) ?
+  db <- Sql.open "weather.db" ?
+  defer Sql.close db
+  Sql.exec db Forecast.schema [] ?
+  Forecast.saveAll db place week
+-- ANCHOR_END: main
+-- ANCHOR_END: all
