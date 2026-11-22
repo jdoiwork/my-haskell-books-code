@@ -1,0 +1,14 @@
+-- ANCHOR: all
+-- 🧾 Prices made by Price.fromYen, shown with f"{p}".
+-- Price.fromYen で作った値段を、f"{p}" で見せる
+import Price
+
+prices = [Price.fromYen 1200, Price.fromYen 350, Price.fromYen (-5)]
+
+map
+  (\m ->
+    case m of
+      | Just p -> f"{p}"
+      | Nothing -> "not a price")
+  prices
+-- ANCHOR_END: all

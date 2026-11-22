@@ -1,0 +1,19 @@
+-- ✅ The same, with the type of the list written down.
+-- 同じものを、リストの型を書いて
+--   lam examples/classes/broken/ambiguous-fixed.lam
+
+class Describe a where
+  describe : a -> String
+
+instance Describe Int where
+  describe n = showInt n
+
+instance Describe a => Describe [a] where
+  describe xs = "[" ++ join ", " (map describe xs) ++ "]"
+
+-- ANCHOR: fixed
+noScores : [Int]
+noScores = []
+
+describe noScores
+-- ANCHOR_END: fixed

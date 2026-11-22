@@ -1,0 +1,34 @@
+-- 🍰 Split the bill of the snack time.
+-- おやつどきの代金を割り勘にする
+--   lam examples/float/split.lam
+
+-- ANCHOR: split
+bill : Int
+bill = 2490
+
+-- ✂️ Each one's share, in whole yen (and what is left), or Nothing for
+--    nobody. //? gives Nothing when it divides by 0.
+-- 1人ぶん（円の整数）と余り。だれもいなければ Nothing
+share : Int -> Maybe (Int, Int)
+share n =
+  case bill //? n of
+    | Nothing -> Nothing
+    | Just each -> Just (each, bill - each * n)
+-- ANCHOR_END: split
+
+-- ANCHOR: exact
+-- 🧮 The exact share, rounded in the three ways of a half.
+-- ぴったりの1人ぶんを、半分の3つの丸め方で
+exact : Int -> String
+exact n =
+  case toFloat bill /? toFloat n of
+    | Nothing -> "nobody"
+    | Just x -> Float.fixed 2 x ++ ": " ++ join " " (map (rounded x) ways)
+  where
+    ways = [round, Float.roundTiesEven, Float.roundTiesUp]
+    rounded x way = showInt (way x ?: 0)
+-- ANCHOR_END: exact
+
+-- ANCHOR: main
+map exact [4, 7, 0]
+-- ANCHOR_END: main

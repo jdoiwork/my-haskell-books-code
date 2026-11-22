@@ -1,0 +1,12 @@
+Lam REPL. Type :help for help, :quit to quit.
+lam> [{"m": "11", "y": "2026"}, {"m": "01", "y": "2027"}] : [Map String String]
+lam> false : Bool
+lam> error: Regex.matches: match limit exceeded
+lam> Err "not supported yet: (?(" : Result String Regex
+lam> <repl>:1:18:
+  |
+1 | Regex.findAll re"\"[^\"]*\"(*SKIP)(*FAIL)|\w+" "a \"b\" c" |> map .text
+  |                  ^
+this regex does not compile: not supported yet: (*
+
+lam> 

@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- Step 2 of the training: write the dates the other way round,
+-- 2026-11-21 as 21/11/2026, with a function and an f-string.
+-- トレーニングのステップ2：日付を逆の順に書きかえる。
+-- 2026-11-21 を 21/11/2026 に。関数と f-string で
+
+date : Regex
+date = re"(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)"
+
+dmy : String -> String
+dmy text =
+  Regex.replaceWith date
+    (\m ->
+       let part k = Regex.named k m ?: "" in
+       f"{part "d"}/{part "m"}/{part "y"}")
+    text
+
+dmy "shipped 2026-11-21, paid 2026-11-23, not a date: 2026-1-2"
+-- ANCHOR_END: all

@@ -278,7 +278,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | スクリプトとして動かす | [`lam/script/`](lam/script/)、[`lam/errors/`](lam/errors/)、[`langs/interp-script/`](langs/interp-script/) |
 | ファイルとコマンドと時計：スクリプトの道具 | [`lam/files/`](lam/files/)、[`lam/script/`](lam/script/)、[`langs/interp-files/`](langs/interp-files/) |
 | 大きいファイルとバイト列：1行ずつ読む・ハッシュ・base64 | [`lam/streams/`](lam/streams/)、[`lam/files/`](lam/files/)、[`langs/interp-streams/`](langs/interp-streams/) |
-| 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/streams/`](lam/streams/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |
+| 文字列を探す・置き換える：正規表現 | [`lam/regex/`](lam/regex/)、[`lam/streams/`](lam/streams/)、[`lam/regex-mini/`](lam/regex-mini/)、[`lam/parsing/`](lam/parsing/)、[`miniregex/polish/`](miniregex/polish/)、[`langs/interp-regex/`](langs/interp-regex/)、[`langs/cargo/`](langs/cargo/) |
 | 文字列を読み解く：パーサーを組み合わせる | [`lam/parsing/`](lam/parsing/)、[`lam/regex/`](lam/regex/)、[`langs/interp-parsing/`](langs/interp-parsing/)、[`langs/cargo/`](langs/cargo/) |
 | データを読む：JSON の Decoder・CSV・TOML | [`lam/decode/`](lam/decode/)、[`lam/parsing/`](lam/parsing/)、[`langs/interp-decode/`](langs/interp-decode/)、[`langs/cargo/`](langs/cargo/) |
 | 外の世界とつなぐ：HTTP と SQLite | [`lam/outside/`](lam/outside/)、[`lam/decode/`](lam/decode/)、[`langs/interp-outside/`](langs/interp-outside/) |

@@ -1,0 +1,7 @@
+-- 第15部「文字列を探す・置き換える：正規表現」の寄り道の段階。
+-- lam/regex を写して、正規表現の中身を MiniRegex に取り替えた。
+-- MiniRegex は、miniregex の最後の段階のフォルダーから、そのまま使う
+-- ANCHOR: all
+packages: .
+          ../../miniregex/polish
+-- ANCHOR_END: all

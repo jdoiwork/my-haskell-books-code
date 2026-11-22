@@ -1,0 +1,5 @@
+Regex.findAll re"(?<y>\d+)-(?<m>\d+)" "2026-11 2027-01" |> map .named
+Regex.matches re"(a+)+$" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+Regex.matches re"(a+)+\1$" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaab b"
+Regex.compile "(?(1)a|b)"
+Regex.findAll re"\"[^\"]*\"(*SKIP)(*FAIL)|\w+" "a \"b\" c" |> map .text

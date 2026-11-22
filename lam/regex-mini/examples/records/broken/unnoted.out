@@ -1,0 +1,1 @@
+examples/records/broken/unnoted.lam:7:9: in the definition of total: type error: Int is not in the class Semigroup
