@@ -1,10 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- ANCHOR: head
--- | The builtins for regular expressions: find, replace and split.
---   The names start with Regex., like Map. and Json.
--- 正規表現の組み込みの関数：探す・置き換える・切り分ける。
--- 名前は、Map. や Json. と同じく、Regex. で始める。
+-- | The builtins of the module Regex: find, replace and split. Their
+--   names start with Regex., so the module Regex (written in Lam, in
+--   Lam.Prelude) gets them, as Bytes. went to Bytes.
+-- モジュール Regex の組み込みの関数：探す・置き換える・切り分ける。
+-- 名前は Regex. で始まるので、Lam で書いたモジュール Regex（Lam.Prelude）
+-- のものになる（Bytes. が Bytes のものになったのと同じ）。
 module Lam.Regex
   ( regexBuiltins
   , tRegex
@@ -25,12 +27,19 @@ import Lam.Types
 -- ANCHOR_END: head
 
 -- ANCHOR: types
--- 🏷️ Regex is a builtin type, like String. Match is a data type of the
---    prelude:  data Match = Match String Int [String] (Map String).
--- Regex は、String と同じく組み込みの型。Match はプレリュードの data
+-- 🏷️ Regex is a type of the language, like String and Bytes. Match is
+--    a record: the module Regex names it with a type alias.
+--      { text : String, start : Int, groups : [String],
+--        named : Map String String }
+-- Regex は、String や Bytes と同じく言語の型。Match はレコードで、
+-- モジュール Regex が type alias で名前を付ける
 tRegex, tMatch :: Type
 tRegex = TCon "Regex" []
-tMatch = TCon "Match" []
+tMatch = TRecord (Map.fromList
+  [ ("text",   tString)
+  , ("start",  TInt)
+  , ("groups", tList tString)
+  , ("named",  tMap tString tString) ]) Nothing
 -- ANCHOR_END: types
 
 -- ANCHOR: table
@@ -65,7 +74,7 @@ regexBuiltins =
   -- Look for it.
   -- 探す
   , prim2 "Regex.matches" (tRegex ~> tString ~> TBool) $ \r s -> do
-      (_, found) <- search "Regex.matches" r s
+      (_, Cut _ found) <- searchCut "Regex.matches" r s
       Right (VBool (not (null found)))
   , prim2 "Regex.find" (tRegex ~> tString ~> tMaybe tMatch) $ \r s -> do
       (p, cut) <- searchCut "Regex.find" r s
@@ -119,15 +128,11 @@ regexBuiltins =
   , prim2 "$group" (tString ~> tMatch ~> tString) $ \k m -> do
       key <- string k
       case m of
-        VCon "Match" _ [VString w, _, VList groups, VMap names] ->
-          Right $ case T.unpack key of
-            ds | not (null ds), all (`elem` ['0' .. '9']) ds ->
-              let n = read ds :: Int
-              in if n == 0 then VString w
-                 else case drop (n - 1) groups of
-                        g : _ -> g
-                        []    -> VString ""
-            _ -> Map.findWithDefault (VString "") key names
+        VRecord fields
+          | Just (VString w)  <- Map.lookup "text" fields
+          , Just (VList gs)   <- Map.lookup "groups" fields
+          , Just (VMap names) <- Map.lookup "named" fields ->
+          Right (pickGroup key w gs names)
         _ -> Left (BuiltinFailed "$group" "got a value of the wrong type")
 
   -- Cut a string at every match:  Regex.split re", *" "a, b,c".
@@ -137,11 +142,23 @@ regexBuiltins =
       Right (VList (map VString pieces))
   ]
   where
-    tMaybe t = TCon "Maybe" [t]
     tResult e a = TCon "Result" [e, a]
-    search what r s = do
-      (_, Cut pieces found) <- searchCut what r s
-      Right (pieces, found)
+
+-- 🧩 One group of a match, for $group: 0 is the whole match, 1 the
+--    first group, and a name a named group. A group that took no part
+--    (or is not there) is "".
+-- 見つけたもののグループを1つ（$group のため）：0 は全体、1 は1つ目の
+-- グループ、名前は名前つきのグループ。使われなかった（ない）グループは ""
+pickGroup :: Text -> Text -> [Value] -> Map.Map Key Value -> Value
+pickGroup key w gs names = case T.unpack key of
+  ds | not (null ds), all (`elem` ['0' .. '9']) ds -> numbered (read ds)
+  _ -> Map.findWithDefault (VString "") (Key (VString key)) names
+  where
+    numbered :: Int -> Value
+    numbered 0 = VString w
+    numbered n = case drop (n - 1) gs of
+      g : _ -> g
+      []    -> VString ""
 -- ANCHOR_END: table
 
 -- ANCHOR: search
@@ -172,10 +189,11 @@ whole (w :| _) = w
 -- ANCHOR_END: search
 
 -- ANCHOR: matchesOf
--- 🎁 The matches as Lam values. Where a match starts is counted in
+-- 🎁 The matches as Lam records. Where a match starts is counted in
 --    letters, from the pieces and the matches before it.
---    \d+ in "a1b22c":  Match "1" 1 [] {}  and  Match "22" 3 [] {}.
--- 見つかったものを、Lam の値にする。始まる場所は、それより前の
+--    \d+ in "a1b22c":  { text = "1", start = 1, ... }  and
+--                      { text = "22", start = 3, ... }.
+-- 見つかったものを、Lam のレコードにする。始まる場所は、それより前の
 -- 切れ端と、見つかったものの長さを足して、文字の数で数える
 matchesOf :: Regex -> Cut -> [Value]
 matchesOf p (Cut pieces found) = go 0 pieces found
@@ -185,13 +203,12 @@ matchesOf p (Cut pieces found) = go 0 pieces found
       in matchValue start w groups : go (start + T.length w) rest more
     go _ _ _ = []
 
-    matchValue start w groups = con "Match"
-      [ VString w
-      , VInt (fromIntegral start)
-      , VList (map VString groups)
-      , VMap (Map.fromList
-          [ (n, VString (groups !! (i - 1)))
-          | (n, i) <- regexNames p, i <= length groups ])
-      ]
+    matchValue start w groups = VRecord (Map.fromList
+      [ ("text",   VString w)
+      , ("start",  VInt (fromIntegral start))
+      , ("groups", VList (map VString groups))
+      , ("named",  VMap (Map.fromList
+          [ (Key (VString n), VString (groups !! (i - 1)))
+          | (n, i) <- regexNames p, i <= length groups ])) ])
 -- ANCHOR_END: matchesOf
 -- ANCHOR_END: all

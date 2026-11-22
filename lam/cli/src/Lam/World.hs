@@ -8,44 +8,30 @@
 -- テスト用の偽物（行とファイルを、Haskell の値に持つ）。
 module Lam.World
   ( realWorld
+  , Dice
+  , newDice
+  , Desk
+  , newDesk
   , Outside
   , newOutside
   , closeOutside
   , withOutside
   , FakeWorld (..)
   , emptyWorld
+  , textFiles
   , fakeWorld
-  , fakeWorldIO
   , runFake
+  , fakeWorldIO
   , runFakeIO
   , outputOf
   , errorsOf
-  , realFiles
-  , fakeFiles
-  , cleanPath
   , fakeClock
   ) where
 
 import Control.Exception (IOException, bracket, try)
-import Data.List (sort)
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Data.Time (getCurrentTime, getCurrentTimeZone, timeZoneMinutes)
-import System.Directory (copyFile, createDirectoryIfMissing,
-                         doesDirectoryExist, doesPathExist, getFileSize,
-                         getModificationTime, listDirectory, removeDirectory,
-                         removeFile, renamePath)
-import System.Exit (ExitCode (..))
-import qualified System.FilePath.Glob as G
-import System.FilePath (normalise, splitDirectories, joinPath)
-import System.Process (proc, readCreateProcessWithExitCode)
-import System.Random (StdGen, initStdGen, mkStdGen, uniformR)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.State.Strict (State, StateT, gets, modify', runState,
-                                   runStateT, state)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
-import Data.IORef
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TE
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..),
@@ -53,31 +39,55 @@ import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..),
 import qualified Network.HTTP.Client as H
 import Network.HTTP.Client.TLS (newTlsManager)
 import Network.HTTP.Types (statusCode)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B8
+import Data.Text.Encoding (encodeUtf8)
+import System.IO (Handle, IOMode (..), hClose, hIsEOF, openBinaryFile)
+import Control.Monad.State.Strict (State, StateT, gets, modify', runState,
+                                   runStateT, state)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef,
+                   writeIORef)
+import Data.List (sort)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
+import Data.Time (getCurrentTime, getCurrentTimeZone, timeZoneMinutes)
+import System.Directory (copyFile, createDirectoryIfMissing,
+                         doesDirectoryExist, doesPathExist, getFileSize,
+                         getModificationTime, listDirectory,
+                         removeDirectory, removeFile, renamePath)
+import System.Exit (ExitCode (..))
+import System.FilePath (joinPath, normalise, splitDirectories)
+import qualified System.FilePath.Glob as G
+import System.Process (proc, readCreateProcessWithExitCode)
+import System.Random (StdGen, initStdGen, mkStdGen, uniformR)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Text.IO.Utf8 as Utf8
-import System.Directory (doesFileExist)
 import System.Environment (getArgs, getEnvironment, lookupEnv)
-import System.FilePath (splitSearchPath)
 import System.IO (hFlush, isEOF, stderr, stdout)
 import System.IO.Error (isDoesNotExistError, isPermissionError)
 
 import Lam.Builtins (con, maybeValue)
+import Lam.Clock (millisOf)
 import Lam.Eval
-import Lam.Files (fileInfoValue, millisOf, outcomeValue, timeValue, zoneValue)
-import Lam.Module (Files (..))
+import Lam.Files (fileInfoValue, outcomeValue, timeValue, zoneValue)
+import Lam.Bytes (handleValue, notUtf8)
+import Lam.Utf8 (Decoding (..), decodeWith)
 import Lam.Outside (responseValue)
 import Lam.Sqlite
 -- ANCHOR_END: head
 
 -- ANCHOR: real
--- 🌍 The real world: here, at last, Haskell's IO does the work.
--- 本物の世界：ここで、やっと Haskell の IO が仕事をする
-realWorld :: Outside -> Request -> IO Value
-realWorld outside request = case request of
+-- 🌍 The real world: here, at last, Haskell's IO does the work. It
+--    holds the dice, so that Random.int can roll them again and again.
+-- 本物の世界：ここで、やっと Haskell の IO が仕事をする。さいころを
+-- 持っていて、Random.int のたびに振る
+realWorld :: Dice -> Desk -> Outside -> Request -> IO Value
+realWorld dice desk outside request = case request of
   PutStr s -> do
     TIO.putStr s
     hFlush stdout                -- show "name? " before waiting
@@ -89,9 +99,17 @@ realWorld outside request = case request of
       else do
         line <- TIO.getLine
         pure (con "Just" [VString line])
+  -- ANCHOR: realReadFile
+  -- Read the bytes, then make them text: a file that is not UTF-8 is
+  -- an Err, too (not a crash).
+  -- バイト列を読んでから、文字にする。UTF-8 でないファイルも Err
+  -- （止まらない）
   ReadFile path -> do
-    result <- try (Utf8.readFile (T.unpack path))
-    pure (resultOf path (VString <$> result))
+    result <- try (B.readFile (T.unpack path))
+    pure $ case result of
+      Left e -> resultOf path (Left e)
+      Right b -> textOf path b
+  -- ANCHOR_END: realReadFile
   WriteFile path text -> do
     result <- try (Utf8.writeFile (T.unpack path) text)
     pure (resultOf path (unit <$ result))
@@ -107,11 +125,12 @@ realWorld outside request = case request of
   GetEnvironment -> do
     pairs <- getEnvironment
     pure (VMap (Map.fromList
-      [ (T.pack k, VString (T.pack v)) | (k, v) <- pairs ]))
+      [ (Key (VString (T.pack k)), VString (T.pack v)) | (k, v) <- pairs ]))
   -- ANCHOR_END: realArgs
   -- ANCHOR: realStdio
   GetContents -> VString <$> Utf8.getContents
   PutErr s -> do
+    hFlush stdout                -- the screen first, in the right order
     TIO.hPutStr stderr s
     pure unit
   -- ANCHOR_END: realStdio
@@ -157,16 +176,51 @@ realWorld outside request = case request of
   -- ANCHOR: realClock
   Now -> timeValue . millisOf <$> getCurrentTime
   Here -> zoneValue . timeZoneMinutes <$> getCurrentTimeZone
-  RandomInt lo hi -> atomicModifyIORef' (outsideRandom outside) $ \g ->
-    let (n, g') = uniformR (lo, hi) g in (g', VInt n)
+  RandomInt lo hi -> roll dice lo hi
   -- ANCHOR_END: realClock
+  -- ANCHOR: realStreams
+  -- A real handle of Haskell, kept on the desk under a number. The
+  -- file is opened as bytes; each line is made text here.
+  -- Haskell の本物のハンドルを、番号を付けて机に置いておく。ファイルは
+  -- バイト列として開き、1行ずつ、ここで文字にする
+  OpenFile path how -> do
+    result <- try (openBinaryFile (T.unpack path) ReadMode)
+    case result of
+      Left e  -> pure (resultOf path (Left e))
+      Right h -> con "Ok" . (: []) . handleValue <$> putOnDesk desk path how h
+  ReadLine n -> onDesk desk n $ \open -> do
+    end <- hIsEOF (openHandle open)
+    if end then pure (con "Ok" [con "Nothing" []]) else do
+      line <- B8.hGetLine (openHandle open)
+      pure (lineValue open (dropCR line))
+  ReadChunk n size -> onDesk desk n $ \open -> do
+    piece <- B.hGetSome (openHandle open) size
+    pure (con "Ok" [if B.null piece then con "Nothing" []
+                    else con "Just" [VBytes piece]])
+  CloseFile n -> do
+    taken <- atomicModifyIORef' (deskFiles desk) $ \m ->
+      (Map.delete n m, Map.lookup n m)
+    mapM_ (hClose . openHandle) taken
+    pure unit
+  -- ANCHOR_END: realStreams
+  -- ANCHOR: realBytes
+  ReadBytes path -> do
+    result <- try (B.readFile (T.unpack path))
+    pure (resultOf path (VBytes <$> result))
+  WriteBytes path b -> done path (B.writeFile (T.unpack path) b)
+  -- ANCHOR_END: realBytes
   -- ANCHOR: realOutside
   -- HTTP with http-client; SQLite with the table of Lam.Sqlite.
   -- HTTP は http-client で。SQLite は Lam.Sqlite の表で
   HttpSend method url headers body -> httpSend outside method url headers body
-  _ -> case sqlRequest (outsideDatabases outside) request of
-    Just act -> act
-    Nothing  -> error "realWorld: a request with no handler"
+  SqlOpen {}  -> sql
+  SqlQuery {} -> sql
+  SqlExec {}  -> sql
+  SqlClose {} -> sql
+  where
+    sql = case sqlRequest (outsideDatabases outside) request of
+      Just act -> act
+      Nothing  -> error "realWorld: a request with no handler"
   -- ANCHOR_END: realOutside
 
 -- ANCHOR: outside
@@ -179,25 +233,18 @@ realWorld outside request = case request of
 data Outside = Outside
   { outsideManager   :: IORef (Maybe Manager)
   , outsideDatabases :: Databases
-  -- ANCHOR: outsideRandom
-  -- The dice: from --seed=618 if it is given, or else from the system.
-  -- さいころ：--seed=618 があればそこから、なければシステムから
-  , outsideRandom    :: IORef StdGen
-  -- ANCHOR_END: outsideRandom
   }
 
-newOutside :: Maybe Int -> IO Outside
-newOutside seed = do
-  gen <- maybe initStdGen (pure . mkStdGen) seed
-  Outside <$> newIORef Nothing <*> realDatabases <*> newIORef gen
+newOutside :: IO Outside
+newOutside = Outside <$> newIORef Nothing <*> realDatabases
 
 -- 🔒 At the end: close the databases a script forgot to close.
 -- 終わりに：スクリプトが閉じ忘れたデータベースを閉じる
 closeOutside :: Outside -> IO ()
 closeOutside = closeDatabases . outsideDatabases
 
-withOutside :: Maybe Int -> (Outside -> IO a) -> IO a
-withOutside seed = bracket (newOutside seed) closeOutside
+withOutside :: (Outside -> IO a) -> IO a
+withOutside = bracket newOutside closeOutside
 -- ANCHOR_END: outside
 
 -- ANCHOR: httpSend
@@ -213,23 +260,20 @@ httpSend outside method url headers body = do
     httpLbs request
       { H.method = TE.encodeUtf8 method
       , H.requestHeaders =
-          ("User-Agent", "lam/0.15")
+          ("User-Agent", "lam/0.21")
             : [ (CI.mk (TE.encodeUtf8 k), TE.encodeUtf8 v)
               | (k, v) <- headers ]
       , H.requestBody = RequestBodyBS (TE.encodeUtf8 body) }
       manager
   pure $ case result of
     Left e -> con "Err" [VString (url <> ": " <> reasonOf e)]
-    -- ANCHOR: realResponse
     Right response -> con "Ok" [responseValue
       (statusCode (H.responseStatus response))
-      (Map.fromList
-          [ (T.toLower (decode (CI.original k)), VString (decode v))
-          | (k, v) <- H.responseHeaders response ])
-      (decode (BL.toStrict (H.responseBody response)))]
-    -- ANCHOR_END: realResponse
+      [ (T.toLower (lenient (CI.original k)), lenient v)
+      | (k, v) <- H.responseHeaders response ]
+      (lenient (BL.toStrict (H.responseBody response)))]
   where
-    decode = TE.decodeUtf8With TE.lenientDecode
+    lenient = TE.decodeUtf8With TE.lenientDecode
     -- 「つながらない」「時間内に答えがない」「URL ではない」
     reasonOf e = case e of
       HttpExceptionRequest _ (ConnectionFailure _) -> "cannot connect"
@@ -247,6 +291,102 @@ managerOf outside = do
       writeIORef (outsideManager outside) (Just m)
       pure m
 -- ANCHOR_END: httpSend
+
+-- ANCHOR: dice
+-- 🎲 The dice of the real world: from a seed (--seed=618, or
+--    LAM_SEED=618) if one is given, or else from the system.
+-- 本物の世界のさいころ：種（--seed=618 か LAM_SEED=618）があれば
+-- そこから、なければシステムから
+newtype Dice = Dice (IORef StdGen)
+
+newDice :: Maybe Int -> IO Dice
+newDice seed = do
+  gen <- maybe initStdGen (pure . mkStdGen) seed
+  Dice <$> newIORef gen
+
+-- 🎲 Roll: a number from lo to hi (both in), and the dice move on.
+-- 振る：lo から hi まで（両端を含む）の数。さいころは次へ進む
+roll :: Dice -> Integer -> Integer -> IO Value
+roll (Dice ref) lo hi = atomicModifyIORef' ref $ \g ->
+  let (n, g') = uniformR (lo, hi) g in (g', VInt n)
+-- ANCHOR_END: dice
+
+-- ANCHOR: desk
+-- 🗄️ The desk of the real world: the files open now, under the
+--    numbers the world gave, and the next number to give.
+-- 本物の世界の机：いま開いているファイルを、世界がくれた番号で。
+-- それと、次に渡す番号
+data Desk = Desk
+  { deskFiles :: IORef (Map Int (Opened Handle))
+  , deskNext  :: IORef Int
+  }
+
+-- 📖 One open file: its path (for the messages), how to read broken
+--    bytes, the lines read so far, and the handle (Haskell's in the
+--    real world, the bytes still to be read in the fake one).
+-- 開いているファイル1つ：道（知らせの文のため）、壊れたバイトの読み方、
+-- ここまでに読んだ行の数、ハンドル（本物の世界では Haskell のもの、
+-- 偽物の世界では、まだ読んでいないバイト列）
+data Opened h = Opened
+  { openPath   :: !Text
+  , openHow    :: !Decoding
+  , openLines  :: !Int      -- strict: no chain of +1 for each line
+  , openHandle :: !h
+  }
+  deriving (Eq, Show)
+
+newDesk :: IO Desk
+newDesk = Desk <$> newIORef Map.empty <*> newIORef 1
+
+putOnDesk :: Desk -> Text -> Decoding -> Handle -> IO Int
+putOnDesk desk path how h = do
+  n <- atomicModifyIORef' (deskNext desk) (\i -> (i + 1, i))
+  atomicModifyIORef' (deskFiles desk) $ \m ->
+    (Map.insert n (Opened path how 0 h) m, ())
+  pure n
+
+-- 🗄️ Do something with an open file, and count one more line. A
+--    closed one is an Err.
+-- 開いているファイルで何かをして、読んだ行を1つ数える。閉じたものは Err
+onDesk :: Desk -> Int -> (Opened Handle -> IO Value) -> IO Value
+onDesk desk n act = do
+  files <- readIORef (deskFiles desk)
+  case Map.lookup n files of
+    Nothing -> pure (closedHandle n)
+    Just open -> do
+      let counted = open { openLines = openLines open + 1 }
+      atomicModifyIORef' (deskFiles desk) (\m -> (Map.insert n counted m, ()))
+      act counted
+-- ANCHOR_END: desk
+
+-- ANCHOR: lineValue
+-- 📜 A line as Ok (Just text), or, for broken bytes read Strict, an
+--    Err that says where: "big.log: line 3: not UTF-8 from byte 17".
+-- 1行を Ok (Just 文字) に。Strict で読んだ壊れたバイトなら、場所を
+-- 言う Err に
+lineValue :: Opened h -> ByteString -> Value
+lineValue open line = case decodeWith (openHow open) line of
+  Right text -> con "Ok" [con "Just" [VString text]]
+  Left at    -> con "Err" [VString (openPath open <> ": line "
+                  <> T.pack (show (openLines open)) <> ": " <> notUtf8 at)]
+
+-- "a\r" is "a": a file written on Windows has the same lines.
+-- Windows で書いたファイルも、同じ行になる
+dropCR :: ByteString -> ByteString
+dropCR line = if "\r" `B.isSuffixOf` line then B.init line else line
+
+-- 「閉じたハンドル」
+closedHandle :: Int -> Value
+closedHandle n = con "Err" [VString ("handle " <> T.pack (show n)
+                                     <> " is closed")]
+
+-- 📖 The bytes of a whole file as text, or an Err.
+-- ファイル全部のバイト列を文字に。だめなら Err
+textOf :: Text -> ByteString -> Value
+textOf path b = case decodeWith Strict b of
+  Right t -> con "Ok" [VString t]
+  Left at -> con "Err" [VString (path <> ": " <> notUtf8 at)]
+-- ANCHOR_END: lineValue
 
 -- ✅ Ok () when the action did it, or an Err.
 -- やれたら Ok ()、だめなら Err
@@ -288,25 +428,25 @@ unit = VTuple []
 
 -- ANCHOR: fake
 -- 🎭 A fake world: the lines to type, the files, and the screen.
--- 偽物の世界：打ちこむ行、ファイル、画面
 --    For scripts: the arguments, the environment, and the standard
 --    error.
+-- 偽物の世界：打ちこむ行、ファイル、画面。
 -- スクリプトのため：引数、環境変数、標準エラー
 data FakeWorld = FakeWorld
   { worldInput  :: [Text]          -- the lines still to be read
-  , worldFiles  :: Map Text Text   -- the name and the text of each file
+  -- ANCHOR: fakeBytesFiles
+  -- The name and the bytes of each file (text is kept as UTF-8, as on
+  -- the disk, so a file of the fake world can be broken, too).
+  -- ファイルの名前とバイト列（文字はディスクと同じく UTF-8 で持つ。
+  -- だから偽物の世界のファイルも、壊れていられる）
+  , worldFiles  :: Map Text ByteString
+  -- ANCHOR_END: fakeBytesFiles
   , worldOutput :: [Text]          -- what was written, the newest first
   -- ANCHOR: fakeScriptFields
   , worldArgs   :: [Text]          -- the arguments
   , worldEnv    :: Map Text Text   -- the environment variables
   , worldErrors :: [Text]          -- the standard error, the newest first
   -- ANCHOR_END: fakeScriptFields
-  -- ANCHOR: fakeWebFields
-  -- The web: the status and the body for each URL, and what was sent.
-  -- Web：URL ごとの状態コードと本文、送ったもの
-  , worldWeb    :: Map Text (Int, Text)
-  , worldSent   :: [Text]          -- "GET https://...", the newest first
-  -- ANCHOR_END: fakeWebFields
   -- ANCHOR: fakeFilesFields
   -- Folders (the ones above a file are there, too), the time each file
   -- was changed, the commands that answer, a clock that never moves,
@@ -320,22 +460,44 @@ data FakeWorld = FakeWorld
   , worldZone     :: Int                          -- minutes from UTC
   , worldRandom   :: StdGen
   -- ANCHOR_END: fakeFilesFields
+  -- ANCHOR: fakeHandlesField
+  -- The files open now: the bytes each one has still to give.
+  -- いま開いているファイル：それぞれが、まだ渡していないバイト列
+  , worldHandles  :: Map Int (Opened ByteString)
+  , worldNextHandle :: Int
+  -- ANCHOR_END: fakeHandlesField
+  -- ANCHOR: fakeWebFields
+  -- The fake web: for each URL, the status and the body of its answer.
+  -- And every request sent, the newest first.
+  -- 偽物の Web：URL ごとに、答えの状態コードと本文。
+  -- 送った頼みごとも全部（新しいものが先）
+  , worldWeb      :: Map Text (Int, Text)
+  , worldSent     :: [Text]
+  -- ANCHOR_END: fakeWebFields
   }
   deriving (Eq, Show)
 
+-- ANCHOR: emptyWorld
 emptyWorld :: FakeWorld
 emptyWorld = FakeWorld
   { worldInput = [], worldFiles = Map.empty, worldOutput = []
   , worldArgs = [], worldEnv = Map.empty, worldErrors = []
-  , worldWeb = Map.empty, worldSent = []
   , worldDirs = Set.empty, worldTimes = Map.empty
   , worldCommands = Map.empty, worldClock = fakeClock, worldZone = 540
-  , worldRandom = mkStdGen 618 }
+  , worldRandom = mkStdGen 618
+  , worldHandles = Map.empty, worldNextHandle = 1
+  , worldWeb = Map.empty, worldSent = [] }
+
+-- 📄 Files of text, as the fake world keeps them: UTF-8 bytes.
+-- 文字のファイルを、偽物の世界の持ち方（UTF-8 のバイト列）に
+textFiles :: [(Text, Text)] -> Map Text ByteString
+textFiles pairs = Map.fromList [ (p, encodeUtf8 t) | (p, t) <- pairs ]
 
 -- ⏰ The fake clock: 2026-11-17 12:00 in Tokyo (03:00 in UTC).
 -- 偽物の時計：東京の 2026-11-17 12:00（UTC の 03:00）
 fakeClock :: Integer
 fakeClock = 1794884400000
+-- ANCHOR_END: emptyWorld
 
 -- 🎭 The fake handler: the same requests, the same answers, but every
 --    one is only a change to a Haskell value. No disk, no keyboard.
@@ -356,10 +518,10 @@ fakeWorld request = case request of
   ReadFile path -> do
     found <- gets (Map.lookup (cleanPath path) . worldFiles)
     pure $ case found of
-      Just text -> con "Ok" [VString text]
-      Nothing   -> con "Err" [VString (path <> ": no such file")]
+      Just b  -> textOf path b
+      Nothing -> con "Err" [VString (path <> ": no such file")]
   WriteFile path text -> do
-    modify' (putFile (cleanPath path) text)
+    modify' (putFile (cleanPath path) (encodeUtf8 text))
     pure (con "Ok" [unit])
   -- ANCHOR: fakeArgs
   GetArgs -> do
@@ -370,7 +532,8 @@ fakeWorld request = case request of
     pure (maybeValue (VString <$> found))
   GetEnvironment -> do
     env <- gets worldEnv
-    pure (VMap (VString <$> env))
+    pure (VMap (Map.fromList
+      [ (Key (VString k), VString v) | (k, v) <- Map.toList env ]))
   -- ANCHOR_END: fakeArgs
   -- ANCHOR: fakeStdio
   -- All the lines still to be read, each with its line break.
@@ -383,17 +546,6 @@ fakeWorld request = case request of
     modify' (\w -> w { worldErrors = s : worldErrors w })
     pure unit
   -- ANCHOR_END: fakeStdio
-  -- ANCHOR: fakeWeb
-  -- The fake web: the answer kept for the URL. Every request is noted.
-  -- 偽物の Web：URL に決めておいた答え。どの頼みごとも記録する
-  HttpSend method url _ body -> do
-    modify' (\w -> w { worldSent = sent method url body : worldSent w })
-    found <- gets (Map.lookup url . worldWeb)
-    pure $ case found of
-      Just (status, text) ->
-        con "Ok" [responseValue status Map.empty text]
-      Nothing -> con "Err" [VString (url <> ": cannot connect")]
-  -- ANCHOR_END: fakeWeb
   -- ANCHOR: fakeFilesReq
   ListDir dir -> withWorld $ \w -> case childrenOf w (cleanPath dir) of
     Just names -> ok (VList (map VString names))
@@ -408,7 +560,7 @@ fakeWorld request = case request of
   FileInfo path -> withWorld $ \w ->
     let p = cleanPath path
     in case Map.lookup p (worldFiles w) of
-         Just text -> ok (fileInfoValue (bytes text) (timeOf w p))
+         Just b -> ok (fileInfoValue (toInteger (B.length b)) (timeOf w p))
          Nothing | isFolder w p -> ok (fileInfoValue 0 (worldClock w))
                  | otherwise    -> bad path "no such file"
   MakeDir dir -> change $ \w ->
@@ -442,7 +594,8 @@ fakeWorld request = case request of
       Nothing   -> Left (bad from "no such file")
   AppendFile path text -> change $ \w ->
     let p = cleanPath path
-    in Right (putFile p (Map.findWithDefault "" p (worldFiles w) <> text) w)
+    in Right (putFile p (Map.findWithDefault "" p (worldFiles w)
+                           <> encodeUtf8 text) w)
   -- ANCHOR_END: fakeFilesReq
   -- ANCHOR: fakeProcess
   -- A command answers only if the world knows it: no shell, no disk.
@@ -464,11 +617,58 @@ fakeWorld request = case request of
     modify' (\w -> w { worldRandom = g })
     pure (VInt n)
   -- ANCHOR_END: fakeClock
+  -- ANCHOR: fakeStreams
+  -- A handle of the fake world is the bytes not yet read: a line cuts
+  -- them at the next \n, and a chunk takes some from the front.
+  -- 偽物の世界のハンドルは、まだ読んでいないバイト列。1行は次の \n で
+  -- 切り、1かたまりは前から何バイトか取る
+  OpenFile path how -> do
+    found <- gets (Map.lookup (cleanPath path) . worldFiles)
+    case found of
+      Nothing -> pure (bad path "no such file")
+      Just b  -> do
+        n <- gets worldNextHandle
+        modify' (\w -> w
+          { worldHandles = Map.insert n (Opened path how 0 b) (worldHandles w)
+          , worldNextHandle = n + 1 })
+        pure (ok (handleValue n))
+  ReadLine n -> withHandle n $ \open -> case openHandle open of
+    rest | B.null rest -> (ok (con "Nothing" []), open)
+    rest ->
+      let (line, after) = B.break (== 10) rest       -- 10 is \n
+          counted = open { openLines = openLines open + 1
+                         , openHandle = B.drop 1 after }
+      in (lineValue counted (dropCR line), counted)
+  ReadChunk n size -> withHandle n $ \open ->
+    let (piece, after) = B.splitAt size (openHandle open)
+    in ( ok (if B.null piece then con "Nothing" []
+             else con "Just" [VBytes piece])
+       , open { openHandle = after } )
+  CloseFile n -> do
+    modify' (\w -> w { worldHandles = Map.delete n (worldHandles w) })
+    pure unit
+  -- ANCHOR_END: fakeStreams
+  ReadBytes path -> withWorld $ \w ->
+    maybe (bad path "no such file") (ok . VBytes)
+      (Map.lookup (cleanPath path) (worldFiles w))
+  WriteBytes path b -> do
+    modify' (putFile (cleanPath path) b)
+    pure (ok unit)
+  -- ANCHOR: fakeWeb
+  -- The fake web: the answer kept for the URL. Every request is noted.
+  -- 偽物の Web：URL に決めておいた答え。どの頼みごとも記録する
+  HttpSend method url _ body -> do
+    modify' (\w -> w { worldSent = sent method url body : worldSent w })
+    found <- gets (Map.lookup url . worldWeb)
+    pure $ case found of
+      Just (status, text) -> ok (responseValue status [] text)
+      Nothing -> bad url "cannot connect"
+  -- ANCHOR_END: fakeWeb
   -- A pure world has no databases: see fakeWorldIO.
   -- 純粋な世界には、データベースがない。fakeWorldIO を見る
-  SqlOpen file _ -> pure (con "Err" [VString (file <> ": no databases here")])
-  SqlQuery {}    -> pure (con "Err" [VString "Sql: no databases here"])
-  SqlExec {}     -> pure (con "Err" [VString "Sql: no databases here"])
+  SqlOpen file _ -> pure (bad file "no databases here")
+  SqlQuery {}    -> pure (bad "Sql" "no databases here")
+  SqlExec {}     -> pure (bad "Sql" "no databases here")
   SqlClose _     -> pure unit
   where
     sent m u b = m <> " " <> u <> (if T.null b then "" else " " <> b)
@@ -484,8 +684,18 @@ fakeWorld request = case request of
         Right w' -> do
           modify' (const w')
           pure (ok unit)
-    bytes = toInteger . BL.length . BL.fromStrict . TE.encodeUtf8
     timeOf w p = Map.findWithDefault (worldClock w) p (worldTimes w)
+    -- Read from an open file, and keep what is left. A closed one is
+    -- an Err.
+    -- 開いているファイルから読み、残りをしまう。閉じたものは Err
+    withHandle n f = do
+      found <- gets (Map.lookup n . worldHandles)
+      case found of
+        Nothing -> pure (closedHandle n)
+        Just open -> do
+          let (answer, open') = f open
+          modify' (\w -> w { worldHandles = Map.insert n open' (worldHandles w) })
+          pure answer
 
 -- ANCHOR: fakeFolders
 -- 🧹 "./logs/../logs/a.log" is "logs/a.log", and "." is ".". (The
@@ -513,7 +723,7 @@ keepParents p w = w { worldDirs = worldDirs w <> Set.fromList
 
 -- ✍️ Put a file, changed now.
 -- ファイルを置く。変えた時刻は、いま
-putFile :: Text -> Text -> FakeWorld -> FakeWorld
+putFile :: Text -> ByteString -> FakeWorld -> FakeWorld
 putFile p text w = w
   { worldFiles = Map.insert p text (worldFiles w)
   , worldTimes = Map.insert p (worldClock w) (worldTimes w) }
@@ -584,28 +794,4 @@ outputOf = T.concat . reverse . worldOutput
 errorsOf :: FakeWorld -> Text
 errorsOf = T.concat . reverse . worldErrors
 -- ANCHOR_END: fake
--- ANCHOR: files
--- 📂 The files of modules in the real world: read from the disk.
---    LAM_PATH is a list of folders, joined with : (like PATH).
--- 本物の世界のモジュールのファイル：ディスクから読む。LAM_PATH は、
--- PATH と同じく : でつないだフォルダーの並び
-realFiles :: IO (Files IO)
-realFiles = do
-  path <- lookupEnv "LAM_PATH"
-  pure Files
-    { readSource = \file -> do
-        there <- doesFileExist file
-        if there then Just <$> Utf8.readFile file else pure Nothing
-    , searchPath = maybe [] splitSearchPath path }
-
--- 📂 The files of modules in a fake world: its worldFiles, with the
---    folders of LAM_PATH from its worldEnv.
--- 偽物の世界のモジュールのファイル：worldFiles から読む。LAM_PATH は
--- worldEnv から
-fakeFiles :: Monad m => FakeWorld -> Files (StateT FakeWorld m)
-fakeFiles world = Files
-  { readSource = \file -> gets (Map.lookup (T.pack file) . worldFiles)
-  , searchPath = maybe [] (splitSearchPath . T.unpack)
-                   (Map.lookup "LAM_PATH" (worldEnv world)) }
--- ANCHOR_END: files
 -- ANCHOR_END: all

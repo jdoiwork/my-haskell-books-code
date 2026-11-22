@@ -56,4 +56,19 @@ assert "Possible options: --count" in got.stderr, got.stderr
 if cargo_bin:
     got = call([os.path.join(cargo_bin, "interp_cli"), "Lam", "--cont", "2"])
     assert "a similar argument exists: '--count'" in got.stderr, got.stderr
+# A type of its own: Typer's Enum and clap's FromStr, like FromArg
+# 自分の型：Typer の Enum と clap の FromStr（FromArg と同じ）
+levels = [py("typer_level.py")]
+if cargo_bin:
+    levels.append([os.path.join(cargo_bin, "interp_cli_level")])
+for p in levels:
+    assert call(p + ["milk"]).stdout == "milk\n", p
+    assert call(p + ["milk", "-l", "LOUD"]).stdout == "MILK!\n", p
+    assert call(p + ["milk", "--level", "quiet"]).stdout == "(milk)\n", p
+    got = call(p + ["milk", "--level", "shout"])
+    assert got.returncode == 2 and got.stdout == "", (p, got)
+got = call([os.path.join(cargo_bin, "interp_cli_level"), "milk", "-l", "x"]) \
+    if cargo_bin else None
+if got:
+    assert "quiet, normal or loud" in got.stderr, got.stderr
 print("ok")

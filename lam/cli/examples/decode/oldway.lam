@@ -1,0 +1,35 @@
+-- ANCHOR: all
+-- 🧱 The orders of the web shop, read the old way: Json.get one field
+--    after another, and a case for every Maybe.
+--   lam examples/decode/oldway.lam examples/decode/orders.json
+-- ウェブのお店の注文を、これまでのやり方で読む。Json.get で1つずつ
+-- 取り出し、Maybe ごとに case で開く
+
+-- ANCHOR: order
+-- 📦 One order. Nothing if anything is missing, but which one?
+-- 注文1つ。どれかがなければ Nothing。でも、どれが？
+order : Json -> Maybe (String, Int, Int)
+order j =
+  case Json.get "item" j |> Maybe.andThen Json.string of
+    | Nothing -> Nothing
+    | Just item ->
+        case Json.get "count" j |> Maybe.andThen Json.int of
+          | Nothing -> Nothing
+          | Just count ->
+              case Json.get "price" j |> Maybe.andThen Json.int of
+                | Nothing -> Nothing
+                | Just price -> Just (item, count, price)
+-- ANCHOR_END: order
+
+main : [String] -> IO (Result String ())
+main args =
+  case args of
+    | [path] -> do
+        text <- readFile path ?
+        doc <- pure (Json.parse text) ?
+        case Json.get "orders" doc |> Maybe.andThen Json.array of
+          | Nothing -> putStrLn "no orders"
+          | Just js -> forEach js (\j -> putStrLn f"{order j}")
+        pure (Ok ())
+    | _ -> pure (Err "usage: lam oldway.lam FILE")
+-- ANCHOR_END: all

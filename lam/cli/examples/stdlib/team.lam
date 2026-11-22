@@ -1,0 +1,31 @@
+-- 👥 A team of the quiz: always three people. Our own data type goes
+--    into Foldable and Functor, as List and Map do.
+-- クイズ大会のチーム：いつも3人。自分で作った data の型も、List や
+-- Map と同じく、Foldable と Functor に入れる
+--   lam examples/stdlib/team.lam
+
+-- ANCHOR: team
+data Team a = Team a a a
+
+-- 📦 The three, from the left.
+-- 3人を、左から
+instance Foldable Team where
+  foldr f z t =
+    case t of
+      | Team x y w -> f x (f y (f w z))
+
+-- 🎁 Change each of the three, and keep the team.
+-- 3人をそれぞれ変え、チームはそのまま
+instance Functor Team where
+  map f t =
+    case t of
+      | Team x y w -> Team (f x) (f y) (f w)
+-- ANCHOR_END: team
+
+-- ANCHOR: main
+-- The scores of the three in the final round.
+-- 決勝の回の、3人の点数
+final = Team 82 91 79
+
+(sum final, maximum final, toList (map (\s -> s + 10) final))
+-- ANCHOR_END: main

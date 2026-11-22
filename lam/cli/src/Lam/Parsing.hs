@@ -1,21 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- ANCHOR: all
 -- ANCHOR: head
--- | The builtins for parsers: small parsers, and ways to put them
---   together. The inside is megaparsec, the same tool that reads Lam
---   itself. The names start with Parser., like Regex.
--- パーサーの組み込みの関数：小さなパーサーと、それを組み合わせる道具。
--- 中身は、Lam そのものを読んでいるのと同じ megaparsec。
--- 名前は、Regex. と同じく、Parser. で始める。
+-- | The builtins of the module Parser: small parsers, and ways to put
+--   them together. The inside is megaparsec, the same tool that reads
+--   Lam itself. Their names start with Parser., so the module Parser
+--   (written in Lam, in Lam.Prelude) gets them, as Regex. went to
+--   Regex.
+-- モジュール Parser の組み込みの関数：小さなパーサーと、それを組み合わせる
+-- 道具。中身は、Lam そのものを読んでいるのと同じ megaparsec。名前は
+-- Parser. で始まるので、Lam で書いたモジュール Parser（Lam.Prelude）の
+-- ものになる（Regex. が Regex のものになったのと同じ）。
 module Lam.Parsing
   ( parsingBuiltins
   , tParser
+  , tParseError
   , runLamParserValue
   ) where
 
 import Control.Monad.State.Strict (StateT, get, modify, put, runStateT)
 import Control.Monad.Trans (lift)
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -33,12 +38,27 @@ import Lam.Types
 -- ANCHOR_END: head
 
 -- ANCHOR: types
--- 🏷️ Parser a: a parser that reads a string and gives an a.
---    Like IO a, it is a value: making it reads nothing yet.
+-- 🏷️ Parser a: a parser that reads a string and gives an a. Like
+--    IO a, it is a value: making it reads nothing yet. Parser is a
+--    type of the language, with one hole (as IO).
 -- Parser a：文字列を読んで a をくれるパーサー。IO a と同じく値で、
--- 作っただけでは、まだ何も読まない
+-- 作っただけでは、まだ何も読まない。Parser は言語の型で、穴が1つ
+-- （IO と同じ）
 tParser :: Type -> Type
 tParser a = TCon "Parser" [a]
+
+-- 🧾 Why a string did not fit, as a record: where (line and column,
+--    from 1), what was found and wanted (message), and all of it with
+--    the line itself (pretty). The module Parser names it ParseError.
+-- 文字列が合わなかったわけを、レコードで：場所（行と列、1 から）、
+-- 見つけたものと欲しかったもの（message）、それを行と一緒に見せる全体
+-- （pretty）。モジュール Parser が ParseError と名前を付ける
+tParseError :: Type
+tParseError = TRecord (Map.fromList
+  [ ("line",    TInt)
+  , ("column",  TInt)
+  , ("message", tString)
+  , ("pretty",  tString) ]) Nothing
 
 -- The same stack as LamParser, for parsers that give other things.
 -- LamParser と同じ重なりで、ほかのものをくれるパーサー
@@ -66,35 +86,31 @@ parsingBuiltins =
       (unit <$ eof)
   -- ANCHOR_END: small
 
-  -- ANCHOR: chain
-  -- Give a value without reading, or stop with a message.
-  -- 何も読まずに値を返す。または、文を添えて失敗する
-  , prim1 "Parser.pure" (a ~> tParser a) $ \v ->
+  -- ANCHOR: monadRows
+  -- What instance Functor Parser and instance Monad Parser are made
+  -- of (the module Parser leaves these three out of its exposing
+  -- list): give a value without reading; change what a parser gives;
+  -- read with p, then let f choose the next parser from what p gave.
+  -- instance Functor Parser と instance Monad Parser の材料（モジュール
+  -- Parser は、この3つを exposing の一覧に書かない）：何も読まずに値を返す、
+  -- パーサーがくれる値を変える、p で読み、p がくれた値から次のパーサーを
+  -- f に選ばせる
+  , prim1 "Parser.pureParser" (a ~> tParser a) $ \v ->
       Right (VParser (pure v))
-  , prim1 "Parser.fail" (tString ~> tParser a) $ \v -> do
-      msg <- string v
-      Right (VParser (fail (T.unpack msg)))
-
-  -- Change what a parser gives, with a Lam function.
-  -- パーサーがくれる値を、Lam の関数で変える
-  , prim2 "Parser.map" ((a ~> b) ~> tParser a ~> tParser b) $ \f p ->
+  , prim2 "Parser.mapParser" ((a ~> b) ~> tParser a ~> tParser b) $ \f p ->
       Right $ VParser $ do
         x <- parserOf p
         call f x
-
-  -- Read with p, then let f choose the next parser from what p gave.
-  -- Parser.bind takes the parser first (like >>= of Haskell), and
-  -- Parser.andThen takes the function first (like Maybe.andThen).
-  -- p で読み、p がくれた値から、次のパーサーを f に選ばせる。
-  -- Parser.bind はパーサーが先（Haskell の >>= と同じ）、
-  -- Parser.andThen は関数が先（Maybe.andThen と同じ）
-  , prim2 "Parser.bind"
+  , prim2 "Parser.bindParser"
       (tParser a ~> (a ~> tParser b) ~> tParser b) $ \p f ->
       Right (VParser (chain p f))
-  , prim2 "Parser.andThen"
-      ((a ~> tParser b) ~> tParser a ~> tParser b) $ \f p ->
-      Right (VParser (chain p f))
-  -- ANCHOR_END: chain
+  -- ANCHOR_END: monadRows
+
+  -- Stop with a message:  fail "a month is 1 to 12"
+  -- 文を添えて失敗する
+  , prim1 "Parser.fail" (tString ~> tParser a) $ \v -> do
+      msg <- string v
+      Right (VParser (fail (T.unpack msg)))
 
   -- ANCHOR: choose
   -- Try the parsers from the left; the first that fits wins. Each one
@@ -130,12 +146,12 @@ parsingBuiltins =
   , prim1 "Parser.optional" (tParser a ~> tParser (tMaybe a)) $ \p ->
       Right $ VParser $ do
         found <- attempt (parserOf p)
-        pure (maybe (con "Nothing" []) (\x -> con "Just" [x]) found)
+        pure (maybeValue found)
   -- ANCHOR_END: repeat
 
   -- ANCHOR: lazy
   -- A parser that points at itself:
-  --    let expr = ... Parser.lazy (\_ -> expr) ...
+  --    expr = ... Parser.lazy (\_ -> expr) ...
   -- The function is called the first time the parser reads, so that
   -- expr is already made by then. Laziness keeps what it gave.
   -- 自分を指すパーサー。関数は、はじめて読むときに呼ぶので、そのときには
@@ -160,26 +176,25 @@ parsingBuiltins =
       VRegex r -> case compileRegex ("\\A(?:" <> regexSource r <> ")") of
         Right here -> Right (VParser (regexHere r here))
         Left msg   -> Left (BuiltinFailed "Parser.regex" msg)
-      _ -> Left (BuiltinFailed "Parser.regex" "got a value that is not Regex")
+      _ -> wrong "Parser.regex"
   -- ANCHOR_END: regex
 
   -- ANCHOR: run
   -- Read the whole string. An Err tells where it stopped, and why.
   -- 文字列の全体を読む。Err は、どこで、なぜ止まったかを教える
-  , prim2 "Parser.run" (tParser a ~> tString ~> tResult tString a) $
+  , prim2 "Parser.run" (tParser a ~> tString ~> tResult tParseError a) $
       \p v -> do
         s <- string v
         answer <- runLamParserValue p s
         Right $ case answer of
           Right x  -> con "Ok" [x]
-          Left msg -> con "Err" [VString msg]
+          Left err -> con "Err" [err]
   -- ANCHOR_END: run
   ]
   where
     a = TVar 0
     b = TVar 1
     unit = VTuple []
-    tMaybe t = TCon "Maybe" [t]
     tResult e x = TCon "Result" [e, x]
 -- ANCHOR_END: table
 
@@ -327,11 +342,11 @@ manyOf what p = go
 -- ANCHOR: regexHere
 -- 🎯 Match the regex at this very place. "here" is the same regex with
 --    \A in front, so it cannot match further on. Read as many letters
---    as it matched. Match.start counts from the start of the whole
+--    as it matched. Its start counts from the start of the whole
 --    string, as in Regex.find.
 -- 正規表現を、ちょうどこの場所で合わせる。here は、頭に \A を付けた
 -- 同じ正規表現なので、先のほうでは合わない。合った文字の数だけ読む。
--- Match.start は、Regex.find と同じく、文字列全体の頭から数える
+-- start は、Regex.find と同じく、文字列全体の頭から数える
 regexHere :: Regex -> Regex -> LamParser
 regexHere r here = do
   at   <- getOffset
@@ -339,9 +354,11 @@ regexHere r here = do
   case regexSearch here rest of
     Left msg -> stop (BuiltinFailed "Parser.regex" msg)
     Right cut -> case matchesOf r cut of
-      VCon c i [w@(VString text), VInt _, gs, ns] : _ -> do
-        _ <- takeP (Just "a match") (T.length text)
-        pure (VCon c i [w, VInt (fromIntegral at), gs, ns])
+      VRecord fields : _
+        | Just (VString text) <- Map.lookup "text" fields -> do
+            _ <- takeP (Just "a match") (T.length text)
+            let start = VInt (fromIntegral at)
+            pure (VRecord (Map.insert "start" start fields))
       -- It does not fit here: say what was here, and what was wanted.
       -- ここには合わない：ここにあったものと、欲しかったものを言う
       _ -> failure (Just (maybe EndOfInput (\(c, _) -> Tokens (c :| []))
@@ -355,13 +372,14 @@ regexHere r here = do
 -- ▶️ Run a Parser value on the whole string. The outer Left is an
 --    error of the program (a Lam function failed), and stops the
 --    program. An inner Left is a string that does not fit: a value the
---    program can look at. Its message is the error that read the
---    farthest, even if a choice that failed found it.
+--    program can look at, a ParseError record. Its error is the one
+--    that read the farthest, even if a choice that failed found it.
 -- Parser の値を、文字列の全体に使う。外の Left はプログラムのまちがい
 -- （Lam の関数が失敗した）で、プログラムを止める。内の Left は、
--- 文字列が合わなかったということで、プログラムが調べられる値。
--- その文は、いちばん遠くまで読めたエラー（失敗した選択肢のものでも）
-runLamParserValue :: Value -> Text -> Either EvalError (Either Text Value)
+-- 文字列が合わなかったということで、プログラムが調べられる値
+-- （ParseError のレコード）。エラーは、いちばん遠くまで読めたもの
+-- （失敗した選択肢のものでも）
+runLamParserValue :: Value -> Text -> Either EvalError (Either Value Value)
 runLamParserValue p s = do
   (answer, farthest) <-
     runStateT (runParserT (parserOf p <* eof) "" s) Nothing
@@ -370,7 +388,23 @@ runLamParserValue p s = do
     Left bundle ->
       let err :| _ = bundleErrors bundle
           worst    = maybe err (<> err) farthest
-      in  Left (T.stripEnd (T.pack (errorBundlePretty
-                 bundle { bundleErrors = worst :| [] })))
+      in  Left (errorRecord bundle { bundleErrors = worst :| [] })
 -- ANCHOR_END: runParser
+
+-- ANCHOR: errorRecord
+-- 🧾 The ParseError record of the one error in the bundle.
+-- まとめの中の1つのエラーを、ParseError のレコードにする
+errorRecord :: ParseErrorBundle Text Void -> Value
+errorRecord bundle =
+  let worst :| _ = bundleErrors bundle
+      (_, pos)  = reachOffset (errorOffset worst) (bundlePosState bundle)
+      number    = VInt . fromIntegral . unPos
+  in  VRecord (Map.fromList
+        [ ("line",    number (sourceLine (pstateSourcePos pos)))
+        , ("column",  number (sourceColumn (pstateSourcePos pos)))
+        , ("message", VString (T.stripEnd (T.pack
+                        (parseErrorTextPretty worst))))
+        , ("pretty",  VString (T.stripEnd (T.pack
+                        (errorBundlePretty bundle)))) ])
+-- ANCHOR_END: errorRecord
 -- ANCHOR_END: all

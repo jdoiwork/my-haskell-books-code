@@ -1,0 +1,7 @@
+-- ANCHOR: all
+-- 👀 Use the <+> of Secret.lam (next to this file).
+-- 隣の Secret.lam の <+> を使う
+import Secret ((<+>))
+
+1 <+> 2
+-- ANCHOR_END: all

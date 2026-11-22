@@ -1,0 +1,4 @@
+error: --only needs a range from small to large, like 2..4, not "3..1"
+Usage: answer-range.lam [OPTIONS] FILE
+Try "answer-range.lam --help" for help.
+[exit 2]

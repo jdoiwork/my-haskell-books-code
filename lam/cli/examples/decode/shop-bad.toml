@@ -1,0 +1,7 @@
+[shop]
+name = "Lam Shop"
+tax_percent = "10"
+
+[[discount]]
+item = "sticker"
+percent = 20.5

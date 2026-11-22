@@ -1,0 +1,46 @@
+-- ANCHOR: all
+-- ANCHOR: range
+-- 📏 A range of line numbers: 2..4 is from 2 to 4.
+-- 行の番号の範囲：2..4 は 2 から 4 まで
+data Range = Range Int Int
+
+-- 📏 Both ends, small first.
+-- 両端。小さいほうが先
+rangeOf : Maybe Int -> Maybe Int -> Result String Range
+rangeOf from to =
+  case (from, to) of
+    | (Just a, Just b) ->
+        if 1 <= a && a <= b then Ok (Range a b)
+        else Err "a range from small to large, like 2..4"
+    | _ -> Err "a range like 2..4"
+
+instance FromArg Range where
+  fromArg s =
+    case String.split ".." s of
+      | [a, b] -> rangeOf (String.toInt a) (String.toInt b)
+      | _ -> Err "a range like 2..4"
+-- ANCHOR_END: range
+
+type alias Slice =
+  { --- The file to read
+    -- 読むファイル
+    file : String
+    --- Which lines, like 2..4 (all of them if not given)
+    -- どの行か（書かなければ全部）
+  , only : Maybe Range
+  , alias n = only
+  }
+
+--- Show some lines of a file.
+-- ファイルの行の一部を見せる
+main : Slice -> IO (Result String ())
+main o = do
+  text <- readFile o.file ?
+  let all = lines text
+  let shown =
+        case o.only of
+          | Nothing -> all
+          | Just (Range a b) -> slice (a - 1) b all
+  forEach shown putStrLn
+  pure (Ok ())
+-- ANCHOR_END: all

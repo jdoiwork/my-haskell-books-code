@@ -1,0 +1,55 @@
+-- ANCHOR: all
+-- 🧾 The receipt of the shop, once more: the same work as in the
+--    chapter before, but each failure goes back at once with ?, and
+--    the shop closes after an Err or a stop too (defer).
+-- お店のレシートを、もう一度。前の章と同じ仕事だが、失敗は ? ですぐに
+-- 返し、Err でも止まっても、お店を閉める（defer）
+--   LAM_PATH=examples/modules/receipt lam examples/errors/shop.lam
+import Receipt
+
+-- 🏷️ The price of each item, in yen.
+-- 品物ごとの値段（円）
+prices = {sticker: 300, mug: 1200, tshirt: 2500}
+
+-- 📦 One order in the JSON:  {"item": "mug", "count": 1}.
+-- JSON の注文1つ
+orderOf : Json -> Maybe (String, Int)
+orderOf j = do
+  item  <- Json.get "item" j |> Maybe.andThen Json.string
+  count <- Json.get "count" j |> Maybe.andThen Json.int
+  pure (item, count)
+
+-- 🧾 From the text of the file to the lines of the receipt.
+--    A do of Result stops at the first Err by itself: no ? here.
+-- ファイルの文字から、レシートの行へ。Result の do は、最初の Err で
+-- ひとりでに止まる。ここに ? は要らない
+receiptOf : String -> Result String [String]
+receiptOf text = do
+  json   <- Json.parse text
+  -- 「注文はリストでなければなりません」
+  items  <- Json.array json |> Result.fromMaybe "the orders must be a list"
+  -- 「注文には item と count が要ります」
+  orders <- mapM orderOf items
+              |> Result.fromMaybe "each order needs an item and a count"
+  pure (Receipt.receipt prices orders)
+
+-- ANCHOR: main
+-- 🚪 A do of IO, giving a Result: each ? sends an Err back at once,
+--    and the shop closes after the last line, or after an Err.
+-- Result をくれる IO の do：? のたびに、Err ならすぐに返す。お店は、
+-- 最後の行のあとか、Err のあとに閉まる
+main : IO (Result String ())
+main = do
+  -- 「開店」
+  putStrLn "the shop opens"
+  -- 「閉店」
+  defer putStrLn "the shop closes"
+  text  <- readFile "examples/errors/orders.json" ?
+  lines <- pure (receiptOf text) ?
+  forEach lines putStrLn
+  writeFile "receipt.txt" (join "\n" lines ++ "\n") ?
+  -- 「receipt.txt に保存しました」
+  putStrLn "saved receipt.txt"
+  pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

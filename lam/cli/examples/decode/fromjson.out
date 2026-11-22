@@ -1,0 +1,6 @@
+Ok {"mug": 12, "sticker": 0}
+Ok [Just "wrap it", Nothing]
+Ok {1: ["shop"], 2: ["workshop", "library"]}
+Ok [Circle { radius = 1.5 }, Rect { height = 0.5, width = 2 }]
+.cup: expected an Int, got true
+.sticker: expected an Int, got "none"

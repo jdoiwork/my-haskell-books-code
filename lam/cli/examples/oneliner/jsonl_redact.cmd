@@ -1,1 +1,0 @@
---jsonl -i.bak -pe 'case json of | JObj m -> JObj (Map.delete "user" m) | _ -> json' examples/oneliner/events.jsonl

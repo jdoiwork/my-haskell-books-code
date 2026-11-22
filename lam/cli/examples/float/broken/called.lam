@@ -5,5 +5,4 @@
 days : Int
 days = 7
 
-main : IO ()
-main = putStrLn f"{days -1}"
+days -1

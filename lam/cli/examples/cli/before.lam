@@ -4,7 +4,7 @@
 --   ("", 1, false) is (name, count, loud) before any word is read.
 --   どの語も読む前の (名前, 回数, 大声)
 number : String -> String -> Result String Int
-number option word = case toInt word of
+number option word = case String.toInt word of
   | Just n -> Ok n
   | Nothing -> Err f"{option} needs a whole number, not {word}"
 

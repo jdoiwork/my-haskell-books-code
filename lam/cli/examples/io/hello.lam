@@ -1,0 +1,17 @@
+-- ANCHOR: all
+-- 👋 Ask for a name, and greet. The program starts at main.
+-- 名前を聞いて、あいさつする。プログラムは main から始まる
+
+main : IO ()
+main = do
+  -- 「お名前は？」
+  putStr "What is your name? "
+  answer <- getLine
+  case answer of
+    -- 「さようなら！」（名前を打たずに終わった）
+    | Nothing -> putStrLn "Goodbye!"
+    | Just name -> do
+        -- 「こんにちは、○○さん！」「お名前は○文字です」
+        putStrLn f"Hello, {name}!"
+        putStrLn f"Your name has {length name} letters."
+-- ANCHOR_END: all

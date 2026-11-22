@@ -1,18 +1,32 @@
--- 🧹 Clean up the sign-up sheet of the quiz, read from the keyboard:
---    trim the spaces, cut at ",", skip the comments and the empty lines.
--- クイズ大会の申しこみ表を、キーボードから読んで、きれいにする：
--- 空白を落とし、「,」で切る。コメントと空の行は飛ばす
---   lam examples/stdlib/signup.lam < examples/stdlib/signup.in
+-- 🧹 Clean up the sign-up sheet of the quiz: trim the spaces, cut at
+--    ",", and skip the comments and the empty lines.
+-- クイズ大会の申しこみ表を、きれいにする：空白を落とし、「,」で切る。
+-- コメントと空の行は飛ばす
+--   lam examples/stdlib/signup.lam
+
+-- ANCHOR: sheet
+-- 📝 The sheet as people wrote it by hand, a line each.
+-- 人が手で書いたままの表。1行ずつ
+sheet =
+  [ "# name, mail, language"
+  , "  Python , python@lam.test , Python"
+  , "TS,ts@lam.test,TypeScript"
+  , "# Rust came late"
+  , " Rust ,   rust@lam.test,Rust"
+  , "Ruby, ruby-at-lam.test, Ruby"
+  , ""
+  , "Erlang , erlang@lam.test" ]
+-- ANCHOR_END: sheet
 
 -- ANCHOR: cells
 -- ✂️ One row of the sheet:  " TS , ts@lam.test,TypeScript"  gives
 --    ["TS", "ts@lam.test", "TypeScript"].
 -- 表の1行を、切って、それぞれのまわりの空白を落とす
-let cells line = line |> String.split "," |> map String.trim
+cells line = line |> String.split "," |> map String.trim
 
 -- 🙈 A comment (# ...) or an empty line is not a row.
 -- コメント（# ...）と空の行は、行ではない
-let isRow line =
+isRow line =
   let text = String.trim line in
   not (String.isEmpty text || String.startsWith "#" text)
 -- ANCHOR_END: cells
@@ -20,17 +34,21 @@ let isRow line =
 -- ANCHOR: mail
 -- 📮 "ruby-at-lam.test" is written to hide the @: put it back.
 -- 「@」を隠して書いた「-at-」を、@ に戻す
-let fixMail mail = String.replace "-at-" "@" mail
+fixMail mail = String.replace "-at-" "@" mail
 -- ANCHOR_END: mail
 
 -- ANCHOR: main
-let main = do
-  text <- getContents
-  let rows = text |> lines |> filter isRow |> map cells
-  forEach rows (\row ->
-    case row of
-      | [name, mail, language] ->
-          putStrLn f"{name:<8}{fixMail mail:<18}{language}"
-      -- 「壊れた行」と、標準エラーに出す
-      | _ -> ePutStrLn f"a broken row: {join " | " row}")
+-- 🎫 A row with 3 cells is an entry; the others are broken.
+-- 3つに切れた行が申しこみ。ほかは壊れた行
+rows = sheet |> filter isRow |> map cells
+
+entries =
+  rows
+    |> filter (\row -> length row == 3)
+    |> map (\[name, mail, language] ->
+              { name = name, mail = fixMail mail, language = language })
+
+broken = rows |> filter (\row -> length row /= 3) |> map (join " | ")
+
+(map .name entries, broken)
 -- ANCHOR_END: main

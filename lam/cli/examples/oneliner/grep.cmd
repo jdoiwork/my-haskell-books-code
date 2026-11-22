@@ -1,1 +1,0 @@
--ne 'when (line =~ m/ERROR/) (putStrLn line)' examples/oneliner/app.log

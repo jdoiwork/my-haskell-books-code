@@ -1,1 +1,1 @@
-examples/float/broken/mixed.lam:9:34: in the definition of main: type error: the types do not fit: Float where Int is needed
+examples/float/broken/mixed.lam:8:15: type error: the types do not fit: Float where Int is needed

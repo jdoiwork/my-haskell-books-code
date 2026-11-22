@@ -5,5 +5,4 @@
 scores : [Int]
 scores = [82, 75, 91]
 
-main : IO ()
-main = putStrLn f"{length scores * 1.5}"
+length scores * 1.5

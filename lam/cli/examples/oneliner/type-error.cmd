@@ -1,1 +1,0 @@
--ne 'putStrLn (line ++ 1)' examples/oneliner/notes.txt

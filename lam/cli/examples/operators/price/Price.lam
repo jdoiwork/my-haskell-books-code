@@ -1,0 +1,37 @@
+-- ANCHOR: all
+-- 💴 Price: an amount in yen, with the operators of the shop. The
+--    operators go out in the exposing list, written in parentheses,
+--    and so do the functions they call.
+-- Price：円の金額と、お店の演算子。演算子は、かっこに入れて exposing の
+-- 一覧に書く。演算子が呼ぶ関数も見せる
+-- ANCHOR: header
+module Price exposing
+  (Price, fromYen, yen, addPrice, times, off, (<+>), (*$), (-%))
+-- ANCHOR_END: header
+
+data Price = Price Int
+
+-- A price, if the amount is 0 or more.
+-- 0 以上なら、値段
+fromYen : Int -> Maybe Price
+fromYen n = if n < 0 then Nothing else Just (Price n)
+
+yen : Price -> Int
+yen p = case p of | Price n -> n
+
+addPrice : Price -> Price -> Price
+addPrice a b = Price (yen a + yen b)
+
+times : Int -> Price -> Price
+times n p = Price (n * yen p)
+
+off : Price -> Int -> Price
+off p percent = Price (yen p * (100 - percent) // 100)
+
+infixl 8 times as *$
+infixl 7 addPrice as <+>
+infixl 7 off as -%
+
+instance Display Price where
+  display p = f"{yen p:,} yen"
+-- ANCHOR_END: all
