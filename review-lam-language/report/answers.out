@@ -1,0 +1,14 @@
+lam> :load answers.lam
+loaded answers.lam
+lam> python resubmitted |> map .average
+[Just 84.16666666666667] : [Maybe Float]
+lam> python (latest resubmitted) |> map .average
+[Just 84.6] : [Maybe Float]
+lam> marks card
+{[Retry]: 1, [Pass]: 1, [Good]: 2, [Excellent]: 1} : Map Mark Int
+lam> :print ranking card
+1. Rust 92.4
+2. Python 82.8
+3. TS 79.3
+4. Ruby 64.0
+5. Erlang 52.0

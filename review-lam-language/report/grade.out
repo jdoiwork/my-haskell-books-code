@@ -1,0 +1,13 @@
+lam> import Grade (..)
+lam> score 82
+Ok (Score 82) : Result String Score
+lam> score 120
+Err "120 is not a score from 0 to 100" : Result String Score
+lam> Grade.Score 120
+type error: Grade.Score is hidden by the module Grade (it is not in its exposing list)
+lam> markOf 82.8
+Good : Mark
+lam> f"{markOf 82.8} {markOf 52.0}"
+"B -" : String
+lam> maximum [Pass, Excellent, Retry]
+Just Excellent : Maybe Mark

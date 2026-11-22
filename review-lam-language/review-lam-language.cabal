@@ -1,0 +1,23 @@
+cabal-version: 3.0
+name:          review-lam-language
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第14部のふりかえり」の総合トレーニング：工房の通信簿。
+-- プログラムは report/ の Lam のファイル。ここにあるのは、それを
+-- 作りものの掲示板で動かすテストだけ
+
+test-suite review-lam-language-test
+  default-language: GHC2024
+  ghc-options:      -Wall
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , base        >=4.20 && <5
+    , containers  ^>=0.8
+    , directory   ^>=1.3
+    , hspec       ^>=2.11
+    , lam
+    , QuickCheck  ^>=2.19
+    , text        ^>=2.1

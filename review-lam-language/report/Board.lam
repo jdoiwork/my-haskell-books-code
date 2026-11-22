@@ -1,0 +1,40 @@
+-- ANCHOR: all
+-- 📌 Board: what was handed in, in the 15 days of the workshop. One
+--    line is one JSON object (JSON Lines), as it was on the board.
+-- Board：工房の15日間に出された課題。1行が1つの JSON のオブジェクト
+-- （JSON Lines）。掲示板に貼ってあったまま
+module Board exposing (tasks, log)
+
+-- 📚 The tasks of the 15 days.
+-- 15日間の課題
+tasks = ["strings", "data", "float", "classes", "modules"]
+
+-- ANCHOR: log
+log =
+  [ "{\"who\": \"Python\", \"task\": \"strings\", \"score\": 82}"
+  , "{\"who\": \"TS\", \"task\": \"strings\", \"score\": 68}"
+  , "{\"who\": \"Rust\", \"task\": \"strings\", \"score\": 95}"
+  , "{\"who\": \"Ruby\", \"task\": \"strings\", \"score\": 70}"
+  , "{\"who\": \"Erlang\", \"task\": \"strings\", \"score\": 55}"
+  , "{\"who\": \"Python\", \"task\": \"data\", \"score\": 75}"
+  , "{\"who\": \"TS\", \"task\": \"data\", \"score\": 91}"
+  , "{\"who\": \"Rust\", \"task\": \"data\", \"score\": 88}"
+  , "{\"who\": \"Ruby\", \"task\": \"data\", \"score\": 64}"
+  , "{\"who\": \"Erlang\", \"task\": \"data\", \"score\": 61}"
+  , "{\"who\": \"Python\", \"task\": \"float\", \"score\": 90}"
+  , "{\"who\": \"TS\", \"task\": \"float\", \"score\": 73}"
+  , "{\"who\": \"Rust\", \"task\": \"float\", \"score\": 97}"
+  , "{\"who\": \"Ruby\", \"task\": \"float\"}"
+  , "{\"who\": \"Erlang\", \"task\": \"float\", \"score\": 40}"
+  , "{\"who\": \"Python\", \"task\": \"classes\", \"score\": 88}"
+  , "{\"who\": \"TS\", \"task\": \"classes\", \"score\": 120}"
+  , "{\"who\": \"Rust\", \"task\": \"classes\", \"score\": 92}"
+  , "{\"who\": \"Ruby\", \"task\": \"classes\", \"score\": 58}"
+  , "{\"who\": \"Erlang\", \"task\": \"classes\", \"score\": 52}"
+  , "{\"who\": \"Python\", \"task\": \"modules\", \"score\": 79}"
+  , "{\"who\": \"TS\", \"task\": \"modules\", \"score\": 85}"
+  , "{\"who\": \"Rust\", \"task\": \"modules\", \"score\": 90}"
+  , "Erlang, modules, 66"
+  ]
+-- ANCHOR_END: log
+-- ANCHOR_END: all

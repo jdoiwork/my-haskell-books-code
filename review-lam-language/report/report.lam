@@ -1,0 +1,57 @@
+-- ANCHOR: all
+-- 📰 The report card of the 15 days: a table to read, and JSON for the
+--    notice board.
+-- 15日間の通信簿：読むための表と、掲示板に貼る JSON
+--   lam report.lam
+--   lam> :load report.lam
+--   lam> :print table
+-- ANCHOR: imports
+import Board
+import Card (read, rows)
+import Notice (notice)
+-- ANCHOR_END: imports
+
+-- ANCHOR: table
+-- ✂️ The words, with ", " between them.
+-- 語を、あいだに ", " を入れてつなぐ
+joinWith : String -> [String] -> String
+joinWith sep words =
+  case words of
+    | [] -> ""
+    | w : rest -> foldl (\acc x -> acc ++ sep ++ x) w rest
+
+-- 🔢 A Maybe Float to one place, or "-".
+-- Maybe Float を小数点以下1けたに。なければ「-」
+oneplace m = map (Float.fixed 1) m ?: "-"
+
+-- 🧾 One line of the table. The scores are shown by Display Score.
+-- 表の1行。点数は Display Score で見せる
+line row =
+  f"{row.who:<7}| {scores:<19} |{average:>5} |{sd:>5} |{mark:^6}| {missing}"
+  where
+    scores = joinWith " " (map display row.scores)
+    average = oneplace row.average
+    sd = oneplace row.spread
+    mark = map display row.mark ?: "-"
+    missing =
+      if Set.size row.missing == 0 then "-"
+      else joinWith ", " (Set.toList row.missing)
+
+-- 📥 What the board gave: the entries, and the lines that were wrong.
+-- 掲示板からのもの：Entry と、だめだった行
+entries = fst (read Board.log)
+
+wrong = snd (read Board.log)
+
+card = rows Board.tasks entries
+
+table =
+  [ f"{"name":<7}| {"scores":<19} |{"avg":>5} |{"sd":>5} | mark | missing"
+  , String.repeat 64 "-" ]
+    ++ map line card
+-- ANCHOR_END: table
+
+board = Json.pretty (notice card)
+
+(length card, length wrong)
+-- ANCHOR_END: all

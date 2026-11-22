@@ -1,0 +1,11 @@
+lam> :load report.lam
+loaded report.lam
+(5, 3) : (Int, Int)
+lam> :print table
+name   | scores              |  avg |   sd | mark | missing
+----------------------------------------------------------------
+Erlang |  55  61  40  52     | 52.0 |  7.6 |  -   | modules
+Python |  82  75  90  88  79 | 82.8 |  5.6 |  B   | -
+Ruby   |  70  64  58         | 64.0 |  4.9 |  C   | float, modules
+Rust   |  95  88  97  92  90 | 92.4 |  3.3 |  A   | -
+TS     |  68  91  73  85     | 79.3 |  9.2 |  B   | classes

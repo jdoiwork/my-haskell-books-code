@@ -1,0 +1,19 @@
+lam> :load report.lam
+loaded report.lam
+(5, 3) : (Int, Int)
+lam> :print Json.pretty (notice (take 1 card))
+{
+  "Erlang": {
+    "average": 52,
+    "mark": "-",
+    "missing": [
+      "modules"
+    ],
+    "scores": [
+      55,
+      61,
+      40,
+      52
+    ]
+  }
+}

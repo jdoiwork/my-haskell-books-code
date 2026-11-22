@@ -1,0 +1,2 @@
+:load report.lam
+:print table

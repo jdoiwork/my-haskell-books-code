@@ -266,6 +266,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 道具箱をそろえる：文字列・リスト・Map の標準ライブラリ | [`lam/stdlib/`](lam/stdlib/)、[`lam/json/`](lam/json/)、[`langs/interp-stdlib/`](langs/interp-stdlib/) |
 | 文字列に値を埋めこむ：f-string 風の書式 | [`lam/format/`](lam/format/)、[`lam/stdlib/`](lam/stdlib/)、[`langs/interp-format/`](langs/interp-format/) |
 | ファイルを分ける：モジュール | [`lam/modules/`](lam/modules/)、[`lam/format/`](lam/format/)、[`langs/interp-modules/`](langs/interp-modules/) |
+| 第14部のふりかえり | [`lam/modules/`](lam/modules/)、[`review-lam-language/`](review-lam-language/) |
 
 ### 第15部 Lam でスクリプトを書く
 

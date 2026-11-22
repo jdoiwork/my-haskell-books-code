@@ -1,0 +1,5 @@
+:load answers.lam
+python resubmitted |> map .average
+python (latest resubmitted) |> map .average
+marks card
+:print ranking card

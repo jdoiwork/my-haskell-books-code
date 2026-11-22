@@ -1,0 +1,7 @@
+import Grade (..)
+score 82
+score 120
+Grade.Score 120
+markOf 82.8
+f"{markOf 82.8} {markOf 52.0}"
+maximum [Pass, Excellent, Retry]

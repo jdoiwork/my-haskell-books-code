@@ -1,0 +1,2 @@
+:load report.lam
+:print Json.pretty (notice (take 1 card))

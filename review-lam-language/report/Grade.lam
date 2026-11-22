@@ -1,0 +1,58 @@
+-- ANCHOR: all
+-- 🎓 Grade: a score from 0 to 100, and the mark of an average. The
+--    constructor Score is hidden, so every Score went through score.
+-- Grade：0 から 100 までの点数と、平均の評価。構成子 Score は隠して
+-- あるので、どの Score も score を通ってきたもの
+module Grade exposing (Score, score, points, Mark (..), markOf)
+
+-- ANCHOR: score
+-- 💯 A score. Only score (below) makes one.
+-- 点数。作れるのは、下の score だけ
+data Score = Score Int
+
+-- 🚪 The gate: a number from 0 to 100 becomes a Score.
+-- 門番：0 から 100 までの数だけが Score になる
+score : Int -> Result String Score
+score n =
+  if 0 <= n && n <= 100 then Ok (Score n)
+  else Err f"{n} is not a score from 0 to 100"
+
+-- 🔢 The number in a Score.
+-- Score の中の数
+points : Score -> Int
+points s =
+  case s of
+    | Score n -> n
+
+-- A Score is shown as its number, three columns wide.
+-- Score は、中の数を3桁で見せる
+instance Display Score where
+  display s = f"{points s:>3}"
+-- ANCHOR_END: score
+
+-- ANCHOR: mark
+-- 🏅 The mark of an average. The order of the constructors is the
+--    order of the marks: Retry < Pass < Good < Excellent.
+-- 平均の評価。構成子の順が、評価の順：Retry < Pass < Good < Excellent
+data Mark = Retry | Pass | Good | Excellent
+
+-- 📏 From an average to a mark.
+-- 平均から評価へ
+markOf : Float -> Mark
+markOf average =
+  if average >= 90 then Excellent
+  else if average >= 75 then Good
+  else if average >= 60 then Pass
+  else Retry
+
+-- A mark is shown as one letter on the report card.
+-- 評価は、通信簿に1文字で見せる
+instance Display Mark where
+  display m =
+    case m of
+      | Excellent -> "A"
+      | Good -> "B"
+      | Pass -> "C"
+      | Retry -> "-"
+-- ANCHOR_END: mark
+-- ANCHOR_END: all

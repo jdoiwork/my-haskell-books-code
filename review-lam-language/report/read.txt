@@ -1,0 +1,6 @@
+import Card (..)
+import Board
+entryOf "{\"who\": \"Python\", \"task\": \"strings\", \"score\": 82}"
+entryOf "{\"who\": \"Ruby\", \"task\": \"float\"}"
+entryOf "Erlang, modules, 66"
+snd (read Board.log)

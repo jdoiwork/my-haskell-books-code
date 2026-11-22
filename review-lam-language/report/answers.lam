@@ -1,0 +1,49 @@
+-- ANCHOR: all
+-- ✅ The answers of the steps of the training.
+-- トレーニングのステップの解答
+--   lam> :load answers.lam
+import Board
+import Card (Entry, read, rows)
+import Grade (Mark (..))
+
+-- ANCHOR: latest
+-- 1️⃣ Only the last one of each person and task. A pair is a key of a
+--    Map, and in Map.fromList the later one wins.
+-- 人と課題ごとに、最後のものだけ。組は Map のキーになれ、Map.fromList では
+-- あとのものが勝つ
+latest : [Entry] -> [Entry]
+latest entries =
+  Map.fromList [((e.who, e.task), e) | e <- entries] |> Map.values
+-- ANCHOR_END: latest
+
+-- ANCHOR: marks
+-- 2️⃣ How many people got each mark. A Mark is a key of a Map too: it
+--    is Comparable, in the order of its constructors.
+-- 評価ごとの人数。Mark も Map のキーになれる。構成子の順で Comparable
+marks rows =
+  foldr (\m acc -> Map.insertWith (+) m 1 acc) Map.empty
+        [m | Just m <- map .mark rows]
+-- ANCHOR_END: marks
+
+-- ANCHOR: ranking
+-- 3️⃣ "1. Rust 92.4", ...: the best average first, numbered from 1.
+-- 平均のよい順に、1 から番号を付ける
+ranking rows =
+  [(r.who, a) | r <- rows, Just a <- [r.average]]
+    |> sortOn (\(who, a) -> -a)
+    |> indexed
+    |> map (\(i, (who, a)) -> f"{i + 1}. {who} {a:.1}")
+-- ANCHOR_END: ranking
+
+entries = fst (read Board.log)
+
+-- Python handed in strings again, and got 91 this time.
+-- Python くんが strings を出し直して、今度は 91 点
+again = "{\"who\": \"Python\", \"task\": \"strings\", \"score\": 91}"
+
+resubmitted = entries ++ fst (read [again])
+
+python es = filter (\r -> r.who == "Python") (rows Board.tasks es)
+
+card = rows Board.tasks entries
+-- ANCHOR_END: all

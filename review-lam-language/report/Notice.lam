@@ -1,0 +1,76 @@
+-- ANCHOR: all
+-- 📤 Notice: the report card as JSON, for the notice board. ToJson
+--    is a class of our own; its instances go wherever the types go.
+-- Notice：通信簿を JSON で、掲示板に。ToJson は自分で作るクラスで、
+-- インスタンスは型と一緒にどこへでも付いていく
+-- ANCHOR: head
+module Notice exposing (ToJson (..), notice)
+
+import Grade (Score, Mark)
+import Card (Row)
+-- ANCHOR_END: head
+
+-- ANCHOR: class
+-- What a type needs to be written as JSON.
+-- JSON に書ける型が持つもの
+class ToJson a where
+  toJson : a -> Json
+
+instance ToJson Int where
+  toJson n = JInt n
+
+instance ToJson Float where
+  toJson x = Json.fromFloat x
+
+instance ToJson String where
+  toJson s = JStr s
+
+instance ToJson a => ToJson [a] where
+  toJson xs = JArr (map toJson xs)
+
+-- Nothing is null.
+-- Nothing は null
+instance ToJson a => ToJson (Maybe a) where
+  toJson m =
+    case m of
+      | Just x -> toJson x
+      | Nothing -> JNull
+
+-- A Set is an array, in its order.
+-- Set は、その順の配列
+instance ToJson a => ToJson (Set a) where
+  toJson s = toJson (Set.toList s)
+-- ANCHOR_END: class
+
+-- ANCHOR: grade
+-- A Score is its number, and a Mark is the letter of the card.
+-- Score は中の数、Mark は通信簿の文字
+instance ToJson Score where
+  toJson s = JInt (Grade.points s)
+
+instance ToJson Mark where
+  toJson m = JStr (display m)
+-- ANCHOR_END: grade
+
+-- ANCHOR: notice
+-- 🔟 Rounded to one place, so the board does not show
+--    82.80000000000001.
+-- 小数点以下1けたに丸める。掲示板に 82.80000000000001 と出ないように
+tenth : Float -> Float
+tenth x = map (\n -> toFloat n / 10) (round (x * 10)) ?: x
+
+-- 🪪 One person of the card.
+-- 通信簿の1人ぶん
+card : Row -> Json
+card r =
+  JObj { scores: toJson r.scores
+       , average: toJson (map tenth r.average)
+       , mark: toJson r.mark
+       , missing: toJson r.missing }
+
+-- 📌 The whole card: one key a person.
+-- 通信簿の全体：1人1つのキー
+notice : [Row] -> Json
+notice rows = JObj (Map.fromList [(r.who, card r) | r <- rows])
+-- ANCHOR_END: notice
+-- ANCHOR_END: all

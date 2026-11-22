@@ -1,0 +1,112 @@
+-- ANCHOR: all
+-- 📒 Card: from the lines of the board to the rows of the report card.
+-- Card：掲示板の行から、通信簿の行へ
+-- ANCHOR: head
+module Card exposing (Entry, Row, entryOf, read, rows, mean, spread)
+
+import Grade (Score, Mark)
+-- ANCHOR_END: head
+
+-- ANCHOR: entry
+-- ✏️ One task handed in: who, which task, and the score.
+-- 出された課題1つ：誰が、どの課題で、何点
+type alias Entry = { who : String, task : String, score : Score }
+
+-- 🔎 A field of a JSON object, read with read; Err says which field.
+-- JSON のオブジェクトのフィールドを read で読む。Err はどのフィールドかを言う
+field : String -> (Json -> Maybe a) -> Json -> Result String a
+field name readIt json =
+  case Json.get name json |> Maybe.andThen readIt of
+    | Just x -> Ok x
+    | Nothing -> Err f"no {name}"
+
+-- 🔗 Go on with f only when the first step was Ok.
+-- 最初が Ok のときだけ、f で続ける
+andThen : (a -> Result e b) -> Result e a -> Result e b
+andThen f r =
+  case r of
+    | Ok x -> f x
+    | Err e -> Err e
+
+-- 📥 One line of the board to an Entry, or what is wrong with it.
+-- 掲示板の1行を Entry に。だめなら、どこがだめか
+entryOf : String -> Result String Entry
+entryOf line =
+  case Json.parse line of
+    | Err _ -> Err "not JSON"
+    | Ok json -> fromFields (field "who" Json.string json)
+                            (field "task" Json.string json)
+                            (field "score" Json.int json)
+  where
+    fromFields who task n =
+      case (who, task, n |> andThen Grade.score) of
+        | (Ok w, Ok t, Ok s) -> Ok { who = w, task = t, score = s }
+        | (Err e, _, _) -> Err e
+        | (_, Err e, _) -> Err e
+        | (_, _, Err e) -> Err e
+
+-- ANCHOR_END: entry
+
+-- ANCHOR: read
+-- 🗂️ All the lines: the entries, and the lines that were wrong (with
+--    their number, from 1). A pattern that does not fit skips the
+--    element, so Ok e <- … takes only the good ones.
+-- 全部の行：Entry と、だめだった行（1 からの番号つき）。パターンに合わない
+-- 要素は飛ばすので、Ok e <- … は、よいものだけを取る
+read : [String] -> ([Entry], [String])
+read lines =
+  ( [e | Ok e <- results]
+  , [f"line {i + 1}: {why}" | (i, Err why) <- indexed results] )
+  where
+    results = map entryOf lines
+-- ANCHOR_END: read
+
+-- ANCHOR: stats
+-- ➗ The average. Nothing for no scores (/? does not divide by 0).
+-- 平均。点数がなければ Nothing（/? は 0 で割らない）
+mean : [Int] -> Maybe Float
+mean xs = toFloat (sum xs) /? toFloat (length xs)
+
+-- 📐 The standard deviation. n * Σx² - (Σx)² is all Int, so the
+--    answer does not change with the order of the scores.
+-- 標準偏差。n * Σx² - (Σx)² は全部 Int なので、点数の順によらず同じ答え
+spread : [Int] -> Maybe Float
+spread xs =
+  map sqrt (toFloat (n * squares - total * total) /? toFloat (n * n))
+  where
+    n = length xs
+    total = sum xs
+    squares = sum (map (\x -> x * x) xs)
+-- ANCHOR_END: stats
+
+-- ANCHOR: rows
+-- 📋 One row of the report card.
+-- 通信簿の1行
+type alias Row =
+  { who : String
+  , scores : [Score]
+  , average : Maybe Float
+  , spread : Maybe Float
+  , mark : Maybe Mark
+  , missing : Set String }
+
+-- 🧮 The rows, one a person, in the order of the names. The tasks
+--    that a person has not handed in are a Set difference.
+-- 1人1行で、名前の順。まだ出していない課題は、Set の引き算
+rows : [String] -> [Entry] -> [Row]
+rows tasks entries =
+  Map.toList byWho |> map rowOf
+  where
+    byWho =
+      foldr (\e m -> Map.insertWith (++) e.who [e] m) Map.empty entries
+    rowOf (who, es) =
+      let points = map (.score >> Grade.points) es in
+      { who = who
+      , scores = map .score es
+      , average = mean points
+      , spread = spread points
+      , mark = map Grade.markOf (mean points)
+      , missing = Set.difference (Set.fromList tasks)
+                                 (Set.fromList (map .task es)) }
+-- ANCHOR_END: rows
+-- ANCHOR_END: all

@@ -1,0 +1,10 @@
+lam> import Card (..)
+lam> import Board
+lam> entryOf "{\"who\": \"Python\", \"task\": \"strings\", \"score\": 82}"
+Ok { score = Score 82, task = "strings", who = "Python" } : Result String { score : Score, task : String, who : String }
+lam> entryOf "{\"who\": \"Ruby\", \"task\": \"float\"}"
+Err "no score" : Result String { score : Score, task : String, who : String }
+lam> entryOf "Erlang, modules, 66"
+Err "not JSON" : Result String { score : Score, task : String, who : String }
+lam> snd (read Board.log)
+["line 14: no score", "line 17: 120 is not a score from 0 to 100", "line 24: not JSON"] : [String]
