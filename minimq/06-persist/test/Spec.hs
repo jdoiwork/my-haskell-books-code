@@ -66,7 +66,7 @@ day events = (start, made) : go events [] start
 
 -- 📜 The journal of a day: one line for each step that wrote something
 --    (`handIn` hands in nothing for the others), with the broker after.
--- 1日の日誌：何かを書いた一歩ごとに1行（ほかの一歩では、handIn は
+-- 1日のジャーナル：何かを書いた一歩ごとに1行（ほかの一歩では、handIn は
 -- 何も渡さない）。そのあとのブローカーつき
 journalOf :: [Event] -> [(Broker, [Entry])]
 journalOf events = [ s | s@(_, written) <- day events, not (null written) ]
@@ -81,18 +81,18 @@ main :: IO ()
 main = hspec $ do
   -- ANCHOR: spec-journal
   describe "the journal" $ do
-    -- 日誌を当て直すと、まだ終わっていない手紙が全部そろう
+    -- ジャーナルを当て直すと、まだ終わっていない手紙が全部そろう
     it "replays into the same letters" $
       forAll (listOf arbitrary) $ \events ->
         let steps = day events
         in  contents (replay (concatMap snd steps))
               === contents (fst (last steps))
-    -- 短く書き直した日誌からも、同じ手紙がそろう
+    -- 短く書き直したジャーナルからも、同じ手紙がそろう
     it "compacts into the same letters" $
       forAll (listOf arbitrary) $ \events ->
         let broker = fst (last (day events))
         in  contents (replay (compact broker)) === contents broker
-    -- どこで切れた日誌も、読めるのは先頭の何行か。当て直すと、
+    -- どこで切れたジャーナルも、読めるのは先頭の何行か。当て直すと、
     -- その行を書いた時点の伝令所の手紙がそろう
     it "reads a journal cut anywhere as the post office at some step" $
       forAll (listOf arbitrary) $ \events ->
@@ -122,7 +122,7 @@ main = hspec $ do
 
   -- ANCHOR: spec-server
   describe "the server with a journal" $ do
-    -- ROUTED と言う前に、手紙はもう日誌にある
+    -- ROUTED と言う前に、手紙はもうジャーナルにある
     it "writes a letter down before it says ROUTED" $
       inTempDir $ \path -> withServerAt (Just path) $ \port -> do
         setUp port
@@ -202,7 +202,7 @@ main = hspec $ do
     sendBox       = snd . surely . publish "quests" box
     requeueThrice = snd . surely . answerEach (replicate 3 Requeue)
     -- 📁 A journal file in a fresh directory, gone after the test.
-    -- 新しいディレクトリーの日誌のファイル。テストのあとで消える
+    -- 新しいディレクトリーのジャーナルのファイル。テストのあとで消える
     inTempDir act = withSystemTempDirectory "minimq" $ \dir ->
       act (dir </> "minimq.journal")
     -- 🏗️ A desk, a mailbox, a binding, and one letter.

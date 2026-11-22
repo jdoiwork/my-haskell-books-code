@@ -168,7 +168,7 @@ plainQueue = QueueSettings Nothing Nothing Durable
 -- ANCHOR: entry
 -- 🪪 Every copy of a letter in a queue gets its own number, so that the
 --    journal can say "this one is finished".
--- キューに入った手紙の写しには、1通ずつ番号を付ける。日誌に
+-- キューに入った手紙の写しには、1通ずつ番号を付ける。ジャーナルに
 -- 「この手紙は終わった」と書けるように
 newtype LetterId = LetterId Int
   deriving newtype (Show, Eq, Ord, ToJSON, FromJSON)
@@ -176,7 +176,7 @@ newtype LetterId = LetterId Int
 -- 📜 One line of the journal: a fact that must outlive a crash.
 --    Handing a letter out is not written down: after a crash, every
 --    letter that was out comes back anyway.
--- 日誌の1行：落ちても残すべき事実。手紙を渡したことは書かない。
+-- ジャーナルの1行：落ちても残すべき事実。手紙を渡したことは書かない。
 -- 落ちたら、渡していた手紙は、どのみち全部戻ってくるから
 data Entry
   = MadeQueue    QueueName QueueSettings

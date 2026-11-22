@@ -51,7 +51,7 @@ data Broker = Broker
   , nextNo    :: !Int       -- ^ new: the next letter's number
                             --   次の手紙の番号
   , notes     :: ![Entry]   -- ^ new: what to write down, newest first
-                            --   日誌に書くこと（新しい順）
+                            --   ジャーナルに書くこと（新しい順）
   }
   deriving (Show, Eq)
 
@@ -233,7 +233,7 @@ giveUp held broker =
 -- ANCHOR: notes
 -- 📥 A new letter comes into a queue: a fresh number, a fresh envelope,
 --    and a line for the journal.
--- 新しい手紙がキューに入る：新しい番号、新しい封筒、日誌に1行
+-- 新しい手紙がキューに入る：新しい番号、新しい封筒、ジャーナルに1行
 store :: Message -> QueueName -> Broker -> Broker
 store message name broker =
   noteFor name (Stored name number message) $
@@ -260,7 +260,7 @@ noteFor name entry broker =
     _                                            -> broker
 
 -- 📤 The server takes the notes out (oldest first) to write them down.
--- サーバーが覚え書きを（古い順に）取り出して、日誌に書く
+-- サーバーが覚え書きを（古い順に）取り出して、ジャーナルに書く
 takeNotes :: Broker -> ([Entry], Broker)
 takeNotes broker = (reverse (notes broker), broker { notes = [] })
 -- ANCHOR_END: notes
@@ -270,7 +270,7 @@ takeNotes broker = (reverse (notes broker), broker { notes = [] })
 --    that were finished; then replay everything else. Letters that were
 --    out when the lights went off come back as "again": someone may
 --    have seen them.
--- 日誌から、ブローカーを作り直す。まず、終わった手紙を見つける。
+-- ジャーナルから、ブローカーを作り直す。まず、終わった手紙を見つける。
 -- それ以外を、最初から当て直す。明かりが消えたとき渡していた手紙は、
 -- again として戻る（誰かが見たかもしれないから）
 replay :: [Entry] -> Broker
@@ -297,7 +297,7 @@ restore entry broker = case entry of
 -- ANCHOR: compact
 -- 🧹 The shortest journal that builds the same broker: what exists now,
 --    and the letters not yet finished (waiting or out).
--- 同じブローカーを作れる、いちばん短い日誌：今あるものと、
+-- 同じブローカーを作れる、いちばん短いジャーナル：今あるものと、
 -- まだ終わっていない手紙（待っているものも、渡しているものも）
 compact :: Broker -> [Entry]
 compact broker =

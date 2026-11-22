@@ -2,7 +2,7 @@
 -- ANCHOR: header
 -- | The journal: one JSON line per transaction, written by a single
 --   writer, read back (and made short again) when the broker starts.
--- 日誌：取引1つにつき JSON を1行。書き係は1人だけ。
+-- ジャーナル：取引1つにつき JSON を1行。書き係は1人だけ。
 -- ブローカーが始まるときに読み戻し、短く書き直す
 module MiniMq.Journal
   ( Journal
@@ -35,7 +35,7 @@ import MiniMq.Types
 -- 📒 The journal as the server sees it: lines waiting for the writer,
 --    how many lines were handed in, and how many are safe on disk.
 --    One line holds everything one transaction changed.
--- サーバーから見た日誌：書き係を待っている行、手渡した行の数、
+-- サーバーから見たジャーナル：書き係を待っている行、手渡した行の数、
 -- ディスクに無事に書けた行の数。1行には、1つの取引で変えたことを全部
 data Journal = Journal
   { waitingLines :: TQueue [Entry]
@@ -98,8 +98,8 @@ loadJournal path = do
 -- 🧹 Write a whole new journal next to the old one, then swap them.
 --    A crash in the middle leaves the old journal as it was. The new
 --    journal goes in whole, so each entry may have a line of its own.
--- 新しい日誌を、古いものの隣に丸ごと書いてから、入れ替える。
--- 途中で落ちても、古い日誌はそのまま残る。新しい日誌は丸ごと
+-- 新しいジャーナルを、古いものの隣に丸ごと書いてから、入れ替える。
+-- 途中で落ちても、古いジャーナルはそのまま残る。新しいジャーナルは丸ごと
 -- 入れ替わるので、1行に1つずつ書いてよい
 rewriteJournal :: FilePath -> [Entry] -> IO ()
 rewriteJournal path entries = do

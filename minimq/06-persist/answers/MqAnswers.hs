@@ -19,8 +19,8 @@ wasted entries = length entries - length (compact (replay entries))
 -- ANCHOR: worth
 -- ⚖️ Step 3: compact when more than `share` of the journal is waste,
 --    but not for a tiny journal.
--- ステップ3：日誌の share より多くがむだなら、書き直す。
--- ただし、小さな日誌は、そのままでよい
+-- ステップ3：ジャーナルの share より多くがむだなら、書き直す。
+-- ただし、小さなジャーナルは、そのままでよい
 worthCompacting :: Double -> [Entry] -> Bool
 worthCompacting share entries =
   length entries >= 100

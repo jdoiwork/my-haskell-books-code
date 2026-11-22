@@ -42,7 +42,7 @@ import MiniMq.Wire
 
 -- ANCHOR: env
 -- 🎒 What the server carries: the broker, and now its journal.
--- サーバーが持ち回るもの：ブローカーと、新しく日誌
+-- サーバーが持ち回るもの：ブローカーと、新しくジャーナル
 data Env = Env
   { brokerVar :: TVar Broker
   , journal   :: Journal
@@ -52,7 +52,7 @@ data Env = Env
 --    short, and keep a writer running while the server lives. If the
 --    writer falls (a full disk, say), `link` makes the server fall too,
 --    with the reason, instead of waiting for the disk forever.
--- 日誌（があれば）を読んでブローカーを作り直し、短く書き直してから、
+-- ジャーナル（があれば）を読んでブローカーを作り直し、短く書き直してから、
 -- サーバーが動いているあいだ、書き係を動かし続ける。書き係が倒れたら
 -- （ディスクがいっぱい、など）、link で、サーバーも理由つきで倒れる。
 -- 来ない書き込みを、いつまでも待ったりしない
@@ -76,7 +76,7 @@ withEnv path action = do
 --    transaction. If the core
 --    says no, throw the error: the whole transaction is undone.
 -- 純粋な核の一歩を、みんなのブローカーで動かし、核が書いた覚え書きを、
--- 同じ取引の中で日誌に手渡す。核が「だめ」と言ったら、エラーを投げる。
+-- 同じ取引の中でジャーナルに手渡す。核が「だめ」と言ったら、エラーを投げる。
 -- 取引は丸ごと、なかったことになる
 step :: Env -> (Broker -> Either BrokerError (a, Broker)) -> STM a
 step env core = do
@@ -276,7 +276,7 @@ withGuests body = do
 --    Stopping it cleans up as usual (the journal file is closed), so
 --    starting it again is a restart, not a pulled plug.
 -- テスト用：空いているポートで動き、テストが終わると止まるサーバー。
--- 止めるときは、いつもどおり後片付けをする（日誌のファイルも閉じる）。
+-- 止めるときは、いつもどおり後片付けをする（ジャーナルのファイルも閉じる）。
 -- だから、もう一度起動するのは、電源を抜いたあとではなく、再起動
 withServerAt :: Maybe FilePath -> (PortNumber -> IO a) -> IO a
 withServerAt path action =
