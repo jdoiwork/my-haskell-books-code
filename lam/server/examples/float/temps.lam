@@ -1,0 +1,40 @@
+-- 🌡️ The temperatures of a week in winter, in Celsius.
+-- 冬の1週間の気温（摂氏）
+--   lam examples/float/temps.lam
+
+-- ANCHOR: temps
+-- A minus right before a number: a negative number. -1 is a Float
+-- here, as the others are.
+-- 数の直前のマイナスは、負の数。-1 も、ほかと同じく Float
+temps : [Float]
+temps = [-3.5, -1, 0.5, 2, -0.5, 4.5, 1]
+-- ANCHOR_END: temps
+
+-- ANCHOR: average
+-- 📊 The average: the sum, divided by how many. / is for Floats, so
+--    the length (an Int) is made a Float first.
+-- 平均：合計を数で割る。/ は Float の割り算なので、長さ（Int）を先に
+-- Float にする
+average : [Float] -> Float
+average xs = sum xs / toFloat (length xs)
+-- ANCHOR_END: average
+
+-- ANCHOR: lowest
+-- ⬇️ The lowest and the highest: Nothing for an empty list.
+-- いちばん低い・高い。空のリストなら Nothing
+lowest : [Float] -> Maybe Float
+lowest xs =
+  case xs of
+    | [] -> Nothing
+    | x : rest -> Just (foldl min x rest)
+
+highest : [Float] -> Maybe Float
+highest xs =
+  case xs of
+    | [] -> Nothing
+    | x : rest -> Just (foldl max x rest)
+-- ANCHOR_END: lowest
+
+-- ANCHOR: main
+(Float.fixed 2 (average temps), lowest temps ?: 0, highest temps ?: 0)
+-- ANCHOR_END: main

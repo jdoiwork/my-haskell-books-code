@@ -1,0 +1,1 @@
+lam prune.lam --help

@@ -1,0 +1,1 @@
+--print-script -an --begin 0 -e 'acc + (String.toInt (field 2) ?: 0)' --end print

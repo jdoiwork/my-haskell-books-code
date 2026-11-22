@@ -1,0 +1,40 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🧹 A slow save, cut by a time limit. The half-written file must not
+--    stay: defer cleans it up, even when the job is cancelled.
+--      lam partial.lam
+-- 遅い保存を、制限時間で切る。書きかけのファイルは残してはいけない：
+-- 仕事が取り消されても、defer が片付ける
+
+-- ANCHOR: save
+-- 💾 Write to report.txt.part first, and give it its real name only
+--    at the end. If anything stops on the way, the part is removed.
+-- まず report.txt.part に書き、最後にだけ本当の名前を付ける。途中で
+-- 何かが止まったら、書きかけを消す
+save : String -> IO (Result String ())
+save path = do
+  let part = f"{path}.part"
+  writeFile part "the first half..." ?
+  defer File.remove part
+  -- The rest takes long (a slow disk, a slow server).
+  -- 残りに時間がかかる（遅いディスク、遅いサーバー）
+  sleep 2000
+  writeFile part "the first half... and the second half." ?
+  File.rename part path ?
+  pure (Ok ())
+-- ANCHOR_END: save
+
+-- ANCHOR: main
+main : IO (Result String ())
+main = do
+  r <- IO.timeout 300 (save "report.txt")
+  case r of
+    | Just _ -> putStrLn "saved"
+    | Nothing -> putStrLn "no time: the save was cancelled"
+  -- What is left of the report?
+  -- 報告のファイルは、何が残っている？
+  names <- File.list "." ?
+  print (filter (String.startsWith "report") names)
+  pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

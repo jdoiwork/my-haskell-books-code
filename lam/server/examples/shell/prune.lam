@@ -1,0 +1,99 @@
+-- ANCHOR: all
+-- ANCHOR: options
+-- 🧭 What the command line can say.
+-- コマンドラインで言えること
+type alias Options =
+  { --- The branch the others were merged into
+    -- ほかのブランチを取りこんだブランチ
+    base : String = "main"
+    --- Delete them all without asking
+    -- 聞かずに全部消す
+  , yes : Bool
+  , alias y = yes
+    --- Choose the one to delete
+    -- 消すものを1つ選ぶ
+  , pick : Bool
+  }
+-- ANCHOR_END: options
+
+-- ANCHOR: find
+-- 🌿 The branches that can go: merged into the base, but not the base
+--    itself, and not the one we are on.
+-- 消してよいブランチ：base に取りこみ済みで、base そのものでも、
+-- いまいるブランチでもないもの
+mergedInto : String -> IO (Result String [String])
+mergedInto base = do
+  current <- Shell.out $"git branch --show-current" ?
+  names <- Shell.lines
+    $"git branch --merged {base} --format=%(refname:short)" ?
+  pure (Ok (filter (\n -> n /= base && n /= current) names))
+
+-- 🗂️ One row of the table: the branch, who touched it last, and when
+--    (? if git could not say).
+-- 表の1行：ブランチ、最後に触った人、その日（git が言えなければ ?）
+rowOf : String -> IO [String]
+rowOf name = do
+  last <- Shell.out $"git log -1 --format=%an%x09%cs {name}"
+  pure (name : String.split "\t" (last ?: "?\t?"))
+-- ANCHOR_END: find
+
+-- ANCHOR: choose
+-- ❓ Which ones to delete: the one picked, all of them (with --yes, or
+--    after a yes), or none.
+-- どれを消すか：選んだ1つ、全部（--yes か、はいと答えたら）、なし
+choose : Options -> [String] -> IO [String]
+choose opts names =
+  if opts.pick
+    then do
+      picked <- Term.select "delete which?" names
+      pure (case picked of
+        | Just name -> [name]
+        | Nothing -> [])
+    else if opts.yes
+      then pure names
+      else do
+        sure <- Term.confirm f"delete {length names} branches?"
+        pure (if sure then names else [])
+-- ANCHOR_END: choose
+
+-- ANCHOR: delete
+-- 🗑️ Delete them one by one, with a bar of progress on a terminal.
+--    git branch -d refuses a branch that is not merged: ? stops there.
+-- 1つずつ消す。端末なら、進み具合の棒も。git branch -d は、取りこんで
+-- いないブランチを断る。? はそこで止まる
+deleteAll : Int -> [(Int, String)] -> IO (Result String ())
+deleteAll total pairs =
+  case pairs of
+    | [] -> pure (Ok ())
+    | (i, name) : rest -> do
+        Shell.ok $"git branch -d {name}" ?
+        Term.progress (i + 1) total name
+        deleteAll total rest
+-- ANCHOR_END: delete
+
+-- ANCHOR: prune
+-- 🧹 Show them, choose, delete.
+-- 見せて、選んで、消す
+prune : Options -> [String] -> IO (Result String ())
+prune opts names = do
+  rows <- mapM rowOf names
+  Term.say (Term.table ["branch", "author", "date"] rows)
+  chosen <- choose opts names
+  deleteAll (length chosen) (indexed chosen) ?
+  Term.say (Term.green f"deleted {length chosen} of {length names}")
+  pure (Ok ())
+-- ANCHOR_END: prune
+
+-- ANCHOR: main
+--- Delete the branches merged into the base branch.
+-- base に取りこみ済みのブランチを消す
+main : Options -> IO (Result String ())
+main opts = do
+  names <- mergedInto opts.base ?
+  if null names
+    then do
+      Term.say "nothing to delete"
+      pure (Ok ())
+    else prune opts names
+-- ANCHOR_END: main
+-- ANCHOR_END: all

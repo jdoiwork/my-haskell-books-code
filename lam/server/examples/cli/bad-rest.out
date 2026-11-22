@@ -1,0 +1,2 @@
+in main: the argument FROM takes all the rest, so it must be the last
+[exit 1]

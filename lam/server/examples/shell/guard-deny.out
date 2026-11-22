@@ -1,0 +1,2 @@
+error: git: needs --allow-run=git
+[exit 1]

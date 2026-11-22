@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- ✏️ The infixl line calls addPrise: a typo of addPrice.
+-- infixl の行が呼ぶのは addPrise。addPrice の書きまちがい
+addPrice a b = a + b
+
+infixl 7 addPrise as <+>
+
+1 <+> 2
+-- ANCHOR_END: all

@@ -1,0 +1,4 @@
+https://pokeapi.co/api/v2/pokemon/pikachu 200 web/pikachu.json
+https://pokeapi.co/api/v2/pokemon-species/pikachu 200 web/pikachu-species.json
+https://pokeapi.co/api/v2/pokemon/nosuchmon 404 web/not-found.json
+https://pokeapi.co/api/v2/pokemon-species/nosuchmon 404 web/not-found.json

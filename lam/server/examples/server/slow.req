@@ -1,0 +1,3 @@
+0 GET /slow
+0 GET /fast
+100 GET /fast

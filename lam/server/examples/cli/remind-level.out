@@ -1,0 +1,4 @@
+error: --level needs quiet, normal or loud, not "shout"
+Usage: remind.lam [OPTIONS] WHAT AT
+Try "remind.lam --help" for help.
+[exit 2]

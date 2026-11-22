@@ -1,0 +1,4 @@
+average of [1, 2, 3]: 2
+average of []: no answer
+average of [4, 6]: no answer
+actor <pid #1> crashed: examples/channels/Average.lam:16:24: divided by zero

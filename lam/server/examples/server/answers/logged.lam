@@ -1,0 +1,23 @@
+-- ANCHOR: all
+-- 📜 Step 1: a log for every request. logged takes a handler and gives
+--    a handler: the same type, so it goes around any of them.
+--   lam answers/logged.lam
+-- ステップ1：頼みごとごとのログ。logged は handler を受け取って handler を
+-- 返す。同じ型なので、どの handler にもかぶせられる
+
+-- ANCHOR: logged
+logged : (Request -> IO Response) -> Request -> IO Response
+logged handler req = do
+  done <- IO.timed (handler req)
+  ms <- pure (round (done.seconds * 1000.0) ?: 0)
+  ePutStrLn f"{req.method} {req.path} -> {done.value.status} ({ms} ms)"
+  pure done.value
+-- ANCHOR_END: logged
+
+slowly : Request -> IO Response
+slowly req = do
+  sleep (if req.path == "/slow" then 300 else 10)
+  pure (Response.text 200 "done\n")
+
+main = Http.serve 8080 (logged slowly)
+-- ANCHOR_END: all

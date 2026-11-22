@@ -1,0 +1,1 @@
+-i.bak -pe 's/colour/color/g' examples/oneliner/notes.txt

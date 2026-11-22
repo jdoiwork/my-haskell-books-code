@@ -1,0 +1,28 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🧵 Start the slow part, do something else, and wait for it later:
+--    like go in Go.
+--      lam spawn.lam
+-- 遅い仕事を始めておき、ほかのことをして、あとで待つ：Go の go のように
+import Dex (Mon, fetch, line)
+
+-- ANCHOR: main
+main : IO ()
+main = do
+  -- Start, and go on at once.
+  -- 始めて、すぐに先へ
+  task <- spawn (IO.all (map fetch ["pikachu", "eevee", "snorlax"]))
+  -- Meanwhile: read the party from a file.
+  -- そのあいだに：パーティーをファイルから読む
+  party <- readFile "party.txt"
+  case party of
+    | Ok text -> putStrLn f"party: {join ", " (lines text)}"
+    | Err e -> ePutStrLn e
+  -- Now we need the answers.
+  -- ここで答えが要る
+  results <- await task
+  forEach results (\r -> case r of
+    | Ok m -> putStrLn (line m)
+    | Err e -> ePutStrLn e)
+-- ANCHOR_END: main
+-- ANCHOR_END: all

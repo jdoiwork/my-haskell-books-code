@@ -1,0 +1,6 @@
+examples/operators/broken/mixed.lam:6:13:
+  |
+6 | 3 |> double <| 4
+  |             ^
+cannot mix |> and <| without parentheses (they lean different ways)
+

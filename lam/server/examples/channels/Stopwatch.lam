@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- ⏱️ How long since a start, in seconds (for the examples of this
+--    chapter).
+-- 始めてからの秒数（この章の例のため）
+module Stopwatch exposing (since)
+
+since : Time -> IO Float
+since start = do
+  now <- Time.now
+  pure (toFloat (Time.toMillis now - Time.toMillis start) / 1000)
+-- ANCHOR_END: all

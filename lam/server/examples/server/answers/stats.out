@@ -1,0 +1,5 @@
+<- GET / 200 hi
+<- GET /todos 200 hi
+<- GET / 200 hi
+<- GET / 200 hi
+<- GET /stats 200 {"/":3,"/todos":1}

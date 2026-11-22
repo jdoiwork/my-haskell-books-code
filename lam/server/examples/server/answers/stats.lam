@@ -1,0 +1,35 @@
+-- ANCHOR: all
+-- 🔢 Step 2: count the requests for each path, in an actor, and show
+--    the counts at /stats. Requests that come at once are counted one
+--    by one, so no count is lost.
+--   lam answers/stats.lam
+-- ステップ2：道ごとに頼みを数える。数えるのはアクターで、/stats で見せる。
+-- 同時に来た頼みも1つずつ数えるので、数がなくならない
+
+-- ANCHOR: counter
+data Count = Seen String | Tell (Pid (Map String Int))
+
+counter : Map String Int -> Pid Count -> IO ()
+counter counts me =
+  receive me
+    | Seen path -> counter (Map.insertWith (+) path 1 counts) me
+    | Tell reply -> do
+        reply ! counts
+        counter counts me
+-- ANCHOR_END: counter
+
+-- ANCHOR: counted
+counted : Pid Count -> (Request -> IO Response) -> Request -> IO Response
+counted box handler req =
+  if req.path == "/stats" then do
+    counts <- Actor.call box Tell
+    pure (Response.json 200 (JObj (Map.map JInt counts)))
+  else do
+    box ! Seen req.path
+    handler req
+-- ANCHOR_END: counted
+
+main = do
+  box <- Actor.spawn (counter {})
+  Http.serve 8080 (counted box (\_ -> pure (Response.text 200 "hi\n")))
+-- ANCHOR_END: all

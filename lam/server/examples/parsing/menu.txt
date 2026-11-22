@@ -1,0 +1,8 @@
+group "Lam Shop" {
+  item "T-shirt, large" 2500
+  item "mug" 1200
+  group "stickers" {
+    item "λ" 100
+    item "Haskell, purple" 150
+  }
+}

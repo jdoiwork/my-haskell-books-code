@@ -1,0 +1,10 @@
+Usage: todo.lam add [OPTIONS] TITLE
+
+  Add a thing to do
+
+Arguments:
+  TITLE  What to do  [required]
+
+Options:
+  -t, --tag STRING  A tag to find it by  [can repeat]
+  --help            Show this message and exit

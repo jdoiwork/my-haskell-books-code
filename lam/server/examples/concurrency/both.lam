@@ -1,0 +1,16 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 👯 Two things of different types, at once.
+--      lam both.lam
+-- 型のちがう2つを、同時に
+import Dex (Mon, fetch, line)
+
+main : IO ()
+main = do
+  pair <- IO.both (fetch "pikachu") (readFile "party.txt")
+  case pair of
+    | (Ok m, Ok text) ->
+        putStrLn f"{line m}, in a party of {length (lines text)}"
+    | (Err e, _) -> ePutStrLn e
+    | (_, Err e) -> ePutStrLn e
+-- ANCHOR_END: all

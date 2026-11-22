@@ -1,0 +1,12 @@
+lam: unknown flag: -x
+usage: lam [flags] [file args...]
+       lam compile [flags] FILE.lam [-o NAME]
+  --allow-net[=hosts]      --allow-read[=folders]
+  --allow-write[=folders]  --allow-env[=names]
+  --allow-run[=commands]   --deny-all
+  --trace  --dry-run  --seed=n
+       lam [flags] [-n|-p] [-a] [-F regex] [-i[.bak]] [-M module]
+           [--begin expr] [--end expr] [--json|--jsonl] [--path=keys]
+           [--as=Type] [--decoding=strict|replace|ignore]
+           [--print-script[=cli|plain]] -e 'program' [files...]
+[exit 2]

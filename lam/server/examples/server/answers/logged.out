@@ -1,0 +1,6 @@
+GET /fast -> 200 (10 ms)
+GET /fast -> 200 (10 ms)
+GET /slow -> 200 (300 ms)
+<- GET /fast 200 done
+<- GET /fast 200 done
+<- GET /slow 200 done

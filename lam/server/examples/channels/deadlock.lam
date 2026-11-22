@@ -1,0 +1,13 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🧊 The sender forgot to close the channel. main waits for more,
+--    forever.
+--      lam deadlock.lam
+-- 送り手が、チャネルを閉じ忘れた。main は、次の値をいつまでも待つ
+main = do
+  c <- Chan.new 0
+  _ <- spawn (forEach [1, 2, 3] (Chan.send c))
+  Chan.forEach c (\n -> putStrLn f"got {n}")
+  -- 「全部終わり」（ここまで来ない）
+  putStrLn "all done"
+-- ANCHOR_END: all
