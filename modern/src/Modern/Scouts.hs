@@ -22,7 +22,7 @@ import Data.IORef (IORef, atomicModifyIORef')
 
 -- ANCHOR: scout
 -- 📒 Where the scouts write when they come back.
--- 偵察から戻った者が書きこむ帳面
+-- 偵察から戻った者が名前を書きこむ報告帳
 type Report = IORef [String]
 
 -- 🧭 A scout walks for some milliseconds, then reports.
