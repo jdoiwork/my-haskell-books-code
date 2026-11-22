@@ -1,0 +1,8 @@
+Usage: release.lam [OPTIONS]
+
+  Release the next version of the workshop's Lam.
+
+Options:
+  --level LEVEL  Raise the version by this (none: as the commits say)
+  -y, --yes      Release without asking
+  --help         Show this message and exit

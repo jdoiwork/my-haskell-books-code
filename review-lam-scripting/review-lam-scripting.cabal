@@ -1,0 +1,25 @@
+cabal-version: 3.0
+name:          review-lam-scripting
+version:       0.1.0.0
+build-type:    Simple
+
+-- 「第15部のふりかえり」の総合トレーニング：工房のリリースの手伝い。
+-- スクリプトは release/ の Lam のファイル。ここにあるのは、それを
+-- 偽物の世界で動かすテストだけ
+
+test-suite review-lam-scripting-test
+  default-language: GHC2024
+  ghc-options:      -Wall
+  type:             exitcode-stdio-1.0
+  main-is:          Spec.hs
+  hs-source-dirs:   test
+  build-depends:
+    , base               >=4.20 && <5
+    , bytestring         ^>=0.12
+    , containers         ^>=0.8
+    , cryptohash-sha256  ^>=0.11.102
+    , base16-bytestring  ^>=1.0
+    , hspec              ^>=2.11
+    , lam
+    , QuickCheck         ^>=2.19
+    , text               ^>=2.1

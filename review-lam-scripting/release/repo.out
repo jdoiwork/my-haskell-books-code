@@ -1,0 +1,7 @@
+e9f964a feat: show the time with --trace
+5ec7391 chore: tidy the examples
+0d8c6e1 fix: keep the file when -i stops
+d72e42e docs: explain --print-script
+01126df fix(表): count a kanji as two columns
+c6a5945 feat(shell): pass a value as one word
+1a40cc3 feat(oneliner): run Lam in one line, like Perl

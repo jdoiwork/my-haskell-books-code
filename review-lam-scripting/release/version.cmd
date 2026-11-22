@@ -1,0 +1,1 @@
+lam < version.txt

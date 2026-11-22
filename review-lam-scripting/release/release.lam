@@ -1,0 +1,139 @@
+-- ANCHOR: all
+-- 🚀 Make a release of the workshop: read the commits since the last
+--    tag, raise the version, write the notes and lam.toml, make the
+--    archive and its fingerprint, then commit and tag.
+--   lam --allow-run=git release.lam --yes
+-- 工房のリリースを作る：最後のタグからのコミットを読み、版を上げ、記録と
+-- lam.toml を書き、固めたファイルとその指紋を作って、コミットとタグ
+
+import Version (Version (..), Level (..), Entry, (+.))
+
+-- ANCHOR: options
+-- 🧭 What the command line can say.
+-- コマンドラインで言えること
+type alias Options =
+  { --- Raise the version by this (none: as the commits say)
+    -- 版をこれだけ上げる（なければ、コミットの言うとおり）
+    level : Maybe Level
+    --- Release without asking
+    -- 聞かずにリリースする
+  , yes : Bool
+  , alias y = yes
+  }
+-- ANCHOR_END: options
+
+-- ANCHOR: read
+-- 🔎 What happened since the last release: its tag, the version in
+--    lam.toml (they must agree), and the entries of the commits.
+-- 最後のリリースからのこと：タグ、lam.toml の版（2つは同じはず）、
+-- コミットの記録
+type alias Since = { tag : String, current : Version, entries : [Entry] }
+
+since : IO (Result String Since)
+since = do
+  tag <- Shell.out $"git describe --tags --abbrev=0" ?
+  toml <- readFile "lam.toml" ?
+  current <- pure (Version.fromToml toml) ?
+  tagged <- pure (Version.parse tag) ?
+  if tagged /= current
+    then pure (Err f"lam.toml says {current}, but the last tag is {tag}")
+    else do
+      subjects <- Shell.lines $"git log --reverse --format=%s {tag}..HEAD" ?
+      pure (Ok { tag = tag, current = current,
+                 entries = Version.entriesOf subjects })
+-- ANCHOR_END: read
+
+-- ANCHOR: next
+-- ⬆️ The level: the one given, or the biggest the entries say.
+-- 上げる大きさ：言われたもの、なければ記録の言ういちばん大きいもの
+levelFor : Options -> [Entry] -> Result String Level
+levelFor opts entries =
+  case opts.level of
+    | Just level -> Ok level
+    | Nothing ->
+        Result.fromMaybe "nothing to release (no feat: or fix: since then)"
+          (maximum (map Version.levelOf entries))
+-- ANCHOR_END: next
+
+-- ANCHOR: write
+-- 💾 Write a file whole, or not at all: write it next to the old one,
+--    then rename. If anything stops on the way, the half-written file
+--    is removed (defer), and the old one is still there.
+-- ファイルを、まるごと書くか、まったく書かないか：隣に書いてから名前を
+-- 付け替える。途中で止まっても、書きかけは defer が消し、元のファイルは残る
+writeWhole : String -> String -> IO (Result String ())
+writeWhole path text = do
+  let draft = path ++ ".new"
+  defer File.remove draft
+  writeFile draft text ?
+  File.rename draft path
+
+-- 📰 Put the notes of the new version on top of CHANGELOG.md, under
+--    its first line (# Changelog).
+-- 新しい版の記録を、CHANGELOG.md のいちばん上（1行目の # Changelog の下）に
+addNotes : String -> String -> String
+addNotes notes old =
+  case lines old of
+    | title : rest -> join "\n" ([title, "", notes] ++ rest) ++ "\n"
+    | [] -> f"# Changelog\n\n{notes}\n"
+
+-- 🏷️ lam.toml with the new version on its version line.
+-- version の行を、新しい版にした lam.toml
+setVersion : Version -> String -> String
+setVersion v toml =
+  Regex.replaceWith re"(?m)^version = .*$" (\_ -> f"version = \"{v}\"") toml
+-- ANCHOR_END: write
+
+-- ANCHOR: archive
+-- 📦 The archive of the release, and a line of its SHA-256 for
+--    SHA256SUMS (as sha256sum writes it).
+-- リリースを固めたファイルと、その SHA-256 の行（sha256sum と同じ形）
+archive : Version -> IO (Result String String)
+archive v = do
+  let name = f"lam-{v}.tar"
+  let path = Path.join "dist" name
+  File.makeDir "dist" ?
+  Shell.ok $"git archive --format=tar --prefix=lam-{v}/ -o {path} HEAD" ?
+  digest <- Hash.file path ?
+  pure (Ok f"{Bytes.toHex digest}  {name}")
+-- ANCHOR_END: archive
+
+-- ANCHOR: release
+-- 🚀 Do the release: the files, the archive, the commit and the tag.
+-- リリースする：ファイル、固めたもの、コミットとタグ
+release : Version -> String -> IO (Result String ())
+release next notes = do
+  old <- readFile "CHANGELOG.md" ?
+  toml <- readFile "lam.toml" ?
+  writeWhole "CHANGELOG.md" (addNotes notes old) ?
+  writeWhole "lam.toml" (setVersion next toml) ?
+  Shell.ok $"git commit -q -am {f"release {next}"}" ?
+  Shell.ok $"git tag v{next}" ?
+  sum <- archive next ?
+  writeWhole "dist/SHA256SUMS" (sum ++ "\n") ?
+  Term.say (Term.green f"released {next}")
+  putStrLn sum
+  pure (Ok ())
+-- ANCHOR_END: release
+
+-- ANCHOR: main
+--- Release the next version of the workshop's Lam.
+-- 工房の Lam の、次の版をリリースする
+main : Options -> IO (Result String ())
+main opts = do
+  s <- since ?
+  level <- pure (levelFor opts s.entries) ?
+  let next = s.current +. level
+  date <- Shell.out $"git log -1 --format=%cs" ?
+  let notes = Version.notes next date s.entries
+  Term.say (Term.bold f"{s.current} -> {next} ({level})")
+  Term.say (Term.table ["kind", "scope", "change"]
+              (map (\e -> [e.kind, e.scope, e.text]) s.entries))
+  sure <- if opts.yes then pure true else Term.confirm f"release {next}?"
+  if sure
+    then release next notes
+    else do
+      Term.say (Term.yellow "nothing was changed")
+      pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

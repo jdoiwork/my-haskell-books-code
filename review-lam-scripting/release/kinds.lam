@@ -1,0 +1,27 @@
+-- ANCHOR: all
+-- 🔢 How many commits of each kind came since the last release: the
+--    one-liner of the counting, grown into a script that asks git
+--    itself.
+--   lam --allow-run=git kinds.lam
+-- 最後のリリースから、どの種類のコミットがいくつあったか。数えるワンライナー
+-- を、git に自分で聞くスクリプトに育てたもの
+
+-- 🏷️ The kind of a commit: feat(shell): ... is feat.
+-- コミットの種類：feat(shell): … は feat
+kindOf : String -> String
+kindOf subject = (s/[(!:].*//) subject
+
+-- 🔁 Count one more of its kind.
+-- その種類を1つ数える
+step : Map String Int -> String -> Map String Int
+step acc subject = Map.insertWith (+) (kindOf subject) 1 acc
+
+main : [String] -> IO (Result String ())
+main _ = do
+  tag <- Shell.out $"git describe --tags --abbrev=0" ?
+  subjects <- Shell.lines $"git log --format=%s {tag}..HEAD" ?
+  putStrLn f"since {tag}:"
+  forEach (Map.toList (foldl step Map.empty subjects))
+    (\(kind, n) -> putStrLn f"  {kind:<6}{n}")
+  pure (Ok ())
+-- ANCHOR_END: all

@@ -1,0 +1,4 @@
+feat: show the time with --trace
+fix: keep the file when -i stops
+fix(表): count a kanji as two columns
+feat(shell): pass a value as one word

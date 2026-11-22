@@ -1,0 +1,1 @@
+lam --allow-run=git --allow-read=lam.toml --allow-read=CHANGELOG.md --allow-write=CHANGELOG.md.new --allow-write=CHANGELOG.md --allow-write=lam.toml.new --allow-write=lam.toml --allow-write=dist release.lam --yes

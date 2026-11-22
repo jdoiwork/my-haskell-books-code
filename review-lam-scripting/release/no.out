@@ -1,0 +1,8 @@
+0.25.0 -> 0.26.0 (minor)
+kind  scope  change
+----  -----  ----------------------------
+feat  shell  pass a value as one word
+fix   表     count a kanji as two columns
+fix          keep the file when -i stops
+feat         show the time with --trace
+release 0.26.0? [y/N] nothing was changed

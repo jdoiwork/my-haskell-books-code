@@ -1,0 +1,14 @@
+Lam REPL. Type :help for help, :quit to quit.
+lam> lam> Version 0 26 0 : Version
+lam> Version 1 0 1 : Version
+lam> Ok (Version 0 25 0) : Result String Version
+lam> Err "unexpected end of input\nexpecting '.' or digit" : Result String Version
+lam> Err ".package.version: unexpected end of input\nexpecting '.' or digit" : Result String Version
+lam> Just { breaking = false, kind = "fix", scope = "表", text = "count a kanji as two columns" } : Maybe { breaking : Bool, kind : String, scope : String, text : String }
+lam> Nothing : Maybe { breaking : Bool, kind : String, scope : String, text : String }
+lam> [Patch, Minor] : [Level]
+lam> Just Minor : Maybe Level
+lam> Version 1 0 1 : Version
+lam> infixr 6 raise as +:
+lam> type error: the types do not fit: Level where Version is needed
+lam> 

@@ -1,0 +1,13 @@
+import Version (..)
+Version 0 25 0 +. Minor
+Version 0 25 0 +. Major +. Patch
+Version.parse "v0.25.0"
+Version.parse "0.25"
+Version.fromToml "[package]\nversion = \"0.25\""
+entryOf "fix(表): count a kanji as two columns"
+entryOf "docs: explain --print-script"
+map levelOf (entriesOf ["fix: a", "feat: b", "chore: c"])
+maximum (map levelOf (entriesOf ["fix: a", "feat: b", "chore: c"]))
+Version 0 25 0 +. Major +. Patch
+infixr 6 raise as +:
+Version 0 25 0 +: Major +: Patch

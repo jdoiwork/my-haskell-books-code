@@ -1,0 +1,144 @@
+-- ANCHOR: all
+-- 🏷️ Versions like 0.25.0, and what the commits since the last release
+--    say about the next one.
+-- 0.25.0 のような版と、最後のリリースからのコミットが、次の版について
+-- 言うこと
+module Version exposing
+  (Version (..), Level (..), Entry, raise, (+.), parse, fromToml,
+   entryOf, entriesOf, levelOf, notes)
+
+-- ANCHOR: version
+-- 🔢 A version: major, minor, patch. Comparing two versions compares
+--    major first, then minor, then patch, as the fields come.
+-- 版：major・minor・patch。2つの版をくらべると、フィールドの順に
+-- major から
+data Version = Version Int Int Int
+
+instance Display Version where
+  display v =
+    case v of
+      | Version a b c -> f"{a}.{b}.{c}"
+
+-- 🐚 A version in $"...": one word, 0.25.0.
+-- $"…" の中の版：1つの語の 0.25.0
+instance ToArgs Version where
+  toArgs v = [display v]
+
+-- 📏 How much a change moves the version, from the smallest.
+-- 変更が版をどれだけ動かすか。小さいものから
+data Level = Patch | Minor | Major
+
+instance Display Level where
+  display l =
+    case l of
+      | Patch -> "patch"
+      | Minor -> "minor"
+      | Major -> "major"
+
+instance FromArg Level where
+  fromArg s =
+    case toLower s of
+      | "patch" -> Ok Patch
+      | "minor" -> Ok Minor
+      | "major" -> Ok Major
+      | _ -> Err "patch, minor or major"
+-- ANCHOR_END: version
+
+-- ANCHOR: raise
+-- ⬆️ Raise a version by a level: 0.25.0 +. Minor is 0.26.0.
+-- 版を上げる：0.25.0 +. Minor は 0.26.0
+raise : Version -> Level -> Version
+raise v level =
+  case (v, level) of
+    | (Version a _ _, Major) -> Version (a + 1) 0 0
+    | (Version a b _, Minor) -> Version a (b + 1) 0
+    | (Version a b c, Patch) -> Version a b (c + 1)
+
+infixl 6 raise as +.
+-- ANCHOR_END: raise
+
+-- ANCHOR: parse
+-- 🧩 Read 0.25.0 (or v0.25.0, as a tag says it).
+-- 0.25.0（タグの言い方の v0.25.0 も）を読む
+version : Parser Version
+version = do
+  Parser.optional (Parser.string "v")
+  a <- Parser.int
+  Parser.string "."
+  b <- Parser.int
+  Parser.string "."
+  c <- Parser.int
+  Parser.end
+  pure (Version a b c)
+
+parse : String -> Result String Version
+parse text = Result.mapError .message (Parser.run version text)
+
+-- 📦 The version in lam.toml, read with a decoder.
+-- lam.toml の版を、Decoder で読む
+fromToml : String -> Result String Version
+fromToml text =
+  let checked s =
+        case parse s of
+          | Ok v -> Decode.succeed v
+          | Err e -> Decode.fail e in
+  let field = Decode.andThen checked Decode.string in
+  Result.mapError Decode.explain
+    (Toml.decode (Decode.at ["package", "version"] field) text)
+-- ANCHOR_END: parse
+
+-- ANCHOR: entry
+-- 📝 A commit that goes in the notes: feat(shell): ... or fix: ...
+--    (a ! before the colon breaks something).
+-- 変更の記録に入るコミット：feat(shell): … や fix: …（コロンの前の !
+-- は、何かを壊す印）
+type alias Entry = { kind : String, scope : String, text : String,
+                     breaking : Bool }
+
+commitLine =
+  re"^(?<kind>feat|fix)(?:\((?<scope>[^)]*)\))?(?<bang>!)?: (?<text>.+)$"
+
+entryOf : String -> Maybe Entry
+entryOf subject =
+  case Regex.find commitLine subject of
+    | Nothing -> Nothing
+    | Just m ->
+        let get name = Regex.named name m ?: "" in
+        Just { kind = get "kind", scope = get "scope", text = get "text",
+               breaking = get "bang" == "!" }
+
+-- 🧺 The entries among the subjects of the commits (docs: and chore:
+--    are left out).
+-- コミットの題のうち、記録に入るもの（docs: や chore: は入れない）
+entriesOf : [String] -> [Entry]
+entriesOf subjects =
+  concatMap (\s -> case entryOf s of
+                     | Just e -> [e]
+                     | Nothing -> []) subjects
+
+-- 📏 How much one entry moves the version.
+-- 1つの記録が、版をどれだけ動かすか
+levelOf : Entry -> Level
+levelOf e =
+  if e.breaking then Major
+  else if e.kind == "feat" then Minor
+  else Patch
+-- ANCHOR_END: entry
+
+-- ANCHOR: notes
+-- 📰 The notes of a release, in Markdown: features first, then fixes.
+-- リリースの記録を Markdown で：機能が先、直したものが後
+notes : Version -> String -> [Entry] -> String
+notes v date entries =
+  let item e =
+        let scope = if e.scope == "" then "" else f"**{e.scope}**: " in
+        f"- {scope}{e.text}" in
+  let section title kind =
+        case filter (\e -> e.kind == kind) entries of
+          | [] -> []
+          | some -> ["", f"### {title}", ""] ++ map item some in
+  join "\n"
+    ([f"## {v} ({date})"] ++ section "Features" "feat"
+       ++ section "Fixes" "fix")
+-- ANCHOR_END: notes
+-- ANCHOR_END: all

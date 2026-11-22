@@ -1,0 +1,1 @@
+lam release.lam --help

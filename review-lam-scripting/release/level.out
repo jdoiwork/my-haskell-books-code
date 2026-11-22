@@ -1,0 +1,13 @@
+error: --level needs patch, minor or major, not "huge"
+Usage: release.lam [OPTIONS]
+Try "release.lam --help" for help.
+[exit 2]
+0.25.0 -> 0.25.1 (patch)
+kind  scope  change
+----  -----  ----------------------------
+feat  shell  pass a value as one word
+fix   表     count a kanji as two columns
+fix          keep the file when -i stops
+feat         show the time with --trace
+released 0.25.1
+aec8841ef71f38fce8c4f7879bbda6054ac2245a49b86d3bc67b79dcb522ccd9  lam-0.25.1.tar

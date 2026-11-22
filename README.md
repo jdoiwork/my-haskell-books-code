@@ -285,6 +285,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | CLI を手軽に作る：型から作る Typer 風のオプション | [`lam/cli/`](lam/cli/)、[`lam/guard/`](lam/guard/)、[`langs/interp-cli/`](langs/interp-cli/)、[`langs/cargo/`](langs/cargo/) |
 | シェルのように：`$"…"` のコマンドと端末の見た目 | [`lam/shell/`](lam/shell/)、[`lam/cli/`](lam/cli/)、[`langs/interp-shell/`](langs/interp-shell/)、[`langs/cargo/`](langs/cargo/) |
 | ワンライナーで動かす：Perl のように | [`lam/oneliner/`](lam/oneliner/)、[`lam/shell/`](lam/shell/)、[`langs/interp-oneliner/`](langs/interp-oneliner/) |
+| 第15部のふりかえり | [`lam/oneliner/`](lam/oneliner/)、[`review-lam-scripting/`](review-lam-scripting/) |
 
 ### 第16部 Lam を仕上げる
 

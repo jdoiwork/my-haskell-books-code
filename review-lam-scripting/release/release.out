@@ -1,0 +1,34 @@
+0.25.0 -> 0.26.0 (minor)
+kind  scope  change
+----  -----  ----------------------------
+feat  shell  pass a value as one word
+fix   表     count a kanji as two columns
+fix          keep the file when -i stops
+feat         show the time with --trace
+released 0.26.0
+106072e18e65dfdeaded8e2929e0bf60d24f3b3c76e8e33a8e0a4f57223a6c73  lam-0.26.0.tar
+[package]
+name = "lam"
+version = "0.26.0"
+# Changelog
+
+## 0.26.0 (2026-11-29)
+
+### Features
+
+- **shell**: pass a value as one word
+- show the time with --trace
+
+### Fixes
+
+- **表**: count a kanji as two columns
+- keep the file when -i stops
+
+106072e18e65dfdeaded8e2929e0bf60d24f3b3c76e8e33a8e0a4f57223a6c73  lam-0.26.0.tar
+106072e18e65dfdeaded8e2929e0bf60d24f3b3c76e8e33a8e0a4f57223a6c73  dist/lam-0.26.0.tar
+22d80d0 release 0.26.0
+e9f964a feat: show the time with --trace
+v0.25.0
+v0.26.0
+error: nothing to release (no feat: or fix: since then)
+[exit 1]
