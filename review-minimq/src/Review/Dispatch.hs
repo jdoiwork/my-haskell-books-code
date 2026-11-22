@@ -99,8 +99,8 @@ runDay memory workers todo falls = withServer $ \port -> do
         done <- readIORef doneRef
         let already = Map.member (orderNo order) done
             tally   = Map.insertWith (+) (orderNo order) 1
-        -- Three workers write in this book at once: change it in one step.
-        -- 3人が同時に書く帳面なので、1回で書き換える
+        -- Three workers write in this record at once: change it in one step.
+        -- 3人が同時に書く記録なので、1回で書き換える
         when (memory == Forgetful || not already) $
           atomicModifyIORef' doneRef (\counts -> (tally counts, ()))
         unlucky <- atomicModifyIORef' tape nextLuck
