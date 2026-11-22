@@ -73,7 +73,7 @@ data Envelope = Envelope
   deriving (Show, Eq)
 
 -- 📒 One line of the book: who holds the letter, and from which queue.
--- 帳面の1行：誰が持っているか、どのキューから来たか
+-- 返事待ちの帳面の1行：誰が持っているか、どのキューから来たか
 data Pending = Pending
   { holder   :: ConsumerId
   , fromQ    :: QueueName
@@ -150,7 +150,7 @@ subscribe name broker = do
 --    (`limit` is its prefetch). The letter does not vanish: it moves
 --    into the book, under a new tag.
 -- 受け手が、もう1通持ってよいなら（limit は先に受け取れる数）、
--- 次の手紙を渡す。手紙は消えない：新しい番号札を付けて、帳面へ移る
+-- 次の手紙を渡す。手紙は消えない：新しい番号札を付けて、返事待ちの帳面へ移る
 takeNext :: ConsumerId -> Int -> QueueName -> Broker
          -> Either BrokerError (Maybe Delivery, Broker)
 takeNext who limit name broker = do
@@ -177,7 +177,7 @@ holding who = length . filter ((== who) . holder) . Map.elems . pending
 --    letter leaves the book, and: Ack forgets it; Requeue puts it back
 --    at the front, unless it has used up its tries; Reject gives it up.
 -- 受け手が返事をする。mine は、返事をしたつながりの受け手たち。その
--- 誰かが持っている手紙にだけ、返事ができる。手紙は帳面から出て、
+-- 誰かが持っている手紙にだけ、返事ができる。手紙は返事待ちの帳面から出て、
 -- それから：Ack なら忘れる。Requeue なら先頭に戻す（試せる回数を
 -- 使い切っていなければ）。Reject なら、すぐにあきらめる
 settle :: [ConsumerId] -> Settlement -> Tag -> Broker
