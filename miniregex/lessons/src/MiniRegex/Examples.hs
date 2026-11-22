@@ -606,7 +606,7 @@ triedPlaces p t = case cursorAt t 0 of
 -- ANCHOR: archive
 -- 📚 The archive: n quiet lines of the shop's book, and then the page
 --    of the old records at the end.
--- 記録の山：店の帳面の静かな行が n 行、最後に古い記録の1ページ
+-- 記録の山：店のログの静かな行が n 行、最後に古い記録の1ページ
 archive :: Int -> Text
 archive n = T.replicate n quiet <> records
   where
@@ -715,7 +715,7 @@ scanSwitchingEach k w prog limit accept tries =
 -- ANCHOR: guild
 -- 📒 The guild's book of sales: n lines, the same in every language
 --    of the chapter on measuring (code/langs/regex-benchmarks/).
--- ギルドの売り上げの帳面：n 行。測って比べる章の、どの言語でも同じもの
+-- ギルドの売り上げのログ：n 行。測って比べる章の、どの言語でも同じもの
 -- （code/langs/regex-benchmarks/）
 guildBook :: Int -> Text
 guildBook n = T.concat (map line [0 .. n - 1])

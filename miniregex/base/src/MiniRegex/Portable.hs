@@ -41,7 +41,7 @@ regexOf = makeRegex
 
 -- ANCHOR: jobs
 -- 📅 Every date in the book.
--- 帳面の日付を全部
+-- 売り上げのログの日付を全部
 datesIn :: forall r c e. Backend r c e => Text -> [Text]
 datesIn book = map whole (matchAllText dates book)
   where

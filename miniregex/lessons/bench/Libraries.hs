@@ -2,11 +2,11 @@
 -- | MiniRegex and two regex libraries of Haskell, on the same jobs:
 --   pcre2 (the C library of PCRE2 inside, without the JIT) and
 --   regex-tdfa (written in Haskell; POSIX, so no \d or \w). Each job
---   counts the matches in the guild's book of sales.
+--   counts the matches in the guild's sales log of sales.
 -- MiniRegex と、Haskell の正規表現のライブラリ2つを、同じ仕事で：
 -- pcre2（中に PCRE2 の C のライブラリ。JIT なし）と regex-tdfa（Haskell で
 -- 書かれている。POSIX なので \d や \w がない）。どの仕事も、ギルドの
--- 売り上げの帳面の中の一致を数える
+-- 売り上げのログの中の一致を数える
 module Main (main) where
 
 -- ANCHOR: imports

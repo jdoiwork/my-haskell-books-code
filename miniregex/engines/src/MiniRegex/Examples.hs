@@ -581,7 +581,7 @@ triedPlaces p t = case cursorAt t 0 of
 -- ANCHOR: archive
 -- 📚 The archive: n quiet lines of the shop's book, and then the page
 --    of the old records at the end.
--- 記録の山：店の帳面の静かな行が n 行、最後に古い記録の1ページ
+-- 記録の山：店のログの静かな行が n 行、最後に古い記録の1ページ
 archive :: Int -> Text
 archive n = T.replicate n quiet <> records
   where

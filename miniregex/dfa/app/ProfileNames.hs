@@ -17,9 +17,9 @@ import MiniRegex.Examples (guildBook, surely)
 import MiniRegex.STVM (scanVMST)
 
 -- 🔬 Two hundred times, each with a fresh copy of the field. With
---    "dates": findAll on the guild's book, ten times.
--- 200 回。毎回、欄の新しい写しで。"dates" なら、ギルドの帳面に findAll
--- を10回
+--    "dates": findAll on the guild's sales log, ten times.
+-- 200 回。毎回、欄の新しい写しで。"dates" なら、ギルドの売り上げのログに
+-- findAll を10回
 main :: IO ()
 main = do
   args <- getArgs

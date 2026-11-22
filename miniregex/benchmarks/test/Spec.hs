@@ -1165,7 +1165,7 @@ main = hspec $ do
   -- ANCHOR_END: boundedtests
 
   -- ANCHOR: guildtests
-  describe "the guild's book / ギルドの帳面" $ do
+  describe "the guild's sales log / ギルドの売り上げのログ" $ do
     -- the same text and the same counts as the other languages
     -- (code/langs/regex-benchmarks/)
     -- ほかの言語と同じ文字列、同じ件数（code/langs/regex-benchmarks/）

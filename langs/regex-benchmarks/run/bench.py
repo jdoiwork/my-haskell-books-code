@@ -16,7 +16,7 @@ ITEMS = ["herbs", "potions", "swords", "maps", "scrolls"]
 
 
 # 📒 The guild's book of sales: n lines, the same in every language.
-# ギルドの売り上げの帳面：n 行。どの言語でも同じもの
+# ギルドの売り上げのログ：n 行。どの言語でも同じもの
 def guild_book(n):
     lines = []
     for i in range(n):

@@ -13,7 +13,7 @@ const NAMES: [&str; 8] = ["Mira", "Ruby", "Lam", "GHC", "Perl", "Rust", "Python"
 const ITEMS: [&str; 5] = ["herbs", "potions", "swords", "maps", "scrolls"];
 
 // 📒 The guild's book of sales: n lines, the same in every language.
-// ギルドの売り上げの帳面：n 行。どの言語でも同じもの
+// ギルドの売り上げのログ：n 行。どの言語でも同じもの
 fn guild_book(n: usize) -> String {
     let mut text = String::new();
     for i in 0..n {

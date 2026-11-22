@@ -14,7 +14,7 @@ my @NAMES = qw(Mira Ruby Lam GHC Perl Rust Python Go);
 my @ITEMS = qw(herbs potions swords maps scrolls);
 
 # 📒 The guild's book of sales: n lines, the same in every language.
-# ギルドの売り上げの帳面：n 行。どの言語でも同じもの
+# ギルドの売り上げのログ：n 行。どの言語でも同じもの
 sub guild_book {
     my ($n) = @_;
     my $text = '';

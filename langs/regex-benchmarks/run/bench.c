@@ -23,7 +23,7 @@ static const char *ITEMS[] = {"herbs", "potions", "swords", "maps",
                               "scrolls"};
 
 // 📒 The guild's book of sales: n lines, the same in every language.
-// ギルドの売り上げの帳面：n 行。どの言語でも同じもの
+// ギルドの売り上げのログ：n 行。どの言語でも同じもの
 static char *guild_book(int n, size_t *len) {
   size_t cap = (size_t)n * 120 + 1;
   char *text = malloc(cap);

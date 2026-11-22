@@ -1207,7 +1207,7 @@ main = hspec $ do
   -- ANCHOR_END: boundedtests
 
   -- ANCHOR: guildtests
-  describe "the guild's book / ギルドの帳面" $ do
+  describe "the guild's sales log / ギルドの売り上げのログ" $ do
     -- the same text and the same counts as the other languages
     -- (code/langs/regex-benchmarks/)
     -- ほかの言語と同じ文字列、同じ件数（code/langs/regex-benchmarks/）
@@ -2141,9 +2141,9 @@ main = hspec $ do
                 (findAll re t === findAll (everywhere re) t)
                 .&&. (searchWithin 20000 re t from
                         === searchWithin 20000 (everywhere re) t from)
-    -- the guild's book: the same counts as before
-    -- ギルドの帳面：前と同じ件数
-    it "counts the same in the guild's book" $ do
+    -- the guild's sales log: the same counts as before
+    -- ギルドの売り上げのログ：前と同じ件数
+    it "counts the same in the guild's sales log" $ do
       let book  = guildBook 2000
           count = length . flip findAll book
       [ count re == count (everywhere re)

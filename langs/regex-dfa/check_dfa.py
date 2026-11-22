@@ -1,9 +1,9 @@
 # The chapter on the lazy DFA (MiniRegex): run Rust's lazy DFA
-# (regex-automata's hybrid::regex::Regex) on the guild's book, and check
+# (regex-automata's hybrid::regex::Regex) on the guild's sales log, and check
 # the counts and the sizes of the caches against the chapter's text.
 # lazy DFA の章（MiniRegex）：Rust の lazy DFA（regex-automata の
-# hybrid::regex::Regex）をギルドの帳面で動かし、件数とキャッシュの大きさを
-# 章の文とくらべて確かめる
+# hybrid::regex::Regex）をギルドの売り上げのログで動かし、件数と
+# キャッシュの大きさを章の文とくらべて確かめる
 import os
 import subprocess
 
