@@ -32,10 +32,11 @@ import MiniMq.Types
 -- ANCHOR_END: header
 
 -- ANCHOR: broker
--- 🏤 The post office. New: each queue has its settings, and there is
---    a book of letters that were handed out but not yet answered.
--- 伝令所。新しく：キューごとの設定と、「渡したけれど、まだ返事の
--- ない手紙」の帳面
+-- 🏤 The ledger of the whole post office: the sorting desks
+--    (exchanges), the mailboxes (queues), the letters waiting for an
+--    answer (pending), and the next tag and consumer numbers.
+-- 伝令所の台帳：仕分け台（交換所）、郵便受け（キュー）、
+-- 返事待ちの記録帳（pending）、次の番号札と受け手の番号
 data Broker = Broker
   { exchanges :: !(Map ExchangeName Exchange)
   , queues    :: !(Map QueueName Queue)
