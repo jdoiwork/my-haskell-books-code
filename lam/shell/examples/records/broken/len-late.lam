@@ -1,0 +1,6 @@
+-- 🐛 The same mistake, wrapped in id: check cannot see the lambda, so it
+--    finds the type first and compares it with the annotation at the end.
+-- 同じまちがいを id で包んだ。check にはラムダが見えないので、先に型を
+-- 推論して、最後に注釈と突き合わせる
+len : String -> Int
+len = id (\s -> s + 1)

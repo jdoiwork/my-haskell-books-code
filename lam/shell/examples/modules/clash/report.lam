@@ -1,0 +1,7 @@
+-- ANCHOR: all
+-- 💥 sum comes from the Prelude, and from Stats too.
+-- sum は、Prelude からも Stats からも来る
+import Stats (sum, mean)
+
+(sum [1, 2, 3], mean [1, 2, 3])
+-- ANCHOR_END: all

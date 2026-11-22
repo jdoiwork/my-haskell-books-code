@@ -1,0 +1,23 @@
+-- ANCHOR: all
+-- 🐘 Count the lines of each status, reading the whole log at once.
+--   lam slurp.lam big.log
+-- 状態コードごとに行を数える。ログを丸ごと一度に読んで
+-- ANCHOR: countLine
+-- 🧮 Count one line under its status:
+--    "2026-11-20T00:00:01Z GET /books/12 200 143ms" adds 1 to "200".
+-- 1行を、状態コードのところに数える
+countLine : Map String Int -> String -> Map String Int
+countLine counts line =
+  case words line of
+    | [_, _, _, status, _] -> Map.insertWith (+) status 1 counts
+    | _ -> counts
+-- ANCHOR_END: countLine
+
+main : [String] -> IO (Result String ())
+main args = do
+  let path = case args of | p : _ -> p | [] -> "big.log"
+  text <- readFile path ?
+  let counts = foldl countLine Map.empty (lines text)
+  forEach (Map.toList counts) (\(s, n) -> putStrLn f"{s} {n:,}")
+  pure (Ok ())
+-- ANCHOR_END: all

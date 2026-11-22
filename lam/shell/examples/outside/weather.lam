@@ -1,0 +1,38 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🌦️ The forecast for the week from Open-Meteo, kept in SQLite. Run it
+--    every day: the table grows, and a day that is forecast again shows
+--    what changed. The week is saved all at once, or not at all.
+--      lam weather.lam                (Tokyo)
+--      lam weather.lam 34.69 135.50   (latitude and longitude: Osaka)
+-- Open-Meteo の1週間の予報を SQLite に貯める。毎日動かすと表が育ち、
+-- 予報が変わった日は、何が変わったかを見せる。週は、まとめて全部
+-- 貯めるか、何も貯めないか
+--   Weather data by Open-Meteo.com (https://open-meteo.com/), CC BY 4.0
+import Forecast
+
+-- 📍 The place: Tokyo, or the latitude and the longitude given.
+-- 場所：東京か、渡された緯度と経度
+placeOf : [String] -> Result String (String, String)
+placeOf args =
+  case args of
+    | [] -> Ok ("35.68", "139.76")
+    | [lat, lon] -> Ok (lat, lon)
+    | _ -> Err "give a latitude and a longitude, or nothing for Tokyo"
+
+-- ANCHOR: main
+main : [String] -> IO (Result String ())
+main args = do
+  (lat, lon) <- pure (placeOf args) ?
+  let place = f"{lat},{lon}"
+  week <- Http.getAs Forecast.forecast (Forecast.urlFor lat lon) ?
+  Sql.withDb "weather.db" (\db -> do
+    Sql.exec db Forecast.schema [] ?
+    Sql.transaction db (Forecast.saveAll db place week) ?
+    -- The table keeps the days that are past, too.
+    -- 表には、過ぎた日も残っている
+    summary <- Forecast.kept db place ?
+    putStrLn summary
+    pure (Ok ()))
+-- ANCHOR_END: main
+-- ANCHOR_END: all

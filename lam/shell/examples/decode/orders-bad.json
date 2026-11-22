@@ -1,0 +1,9 @@
+{
+  "shop": "Lam Shop",
+  "date": "2026-11-23",
+  "orders": [
+    {"id": 1, "item": "sticker", "count": "four", "price": 300.5},
+    {"id": 2, "item": "mug", "count": 1, "price": 1200},
+    {"id": 3, "name": "T-shirt, large", "count": 2}
+  ]
+}

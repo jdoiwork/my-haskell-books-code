@@ -1,0 +1,36 @@
+-- ANCHOR: all
+-- ☑️ Step 2: choose many. The answer is numbers with spaces or commas
+--    between them ("1 3" or "1,3"); ask again while one of them is not
+--    a number of a choice. An empty answer chooses none.
+-- ステップ2：いくつも選ぶ。答えは、空白かカンマで区切った番号（"1 3" か
+-- "1,3"）。選ぶものの番号でないものがあれば、もう一度聞く。空の答えは、
+-- 何も選ばない
+numbersIn : String -> [String]
+numbersIn answer =
+  filter (\w -> w /= "") (words (String.replace "," " " answer))
+
+-- The choices with those numbers, or Nothing if one is not a number.
+-- その番号の選ぶもの。番号でないものがあれば Nothing
+picked : [String] -> [String] -> Maybe [String]
+picked choices ns =
+  mapM (\n -> Term.chosen choices n) ns
+
+askMany : String -> [String] -> IO [String]
+askMany question choices = do
+  ePutStr (question ++ " ")
+  answer <- getLine
+  case answer of
+    | Nothing -> pure []
+    | Just a -> case picked choices (numbersIn a) of
+        | Just cs -> pure cs
+        | Nothing -> askMany question choices
+
+selectMany : String -> [String] -> IO [String]
+selectMany question choices = do
+  forEach (indexed choices) (\pair -> ePutStrLn f"{fst pair + 1}) {snd pair}")
+  askMany question choices
+
+main = do
+  cs <- selectMany "delete which?" ["add-shell", "fix-typo", "機能/表"]
+  putStrLn (show cs)
+-- ANCHOR_END: all

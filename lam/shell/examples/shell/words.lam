@@ -1,0 +1,29 @@
+-- ANCHOR: all
+-- 🔤 How $"..." cuts the words. Shell.render shows a command as a
+--    person reads it: a word with a space is in '...'.
+-- $"…" が語をどう切るか。Shell.render は、コマンドを人が読む形で見せる。
+-- 空白のある語は '…' に入る
+name = "my notes.txt"
+files = ["a.txt", "b.txt"]
+limit = Just 3
+
+none : Maybe String
+none = Nothing
+
+main = do
+  -- A value is one word, even with a space in it.
+  -- 値は、空白があっても1つの語
+  putStrLn (Shell.render $"wc -l {name}")
+  -- A list is as many words as it has.
+  -- リストは、その数の語
+  putStrLn (Shell.render $"wc -l {files}")
+  -- Glued to letters, each word gets them.
+  -- 文字にくっつけると、どの語にも付く
+  putStrLn (Shell.render $"tar -cf out.tar --exclude={files}")
+  -- '...' keeps the spaces of the letters in one word.
+  -- '…' は、文字の空白ごと1つの語
+  putStrLn (Shell.render $"git commit -m 'read {name}'")
+  -- Nothing is no word at all; a format lines the value up first.
+  -- Nothing は語にならない。書式は、先に値をそろえる
+  putStrLn (Shell.render $"head -n {limit} {none} {7:03}.log")
+-- ANCHOR_END: all

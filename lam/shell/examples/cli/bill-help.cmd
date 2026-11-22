@@ -1,0 +1,1 @@
+lam bill.lam --help

@@ -1,0 +1,22 @@
+-- ANCHOR: all
+type alias Options =
+  { --- Who to greet
+    -- あいさつする相手
+    name : String
+    --- How many times
+    -- 何回
+  , count : Int = 1
+    --- Shout it
+    -- 大声で
+  , loud : Bool
+  , alias n = count
+  }
+
+--- Greet someone, as many times as you like.
+-- だれかに、好きな回数だけあいさつする
+main : Options -> IO ()
+main opts = do
+  let line = f"Hello, {opts.name}!"
+  forEach (range 1 opts.count) (\_ ->
+    putStrLn (if opts.loud then toUpper line else line))
+-- ANCHOR_END: all

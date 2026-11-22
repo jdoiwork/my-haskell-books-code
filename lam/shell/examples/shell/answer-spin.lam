@@ -1,0 +1,39 @@
+-- ANCHOR: all
+-- 🌀 Step 1: a spinner. Before each command, draw the next frame and
+--    the command in the same line (only on a terminal); clear the line
+--    at the end.
+-- ステップ1：スピナー。コマンドの前に、次のコマとコマンドを同じ行に
+-- 描く（端末だけ）。最後に行を消す
+frames = ["|", "/", "-", "\\"]
+
+frame : Int -> String
+frame i =
+  case drop (mod i 4) frames of
+    | f : _ -> f
+    | [] -> " "
+
+-- Draw a line again, on a terminal only.
+-- 端末のときだけ、行を描き直す
+redraw : Bool -> String -> IO ()
+redraw tty text =
+  if tty then putStr ("\r" ++ text ++ Term.clearLine) else pure ()
+
+spin : Bool -> Int -> [Cmd] -> IO (Result String ())
+spin tty i cmds =
+  case cmds of
+    | [] -> do
+        redraw tty ""
+        pure (Ok ())
+    | c : rest -> do
+        redraw tty f"{frame i} {Shell.render c}"
+        Shell.ok c ?
+        spin tty (i + 1) rest
+
+main : IO (Result String ())
+main = do
+  tty <- Term.isTerminal
+  let cmds = [$"git status --short", $"git log -1 --format=%s", $"git branch"]
+  spin tty 0 cmds ?
+  putStrLn "all done"
+  pure (Ok ())
+-- ANCHOR_END: all

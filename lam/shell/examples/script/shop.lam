@@ -1,0 +1,57 @@
+-- ANCHOR: all
+-- 🧾 The receipt of the shop, as a script: the file of the orders
+--    comes in the arguments. Without it, the shop tells how to use it
+--    on the standard error, and ends with exit code 2.
+-- お店のレシートを、スクリプトに。注文のファイルは引数で受け取る。
+-- なければ、使い方を標準エラーに書いて、終了コード 2 で終わる
+--   LAM_PATH=examples/modules/receipt \
+--     lam examples/script/shop.lam examples/script/orders.json
+import Receipt
+
+-- 🏷️ The price of each item, in yen.
+-- 品物ごとの値段（円）
+prices = {sticker: 300, mug: 1200, tshirt: 2500}
+
+-- 📦 One order in the JSON:  {"item": "mug", "count": 1}.
+-- JSON の注文1つ
+orderOf : Json -> Maybe (String, Int)
+orderOf j = do
+  item  <- Json.get "item" j |> Maybe.andThen Json.string
+  count <- Json.get "count" j |> Maybe.andThen Json.int
+  pure (item, count)
+
+-- 🧾 From the text of the file to the lines of the receipt.
+-- ファイルの文字から、レシートの行へ
+receiptOf : String -> Result String [String]
+receiptOf text = do
+  json   <- Json.parse text
+  -- 「注文はリストでなければなりません」
+  items  <- Json.array json |> Result.fromMaybe "the orders must be a list"
+  -- 「注文には item と count が要ります」
+  orders <- mapM orderOf items
+              |> Result.fromMaybe "each order needs an item and a count"
+  pure (Receipt.receipt prices orders)
+
+-- ANCHOR: main
+-- 🚪 The file of the orders is the first argument. The receipt goes
+--    to the standard output, so  > receipt.txt  saves it; the words
+--    for people go to the standard error.
+-- 注文のファイルは1つ目の引数。レシートは標準出力へ（> receipt.txt で
+-- 保存できる）。人への知らせは標準エラーへ
+main : [String] -> IO (Result String ())
+main args = do
+  path <- case args of
+    | [file] -> pure file
+    | _ -> do
+        -- 「使い方：shop 注文のファイル」
+        ePutStrLn "usage: shop ORDERS.json"
+        exit 2
+  -- 「開店」「閉店」
+  ePutStrLn "the shop opens"
+  defer ePutStrLn "the shop closes"
+  text  <- readFile path ?
+  lines <- pure (receiptOf text) ?
+  forEach lines putStrLn
+  pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

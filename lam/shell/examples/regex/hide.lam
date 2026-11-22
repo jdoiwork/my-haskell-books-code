@@ -1,0 +1,27 @@
+-- ANCHOR: all
+-- 🙈 Hide the phone numbers, but keep the last 4 digits.
+--   lam hide.lam
+-- 電話番号を伏せる。ただし、下の4桁は残す
+
+-- ANCHOR: phone
+-- A phone number: 2 to 4 digits, 2 to 4 digits, then 4 digits.
+-- 電話番号：2〜4桁、2〜4桁、4桁
+phone : Regex
+phone = re"\d{2,4}-\d{2,4}-(?<last>\d{4})"
+-- ANCHOR_END: phone
+
+-- ANCHOR: hide
+-- 090-1234-5678 becomes ***-****-5678: only the last 4 digits stay.
+-- 下の4桁だけを残して、伏せる
+hide : String -> String
+hide text =
+  Regex.replaceWith phone
+    (\m -> f"***-****-{Regex.named "last" m ?: ""}")
+    text
+-- ANCHOR_END: hide
+
+main : IO ()
+main = do
+  putStrLn (hide "call 080-9876-5432 or 03-1234-5678")
+  putStrLn (hide "no phone here")
+-- ANCHOR_END: all

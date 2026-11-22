@@ -1,0 +1,3 @@
+-- ANCHOR: all
+main = putStrLn
+-- ANCHOR_END: all

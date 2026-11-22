@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- 🔁 Order.lam imports Customer.lam, and Customer.lam imports
+--    Order.lam: a ring. Lam stops before it goes around forever.
+-- Order.lam が Customer.lam を、Customer.lam が Order.lam を import する
+-- 輪。Lam は、ぐるぐる回り続ける前に止まる
+import Order
+
+Order.describe (Order.Order "Lam" 3)
+-- ANCHOR_END: all
