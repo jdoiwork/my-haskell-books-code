@@ -5,6 +5,7 @@
 -- 型のちがう2つを、同時に
 import Dex (Mon, fetch, line)
 
+main : IO ()
 main = do
   pair <- IO.both (fetch "pikachu") (readFile "party.txt")
   case pair of

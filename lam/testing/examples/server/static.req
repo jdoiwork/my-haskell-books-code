@@ -1,0 +1,4 @@
+0 GET /
+10 GET /style.css
+20 GET /../secret.txt
+30 GET /nothing.html

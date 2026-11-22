@@ -1,0 +1,12 @@
+-- 🧑‍🤝‍🧑 The crew of the language workshop, as tuples:
+--    (name, language, days at the workshop).
+-- 言語工房の仲間たちを、タプルで：（名前、言語、工房に来て何日か）
+--   lam examples/records/tuples.lam
+
+-- ANCHOR: tuples
+crew = [("Python", "py", 9), ("TS", "ts", 9), ("Rust", "rs", 7)]
+
+line (name, lang, days) = name ++ " ." ++ lang ++ "  day " ++ showInt days
+-- ANCHOR_END: tuples
+
+map line crew

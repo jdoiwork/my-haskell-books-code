@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- 🧩 orderOf of shop.lam, with an ado: the two lines do not look at
+--    each other, so map and ap are enough.
+-- shop.lam の orderOf を ado で。2つの行はおたがいを見ないので、
+-- map と ap で足りる
+
+-- ANCHOR: orderOf
+orderOf : Json -> Maybe (String, Int)
+orderOf j = ado
+  item  <- Json.get "item" j |> Maybe.andThen Json.string
+  count <- Json.get "count" j |> Maybe.andThen Json.int
+  pure (item, count)
+-- ANCHOR_END: orderOf
+
+-- 📦 Two orders: the second has no count.
+-- 注文2つ。2つ目には count がない
+[ "{\"item\": \"mug\", \"count\": 1}", "{\"item\": \"sticker\"}" ]
+  |> map (\s -> Json.parse s |> Result.map orderOf)
+-- ANCHOR_END: all

@@ -1,16 +1,18 @@
+-- ANCHOR: all
 -- ⏰ The clock: now, in UTC and here, and some days from now.
 -- 時計：いまを UTC とここで、それから何日か先
---   lam clock.lam
+--   lam examples/files/clock.lam
 
 -- ANCHOR: main
-let main = do
-  now <- Time.now
+main : IO (Result String ())
+main = do
+  now  <- Time.now
   zone <- Time.here
-  putStrLn f"now (UTC):    {Time.toIso now}"
+  putStrLn f"now (UTC):    {now}"
   putStrLn f"now (here):   {Time.format zone now}"
   putStrLn f"in 30 days:   {Time.toDate zone (Time.addDays 30 now)}"
-  case Time.fromIso "2027-01-01T00:00:00+09:00" of
-    | Ok newYear ->
-        putStrLn f"to new year:  {Time.diffDays newYear now} days"
-    | Err e -> ePutStrLn e
+  newYear <- pure (Time.fromIso "2027-01-01T00:00:00+09:00") ?
+  putStrLn f"to new year:  {Time.diffDays newYear now} days"
+  pure (Ok ())
 -- ANCHOR_END: main
+-- ANCHOR_END: all

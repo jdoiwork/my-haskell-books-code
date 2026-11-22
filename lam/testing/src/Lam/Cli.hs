@@ -14,6 +14,7 @@ module Lam.Cli
   , Kind (..)
   , Reading (..)
   , Outcome (..)
+  , prepareCli
   , commandLine
   , decide
   , renderHelp
@@ -25,10 +26,10 @@ module Lam.Cli
 
 import Control.Monad (foldM, unless, when)
 import Data.Char (isUpper, toLower)
-import Data.List (partition, sortOn)
+import Data.List (partition, sort)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Read as TR
@@ -37,29 +38,27 @@ import Lam.Builtins (maybeValue)
 import Lam.Eval
 import Lam.Float (readFloat)
 import Lam.Pretty (showFloat)
-import Lam.Program (Session (..))
+import Lam.Program (MainShape (..), Session (..), mainCli, mainShape)
 import Lam.Syntax
 import Lam.Types
 -- ANCHOR_END: cliHead
 
 -- ANCHOR: cliTypes
--- 🧭 The whole command line: the name of the program, the comments
---    above main, and what it runs.
--- コマンドラインの全体：プログラムの名前、main の上のコメント、動かすもの
+-- 🧭 The whole command line: the name of the program, the help above
+--    main, and what it runs.
+-- コマンドラインの全体：プログラムの名前、main の上のヘルプ、動かすもの
 data Cli = Cli
   { cliProgram :: Text          -- greet.lam
-  , cliAbout   :: [Text]        -- the comments above main
+  , cliAbout   :: [Text]        -- the help above main
   , cliRuns    :: Runs
   }
-  deriving (Eq, Show)
 
 -- 🧭 One command (main : { … } -> IO ()), or subcommands, each with
---    its name and its comments (main : { add : …, list : … }).
--- コマンド1つか、サブコマンド（それぞれ名前とコメントを持つ）
+--    its name and its help (main : { add : …, list : … }).
+-- コマンド1つか、サブコマンド（それぞれ名前とヘルプを持つ）
 data Runs
   = One Command
   | Many [(Name, [Text], Command)]
-  deriving (Eq, Show)
 
 -- 🧭 One command: its options and arguments, in the written order.
 --    takesRecord is False for a subcommand that is an IO () alone.
@@ -69,67 +68,85 @@ data Command = Command
   { commandOpts :: [Opt]
   , takesRecord :: Bool
   }
-  deriving (Eq, Show)
 
 -- 🏷️ One field of the record: an option or an argument.
 -- レコードのフィールド1つ：オプションか引数
 data Opt = Opt
   { optField :: Name            -- dryRun
-  , optDoc   :: [Text]          -- the comments above the field
+  , optDoc   :: [Text]          -- the help above the field
   , optShort :: [Name]          -- ["d"], from  alias d = dryRun
   , optKind  :: Kind
   }
-  deriving (Eq, Show)
 
--- 🏷️ What the type (and the default) of a field make it.
--- フィールドの型（と既定値）が、それを何にするか
+-- 🏷️ What the type (and the default) of a field make it. A default
+--    is kept as a value, and as the text --help shows.
+-- フィールドの型（と既定値）が、それを何にするか。既定値は、値と、
+-- --help が見せる文字で持つ
 data Kind
-  = Argument Reading            -- name : String            NAME
-  | Rest Reading                -- files : [String]         FILES...
-  | Valued Reading Literal      -- count : Int = 1          --count INT
-  | Optional Reading            -- title : Maybe String     --title STRING
-  | Repeated Reading [Literal]  -- tag : [String] = []      --tag STRING
-  | Flag Bool                   -- loud : Bool (= true)     --loud, --no-loud
-  deriving (Eq, Show)
-
--- 🔤 How to read one word: String, Int or Float.
--- 語1つの読み方
-data Reading = AString | AnInt | AFloat
-  deriving (Eq, Show)
+  = Argument Reading                  -- name : String       NAME
+  | Rest Reading                      -- files : [String]    FILES...
+  | Valued Reading (Value, Text)      -- count : Int = 1     --count INT
+  | Optional Reading                  -- title : Maybe String
+  | Repeated Reading [(Value, Text)]  -- tag : [String] = []
+  | Flag Bool                         -- loud : Bool (= true)
 -- ANCHOR_END: cliTypes
+
+-- ANCHOR: reading
+-- 🔤 How to read one word: the name in the help (INT, LEVEL), and the
+--    method fromArg of the instance of FromArg for the type.
+-- 語1つの読み方：ヘルプでの名前（INT、LEVEL）と、その型の FromArg の
+-- インスタンスのメソッド fromArg
+data Reading = Reading
+  { readingName :: Text
+  , readWith    :: Text -> Either Text Value
+  }
+-- ANCHOR_END: reading
+
+-- ANCHOR: prepareCli
+-- 🔌 Before main starts: when main takes a record (or is a record of
+--    subcommands), make its command line, and put $main.cli into the
+--    session. Any other main goes on as it is.
+-- main を始める前に：main がレコードを受け取る（かサブコマンドの
+-- レコードな）ら、コマンドラインを作り、セッションに $main.cli を入れる。
+-- ほかの main は、そのまま
+prepareCli :: Session -> Either Text Session
+prepareCli s = case mainShape <$> Map.lookup "main" (sessionTypes s) of
+  Just shape | shape `elem` [MainOptions, MainCommands] ->
+    either (\err -> Left ("in main: " <> err)) (\cli -> Right (withCli cli s))
+      (commandLine s)
+  _ -> Right s
+-- ANCHOR_END: prepareCli
 
 -- ANCHOR: commandLine
 -- 🧭 Make the command line of a program, from the type of main and
---    its annotation (if there is one). Without an annotation there are
---    no comments or defaults, and the fields come in the order of
+--    its annotation (if there is one). Without an annotation there is
+--    no help and no default, and the fields come in the order of
 --    their names.
 -- プログラムのコマンドラインを、main の型と注釈（あれば）から作る。
--- 注釈がなければ、コメントも既定値もなく、フィールドは名前の順
-commandLine
-  :: Session -> MainShape -> FilePath -> Text -> Either Text Cli
-commandLine s shape file source = do
+-- 注釈がなければ、ヘルプも既定値もなく、フィールドは名前の順
+commandLine :: Session -> Either Text Cli
+commandLine s = do
   Forall _ _ t <- maybe (Left "there is no main") (Right . defaultNumbers)
                     (Map.lookup "main" (sessionTypes s))
-  let sig    = Map.lookup "main" (sessionSigs s)
-      known  = sessionData s
-      about  = maybe [] (\(Loc _ line _, _) -> aboutAbove source line) sig
-      shown  = fmap (\(_, Signature _ te) -> te) sig
-      record = recordSyntax known
-  runs <- case (shape, t) of
-    (MainOptions, TFun (TRecord fs _) _) ->
-      One <$> command fs (record =<< argumentOf =<< shown)
-    (MainCommands, TRecord cs _) ->
+  let (file, source) = maybe ("main.lam", "") id (sessionProgram s)
+      shown  = fmap (\(Signature _ te) -> te)
+                    (Map.lookup "main" (sessionSigs s))
+      record = recordSyntax (sessionData s)
+  runs <- case t of
+    TFun (TRecord fs _) _ ->
+      One <$> command s fs (record =<< argumentOf =<< shown)
+    TRecord cs _ ->
       fmap Many $ traverse (subcommand record) $
         inOrder cs (record =<< shown)
     _ -> Left "main does not read the command line"
-  pure (Cli (T.pack (takeName file)) about runs)
+  pure (Cli (T.pack (takeName file)) (aboutAbove source) runs)
   where
     argumentOf te = case te of
       TyFun a _ -> Just a
       _         -> Nothing
     subcommand record (f, ct) = case ct of
       TFun (TRecord fs _) _ -> do
-        c <- command fs (record =<< argumentOf (fieldType f))
+        c <- command s fs (record =<< argumentOf (fieldType f))
         pure (fieldName f, fieldDoc f, c)
       _ -> pure (fieldName f, fieldDoc f, Command [] False)
     takeName = reverse . takeWhile (/= '/') . reverse
@@ -146,18 +163,16 @@ recordSyntax known te = case te of
     recordSyntax known body
   _ -> Nothing
 
--- 📇 The fields with their types: in the written order (with the
---    comments and defaults) when the syntax is there, otherwise in the
+-- 📇 The fields with their types: in the written order (with the help
+--    and the defaults) when the syntax is there, otherwise in the
 --    order of the names.
--- フィールドと型：書いたとおりのものがあれば、その順に（コメントと
+-- フィールドと型：書いたとおりのものがあれば、その順に（ヘルプと
 -- 既定値も）。なければ、名前の順に
 inOrder :: Map Name Type -> Maybe [FieldType] -> [(FieldType, Type)]
 inOrder types written = case written of
-  Just fs | map fieldName fs `sameAs` Map.keys types ->
+  Just fs | sort (map fieldName fs) == Map.keys types ->
     [ (f, types Map.! fieldName f) | f <- fs ]
   _ -> [ (plainField x (TyCon "?" []), t) | (x, t) <- Map.toList types ]
-  where
-    sameAs xs ys = sortOn id xs == ys
 -- ANCHOR_END: recordSyntax
 
 -- ANCHOR: command
@@ -167,14 +182,14 @@ inOrder types written = case written of
 -- レコードのフィールドから、コマンド1つを作る。ここで1度だけ確かめる：
 -- どのフィールドの型も読める、残り全部を取るのは1つまで、
 -- 同じ名前のオプションが2つない
-command :: Map Name Type -> Maybe [FieldType] -> Either Text Command
-command types written = do
-  opts <- traverse option (inOrder types written)
+command :: Session -> Map Name Type -> Maybe [FieldType]
+        -> Either Text Command
+command s types written = do
+  opts <- traverse (option s) (inOrder types written)
   let positional = [ o | o <- opts, isPositional (optKind o) ]
   case dropWhile (not . isRest . optKind) positional of
-    _ : _ : _ -> Left ("the argument " <> metavar (optField (head'
-                   (filter (isRest . optKind) positional)))
-                   <> " takes all the rest, so it must be the last")
+    r : _ : _ -> Left ("the argument " <> metavar (optField r)
+                       <> " takes all the rest, so it must be the last")
     _ -> Right ()
   case [ o | o <- positional, not (null (optShort o)) ] of
     -- 「NAME は引数なので、短い名前は付けられません」
@@ -190,15 +205,13 @@ command types written = do
   when ("--help" `elem` names) $
     Left "the option --help is made by Lam (a field cannot be called help)"
   pure (Command opts True)
-  where
-    head' xs = case xs of
-      x : _ -> x
-      []    -> Opt "" [] [] (Flag False)
+-- ANCHOR_END: command
 
+-- ANCHOR: option
 -- 🏷️ One field: what its type and default make it.
 -- フィールド1つ：型と既定値が、それを何にするか
-option :: (FieldType, Type) -> Either Text Opt
-option (f, t) = Opt x (fieldDoc f) (fieldShort f) <$> kind
+option :: Session -> (FieldType, Type) -> Either Text Opt
+option s (f, t) = Opt x (fieldDoc f) (fieldShort f) <$> kind
   where
     x = fieldName f
     kind = case (t, fieldDefault f) of
@@ -206,19 +219,74 @@ option (f, t) = Opt x (fieldDoc f) (fieldShort f) <$> kind
       (TBool, Just (DefaultOne (LBool b)))  -> Right (Flag b)
       (TCon "Maybe" [a], Nothing)           -> Optional <$> reading a
       (TCon "List" [a], Nothing)            -> Rest <$> reading a
-      (TCon "List" [a], Just (DefaultList ls)) ->
-        (`Repeated` ls) <$> reading a
+      (TCon "List" [a], Just (DefaultList ds)) ->
+        Repeated <$> reading a <*> traverse (defaultOf a) ds
       (_, Nothing)                          -> Argument <$> reading t
-      (_, Just (DefaultOne l))              -> (`Valued` l) <$> reading t
-      _ -> Left ("the default of " <> x <> " does not fit its type")
-    -- 「--when の型 Time は、コマンドラインから読めません」
-    reading a = case a of
-      TInt                -> Right AnInt
-      TCon "Float" []     -> Right AFloat
-      TCon "String" []    -> Right AString
-      _ -> Left ("the field " <> x <> " has the type " <> renderType t
-                 <> ", which cannot be read from the command line")
--- ANCHOR_END: command
+      (_, Just d)                           ->
+        Valued <$> reading t <*> defaultOf t d
+    reading a = readingFor s x t a
+    defaultOf a d = defaultValueOf s a d
+-- ANCHOR_END: option
+
+-- ANCHOR: readingFor
+-- 🔤 How to read a word as type a: by the instance of FromArg for a.
+--    There is one for String, Int and Float in the module Cli, and a
+--    program may write one for its own type (instance FromArg Level).
+--    The dictionary is found once, here, before main starts.
+-- 語を型 a として読む方法：a の FromArg のインスタンスで。String・Int・
+-- Float のものはモジュール Cli にあり、プログラムは自分の型のものを
+-- 書ける。辞書は、main を始める前に、ここで1度だけ探す
+readingFor :: Session -> Name -> Type -> Type -> Either Text Reading
+readingFor s x whole a =
+  case dictFor (sessionData s) [] (Declared "FromArg") a of
+    -- 「--when の型 Time は、コマンドラインから読めません
+    --  （FromArg のインスタンスがありません）」
+    Left _ -> Left ("the field " <> x <> " has the type "
+                    <> renderType whole
+                    <> ", which cannot be read from the command line "
+                    <> "(there is no instance FromArg "
+                    <> renderType a <> ")")
+    Right dict -> Right (Reading (nameOf a) (readBy dict))
+  where
+    readBy dict w =
+      let call = App (Field dict "fromArg") (Lit (LString w))
+      in case eval (sessionValues s) call of
+        Right (VCon "Ok" _ [v])            -> Right v
+        Right (VCon "Err" _ [VString msg]) -> Left msg
+        Right other                        -> Left (renderValue other)
+        Left err                           -> Left (renderError err)
+    nameOf ty = case ty of
+      TInt      -> "INT"
+      TCon c _  -> T.toUpper c
+      _         -> "VALUE"
+
+-- 🎚️ The value of a default, and its text in --help. A whole number
+--    for a Float is a Float; a constructor (Normal) is its value.
+-- 既定値の値と、--help での文字。Float の整数は Float、構成子（Normal）
+-- は、その値
+defaultValueOf :: Session -> Type -> Default -> Either Text (Value, Text)
+defaultValueOf s t d = case d of
+  DefaultOne l -> Right (literalValue t l, shownLiteral l)
+  DefaultCon c -> case eval (sessionValues s) (Var c) of
+    Right v  -> Right (v, c)
+    Left err -> Left (renderError err)
+  DefaultList _ -> Left "a list cannot be the default of one value"
+
+literalValue :: Type -> Literal -> Value
+literalValue t l = case (t, l) of
+  (TCon "Float" [], LInt n) -> VFloat (fromInteger n)
+  (_, LInt n)               -> VInt n
+  (_, LFloat x)             -> VFloat x
+  (_, LBool b)              -> VBool b
+  (_, LString w)            -> VString w
+
+shownLiteral :: Literal -> Text
+shownLiteral l = case l of
+  LInt n    -> T.pack (show n)
+  LFloat x  -> showFloat x
+  LBool b   -> if b then "true" else "false"
+  LString w -> w
+-- ANCHOR_END: readingFor
 
 isPositional, isRest :: Kind -> Bool
 isPositional k = case k of
@@ -266,19 +334,23 @@ metavar = T.toUpper . T.replace "-" "_" . kebab
 -- ANCHOR_END: names
 
 -- ANCHOR: about
--- 💬 The lines of help (---) among the comments right above a line
---    (the line of main's annotation): what --help says about the
---    program. The other comments there (-- ANCHOR: main, the Japanese
---    line) are skipped, but do not end the comments.
--- ある行（main の注釈の行）のすぐ上のコメントのうち、ヘルプの行（---）：
--- --help がプログラムについて言うこと。そこのほかのコメント（-- ANCHOR:
--- main や日本語の行）は飛ばすが、コメントの続きとして数える
-aboutAbove :: Text -> Int -> [Text]
-aboutAbove source line =
+-- 💬 The lines of help (---) among the comments right above the
+--    annotation of main (the line that starts with "main :"): what
+--    --help says about the program. The other comments there
+--    (-- ANCHOR: main, the Japanese line) are skipped, but do not end
+--    the comments.
+-- main の注釈の行（"main :" で始まる行）のすぐ上のコメントのうち、
+-- ヘルプの行（---）：--help がプログラムについて言うこと。そこのほかの
+-- コメント（-- ANCHOR: main や日本語の行）は飛ばすが、コメントの続きと
+-- して数える
+aboutAbove :: Text -> [Text]
+aboutAbove source =
   [ h | Just h <- map helpLine
-          (reverse (takeWhile isComment (reverse (take (line - 1) ls)))) ]
+          (reverse (takeWhile isComment (reverse above))) ]
   where
-    ls = map T.strip (T.lines source)
+    ls    = T.lines source
+    above = map T.strip (takeWhile (not . isMainLine) ls)
+    isMainLine l = "main :" `T.isPrefixOf` l || "main:" `T.isPrefixOf` l
     isComment l = "--" `T.isPrefixOf` l
 -- ANCHOR_END: about
 
@@ -346,6 +418,11 @@ isOption w =
   "-" `T.isPrefixOf` w && T.length w > 1 && not (isNumber w)
   where
     isNumber x = isJust (wholeNumber x) || isJust (readFloat x)
+
+wholeNumber :: Text -> Maybe Integer
+wholeNumber w = case TR.signed TR.decimal w of
+  Right (n, rest) | T.null rest -> Just n
+  _                             -> Nothing
 -- ANCHOR_END: isOption
 
 -- ANCHOR: readArgs
@@ -357,35 +434,43 @@ isOption w =
 -- どこがいけないか
 readArgs :: Command -> [Text] -> Either Text (Maybe Value)
 readArgs (Command opts takes) ws = do
-  (given, places) <- collect Map.empty [] ws
+  (given, places) <- collect opts Map.empty [] ws
   values <- fill given places opts
   pure (if takes then Just (VRecord values) else Nothing)
+
+-- 📥 Walk the words. given: the words of each option, in order;
+--    places: the other words, for the arguments.
+-- 語を順に見る。given：オプションごとの語（順に）。places：ほかの語
+-- （引数のため）
+collect :: [Opt] -> Map Name [Text] -> [Text] -> [Text]
+        -> Either Text (Map Name [Text], [Text])
+collect opts given places rest = case rest of
+  [] -> Right (given, reverse places)
+  "--" : more -> Right (given, reverse places <> more)
+  w : more
+    | isOption w -> do
+        (o, v, more') <- optionWord opts w more
+        collect opts (Map.insertWith (flip (<>)) (optField o) [v] given)
+                places more'
+    | otherwise -> collect opts given (w : places) more
+
+-- 📥 One option, and its value: --count=2, or --count 2 (the next word
+--    is the value, even if it starts with -), or a flag (no value).
+-- オプション1つと、その値：--count=2、--count 2（次の語が値。- で
+-- 始まっていても）、またはフラグ（値なし）
+optionWord :: [Opt] -> Text -> [Text] -> Either Text (Opt, Text, [Text])
+optionWord opts w more = do
+  o <- maybe (Left ("unknown option " <> n)) Right (Map.lookup n byName)
+  case (optKind o, inline, more) of
+    (Flag _, Just _, _)  -> Left (n <> " takes no value")
+    (Flag _, Nothing, _) -> Right (o, "", more)
+    (_, Just v, _)       -> Right (o, v, more)
+    (_, Nothing, v : more') -> Right (o, v, more')
+    (_, Nothing, [])     -> Left (n <> " needs a value")
   where
-    byName = Map.fromList [ (n, o) | o <- opts, n <- optionNames o ]
-    -- Walk the words. given: the words of each option, in order.
-    -- 語を順に見る。given：オプションごとの語（順に）
-    collect given places rest = case rest of
-      [] -> Right (given, reverse places)
-      "--" : more -> Right (given, reverse places <> more)
-      w : more
-        | isOption w -> do
-            let (n, inline) = T.breakOn "=" w
-                value = T.drop 1 inline <$ (if T.null inline then Nothing
-                                                               else Just ())
-            o <- maybe (Left ("unknown option " <> n)) Right
-                   (Map.lookup n byName)
-            case (optKind o, value) of
-              (Flag _, Just _) -> Left (n <> " takes no value")
-              (Flag _, Nothing) ->
-                collect (add o "" given) places more
-              (_, Just v) -> collect (add o v given) places more
-              -- The next word is the value, even if it starts with -.
-              -- 次の語が値（- で始まっていても）
-              (_, Nothing) -> case more of
-                v : more' -> collect (add o v given) places more'
-                []        -> Left (n <> " needs a value")
-        | otherwise -> collect given (w : places) more
-    add o v = Map.insertWith (flip (<>)) (optField o) [v]
+    byName = Map.fromList [ (m, o) | o <- opts, m <- optionNames o ]
+    (n, rest) = T.breakOn "=" w
+    inline = if T.null rest then Nothing else Just (T.drop 1 rest)
 
 -- 📥 Give every field its value: from the words, or the default.
 -- どのフィールドにも値を渡す：語からか、既定値から
@@ -401,8 +486,7 @@ fill given places opts = do
       let x    = optField o
           put v = Right (left, Map.insert x v acc)
           seen = Map.findWithDefault [] x given
-          name = optionNames o
-          shownName = case name of
+          shownName = case optionNames o of
             n : _ -> n
             []    -> metavar x
       case optKind o of
@@ -415,50 +499,30 @@ fill given places opts = do
         Rest r -> do
           vs <- traverse (readWord r (metavar x)) left
           Right ([], Map.insert x (VList vs) acc)
-        Valued r d -> case reverse seen of
+        Valued r (d, _) -> case reverse seen of
           w : _ -> readWord r shownName w >>= put
-          []    -> put (literalValue r d)
+          []    -> put d
         Optional r -> case reverse seen of
           w : _ -> readWord r shownName w >>= put . maybeValue . Just
           []    -> put (maybeValue Nothing)
         Repeated r ds -> case seen of
-          [] -> put (VList (map (literalValue r) ds))
+          [] -> put (VList (map fst ds))
           _  -> traverse (readWord r shownName) seen >>= put . VList
         Flag b -> put (VBool (if null seen then b else not b))
 
--- 🔤 Read one word as the field wants it.
--- 語1つを、フィールドが欲しい形に読む
+-- 🔤 Read one word with the instance of FromArg. Its Err says what is
+--    needed:  --count needs a whole number, not "abc"
+-- 語1つを FromArg のインスタンスで読む。Err は、何が要るかを言う
 readWord :: Reading -> Text -> Text -> Either Text Value
-readWord r who w = case r of
-  AString -> Right (VString w)
-  -- 「--count には整数が要ります。"abc" ではなく」
-  AnInt   -> maybe (Left (who <> " needs a whole number, not "
-                          <> quoted w)) (Right . VInt) (wholeNumber w)
-  AFloat  -> maybe (Left (who <> " needs a number, not " <> quoted w))
-               (Right . VFloat) (readFloat w)
-  where
-    quoted t = "\"" <> t <> "\""
-
-wholeNumber :: Text -> Maybe Integer
-wholeNumber w = case TR.signed TR.decimal w of
-  Right (n, rest) | T.null rest -> Just n
-  _                             -> Nothing
-
--- 🎚️ The value of a default.
--- 既定値の値
-literalValue :: Reading -> Literal -> Value
-literalValue r l = case (r, l) of
-  (AFloat, LInt n) -> VFloat (fromInteger n)
-  (_, LInt n)      -> VInt n
-  (_, LFloat x)    -> VFloat x
-  (_, LBool b)     -> VBool b
-  (_, LString t)   -> VString t
+readWord r who w = case readWith r w of
+  Right v   -> Right v
+  Left need -> Left (who <> " needs " <> need <> ", not \"" <> w <> "\"")
 -- ANCHOR_END: readArgs
 
 -- ANCHOR: help
--- 📖 The text of --help: the usage, the comments above main (or the
+-- 📖 The text of --help: the usage, the help above main (or the
 --    subcommand), the arguments, and the options (or the commands).
--- --help の文：使い方、main（かサブコマンド）の上のコメント、引数、
+-- --help の文：使い方、main（かサブコマンド）の上のヘルプ、引数、
 -- オプション（かコマンド）
 renderHelp :: Cli -> Maybe Name -> Text
 renderHelp cli sub = T.unlines $
@@ -513,29 +577,18 @@ optionRow o = (T.intercalate ", " (shorts <> [long]) <> value, about)
       []    -> ""
     shorts = drop 1 names
     value = case optKind o of
-      Valued r _   -> " " <> typeName r
-      Optional r   -> " " <> typeName r
-      Repeated r _ -> " " <> typeName r
+      Valued r _   -> " " <> readingName r
+      Optional r   -> " " <> readingName r
+      Repeated r _ -> " " <> readingName r
       _            -> ""
     about = T.intercalate "  " (filter (not . T.null)
               [T.unwords (optDoc o), T.unwords extra])
     extra = case optKind o of
-      Valued _ d     -> ["[default: " <> shownLiteral d <> "]"]
-      Repeated _ []  -> ["[can repeat]"]
-      Repeated _ ds  -> ["[can repeat; default: "
-                         <> T.intercalate ", " (map shownLiteral ds) <> "]"]
-      _              -> []
-    typeName r = case r of
-      AString -> "STRING"
-      AnInt   -> "INT"
-      AFloat  -> "FLOAT"
-
-shownLiteral :: Literal -> Text
-shownLiteral l = case l of
-  LInt n    -> T.pack (show n)
-  LFloat x  -> showFloat x
-  LBool b   -> if b then "true" else "false"
-  LString t -> t
+      Valued _ (_, d) -> ["[default: " <> d <> "]"]
+      Repeated _ []   -> ["[can repeat]"]
+      Repeated _ ds   -> ["[can repeat; default: "
+                          <> T.intercalate ", " (map snd ds) <> "]"]
+      _               -> []
 
 -- 📖 Usage: greet.lam [OPTIONS] NAME
 usage :: Cli -> Maybe Name -> Text
@@ -557,38 +610,65 @@ runName cli sub = cliProgram cli <> maybe "" ((" " <>) . kebab) sub
 -- ANCHOR_END: help
 
 -- ANCHOR: withCli
--- 🔌 Put $cli into the session: a builtin that takes the words of the
---    command line, and gives the IO action to do. It is what
---    startMain calls (bind getArgs $cli).
--- セッションに $cli を入れる：コマンドラインの語を受け取り、やる IO の
--- 頼みごとをくれる組み込み。startMain が呼ぶもの（bind getArgs $cli）
+-- 🔌 Put $main.cli into the session: a builtin that takes main and the
+--    words of the command line, and gives the IO action to do. It is
+--    what startMain calls (bind getArgs ($main.cli main)). Its type
+--    says that it gives what main gives: IO (), or IO (Result e ()).
+-- セッションに $main.cli を入れる：main とコマンドラインの語を受け取り、
+-- やる IO の頼みごとをくれる組み込み。startMain が呼ぶもの。型は、main が
+-- くれるものをくれる、と言う：IO () か IO (Result e ())
 withCli :: Cli -> Session -> Session
 withCli cli s = s
-  { sessionTypes  = Map.insert "$cli" (Forall [] Map.empty
-                      (TFun (tList tString) (tIO tUnit))) (sessionTypes s)
-  , sessionValues = Map.insert "$cli" (VPrim "$cli" 1 run [])
+  { sessionTypes  = Map.insert mainCli (cliType (cliRuns cli))
+                      (sessionTypes s)
+  , sessionValues = Map.insert mainCli (VPrim mainCli 2 run [])
                       (sessionValues s) }
   where
-    mainValue = fromMaybe (VTuple []) (Map.lookup "main" (sessionValues s))
     run args = case args of
-      [VList ws] -> do
+      [mainValue, VList ws] -> do
         words' <- traverse text ws
         case decide cli words' of
-          Help t    -> Right (say PutStr t 0)
-          Mistake t -> Right (say PutErr t 2)
-          Call sub record -> do
-            f <- case (sub, mainValue) of
-              (Nothing, m)           -> Right m
-              (Just n, VRecord fs)   -> maybe (Left (NoField n "main")) Right
-                                          (Map.lookup n fs)
-              (Just n, _)            -> Left (NoField n "main")
-            maybe (Right f) (apply f) record
-      _ -> Left (NotAFunction "$cli")
+          Help t          -> Right (say PutStr t 0)
+          Mistake t       -> Right (say PutErr t 2)
+          Call sub record -> callMain mainValue sub record
+      _ -> Left (NotAFunction mainCli)
     -- Write the text, then end with the code.
     -- 文字を書いて、終了コードで終わる
     say put t code = VIO (Bind (Ask (put t)) (\_ -> Right (Exit code)))
     text v = case v of
       VString t -> Right t
       other     -> Left (NotAFunction (renderValue other))
+
+-- 🔌 Call main (or its subcommand) with the record, if it takes one.
+-- main（かそのサブコマンド）を、レコードを受け取るなら、それで呼ぶ
+callMain :: Value -> Maybe Name -> Maybe Value -> Either EvalError Value
+callMain mainValue sub record = do
+  f <- case (sub, mainValue) of
+    (Nothing, m)         -> Right m
+    (Just n, VRecord fs) -> maybe (Left (NoField n "main")) Right
+                              (Map.lookup n fs)
+    (Just n, _)          -> Left (NoField n "main")
+  maybe (Right f) (apply f) record
+
+-- 🔌 The type of $main.cli: main, then the words, then what main gives.
+--      One command:  (r -> IO b) -> [String] -> IO b
+--      Subcommands:  { add : r1 -> IO b, list : IO b } -> [String] -> IO b
+--    Every subcommand gives the same b.
+-- $main.cli の型：main、語、main がくれるもの。サブコマンドは、どれも
+-- 同じ b をくれる
+cliType :: Runs -> Scheme
+cliType runs = case runs of
+  One _ -> Forall [0, 1] Map.empty
+    (TFun (TFun (TVar 1) (tIO answer)) (TFun (tList tString) (tIO answer)))
+  Many cs ->
+    let field (i, (n, _, c))
+          | takesRecord c = (n, TFun (TVar i) (tIO answer))
+          | otherwise     = (n, tIO answer)
+        fields = map field (zip [1 ..] cs)
+    in Forall [0 .. length cs] Map.empty
+         (TFun (TRecord (Map.fromList fields) Nothing)
+               (TFun (tList tString) (tIO answer)))
+  where
+    answer = TVar 0
 -- ANCHOR_END: withCli
 -- ANCHOR_END: all

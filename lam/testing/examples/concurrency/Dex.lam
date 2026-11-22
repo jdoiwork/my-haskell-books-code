@@ -11,28 +11,39 @@ module Dex exposing (Mon, fetch, line)
 type alias Mon = { id : Int, name : String, ja : String }
 -- ANCHOR_END: mon
 
+api : String
 api = "https://pokeapi.co/api/v2/pokemon-species/"
 
--- 🗾 The name in Japanese, from the list of names in many languages.
--- いろいろな言語の名前の一覧から、日本語の名前を
-japaneseName : Json -> Maybe String
-japaneseName species = Maybe.do
-  names <- Maybe.andThen Json.array (Json.get "names" species)
-  ja <- find (\n -> Json.at ["language", "name"] n == Just (JStr "ja")) names
-  Maybe.andThen Json.string (Json.get "name" ja)
+-- 🔤 The Japanese name, from the names of the species.
+-- 種族の名前の一覧から、日本語の名前を
+japanese : Decoder String
+japanese =
+  Decode.field "names" (Decode.list named)
+    |> Decode.andThen (\names ->
+         case [ n | (lang, n) <- names, lang == "ja" ] of
+           | n : _ -> Decode.succeed n
+           | [] -> Decode.fail "no name in Japanese")
+  where
+    named =
+      Decode.map2 (\lang n -> (lang, n))
+        (Decode.at ["language", "name"] Decode.string)
+        (Decode.field "name" Decode.string)
+
+-- 🔍 The number and the Japanese name of one species.
+-- 種族1つの、番号と日本語の名前
+species : String -> Decoder Mon
+species name = do
+  id <- Decode.field "id" Decode.int
+  ja <- japanese
+  pure { id = id, name = name, ja = ja }
 
 -- ANCHOR: fetch
 -- 🌐 Ask PokeAPI about one Pokémon. An Err says why not.
 -- PokeAPI に1匹のことを聞く。だめなら Err にわけ
 fetch : String -> IO (Result String Mon)
 fetch name = do
-  answer <- Http.get (api ++ name)
-  pure (case answer of
-    | Err e -> Err f"{name}: {e}"
-    | Ok doc -> case (Maybe.andThen Json.int (Json.get "id" doc),
-                      japaneseName doc) of
-        | (Just id, Just ja) -> Ok { id = id, name = name, ja = ja }
-        | _ -> Err f"{name}: the answer has another shape")
+  answer <- Http.getAs (species name) (api ++ name)
+  pure (Result.mapError (\e -> f"{name}: {e}") answer)
 -- ANCHOR_END: fetch
 
 -- 📝 One line for the screen:  #25    ピカチュウ (pikachu)

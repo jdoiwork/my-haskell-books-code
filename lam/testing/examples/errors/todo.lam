@@ -1,0 +1,14 @@
+-- ANCHOR: all
+-- 🚧 A program that is not all written yet: todo has any type, so
+--    the rest of the program can be checked and run already.
+-- まだ全部は書いていないプログラム。todo はどんな型にもなれるので、
+-- 残りの部分の型を確かめ、動かすことが、もうできる
+weeklyDiscount : Int -> Int
+weeklyDiscount total = todo "the discount of the week"
+
+main : IO ()
+main = do
+  -- 「割引を確かめます」
+  putStrLn "checking the discount"
+  putStrLn f"{weeklyDiscount 9900} yen off"
+-- ANCHOR_END: all

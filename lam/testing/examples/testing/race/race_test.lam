@@ -13,5 +13,5 @@ tests =
   , Test.io "one of the two answers" Test.world First.main
       (\r ->
         [ Test.that "stdout"
-            (List.elem r.stdout ["first: left\n", "first: right\n"]) ]) ]
+            (elem r.stdout ["first: left\n", "first: right\n"]) ]) ]
 -- ANCHOR_END: all

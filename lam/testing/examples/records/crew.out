@@ -1,7 +1,1 @@
-Rust     .rs  day 15
-TS       .ts  day 18
-Python   .py  day 20
-GHC      .hs  day 20
-["Python", "TS", "Rust", "GHC"]
-[Lam]
-[Ruby]
+(["Python .py  day 9", "TS .ts  day 9", "Rust .rs  day 7"], 25, ["PYTHON", "TS", "RUST"], "[Lam]", "[Ruby]") : ([String], Int, [String], String, String)

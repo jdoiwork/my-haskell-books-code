@@ -1,0 +1,36 @@
+-- ANCHOR: all
+-- 🧬 Properties, with the generator the type has (Arbitrary).
+--      lam test typed_test.lam
+-- 型が持つ生成器（Arbitrary）で、性質を試す
+import Words
+import Score (Score (..))
+
+-- ANCHOR: instance
+-- 🎲 A Score is a number from 0 to 100, made into a Score; to shrink
+-- it, take the number out, shrink that, and make a Score again.
+-- Score は 0 から 100 の数を Score にしたもの。縮めるには、数を取り出し、
+-- それを縮めて、また Score にする
+instance Arbitrary Score where
+  arbitrary = Gen.via Score Score.points (Gen.range 0 100)
+-- ANCHOR_END: instance
+
+-- ANCHOR: typedProps
+-- The type of each property decides its generator: [Int] and Score.
+-- 性質の型が、生成器を決める：[Int] と Score
+keepsLength : [Int] -> Bool
+keepsLength xs = length (sort xs) == length xs
+
+staysInRange : Score -> Bool
+staysInRange s = Score.points (Score.bonus s) <= 100
+-- ANCHOR_END: typedProps
+
+tests : [Test]
+tests =
+  -- ANCHOR: propertyTests
+  [ Test.property "sort keeps the length" keepsLength
+  -- 「文字列は、型を書かなくても決まる（splitIntoWords が String を取る）」
+  , Test.property "no word has a space"
+      (\t -> all (\w -> not (String.contains " " w)) (Words.splitIntoWords t))
+  , Test.property "the bonus stays in range" staysInRange ]
+  -- ANCHOR_END: propertyTests
+-- ANCHOR_END: all

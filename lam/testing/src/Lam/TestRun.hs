@@ -11,6 +11,7 @@ module Lam.TestRun
   ( Seeds (..)
   , TestArgs (..)
   , readTestArgs
+  , testUsage
   , Outcome (..)
   , Report (..)
   , testsOf
@@ -35,8 +36,7 @@ import Text.Read (readMaybe)
 
 import Lam.Builtins (maybeValue)
 import Lam.Eval
-import Lam.Files (Files)
-import Lam.Module (loadProgram)
+import Lam.Module (Files, loadProgram)
 import Lam.Program (Session (..))
 import Lam.Syntax (Name)
 import Lam.Types (renderScheme)
@@ -59,9 +59,16 @@ data TestArgs = TestArgs
   }
   deriving (Eq, Show)
 
--- 🚩 lam test [--seed n | --seeds n] [files or folders...]
-readTestArgs :: [String] -> Either String TestArgs
-readTestArgs = go (TestArgs InOrder [])
+-- 🚩 lam test [--seed n | --seeds n] [files or folders...]. The
+--    second is LAM_SEED: a seed for when the words give none (a flag
+--    wins over it, as with lam).
+-- 2つ目は LAM_SEED：語が種をくれないときの種（lam と同じく、フラグが勝つ）
+readTestArgs :: [String] -> Maybe String -> Either Text TestArgs
+readTestArgs given fromEnv = do
+  start <- case fromEnv of
+    Nothing -> Right InOrder
+    Just n  -> OneSeed <$> number n
+  go (TestArgs start []) given
   where
     go acc ws = case ws of
       [] -> Right acc { testPaths = reverse (testPaths acc) }
@@ -70,7 +77,9 @@ readTestArgs = go (TestArgs InOrder [])
       w : rest
         | Just n <- valueOf "--seed=" w  -> seeded OneSeed n rest
         | Just n <- valueOf "--seeds=" w -> seeded ManySeeds n rest
-        | take 1 w == "-" -> Left ("unknown flag for lam test: " <> w)
+        -- 「lam test の知らないフラグ」
+        | take 1 w == "-" ->
+            Left ("unknown flag for lam test: " <> T.pack w)
         | otherwise       -> go acc { testPaths = w : testPaths acc } rest
       where
         seeded make n rest = do
@@ -79,7 +88,17 @@ readTestArgs = go (TestArgs InOrder [])
     -- --seed=657 gives Just "657".
     -- --seed=657 なら Just "657"
     valueOf flag w = T.unpack <$> T.stripPrefix flag (T.pack w)
-    number n = maybe (Left ("not a number: " <> n)) Right (readMaybe n)
+    -- 「数ではありません」
+    number n =
+      maybe (Left ("not a number: " <> T.pack n)) Right (readMaybe n)
+
+-- 「使い方：lam test [--seed n | --seeds n] [ファイル・フォルダー…]」
+testUsage :: Text
+testUsage = T.unlines
+  [ "usage: lam test [--seed n | --seeds n] [files or folders...]"
+  , "  --seed n     run the tests with the fake world's seed n"
+  , "  --seeds k    run them with the seeds 618 to 618 + k - 1"
+  , "  LAM_SEED=n   the same as --seed n" ]
 -- ANCHOR_END: args
 
 -- ANCHOR: outcome
@@ -214,7 +233,7 @@ testFile :: Files IO -> Session -> Seeds -> FilePath
          -> IO (Either Text (Text, Int, Int))
 testFile files session seeds file = do
   source <- Utf8.readFile file
-  loaded <- loadProgram files session file source
+  loaded <- loadProgram files session session file source
   pure $ do
     (session', _) <- loaded
     tests <- either (\e -> Left (T.pack file <> ": " <> e)) Right

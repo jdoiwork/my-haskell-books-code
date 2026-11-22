@@ -13,7 +13,7 @@ averager : Pid Ask -> IO ()
 averager me =
   receive me
     | Average xs from -> do
-        Actor.send from (sum xs // length xs)
+        from ! (sum xs // length xs)
         averager me
 -- ANCHOR_END: averager
 
@@ -23,7 +23,7 @@ averager me =
 ask : Pid Ask -> [Int] -> IO ()
 ask avg xs = do
   me <- Actor.new
-  Actor.send avg (Average xs me)
+  avg ! Average xs me
   receive me
     | n -> putStrLn f"average of {xs}: {n}"
     -- 「（xs）の平均：答えなし」

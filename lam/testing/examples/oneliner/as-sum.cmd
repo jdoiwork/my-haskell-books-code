@@ -1,0 +1,1 @@
+-MShop --jsonl --as=Item -n --begin 0 -e 'let Item { price } = json in acc + price' --end print examples/oneliner/items.jsonl

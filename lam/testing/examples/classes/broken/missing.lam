@@ -1,0 +1,12 @@
+-- 🚨 describe for a type with no instance.
+-- インスタンスのない型に describe
+--   lam examples/classes/broken/missing.lam
+
+data Minutes = Minutes Int
+
+class Describe a where
+  describe : a -> String
+
+-- ANCHOR: main
+describe (Minutes 30)
+-- ANCHOR_END: main

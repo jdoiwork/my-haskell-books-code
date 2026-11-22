@@ -1,0 +1,69 @@
+#!/usr/bin/env lam
+-- 📜 Made with lam --print-script: the same as this one-liner:
+-- --print-script で作った、このワンライナーと同じ動きのスクリプト：
+--   lam -i.bak -p -e s/colour/color/g
+-- Run it:  lam this.lam [files...]   (no files: the standard input)
+-- 動かし方：lam このファイル.lam [ファイル…]（なければ標準入力）
+
+-- 🛑 An Err stops the script with its message (exit code 1).
+-- Err なら、わけを言ってスクリプトを止める（終了コード 1）
+orStop : Result String a -> IO a
+orStop result =
+  case result of
+    | Ok x -> pure x
+    | Err why -> do
+        ePutStrLn f"error: {why}"
+        exit 1
+
+-- 🔁 The program of -e, for one line.
+--    It is still a function, so it gets line, too.
+-- -e のプログラム。line を1つ受け取る。まだ関数なので、line も渡す
+step line =
+  (s/colour/color/g) line
+
+-- 👣 One line, with its number: give the acc for the next one.
+-- 1行（と番号）をやって、次の行のための acc を返す
+visit acc n line = do
+  written <- File.append acc (step line ++ "\n")
+  orStop written
+  pure acc
+
+-- ✏️ -i: one file changed in place. The new lines go to a file
+--    next to it, which takes the file's name at the end. If it
+--    stops before that, defer removes it: the file stays.
+-- -i：ファイルをその場で書き換える。新しい行は隣のファイルに
+-- 書き、最後にファイルの名前を取らせる。その前に止まったら、
+-- defer がそれを消すので、ファイルは元のまま
+edit file = do
+  let tmp = file ++ ".lam-tmp"
+  defer File.remove tmp
+  writeFile tmp "" ?
+  File.forLines Strict file tmp visit ?
+  File.copy file (file ++ ".bak") ?
+  File.rename tmp file ?
+  pure (Ok ())
+
+editAll files =
+  case files of
+    | [] -> pure (Ok ())
+    | file : rest -> do
+        edit file ?
+        editAll rest
+
+-- 🔎 Strict: read every file first. A broken byte in any of
+--    them stops it here, before one file is changed.
+-- Strict：先にどのファイルも読む。どれかに壊れたバイトが
+-- あれば、1つも書き換えないうちに、ここで止まる
+checkAll files =
+  case files of
+    | [] -> pure (Ok ())
+    | file : rest -> do
+        _ <- File.forLines Strict file () (\_ _ _ -> pure ()) ?
+        checkAll rest
+
+--- Run the one-liner on each file (none: the standard input)
+-- ファイルごとに、ワンライナーを動かす（なければ標準入力）
+main : { files : [String] } -> IO (Result String ())
+main o = do
+  checkAll o.files ?
+  editAll o.files

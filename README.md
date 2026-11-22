@@ -295,7 +295,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 並行に動かす：まとめて待つ | [`lam/concurrency/`](lam/concurrency/)、[`lam/oneliner/`](lam/oneliner/)、[`langs/interp-concurrency/`](langs/interp-concurrency/) |
 | 仕事どうしで話す：チャネルとメッセージ | [`lam/channels/`](lam/channels/)、[`lam/concurrency/`](lam/concurrency/)、[`langs/interp-channels/`](langs/interp-channels/) |
 | 小さな Web サーバーと1つの実行ファイル | [`lam/server/`](lam/server/)、[`lam/channels/`](lam/channels/)、[`langs/interp-server/`](langs/interp-server/) |
-| テストとデバッグ：lam test | [`lam/testing/`](lam/testing/)、[`lam/channels/`](lam/channels/)、[`langs/interp-testing/`](langs/interp-testing/)、[`langs/cargo/`](langs/cargo/) |
+| テストとデバッグ：lam test | [`lam/testing/`](lam/testing/)、[`lam/server/`](lam/server/)、[`langs/interp-testing/`](langs/interp-testing/)、[`langs/cargo/`](langs/cargo/) |
 
 ### 第17部 プログラマーのための数学
 

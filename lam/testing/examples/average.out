@@ -1,3 +1,0 @@
-4
-examples/average.lam:6:25: error: divided by zero
-  in average, called at examples/average.lam:10:22

@@ -18,7 +18,7 @@ main = do
   let numbers =
         text
           |> words
-          |> map (toIntOr 0)
+          |> map (\w -> String.toInt w ?: 0)
           |> Debug.log "numbers"
   print (average numbers)
 -- ANCHOR_END: all

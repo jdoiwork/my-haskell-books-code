@@ -5,9 +5,11 @@
 -- 6匹をまとめて：全部に頼んでから、全部を待つ
 import Dex (Mon, fetch, line)
 
+names : [String]
 names = ["bulbasaur", "charmander", "squirtle", "pikachu", "eevee", "snorlax"]
 
 -- ANCHOR: main
+main : IO ()
 main = do
   done <- IO.timed (IO.all (map fetch names))
   forEach done.value (\r -> case r of

@@ -1,0 +1,30 @@
+-- 📐 Before classes: a function of its own for each type, each with a
+--    name of its own.
+-- クラスの前：型ごとに、名前のちがう関数を書く
+--   lam examples/classes/before.lam
+
+-- ANCHOR: types
+data Shape
+  = Circle { radius : Int }
+  | Rect { width : Int, height : Int }
+
+data Money = Yen Int
+-- ANCHOR_END: types
+
+-- ANCHOR: before
+describeShape : Shape -> String
+describeShape s =
+  case s of
+    | Circle { radius } -> "a circle of radius " ++ showInt radius
+    | Rect { width, height } ->
+        "a " ++ showInt width ++ "x" ++ showInt height ++ " rect"
+
+describeMoney : Money -> String
+describeMoney m =
+  case m of
+    | Yen n -> showInt n ++ " yen"
+-- ANCHOR_END: before
+
+-- ANCHOR: main
+(describeShape (Circle { radius = 2 }), describeMoney (Yen 500))
+-- ANCHOR_END: main

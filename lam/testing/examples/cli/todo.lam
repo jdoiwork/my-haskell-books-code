@@ -24,13 +24,13 @@ type alias Done =
 type alias Commands =
   { --- Add a thing to do
     -- やることを足す
-    add : Add -> IO ()
+    add : Add -> IO (Result String ())
     --- Show the things to do
     -- やることを見せる
-  , list : IO ()
+  , list : IO (Result String ())
     --- Mark a thing as done
     -- 済んだ印を付ける
-  , done : Done -> IO ()
+  , done : Done -> IO (Result String ())
   }
 -- ANCHOR_END: types
 
@@ -44,38 +44,35 @@ load = do
     | Ok text -> lines text
     | Err _ -> [])
 
--- 💾 Write the lines back.
--- 行を書き戻す
-save : [String] -> IO ()
-save todos = do
-  _ <- writeFile "todo.txt" (join "" (map (\t -> t ++ "\n") todos))
-  pure ()
+-- 💾 Write the lines back. It may fail (an Err), so ? can stop at it.
+-- 行を書き戻す。失敗するかもしれない（Err）ので、? で止められる
+save : [String] -> IO (Result String ())
+save todos = writeFile "todo.txt" (join "" (map (\t -> t ++ "\n") todos))
 
-add : Add -> IO ()
+add : Add -> IO (Result String ())
 add opts = do
   todos <- load
   let tags = join "" (map (\t -> " #" ++ t) opts.tag)
-  save (todos ++ [f"[ ] {opts.title}{tags}"])
+  save (todos ++ [f"[ ] {opts.title}{tags}"]) ?
   putStrLn f"added: {opts.title}"
+  pure (Ok ())
 
-list : IO ()
+list : IO (Result String ())
 list = do
   todos <- load
-  forEach (indexed todos) (\p -> putStrLn f"{fst p + 1}. {snd p}")
+  forEach (indexed todos) (\(i, t) -> putStrLn f"{i + 1}. {t}")
+  pure (Ok ())
 
-done : Done -> IO ()
+done : Done -> IO (Result String ())
 done opts = do
   todos <- load
   if opts.number < 1 || opts.number > length todos
-    then do
-      ePutStrLn f"there is no todo {opts.number}"
-      exit 1
+    then pure (Err f"there is no todo {opts.number}")
     else do
-      let mark p =
-            if fst p + 1 == opts.number then "[x]" ++ drop 3 (snd p)
-            else snd p
-      save (map mark (indexed todos))
+      let mark (i, t) = if i + 1 == opts.number then "[x]" ++ drop 3 t else t
+      save (map mark (indexed todos)) ?
       putStrLn f"done: {opts.number}"
+      pure (Ok ())
 -- ANCHOR_END: commands
 
 -- ANCHOR: main

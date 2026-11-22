@@ -7,6 +7,7 @@
 import Dex (Mon, fetch, line)
 
 -- ANCHOR: main
+main : IO ()
 main = do
   -- Start, and go on at once.
   -- 始めて、すぐに先へ

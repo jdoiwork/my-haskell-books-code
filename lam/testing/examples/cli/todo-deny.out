@@ -1,0 +1,2 @@
+error: todo.txt: needs --allow-write=todo.txt
+[exit 1]

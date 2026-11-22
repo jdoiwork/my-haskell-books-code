@@ -1,1 +1,0 @@
-examples/ring/Customer.lam:4:1: error: the imports go around in a ring: examples/ring/shop.lam -> examples/ring/Order.lam -> examples/ring/Customer.lam -> examples/ring/Order.lam

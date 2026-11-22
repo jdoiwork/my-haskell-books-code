@@ -1,0 +1,5 @@
+<- GET /todos 200 all the TODOs
+<- GET /todos/3 200 TODO number 3
+<- DELETE /todos/3/ 200 removed 3
+<- POST /todos 405 method not allowed
+<- GET /todo 404 not found

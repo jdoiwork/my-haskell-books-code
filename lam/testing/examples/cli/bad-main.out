@@ -1,0 +1,2 @@
+in main: type error: main must be IO (), [String] -> IO (), [String] -> Map String String -> IO (), a record -> IO (), or a record of those (or IO (Result e ()) in place of IO ()), but it is String -> IO ()
+[exit 1]

@@ -10,24 +10,25 @@ bill = 2490
 --    nobody. //? gives Nothing when it divides by 0.
 -- 1人ぶん（円の整数）と余り。だれもいなければ Nothing
 share : Int -> Maybe (Int, Int)
-share n = Maybe.map (\each -> (each, bill - each * n)) (bill //? n)
+share n =
+  case bill //? n of
+    | Nothing -> Nothing
+    | Just each -> Just (each, bill - each * n)
+-- ANCHOR_END: split
 
+-- ANCHOR: exact
 -- 🧮 The exact share, rounded in the three ways of a half.
 -- ぴったりの1人ぶんを、半分の3つの丸め方で
 exact : Int -> String
 exact n =
   case toFloat bill /? toFloat n of
-    | Nothing -> "no share"
-    | Just x -> f"{x:.2} -> {join ", " (map (\r -> showInt (r x ?: 0)) ways)}"
+    | Nothing -> "nobody"
+    | Just x -> Float.fixed 2 x ++ ": " ++ join " " (map (rounded x) ways)
   where
     ways = [round, Float.roundTiesEven, Float.roundTiesUp]
--- ANCHOR_END: split
+    rounded x way = showInt (way x ?: 0)
+-- ANCHOR_END: exact
 
 -- ANCHOR: main
-main : IO ()
-main = forEach [4, 7, 0] (\n -> do
-  case share n of
-    | Just (each, rest) -> putStrLn f"{n} people: {each} yen, {rest} left"
-    | Nothing -> putStrLn f"{n} people: nobody to pay"
-  putStrLn f"  exactly {exact n}")
+map exact [4, 7, 0]
 -- ANCHOR_END: main

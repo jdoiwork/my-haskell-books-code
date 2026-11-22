@@ -1,0 +1,11 @@
+stopped. TODOs left: 1
+<- POST /todos 201 {"done":false,"id":1,"title":"ふりかえりを書く"}
+<- POST /todos 201 {"done":false,"id":2,"title":"絵を描く"}
+<- GET /todos 200 [{"done":false,"id":1,"title":"ふりかえりを書く"},{"done":false,"id":2,"title":"絵を描く"}]
+<- PUT /todos/1/done 200 {"done":true,"id":1,"title":"ふりかえりを書く"}
+<- DELETE /todos/2 204
+<- GET /todos 200 [{"done":true,"id":1,"title":"ふりかえりを書く"}]
+<- POST /todos 400 bad request: .: missing field "title"
+<- PUT /todos/abc/done 400 bad request: the id is not a number
+<- PATCH /todos/1/done 405 method not allowed
+<- GET /nothing 404 not found

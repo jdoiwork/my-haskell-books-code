@@ -1,4 +1,7 @@
--- 🐛 maximum compares the items, but the annotation does not say so.
--- maximum は要素を比べるのに、注釈がそう言っていない
+-- 🐛 max compares the items, but the annotation does not say so.
+-- max は要素を比べるのに、注釈がそう言っていない
 largest : [a] -> Maybe a
-largest xs = maximum xs
+largest xs =
+  case xs of
+    | [] -> Nothing
+    | x : rest -> Just (foldl max x rest)

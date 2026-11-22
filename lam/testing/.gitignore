@@ -1,9 +1,15 @@
 report.json
 log.txt
-memo.txt
+/memo.txt
 bin/
 out.txt
 weather.db
 dex.db
 peek.db
 peek.txt
+receipt.txt
+big.log
+card.html
+lam.hp
+names.db
+/examples/server/todo

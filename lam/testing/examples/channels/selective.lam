@@ -12,7 +12,7 @@ data Dish = Dish Int String
 cook : Pid Dish -> Int -> Int -> String -> IO ()
 cook to n ms name = do
   sleep ms
-  Actor.send to (Dish n name)
+  to ! Dish n name
 
 -- ANCHOR: main
 main = do

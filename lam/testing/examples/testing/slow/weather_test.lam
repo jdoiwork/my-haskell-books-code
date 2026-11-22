@@ -1,0 +1,33 @@
+-- ANCHOR: all
+-- ⏱️ The tests of Weather: the fake clock goes on only as far as the
+--    world says, so a 3-second answer takes no time at all here.
+--      lam test weather_test.lam
+-- Weather のテスト。偽の時計は、世界が言うだけ進む。だから3秒かかる
+-- 答えも、ここでは一瞬
+import Weather
+
+url = "https://weather.example/tokyo"
+
+-- ANCHOR: delays
+-- 🐢 The answer, and how long it takes (ms).
+-- 答えと、かかる時間（ミリ秒）
+answering ms =
+  { Test.world | web = {[url]: "{\"sky\": \"sunny\"}"}
+               , delays = {[url]: ms} }
+-- ANCHOR_END: delays
+
+tests : [Test]
+tests =
+  -- ANCHOR: clockTests
+  -- 「0.2 秒の答えは、待って受け取る」
+  [ Test.io "waits for a quick answer" (answering 200) (Weather.ask url)
+      (\r ->
+        [ Test.equal "value" r.value (Just "{\"sky\":\"sunny\"}")
+        , Test.equal "elapsed" r.elapsed 200 ])
+  -- 「3 秒の答えは待たない：1 秒であきらめる」
+  , Test.io "gives up on a slow answer" (answering 3000) (Weather.ask url)
+      (\r ->
+        [ Test.equal "value" r.value (Just "too slow")
+        , Test.equal "elapsed" r.elapsed 1000 ]) ]
+  -- ANCHOR_END: clockTests
+-- ANCHOR_END: all
