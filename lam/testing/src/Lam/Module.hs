@@ -19,7 +19,7 @@ module Lam.Module
   , readProgram
   ) where
 
-import Control.Monad (foldM, unless, when)
+import Control.Monad (foldM, forM_, unless, when)
 import Control.Monad.State (StateT, evalStateT, gets, modify)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Except (ExceptT, runExceptT, throwError, liftEither)
@@ -104,6 +104,7 @@ makeModule standard file (Header loc m exposing) builtin decls inside = do
     , moduleDicts     = Map.filterWithKey (\x _ -> "$" `T.isPrefixOf` x)
                           (sessionValues inside)
     , moduleOperators = operators
+    , moduleWarnings  = []
     }
   where
     -- ANCHOR: shownOperators
@@ -481,7 +482,11 @@ bringIn
   -> Loading m Session
 bringIn files base stack from session imp = do
   m <- findModule files base stack from imp
-  liftEither (importInto session imp m)
+  imported <- liftEither (importInto session imp m)
+  -- The warnings of the module are told with the program's.
+  -- モジュールの警告も、プログラムのものと一緒に知らせる
+  pure imported { sessionWarnings = sessionWarnings imported
+                                      <> moduleWarnings m }
 -- ANCHOR_END: loading
 
 -- ANCHOR: findModule
@@ -549,7 +554,9 @@ loadModule files base stack path name source = do
   when (isJust (programFinal prog)) $
     throwError (T.pack path <> ": error: a module cannot end with an "
                 <> "expression (only a program can)")
-  liftEither (makeModule False path header [] (programDecls prog) inside)
+  made <- liftEither
+            (makeModule False path header [] (programDecls prog) inside)
+  pure made { moduleWarnings = sessionWarnings inside }
 -- ANCHOR_END: findModule
 
 -- ANCHOR: runProgram
@@ -575,6 +582,12 @@ runProgramWith
   => (Session -> Expr -> m Ending) -> Handler m -> Session -> Maybe Expr
   -> m Ending
 runProgramWith showFinal handle session final = do
+  -- ANCHOR: tellWarnings
+  -- The warnings first, to the standard error. The program still runs.
+  -- 先に警告を標準エラーへ。プログラムは、それでも動かす
+  forM_ (nub (sessionWarnings session)) $ \w ->
+    handle (PutErr (w <> "\n"))
+  -- ANCHOR_END: tellWarnings
   shown <- maybe (pure (Finished "")) (showFinal session) final
   case shown of
     Finished out -> do

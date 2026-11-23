@@ -1,0 +1,21 @@
+-- ANCHOR: all
+-- 🔁 Two functions that call each other: one group, typed together.
+-- おたがいを呼ぶ2つの関数：1つのグループとして、一緒に型を付ける
+isEven n = if n == 0 then true else isOdd (n - 1)
+isOdd n = if n == 0 then false else isEven (n - 1)
+
+-- ANCHOR: collatz
+-- 🌀 An annotated function may be used above its definition, at the
+--    type its annotation says.
+-- 注釈のある関数は、定義より上で、注釈の型のまま使える
+steps : Int -> Int
+steps n = if n == 1 then 0 else 1 + steps (next n)
+
+next : Int -> Int
+next n = if isEven n then n // 2 else 3 * n + 1
+-- ANCHOR_END: collatz
+
+main = do
+  print (isEven 10, isOdd 7)
+  print (map steps [1, 6, 27])
+-- ANCHOR_END: all

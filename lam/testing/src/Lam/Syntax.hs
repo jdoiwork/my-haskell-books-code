@@ -30,6 +30,7 @@ module Lam.Syntax
   , Loc (..)
   , renderLoc
   , stripLocations
+  , keyName
   , stripDecl
   , baseName
   , freeVars
@@ -72,8 +73,23 @@ data Expr
   -- 中の式を書いた場所の印。値は変えない。見るのはエラーだけ
   | At Loc Expr
   -- ANCHOR_END: at
+  -- ANCHOR: annot
+  -- A type annotation in a let or a where:  let wrap : a -> String
+  -- (Let x (Annot sig e) body). Only the type checker looks at it.
+  -- let や where の中の型の注釈。見るのは型検査器だけ
+  | Annot Signature Expr
+  -- ANCHOR_END: annot
   deriving (Eq, Show)
 -- ANCHOR_END: expr
+
+-- ANCHOR: keyName
+-- 🏷️ The mark of a key written as a name:  {url: 1}  has the key
+--    $key.name "url", which is just "url". A warning looks for it.
+-- 名前の形で書いたキーの印。{url: 1} のキーは $key.name "url"（ただの
+-- "url"）。警告がこれを探す
+keyName :: Name
+keyName = "$key.name"
+-- ANCHOR_END: keyName
 
 -- ANCHOR: strip
 -- 🧽 The same tree without the marks of places, to compare trees in
@@ -97,6 +113,7 @@ stripLocations expr = case expr of
   Record fs    -> Record [ (x, go e) | (x, e) <- fs ]
   Field e x    -> Field (go e) x
   Update e fs  -> Update (go e) [ (x, go v) | (x, v) <- fs ]
+  Annot sig e  -> Annot sig (go e)
   where
     go = stripLocations
 
@@ -440,6 +457,7 @@ freeVars expr = case expr of
   Update e fs     -> freeVars e <> foldMap (freeVars . snd) fs
   -- ANCHOR_END: freeRecords
   At _ e          -> freeVars e
+  Annot _ e       -> freeVars e
 
 -- 🧩 The names a pattern gives:  (x, Just y)  gives x and y.
 -- パターンが付ける名前

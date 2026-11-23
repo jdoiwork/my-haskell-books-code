@@ -1,0 +1,3 @@
+<- GET / 200 memos: try /memos/1
+<- GET /memos/7 200 {"id":"7","text":"memo number 7"}
+<- GET /nope 404 not found

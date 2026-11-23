@@ -47,6 +47,7 @@ import Lam.Builtins (con)
 import Lam.Eval
 import Lam.Io (Handler)
 import Lam.Pretty (renderString)
+import Lam.Settings (allowedOnDryRun)
 import Lam.Shell (renderCommand)
 import Lam.Utf8 (Decoding (..))
 -- ANCHOR_END: head
@@ -432,13 +433,20 @@ number = T.pack . show
 -- ANCHOR: dryRun
 -- 🧪 Do what only looks, and only tell what would change: writing and
 --    changing files, an HTTP request that is not GET, Sql.exec (BEGIN
---    and COMMIT too), and every command. A database is opened only to
---    read, so even a mistake cannot write to it.
+--    and COMMIT too), and every command, but the commands the allowed
+--    lists of lam.json start (see allowedOnDryRun): those run, and say
+--    so (dry-run: runs: ...). A database is opened only to read, so
+--    even a mistake cannot write to it.
 -- 見るだけのことはやり、変えることは知らせるだけにする：ファイルを書く・
 -- 変える、GET でない HTTP、Sql.exec（BEGIN と COMMIT も）、どのコマンド
--- も。データベースは読むだけに開くので、まちがえても書けない
-dryRun :: Monad m => Handler m -> Handler m
-dryRun handle request
+-- も。ただし、lam.json の許すリストで始まるコマンド（allowedOnDryRun を
+-- 見る）は動かし、動かしたと言う。データベースは読むだけに開くので、
+-- まちがえても書けない
+dryRun :: Monad m => [[Text]] -> Handler m -> Handler m
+dryRun allowed handle request
+  | changes request && allowedOnDryRun allowed request = do
+      _ <- handle (PutErr ("dry-run: runs: " <> traceLine request <> "\n"))
+      handle request
   | changes request = do
       _ <- handle (PutErr ("dry-run: " <> traceLine request <> "\n"))
       pure (pretended request)
@@ -493,15 +501,19 @@ pretended request = case request of
 -- 🚩 The flags before the file name.
 -- ファイルの名前より前のフラグ
 data Options = Options
-  { permissions :: Permissions
-  , tracing     :: Bool
-  , dryRunning  :: Bool
-  , randomSeed  :: Maybe Int     -- --seed=618: the same dice every time
+  { permissions  :: Permissions
+  , tracing      :: Bool
+  , dryRunning   :: Bool
+  , randomSeed   :: Maybe Int      -- --seed=618: the same dice every time
+  -- ANCHOR: settingsOptions
+  , settingsFile :: Maybe FilePath -- --settings=FILE, in place of lam.json
+  , dryAllowed   :: [[Text]]       -- read from it: commands a dry run runs
+  -- ANCHOR_END: settingsOptions
   }
   deriving (Eq, Show)
 
 defaultOptions :: Options
-defaultOptions = Options AllowAll False False Nothing
+defaultOptions = Options AllowAll False False Nothing Nothing []
 
 -- 🚩 Read the flags at the head of the arguments; the rest is the file
 --    and its arguments. No flag: everything is allowed. --allow-...
@@ -533,6 +545,8 @@ readOptions args fromEnv = do
       | Just n <- stripPrefix "--seed=" flag = do
           seed <- whole "--seed" n
           Right opts { randomSeed = seed }
+      | Just file <- stripPrefix "--settings=" flag, not (null file) =
+          Right opts { settingsFile = Just file }
       | Just new <- allowFlag flag = Right (allow [new] opts)
       | otherwise = Left ("lam: unknown flag: " <> T.pack flag)
     allow new opts = opts { permissions = Only (Map.unionWith wider
@@ -571,11 +585,11 @@ allowFlag flag = do
 usage :: Text
 usage = T.unlines
   [ "usage: lam [flags] [file args...]"
-  , "       lam compile [flags] FILE.lam [-o NAME]"
+  , "       lam compile [flags] FILE.lam [-o NAME] [--include PATH]"
   , "  --allow-net[=hosts]      --allow-read[=folders]"
   , "  --allow-write[=folders]  --allow-env[=names]"
   , "  --allow-run[=commands]   --deny-all"
-  , "  --trace  --dry-run  --seed=n" ]
+  , "  --trace  --dry-run  --seed=n  --settings=FILE" ]
 
 -- ANCHOR: guarded
 -- 🧅 The guards for the flags, put around a handler: the trace
@@ -589,7 +603,7 @@ guarded :: MonadIO m => Options -> IO (Handler m -> Handler m)
 guarded opts = do
   tracer <- newTracer
   let outside = if tracing opts then tracer else id
-      inside  = if dryRunning opts then dryRun else id
+      inside  = if dryRunning opts then dryRun (dryAllowed opts) else id
   pure (outside . allowOnly (permissions opts) . inside)
 -- ANCHOR_END: guarded
 -- ANCHOR_END: all

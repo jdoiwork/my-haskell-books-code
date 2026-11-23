@@ -71,6 +71,7 @@ module Lam.Parser
   , call
   ) where
 
+import Control.Monad (join)
 import Control.Monad.Reader (Reader, asks, local, runReader)
 import Data.Char (isAlpha, isAlphaNum, isDigit, isSpace)
 import Data.List (nub)
@@ -104,6 +105,12 @@ type Parser = ParsecT Void Text (Reader Context)
 data Context = Context
   { contextColumn    :: Pos
   , contextOperators :: Operators
+  -- ANCHOR: contextSource
+  -- The whole text being read: a case looks back at the line its |
+  -- is on (see branchesOf).
+  -- 読んでいる文字の全部。case は、| のある行を見返す（branchesOf）
+  , contextSource    :: Text
+  -- ANCHOR_END: contextSource
   }
 
 -- ▶️ Run a parser with these operators. At first, the column is 1:
@@ -114,7 +121,7 @@ runLamParser
   :: Operators -> Parser a -> FilePath -> Text
   -> Either (ParseErrorBundle Text Void) a
 runLamParser ops p file source =
-  runReader (runParserT p file source) (Context pos1 ops)
+  runReader (runParserT p file source) (Context pos1 ops source)
 -- ANCHOR_END: parserType
 
 -- 🫧 Skip spaces, line breaks, and comments from -- to the end.
@@ -507,7 +514,9 @@ mapLiteral = do
       k <- choice
         [ Lit . LString <$> stringLiteral
         , numberKey
-        , Lit . LString <$> bareKey
+        , do loc <- here
+             key <- bareKey
+             pure (At loc (App (Var keyName) (Lit (LString key))))
         , between (symbol "[") (symbol "]") expr ]
       -- Named for error messages: "':' (a Map)".
       -- エラーの文のための名前：「':'（Map）」
@@ -847,13 +856,22 @@ statement = choice
          Named x e        -> DoLet x e
          Destructured p e -> DoLetPattern p e
   , DoDefer <$> (keyword "defer" *> expr)
-  , do p <- try (pattern <* symbol "<-")
+  -- ANCHOR: statementPlace
+  -- p <- e and a line with ? keep the place of the line: an error of
+  -- the line itself (a ? left out, a ? where it cannot be) points
+  -- there.
+  -- p <- e と ? のある行は、行の場所を持っておく。行そのもののエラー
+  -- （? の付け忘れ、使えない所の ?）は、そこを指す
+  , do loc <- here
+       p <- try (pattern <* symbol "<-")
        e <- expr
        marked <- tryMark
-       pure (if marked then DoTry p e else DoBind p e)
-  , do e <- expr
+       pure (if marked then DoTry p (At loc e) else DoBind p (At loc e))
+  , do loc <- here
+       e <- expr
        marked <- tryMark
-       pure (if marked then DoTryRun e else DoRun e) ]
+       pure (if marked then DoTryRun (At loc e) else DoRun e) ]
+  -- ANCHOR_END: statementPlace
 -- ANCHOR_END: doExpr
 
 -- ANCHOR: tryMark
@@ -910,9 +928,26 @@ letBinding = do
   keyword "let"
   named <|> destructured
   where
+    -- ANCHOR: letSignature
+    -- A type annotation may come first, with the definition right
+    -- below it, at the same column:
+    --   let wrap : Display a => a -> String
+    --       wrap x = "<" ++ display x ++ ">"
+    -- 型の注釈を先に書いてもよい。定義は、すぐ下の同じ列に
     named = do
+      column <- L.indentLevel
+      sig <- optional $ try $ do
+        s <- local (\c -> c { contextColumn = column }) signatureHead
+        now <- L.indentLevel
+        if now == column then pure s else empty
       (f, e) <- afterLet
-      pure (Named f e)
+      case sig of
+        Nothing -> pure (Named f e)
+        Just (DefSig x t)
+          | x == f    -> pure (Named f (Annot t e))
+          | otherwise -> fail (needsBelow x)
+        Just _ -> pure (Named f e)
+    -- ANCHOR_END: letSignature
     destructured = do
       p <- pattern
       _ <- equals
@@ -962,8 +997,37 @@ topDefinition = do
     pure (f, params)
   body   <- expr
   locals <- option [] whereBlock
-  pure (f, lambdaWith params (foldr (uncurry Let) body locals))
+  pure (f, lambdaWith params (foldr (uncurry Let) body (inOrder locals)))
 -- ANCHOR_END: topDefinition
+
+-- ANCHOR: inOrder
+-- 🔢 The parts of a where, so that each comes after the parts it
+--    uses: a part may use one written below it. Otherwise they keep
+--    the order they were written in. (Two parts that use each other
+--    cannot be put in order: the one above does not know the other.)
+-- where の部品を、使う部品のあとに来るように並べる。部品は、下に書いた
+-- 部品を使ってよい。ほかは、書いた順のまま（おたがいを使う2つは並べ
+-- られない。上のものは、もう1つを知らない）
+inOrder :: [(Name, Expr)] -> [(Name, Expr)]
+inOrder parts
+  | length (nub (map fst parts)) /= length parts = parts
+  | otherwise = reverse (snd (foldl visit (Set.empty, []) (map fst parts)))
+  where
+    table = Map.fromList parts
+    -- Mark x as seen first (a part that x uses, and that uses x,
+    -- stops there), then put its parts, then x itself.
+    -- 先に x を「見た」にする（x が使い、x を使う部品は、そこで止まる）。
+    -- それから x の部品、最後に x
+    visit (seen, out) x
+      | x `Set.member` seen = (seen, out)
+      | otherwise = case Map.lookup x table of
+          Nothing -> (seen, out)
+          Just e ->
+            let uses = [ y | (y, _) <- parts, y /= x
+                           , y `Set.member` freeVars e ]
+                (seen', out') = foldl visit (Set.insert x seen, out) uses
+            in (seen', (x, e) : out')
+-- ANCHOR_END: inOrder
 
 -- ANCHOR: whereBlock
 -- 📎 where, then definitions one under another (at the same column):
@@ -974,7 +1038,26 @@ topDefinition = do
 -- where のあとに、定義を縦に並べる（同じ列から）。部品は、引数と、
 -- 上にある部品を使える
 whereBlock :: Parser [(Name, Expr)]
-whereBlock = block afterLet
+whereBlock = do
+  items <- block (Left <$> try signatureHead <|> Right <$> afterLet)
+  pairUp items
+  where
+    -- ANCHOR: whereSignature
+    -- A type annotation goes with the definition right below it.
+    -- 型の注釈は、すぐ下の定義と組にする
+    pairUp items = case items of
+      [] -> pure []
+      Left (DefSig x t) : Right (y, e) : rest
+        | x == y -> ((x, Annot t e) :) <$> pairUp rest
+      Left (DefSig x _) : _ -> fail (needsBelow x)
+      Left _ : rest -> pairUp rest
+      Right part : rest -> (part :) <$> pairUp rest
+    -- ANCHOR_END: whereSignature
+
+-- 「cell の型の注釈のすぐ下に、cell の定義が要ります」
+needsBelow :: Name -> String
+needsBelow x = "the type annotation of " <> T.unpack x
+  <> " needs the definition of " <> T.unpack x <> " right below it"
 
 -- ANCHOR: block
 -- 📎 where, then items one under another, all at the same column.
@@ -1094,26 +1177,105 @@ ifThenElse = do
 caseOf :: Parser Expr
 caseOf = do
   loc <- here
+  start <- getOffset
   keyword "case"
   scrutinee <- expr
   keyword "of"
-  At loc <$> branchesOf scrutinee
+  At loc <$> branchesOf start scrutinee
 
--- 🔀 The branches after "of", for the value e.
--- of のあとの枝。e の値を分ける
-branchesOf :: Expr -> Parser Expr
-branchesOf scrutinee = do
-  _ <- optional bar
-  branches <- branch `sepBy1` bar
+-- ANCHOR: branchesOf
+-- 🔀 The branches after "of", for the value e. start is where the
+--    word case is.
+-- of のあとの枝。e の値を分ける。start は、case という語のある所
+branchesOf :: Int -> Expr -> Parser Expr
+branchesOf start scrutinee = do
+  first    <- optional firstBar
+  b        <- branch
+  branches <- moreBranches start (join first) [b]
   pure (expandGuards scrutinee branches)
-  where
-    branch = do
-      p     <- pattern
-      guard <- optional (keyword "if" *> expr)
-      _     <- symbol "->"
-      body  <- expr
-      pure (p, guard, body)
+-- ANCHOR_END: branchesOf
 
+-- ANCHOR: moreBranches
+-- 🔀 The branches after the first one. column is the column of the
+--    branches, once a | has started a line.
+-- 最初の枝のあとの枝。column は、| が行の頭に来てからの、枝の列
+moreBranches
+  :: Int -> Maybe Int -> [(Pattern, Maybe Expr, Expr)]
+  -> Parser [(Pattern, Maybe Expr, Expr)]
+moreBranches start column done = do
+  next <- optional (try (barOf start column))
+  case next of
+    Nothing      -> pure (reverse done)
+    Just column' -> do
+      b <- branch
+      moreBranches start column' (b : done)
+
+-- 🌿 One branch:  p -> body,  or  p if guard -> body.
+-- 枝を1つ
+branch :: Parser (Pattern, Maybe Expr, Expr)
+branch = do
+  p     <- pattern
+  guard <- optional (keyword "if" *> expr)
+  _     <- symbol "->"
+  body  <- expr
+  pure (p, guard, body)
+-- ANCHOR_END: moreBranches
+
+-- ANCHOR: barOf
+-- 🚧 A | of the case that starts at start. A | in the middle of a
+--    line always is. A | at the start of a line is, only when it is
+--    not to the left of the branches (the first | that started a
+--    line), or, before such a |, to the right of where the line of
+--    the word case starts. Otherwise it is a branch of a case outside:
+--      | Ok n -> case lookup n of
+--          | Just x -> x        -- the branches of the inner case
+--          | Nothing -> 0
+--      | Err _ -> 1             -- left of them: the outer case
+--    The answer is the column of the branches from now on.
+-- start から始まる case の |。行の途中の | は、いつもそう。行の頭の |
+-- は、枝（最初に行の頭に来た |）より左でないときだけ。まだそういう | が
+-- なければ、case という語のある行の頭より右のときだけ。そうでなければ、
+-- 外の case の枝。答えは、これからの枝の列
+barOf :: Int -> Maybe Int -> Parser (Maybe Int)
+barOf start column = do
+  source <- asks contextSource
+  o      <- getOffset
+  now    <- unPos <$> L.indentLevel
+  let atStart = startsLine source o
+      fits = case column of
+        Just c  -> now >= c
+        Nothing -> now > indentOf source start
+  if atStart && not fits
+    then empty
+    else do
+      bar
+      pure (if atStart && column == Nothing then Just now else column)
+
+-- 🚧 The first | (it may be left out): always of this case. The answer
+--    is its column, if it starts a line.
+-- 最初の |（省いてもよい）は、いつもこの case のもの。行の頭にあれば、
+-- 答えはその列
+firstBar :: Parser (Maybe Int)
+firstBar = do
+  source <- asks contextSource
+  o      <- getOffset
+  now    <- unPos <$> L.indentLevel
+  bar
+  pure (if startsLine source o then Just now else Nothing)
+
+-- 📏 Only spaces between the start of the line and offset o?
+-- 行の頭から o までが、空白だけか
+startsLine :: Text -> Int -> Bool
+startsLine source o =
+  T.all (== ' ') (T.takeWhileEnd (/= '\n') (T.take o source))
+
+-- 📏 The column where the line of offset o starts (its first word).
+-- o のある行の、最初の語の列
+indentOf :: Text -> Int -> Int
+indentOf source o =
+  let line = T.takeWhileEnd (/= '\n') (T.take o source)
+  in T.length (T.takeWhile (== ' ') line) + 1
+-- ANCHOR_END: barOf
 -- 🚧 A single | (not the start of || or |>).
 -- 1つだけの |（|| や |> の頭ではない）
 bar :: Parser ()
@@ -1132,23 +1294,18 @@ bar = lexeme (try (char '|' *> notFollowedBy (oneOf ("|>" :: String))))
 receiveOf :: Parser Expr
 receiveOf = do
   loc <- here
+  start <- getOffset
   keyword "receive"
   box <- expr
-  _ <- optional bar
-  branches <- branch `sepBy1` bar
+  first <- optional firstBar
+  b <- branch
+  branches <- moreBranches start (join first) [b]
   late <- optional $ do
     keyword "after"
     ms <- application
     _  <- symbol "->"
     (,) ms <$> expr
   pure (At loc (desugarReceive box branches late))
-  where
-    branch = do
-      p     <- pattern
-      guard <- optional (keyword "if" *> expr)
-      _     <- symbol "->"
-      body  <- expr
-      pure (p, guard, body)
 
 -- 🍬 receive is sugar. Its branches become one function, which gives
 --    Just the IO of the branch that fits, or Nothing:

@@ -1,0 +1,1 @@
+--jsonl -n --begin 0 -e 'acc + (Maybe.andThen Json.int (Json.get "ms" json) ?: 0)' --end print examples/oneliner/events.jsonl

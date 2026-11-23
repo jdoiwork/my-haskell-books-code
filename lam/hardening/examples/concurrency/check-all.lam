@@ -1,0 +1,43 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🧪 Run every script in checks/ with lam, a few at once, and tell
+--    which ones failed.
+--      lam --allow-read --allow-run=lam check-all.lam --jobs 4
+-- checks/ のスクリプトを全部 lam で動かす。いくつかずつ同時に。
+-- 通らなかったものを言う
+
+-- ANCHOR: runOne
+-- ▶️ One script, with lam: which one, and how it ended.
+-- スクリプト1つを lam で：どれか、どう終わったか
+runOne : String -> IO (String, Outcome)
+runOne file = do
+  o <- Shell.run $"lam {file}"
+  pure (file, o)
+-- ANCHOR_END: runOne
+
+-- 📝 How it ended, in a word or two.
+-- どう終わったかを、短く
+verdict : Outcome -> String
+verdict o = case o of
+  | Succeeded _ -> "ok"
+  | Failed r -> f"failed ({r.code})"
+  | CannotStart why -> f"cannot start: {why}"
+
+-- ANCHOR: main
+--- Run the checks, a few at once.
+-- 確かめを、いくつかずつ同時に動かす
+main :
+  { --- How many to run at once
+    -- 同時にいくつ動かすか
+    jobs : Int = 4 }
+  -> IO (Result String ())
+main opts = do
+  files <- File.glob "checks/*.lam" ?
+  done <- IO.timed (IO.allN opts.jobs (map runOne (sort files)))
+  forEach done.value (\(file, o) -> putStrLn f"{verdict o:<10} {file}")
+  let bad = filter (\(_, o) -> verdict o /= "ok") done.value
+  putStrLn f"{length files} checks, {length bad} failed"
+  ePutStrLn f"took {done.seconds:.1} s, {opts.jobs} at once"
+  if bad == [] then pure (Ok ()) else exit 1
+-- ANCHOR_END: main
+-- ANCHOR_END: all

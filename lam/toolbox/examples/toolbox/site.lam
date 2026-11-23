@@ -1,0 +1,22 @@
+-- ANCHOR: all
+-- 🖼️ The page of the workshop, with its logo: the files of a folder,
+--    of any kind, as bytes.
+--   lam --allow-net=localhost --allow-read=public site.lam
+-- 工房のページとロゴ：フォルダーのファイルを、種類を問わず、バイト列で
+
+-- ANCHOR: serveFile
+-- 📄 "/" is index.html, ".." is never followed, and the rest is the
+--    file under the folder (an image too).
+-- "/" は index.html、".." はたどらない。ほかは、フォルダーの下の
+-- ファイル（画像も）
+serveFile : String -> Request -> IO Response
+serveFile root req =
+  case Http.segments req.path of
+    | [] -> Response.file (Path.join root "index.html")
+    | pieces if elem ".." pieces -> pure Response.notFound
+    | pieces -> Response.file (Path.join root (String.join "/" pieces))
+-- ANCHOR_END: serveFile
+
+main : { root : String = "public", port : Int = 8000 } -> IO ()
+main opts = Http.serve opts.port (serveFile opts.root)
+-- ANCHOR_END: all

@@ -1,0 +1,25 @@
+-- ANCHOR: all
+-- 🧱 Only the closed parts of table.lam, to run with the lam of the
+--    chapter before.
+-- table.lam の閉じた部品だけ。前の章の lam でも動かせるように
+-- 🧾 ToJson, with its instances for Int and String, is in the module
+--    Json now ("Making the tools sturdier"): no class of our own.
+-- ToJson と、Int・String のインスタンスは、いまはモジュール Json に
+-- ある（「道具を補強する」）。自分のクラスは書かない
+
+-- 🔒 cell uses no local name: it is closed, so it is general.
+-- cell はローカルな名前を使わない。閉じているので、一般にする
+row : Int -> String -> String
+row n name = cell n ++ " | " ++ cell name
+  where
+    cell x = f"[{x}]"
+
+record : Int -> String -> Json
+record n name = JArr [cell n, cell name]
+  where
+    cell x = toJson x
+
+main = do
+  putStrLn (row 3 "lam")
+  putStrLn (Json.show (record 3 "lam"))
+-- ANCHOR_END: all

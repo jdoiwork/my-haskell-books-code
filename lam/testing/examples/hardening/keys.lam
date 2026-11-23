@@ -1,0 +1,12 @@
+-- ANCHOR: all
+-- ⚠️ A key written as a name is the text. When a variable of the same
+--    name is right there, lam warns, and goes on.
+-- 名前の形のキーは文字。同じ名前の変数がすぐそこにあれば、lam は警告して
+-- 続ける
+timings : String -> Int -> Map String Int
+timings url ms = {url: ms}
+
+main = do
+  print (timings "/memos" 12)
+  print {length: 3}
+-- ANCHOR_END: all

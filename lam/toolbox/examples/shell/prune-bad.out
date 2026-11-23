@@ -1,0 +1,2 @@
+error: git branch --merged nope --format=%(refname:short): exit 128: fatal: malformed object name nope
+[exit 1]

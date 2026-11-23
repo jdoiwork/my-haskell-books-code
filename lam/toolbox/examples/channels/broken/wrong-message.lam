@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- 🚫 A message of the wrong type: the counter takes a Msg, not a
+--    String. The type checker stops it before anything runs.
+-- 型のちがうメッセージ：カウンターが受け取るのは Msg で、String ではない。
+-- 動かす前に、型検査器が止める
+data Msg = Add Int | Get (Pid Int)
+
+counter : Int -> Pid Msg -> IO ()
+counter total me =
+  receive me
+    | Add n -> counter (total + n) me
+    | Get from -> do
+        Actor.send from total
+        counter total me
+
+main = do
+  c <- Actor.spawn (counter 0)
+  Actor.send c "add 3"
+-- ANCHOR_END: all

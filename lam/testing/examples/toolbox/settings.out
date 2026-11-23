@@ -1,0 +1,4 @@
+dry-run: runs: Shell.run $"git branch --show-current"
+dry-run: Shell.run $"git branch --merged main --format=%(refname:short)"
+error: dry run: git was not run
+[exit 1]

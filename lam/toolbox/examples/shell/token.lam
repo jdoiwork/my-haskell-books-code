@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- 🤫 Ask for a token without showing it.
+-- トークンを、見せずに聞く
+main = do
+  token <- Term.secret "token?"
+  case token of
+    | Just t -> putStrLn f"got {length (chars t)} letters"
+    | Nothing -> putStrLn "no token"
+-- ANCHOR_END: all

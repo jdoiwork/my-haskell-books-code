@@ -19,12 +19,13 @@ module Lam.TestRun
   , runSeeds
   , renderReport
   , testFile
+  , fileWarnings
   , findTestFiles
   , runTests
   ) where
 
 import Control.Monad (filterM, forM)
-import Data.List (isSuffixOf, sort)
+import Data.List (isSuffixOf, nub, sort)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -32,6 +33,7 @@ import qualified Data.Text.IO as TIO
 import qualified Data.Text.IO.Utf8 as Utf8
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory)
 import System.FilePath ((</>))
+import System.IO (stderr)
 import Text.Read (readMaybe)
 
 import Lam.Builtins (maybeValue)
@@ -234,6 +236,15 @@ testFile :: Files IO -> Session -> Seeds -> FilePath
 testFile files session seeds file = do
   source <- Utf8.readFile file
   loaded <- loadProgram files session session file source
+  -- ANCHOR: testWarnings
+  -- The warnings of the file (and of its imports) first, to the
+  -- standard error, as when lam runs a file. The tests still run.
+  -- ファイル（と import したもの）の警告を、先に標準エラーへ。lam が
+  -- ファイルを動かすときと同じ。テストは、それでも動かす
+  case loaded of
+    Right (s, _) -> mapM_ (TIO.hPutStrLn stderr) (fileWarnings s)
+    Left _       -> pure ()
+  -- ANCHOR_END: testWarnings
   pure $ do
     (session', _) <- loaded
     tests <- either (\e -> Left (T.pack file <> ": " <> e)) Right
@@ -243,6 +254,11 @@ testFile files session seeds file = do
     Right ( renderReport file seeds tried reports
           , length reports - failed, failed )
 -- ANCHOR_END: testFile
+
+-- ⚠️ The warnings of a loaded test file, each once.
+-- 読んだテストのファイルの警告。同じものは1度だけ
+fileWarnings :: Session -> [Text]
+fileWarnings = nub . sessionWarnings
 
 -- ANCHOR: findTestFiles
 -- 🗂️ The test files: the files named, and in each folder named (the

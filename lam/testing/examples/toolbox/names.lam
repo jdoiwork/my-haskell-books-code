@@ -1,0 +1,39 @@
+-- ANCHOR: all
+-- 🗂️ Downloads, sorted into kinds by their extensions: b.PDF and a.pdf
+--    are both pdf. The names that were missing: String.toLower,
+--    String.join, String.lines, groupBy, splitAt.
+-- ダウンロードしたファイルを、拡張子で種類に分ける。b.PDF も a.pdf も
+-- pdf。抜けていた名前：String.toLower・String.join・String.lines・
+-- groupBy・splitAt
+
+-- ANCHOR: files
+downloads : String
+downloads = "b.PDF\nphoto.png\na.pdf\nnotes.TXT\nc.Png\ntodo.txt\n"
+-- ANCHOR_END: files
+
+-- ANCHOR: kinds
+-- 🔤 The kind of a file: its extension in small letters, without the
+--    dot ("" if it has none).
+-- ファイルの種類：拡張子を小文字にして、点を取ったもの（なければ ""）
+kind : String -> String
+kind name = String.toLower (String.drop 1 (Path.extension name))
+
+-- 📦 The names, in groups of the same kind.
+-- 名前を、同じ種類の組に
+groups : [String] -> [[String]]
+groups names =
+  groupBy (\a b -> kind a == kind b) (sortOn kind names)
+-- ANCHOR_END: kinds
+
+-- ANCHOR: main
+main = do
+  let names = String.lines downloads
+  forEach (groups names) (\g ->
+    putStrLn f"{kind (head g)}: {String.join ", " g}")
+  -- The first two, and the rest
+  -- はじめの2つと、残り
+  let (first, rest) = splitAt 2 names
+  putStrLn f"first: {String.join " " first} / rest: {length rest}"
+  putStrLn (String.toUpper "done")
+-- ANCHOR_END: main
+-- ANCHOR_END: all

@@ -1,0 +1,59 @@
+-- ANCHOR: all
+-- 🧾 Today's receipt again, but now the orders come from a file, and
+--    the receipt goes to the screen and into a file. The tools are
+--    the ones of Receipt.lam (the module of the chapter before).
+-- 今日のレシートを、もう一度。でも今度は、注文をファイルから読み、
+-- レシートを画面とファイルに書く。道具は Receipt.lam（前の章の
+-- モジュール）のもの
+--   LAM_PATH=examples/modules/receipt lam examples/io/shop.lam
+import Receipt
+
+-- 🏷️ The price of each item, in yen.
+-- 品物ごとの値段（円）
+prices = {sticker: 300, mug: 1200, tshirt: 2500}
+
+-- ANCHOR: orderOf
+-- 📦 One order in the JSON:  {"item": "mug", "count": 1}.
+--    A do of Maybe: a field that is missing makes it all Nothing.
+-- JSON の注文1つ。Maybe の do：項目が1つでもなければ、全体が Nothing
+orderOf : Json -> Maybe (String, Int)
+orderOf j = do
+  item  <- Json.get "item" j |> Maybe.andThen Json.string
+  count <- Json.get "count" j |> Maybe.andThen Json.int
+  pure (item, count)
+-- ANCHOR_END: orderOf
+
+-- ANCHOR: receiptOf
+-- 🧾 From the text of the file to the lines of the receipt.
+--    A do of Result: the first Err stops it, and is the answer.
+-- ファイルの文字から、レシートの行へ。Result の do：最初の Err で
+-- 止まり、それが答えになる
+receiptOf : String -> Result String [String]
+receiptOf text = do
+  json   <- Json.parse text
+  -- 「注文はリストでなければなりません」
+  items  <- Json.array json |> Result.fromMaybe "the orders must be a list"
+  -- 「注文には item と count が要ります」
+  orders <- mapM orderOf items
+              |> Result.fromMaybe "each order needs an item and a count"
+  pure (Receipt.receipt prices orders)
+-- ANCHOR_END: receiptOf
+
+-- ANCHOR: main
+-- 🚪 A do of IO: read the file, write the receipt, save it.
+-- IO の do：ファイルを読み、レシートを書き、保存する
+main : IO ()
+main = do
+  text <- readFile "examples/io/orders.json"
+  case Result.andThen receiptOf text of
+    -- 「レシートを作れません」
+    | Err e -> putStrLn f"no receipt: {e}"
+    | Ok lines -> do
+        forEach lines putStrLn
+        saved <- writeFile "receipt.txt" (join "\n" lines ++ "\n")
+        case saved of
+          -- 「receipt.txt に保存しました」
+          | Ok _ -> putStrLn "saved receipt.txt"
+          | Err e -> putStrLn e
+-- ANCHOR_END: main
+-- ANCHOR_END: all

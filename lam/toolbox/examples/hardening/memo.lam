@@ -1,0 +1,33 @@
+-- ANCHOR: all
+-- 📝 A small memo server, written from the top down: main first, then
+--    the handler, then the parts it uses.
+--   lam memo.lam
+-- 小さなメモのサーバー。上から下へ書く：先に main、次に handler、その
+-- 下に、handler が使う部品
+main = Http.serve 8080 handler
+
+-- ANCHOR: handler
+-- 🚦 Each request goes to its part.
+-- 頼みを、それぞれの部品へ
+handler : Request -> IO Response
+handler req =
+  case (req.method, Http.segments req.path) of
+    | ("GET", []) -> pure (Response.text 200 banner)
+    | ("GET", ["memos", n]) -> pure (Response.json 200 (memoJson (memoOf n)))
+    | _ -> pure Response.notFound
+-- ANCHOR_END: handler
+
+-- ANCHOR: parts
+-- 🗒️ A memo, made from its number.
+-- 番号から作るメモ
+memoOf n = { id = n, text = f"memo number {n}" }
+
+-- 🧾 A memo, as JSON.
+-- メモを JSON に
+memoJson memo = JObj {id: JStr memo.id, text: JStr memo.text}
+
+-- 🪧 What the top page says.
+-- いちばん上のページの文
+banner = "memos: try /memos/1\n"
+-- ANCHOR_END: parts
+-- ANCHOR_END: all

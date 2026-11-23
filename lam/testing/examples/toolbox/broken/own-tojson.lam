@@ -1,0 +1,13 @@
+-- ANCHOR: all
+-- 📤 The class of the chapter on Map and JSON, written again in a file
+--    of our own. The module Json has a class of the same name now.
+-- Map と JSON の章のクラスを、自分のファイルにもう一度書く。いまは
+-- モジュール Json に、同じ名前のクラスがある
+class ToJson a where
+  toJson : a -> Json
+
+instance ToJson Int where
+  toJson n = JInt n
+
+main = putStrLn (Json.show (toJson 3))
+-- ANCHOR_END: all

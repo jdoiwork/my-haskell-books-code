@@ -635,6 +635,9 @@ eval env expr = case expr of
   -- fails, the error remembers this place.
   -- 場所の印：中の式の値。失敗したら、エラーにこの場所を覚えさせる
   At loc e -> located loc (eval env e)
+  -- An annotation is only for the type checker.
+  -- 注釈は型検査器のためだけ
+  Annot _ e -> eval env e
   -- ANCHOR_END: evalAt
 
   -- ANCHOR: app

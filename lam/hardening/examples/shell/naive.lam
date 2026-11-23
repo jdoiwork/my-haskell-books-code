@@ -1,0 +1,8 @@
+-- ANCHOR: all
+-- 📏 Lining up with padRight: it counts letters, but a 漢字 takes two
+--    columns on a terminal.
+-- padRight でそろえる。文字の数で数えるが、漢字は端末で2桁を使う
+main = do
+  putStrLn (padRight 10 "fix-typo" ++ "Python")
+  putStrLn (padRight 10 "機能/表" ++ "Ruby")
+-- ANCHOR_END: all

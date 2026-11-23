@@ -1,0 +1,42 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 📬 A job looks up the Pokémon one by one, and sends each answer
+--    through a channel as soon as it has it. main shows each one as it
+--    comes, with the time.
+--      lam progress.lam
+-- 仕事がポケモンを1匹ずつ引き、答えが出るたびにチャネルで送る。main は、
+-- 届いたものから、時間を添えて見せる
+import Dex (Mon, fetch, line)
+import Stopwatch (since)
+
+names = ["bulbasaur", "charmander", "squirtle", "pikachu", "eevee", "snorlax"]
+
+-- ANCHOR: lookUp
+-- 🔎 Look up the names one by one, and send each answer. Close the
+--    channel at the end: "no more".
+-- 名前を1つずつ引き、答えを1つずつ送る。最後にチャネルを閉じる：
+-- 「もうないよ」
+lookUp : Chan (Result String Mon) -> [String] -> IO ()
+lookUp out ns = do
+  forEach ns (\n -> do
+    r <- fetch n
+    Chan.send out r)
+  Chan.close out
+-- ANCHOR_END: lookUp
+
+-- ANCHOR: main
+main = do
+  start <- Time.now
+  progress <- Chan.new 0
+  _ <- spawn (lookUp progress names)
+  -- Each answer, as it comes, until the channel is closed.
+  -- 届いた答えを1つずつ。チャネルが閉じるまで
+  Chan.forEach progress (\r -> do
+    s <- since start
+    case r of
+      | Ok m -> putStrLn f"{s:.1}s  {line m}"
+      | Err e -> ePutStrLn e)
+  -- 「全部終わり」
+  putStrLn "all done"
+-- ANCHOR_END: main
+-- ANCHOR_END: all

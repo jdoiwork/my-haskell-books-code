@@ -1,0 +1,3 @@
+the lambda wakes up
+it counts the words of the day
+and goes back to sleep

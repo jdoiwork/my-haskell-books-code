@@ -1,0 +1,1 @@
+examples/operators/broken/Secret.lam:4:1: error: the module Secret exposes (<+>), but not addPrice, the function it calls

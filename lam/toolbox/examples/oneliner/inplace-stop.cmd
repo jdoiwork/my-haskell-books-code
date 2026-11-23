@@ -1,0 +1,1 @@
+-i -pe 'if line == "" then error "an empty line" else toUpper line' examples/oneliner/gaps.txt

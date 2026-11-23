@@ -1,0 +1,39 @@
+-- 🧭 A walk on a grid: the cells we stepped on (a Set), and the
+--    treasures on the cells (a Map whose keys are pairs).
+-- マス目を歩く。踏んだマス（Set）と、マスの上の宝（キーが組の Map）
+--   lam examples/json/grid.lam
+
+-- ANCHOR: walk
+-- 👣 One step: R, L, D or U moves (x, y) to the next cell.
+-- 1歩。R・L・D・U で、(x, y) を隣のマスへ
+step (x, y) move =
+  case move of
+    | "R" -> (x + 1, y)
+    | "L" -> (x - 1, y)
+    | "D" -> (x, y + 1)
+    | "U" -> (x, y - 1)
+    | _ -> (x, y)
+
+-- 🗺️ Every cell on the way, the last one first.
+-- 通ったマス全部。最後のマスが先頭
+walk : [String] -> [(Int, Int)]
+walk moves = foldl (\cells m -> step (head cells) m : cells) [(0, 0)] moves
+-- ANCHOR_END: walk
+
+-- ANCHOR: treasures
+-- 💎 The treasures, by cell: a pair is a key, written in [ ].
+-- マスごとの宝。組をキーにするので [ ] で包む
+treasures : Map (Int, Int) String
+treasures = {[(2, 0)]: "herb", [(1, 1)]: "elixir", [(5, 5)]: "key"}
+
+-- 🎒 The cells we stepped on, each once, and what we found there.
+-- 踏んだマス（1つずつ）と、そこで見つけたもの
+path = walk ["R", "R", "D", "L", "U", "U"]
+
+visited = Set.fromList path
+
+found =
+  [item | (cell, item) <- Map.toList treasures, Set.member cell visited]
+-- ANCHOR_END: treasures
+
+{ steps = length path - 1, cells = Set.size visited, found = found }

@@ -1,0 +1,13 @@
+-- ANCHOR: all
+-- 🌿 The branches merged into main, with Process.run: the words of
+--    the command, one by one, in a list.
+-- main に取りこみ済みのブランチ。Process.run で、コマンドの語を1つずつ
+-- リストに書く
+main : IO (Result String ())
+main = do
+  outcome <- Process.run "git"
+    ["branch", "--merged", "main", "--format=%(refname:short)"]
+  names <- pure (Process.output outcome) ?
+  forEach (lines names) putStrLn
+  pure (Ok ())
+-- ANCHOR_END: all

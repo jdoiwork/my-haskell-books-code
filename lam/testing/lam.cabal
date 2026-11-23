@@ -3,7 +3,7 @@ name:          lam
 version:       0.29.0.0
 build-type:    Simple
 
--- 第16部 Lam を仕上げる（4. テストとデバッグ：lam test）
+-- 第16部 Lam を仕上げる（6. テストとデバッグ：lam test）
 
 common shared
   default-language: GHC2024
@@ -55,6 +55,8 @@ library
                     Lam.Channels
                     Lam.Server
                     Lam.Bundle
+                    Lam.Toolbox
+                    Lam.Settings
                     Lam.Testing
                     Lam.TestRun
                     -- The answers of the training

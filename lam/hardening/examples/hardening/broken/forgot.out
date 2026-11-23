@@ -1,0 +1,1 @@
+examples/hardening/broken/forgot.lam:6:3: in the definition of main: type error: this line gives Result String String, but the lines below use it as String: write ? at the end of the line, to go on with what is in Ok (and stop the do at an Err)

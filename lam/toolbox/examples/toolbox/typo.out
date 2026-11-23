@@ -1,0 +1,4 @@
+lam: typo/lam.json: unknown key "dryrun" (lam knows "dryRun")
+[exit 2]
+lam: nothing.json: cannot read it
+[exit 2]

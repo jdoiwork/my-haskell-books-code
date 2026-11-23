@@ -1,0 +1,1 @@
+in the definition of bad: type error: the annotation of go says a can be any type, but the definition needs String

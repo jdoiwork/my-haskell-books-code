@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- ✂️ With another name for the module, the operator stays the same:
+--    <+> calls P.addPrice.
+-- モジュールに別の名前を付けても、演算子はそのまま。<+> が呼ぶのは
+-- P.addPrice
+import Price as P ((<+>))
+
+case (P.fromYen 300, P.fromYen 50) of
+  | (Just cake, Just tea) -> P.yen (cake <+> tea <+> tea)
+  | _ -> 0
+-- ANCHOR_END: all

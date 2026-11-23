@@ -57,7 +57,14 @@ builtins :: [Builtin]
 builtins =
   -- Strings
   -- 文字列
-  [ prim1 "toUpper" (tString ~> tString) (onString T.toUpper)
+  [ -- ANCHOR: keyName
+    -- A key of a Map written as a name ({url: 1}): the text as it is.
+    -- The mark is only for the warning (see keyWarnings).
+    -- 名前の形で書いた Map のキー（{url: 1}）：文字そのまま。印は警告の
+    -- ためだけ（keyWarnings を見る）
+    prim1 "$key.name" (tString ~> tString) Right
+    -- ANCHOR_END: keyName
+  , prim1 "toUpper" (tString ~> tString) (onString T.toUpper)
   , prim1 "toLower" (tString ~> tString) (onString T.toLower)
   , prim1 "chars" (tString ~> tList tString) $ \v -> do
       s <- string v

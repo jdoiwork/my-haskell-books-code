@@ -1,0 +1,2 @@
+error: examples/toolbox/expenses-bad.csv: line 7, column amount: not an Int: "abc"
+examples/toolbox/expenses-bad.csv: line 8, column category: unknown category "fun"

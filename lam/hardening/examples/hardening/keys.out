@@ -1,0 +1,3 @@
+{"url": 12}
+{"length": 3}
+examples/hardening/keys.lam:7:19: warning: the key url is the text "url", not the variable url (write {[url]: …} for the variable, or {"url": …} to keep the text)

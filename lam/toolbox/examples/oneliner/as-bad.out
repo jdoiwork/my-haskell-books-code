@@ -1,0 +1,4 @@
+error: examples/oneliner/shop-bad.json:
+.: missing field "user"
+.items[0].price: expected an Int, got "free"
+[exit 1]

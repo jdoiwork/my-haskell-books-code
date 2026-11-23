@@ -1,0 +1,61 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🧪 Run every script in checks/ with lam, a few at once, and show
+--    each one as soon as it ends, with how many are done.
+--      lam --allow-read --allow-run=lam check-live.lam --jobs 3
+-- checks/ のスクリプトを全部 lam で動かす。いくつかずつ同時に。終わった
+-- ものから、いくつ終わったかを添えて見せる
+
+-- 📝 How it ended, in a word or two.
+-- どう終わったかを、短く
+verdict : Outcome -> String
+verdict o = case o of
+  | Succeeded _ -> "ok"
+  | Failed r -> f"failed ({r.code})"
+  | CannotStart why -> f"cannot start: {why}"
+
+-- ANCHOR: runAll
+-- ▶️ Run the scripts, a few at once. Each job sends how its script
+--    ended as soon as it knows; when all are done, close the channel.
+-- スクリプトを、いくつかずつ同時に動かす。どの仕事も、わかったらすぐに
+-- 終わり方を送る。全部終わったら、チャネルを閉じる
+runAll : Int -> [String] -> Chan (String, Outcome) -> IO ()
+runAll jobs files done = do
+  _ <- IO.allN jobs (map (\file -> do
+         o <- Shell.run $"lam {file}"
+         Chan.send done (file, o)) files)
+  Chan.close done
+-- ANCHOR_END: runAll
+
+-- ANCHOR: report
+-- 📣 Show each one as it comes, with how many are done. The answer:
+--    the ones that failed.
+-- 届いたものから、いくつ終わったかを添えて見せる。答えは、通らなかったもの
+report : Chan (String, Outcome) -> Int -> Int -> [String] -> IO [String]
+report done n total bad = do
+  next <- Chan.recv done
+  case next of
+    | Nothing -> pure bad
+    | Just (file, o) -> do
+        let v = verdict o
+        putStrLn f"[{n + 1}/{total}] {v:<10} {file}"
+        report done (n + 1) total (if v == "ok" then bad else bad ++ [file])
+-- ANCHOR_END: report
+
+-- ANCHOR: main
+--- Run the checks, a few at once, and show them as they end.
+-- 確かめを、いくつかずつ同時に動かし、終わったものから見せる
+main :
+  { --- How many to run at once
+    -- 同時にいくつ動かすか
+    jobs : Int = 3 }
+  -> IO (Result String ())
+main opts = do
+  files <- File.glob "checks/*.lam" ?
+  done <- Chan.new 0
+  _ <- spawn (runAll opts.jobs (sort files) done)
+  bad <- report done 0 (length files) []
+  putStrLn f"{length files} checks, {length bad} failed: {bad}"
+  if bad == [] then pure (Ok ()) else exit 1
+-- ANCHOR_END: main
+-- ANCHOR_END: all

@@ -122,7 +122,7 @@ defaultImports m = case m of
   "Maybe"   -> "import Maybe (Maybe (..))"
   "Result"  -> "import Result (Result (..))"
   "Prelude" -> "import Prelude (..)"
-  "Json"    -> "import Json (Json (..))"
+  "Json"    -> "import Json (Json (..), ToJson (..), ToKey (..))"
   -- ANCHOR: importIO
   "IO"      -> "import IO (putStr, putStrLn, getLine, readFile, writeFile, "
                  <> "getArgs, lookupEnv, getEnvironment, getContents, "
@@ -205,9 +205,9 @@ listSource = """
 
   -- ANCHOR: listBasics
   -- Lists, taken apart with case. These are for lists only; outside,
-  -- their names start with  The classes of the Prelude make the
+  -- their names start with List. The classes of the Prelude make the
   -- same names work on other containers too.
-  -- リスト。case で分ける。リストだけのもので、外からは名前が  で
+  -- リスト。case で分ける。リストだけのもので、外からは名前が List. で
   -- 始まる。Prelude のクラスが、同じ名前をほかの入れ物にも効くようにする
   let foldr f z xs =
     case xs of
@@ -607,6 +607,13 @@ basicsSource = """
     drop n xs = List.drop n xs
   -- ANCHOR_END: sequence
 
+  -- ANCHOR: splitAt
+  -- Cut in two at n, a string or a list (Haskell's splitAt):
+  --   splitAt 3 "Lam!" is ("Lam", "!")
+  -- n のところで2つに切る。文字列でもリストでも（Haskell の splitAt）
+  let splitAt n s = (take n s, drop n s)
+  -- ANCHOR_END: splitAt
+
   -- ANCHOR: lists
   -- Lists only
   -- リストだけのもの
@@ -636,6 +643,30 @@ basicsSource = """
     List.foldl (\\seen x -> if elem x seen then seen else seen ++ [x])
       [] xs
   -- ANCHOR_END: lists
+
+  -- ANCHOR: toolboxLists
+  -- The items from the head, while they pass (Haskell's takeWhile and
+  -- dropWhile).
+  -- 頭から、合うあいだの要素（Haskell の takeWhile・dropWhile）
+  let takeWhile p xs =
+    case xs of
+      | x : rest if p x -> x : takeWhile p rest
+      | _ -> []
+  let dropWhile p xs =
+    case xs of
+      | x : rest if p x -> dropWhile p rest
+      | _ -> xs
+  -- Next items that go with the first one of the group, together
+  -- (Haskell's groupBy):
+  --   groupBy (\\a b -> a == b) [1, 1, 2, 1] is [[1, 1], [2], [1]]
+  -- 先頭と同じ組になる、となりの要素をまとめる（Haskell の groupBy）
+  let groupBy same xs =
+    case xs of
+      | [] -> []
+      | x : rest ->
+          (x : takeWhile (same x) rest)
+            : groupBy same (dropWhile (same x) rest)
+  -- ANCHOR_END: toolboxLists
 
   -- ANCHOR: sort
   -- Sort by a key, the smallest first (List.sortBy, a merge sort). Two
@@ -761,7 +792,8 @@ jsonSource = """
   module Json exposing
     ( Json (JNull, JBool, JInt, JStr, JArr, JObj)
     , get, at, int, string, bool, array, mkDec, decimal
-    , parse, show, pretty, toFloat, fromFloat )
+    , parse, show, pretty, toFloat, fromFloat
+    , ToJson (..), ToKey (..), encode )
 
   -- ANCHOR: json
   -- JSON, as a data type. A number with a fraction is JDec:
@@ -824,6 +856,74 @@ jsonSource = """
   instance Display Json where
     display j = show j
   -- ANCHOR_END: displayJson
+
+  -- ANCHOR: toJsonClass
+  -- 📤 Any value to JSON with one name, toJson. The builtin types, the
+  --    lists, Maybe (Nothing is null), the pairs (an array of two),
+  --    Json itself, and a Map or a Set have instances; a type of your
+  --    own joins with an instance.
+  -- どんな値も、1つの名前 toJson で JSON に。組み込みの型、リスト、Maybe
+  -- （Nothing は null）、組（2つの配列）、Json そのもの、Map と Set に
+  -- インスタンスがある。自分の型は、インスタンスを書けば仲間になる
+  class ToJson a where
+    toJson : a -> Json
+
+  instance ToJson Json where
+    toJson j = j
+
+  instance ToJson Int where
+    toJson n = JInt n
+
+  instance ToJson Float where
+    toJson x = fromFloat x
+
+  instance ToJson String where
+    toJson s = JStr s
+
+  instance ToJson Bool where
+    toJson b = JBool b
+
+  instance ToJson a => ToJson [a] where
+    toJson xs = JArr (map toJson xs)
+
+  instance ToJson a => ToJson (Maybe a) where
+    toJson m =
+      case m of
+        | Just x -> toJson x
+        | Nothing -> JNull
+
+  instance (ToJson a, ToJson b) => ToJson (a, b) where
+    toJson pair = JArr [toJson (fst pair), toJson (snd pair)]
+
+  instance ToJson a => ToJson (Set a) where
+    toJson xs = JArr (map toJson (Set.toList xs))
+  -- ANCHOR_END: toJsonClass
+
+  -- ANCHOR: toKeyClass
+  -- 🔑 A key of a JSON object is always a string. A Map can be written
+  --    as JSON when its keys can be strings, and its values JSON.
+  -- JSON のオブジェクトのキーは、いつも文字列。キーを文字列にでき、
+  -- 値を JSON にできる Map なら、JSON に書ける
+  class ToKey a where
+    toKey : a -> String
+
+  instance ToKey String where
+    toKey s = s
+
+  instance ToKey Int where
+    toKey n = showInt n
+
+  instance (ToKey k, ToJson v) => ToJson (Map k v) where
+    toJson m =
+      JObj (Map.fromList [(toKey k, toJson v) | (k, v) <- Map.toList m])
+  -- ANCHOR_END: toKeyClass
+
+  -- ANCHOR: encode
+  -- 🖨️ A value as the text of JSON, at once (Python's json.dumps).
+  -- 値を、すぐに JSON の文字に（Python の json.dumps）
+  encode : ToJson a => a -> String
+  encode x = show (toJson x)
+  -- ANCHOR_END: encode
   """
 -- ANCHOR_END: json
 
@@ -2203,25 +2303,42 @@ csvSource = """
   -- ANCHOR_END: csvColumn
 
   -- ANCHOR: csvTable
-  -- A row (numbered from 0) as long as the header.
-  -- 見出しと同じ長さの行（0 から数える）
-  fits : [String] -> (Int, [String]) -> Result [Problem] (Int, [String])
-  fits header (i, cells) =
-    if length cells == length header then Ok (i, cells)
-    else Err [{ path = f"[{i}]", message = m }]
+  -- 📍 Where a problem is: the line of the file, and the column.
+  -- 問題の場所：ファイルの行と、列
+  problemAt : Int -> String -> String -> Problem
+  problemAt line column m =
+    { path = f"line {line}, column {column}", message = m }
+
+  -- The line of a row: the line its first field starts on.
+  -- 行の場所：最初のフィールドが始まる行
+  lineOf : [(Int, String)] -> Int
+  lineOf cells =
+    case cells of
+      | (n, _) : _ -> n
+      | [] -> 0
+
+  -- A row as long as the header.
+  -- 見出しと同じ長さの行
+  fits : [String] -> [(Int, String)] -> Result [Problem] [(Int, String)]
+  fits header cells =
+    if length cells == length header then Ok cells
+    else Err [{ path = f"line {lineOf cells}", message = m }]
     where
       m = f"{length cells} fields, but the header has {length header}"
 
-  -- 📄 The rows of CSV: the first one is the header, and the others
-  --    are numbered from 0. rows is the builtin (cassava).
-  -- CSV の行。1行目は見出しで、ほかの行には 0 から番号を付ける。rows は
-  -- 組み込み（cassava）
-  table : String -> Result [Problem] ([String], [(Int, [String])])
+  -- 📄 The rows of CSV: the first one is the header, and each field of
+  --    the others has the line of the file it starts on. numberedRows
+  --    is the builtin (cassava reads; the lines are counted by the same
+  --    rules, quotes with line breaks too).
+  -- CSV の行。1行目は見出し。ほかの行のフィールドには、それが始まる
+  -- ファイルの行を付ける。numberedRows は組み込み（読むのは cassava。
+  -- 行は同じ決まりで数える。改行の入った引用符も）
+  table : String -> Result [Problem] ([String], [[(Int, String)]])
   table s =
-    case rows s of
+    case numberedRows s of
       | Err e -> Err [{ path = "", message = f"not CSV: {e}" }]
       | Ok [] -> Ok ([], [])
-      | Ok (header : body) -> Ok (header, indexed body)
+      | Ok (header : body) -> Ok (map snd header, body)
   -- ANCHOR_END: csvTable
 
   -- ANCHOR: csvParse
@@ -2231,7 +2348,7 @@ csvSource = """
   parse s = do
     (header, body) <- table s
     Decode.collect
-      [ Result.map (\\(_, cells) -> Map.fromList (zip header cells))
+      [ Result.map (\\cells -> Map.fromList (zip header (map snd cells)))
           (fits header row)
       | row <- body ]
   -- ANCHOR_END: csvParse
@@ -2247,42 +2364,64 @@ csvSource = """
           Err [ { path = "", message = f"missing column {show k}" }
               | k <- missing ]
 
-  -- One row as an object.
-  -- 1行を、オブジェクトに
-  object : Map String Column -> [String] -> (Int, [String])
+  -- One row as an object. A field that its Column cannot read is a
+  -- problem at its own line and column.
+  -- 1行を、オブジェクトに。Column で読めないフィールドは、その行と列の
+  -- 問題
+  object : Map String Column -> [String] -> [(Int, String)]
            -> Result [Problem] Json
-  object columns header (i, cells) =
+  object columns header cells =
     Result.map (\\kvs -> JObj (Map.fromList kvs))
-      (Decode.collect [ cell k s | (k, s) <- zip header cells ])
+      (Decode.collect [ cell k field | (k, field) <- zip header cells ])
     where
-      cell k s =
-        case Map.lookup k columns of
-          | Nothing -> Ok (k, JStr s)
-          | Just c ->
-              case c s of
-                | Ok j -> Ok (k, j)
-                | Err m ->
-                    Err [{ path = f"[{i}]{Decode.keyStep k}"
-                         , message = m }]
+      cell k field =
+        case (Map.lookup k columns, field) of
+          | (Nothing, (_, s)) -> Ok (k, JStr s)
+          | (Just c, (n, s)) ->
+              Result.map (\\j -> (k, j))
+                (Result.mapError (\\m -> [problemAt n k m]) (c s))
+
+  -- Every row as an object, then used by use (with the line of the
+  -- row). The problems of every row, all at once.
+  -- どの行もオブジェクトにして、use で使う（行の番号も渡す）。どの行の
+  -- 問題も、まとめて全部
+  eachRow : Map String Column -> (Int -> Json -> Result [Problem] a)
+            -> String -> Result [Problem] [a]
+  eachRow columns use s = do
+    (header, body) <- table s
+    noneMissing columns header
+    Decode.collect
+      [ fits header row
+          |> Result.andThen (object columns header)
+          |> Result.andThen (use (lineOf row))
+      | row <- body ]
 
   -- 🔧 Every row as a JSON object, each field read by the Column of
   --    its header (a string if it has none). All the problems at once.
   -- どの行も JSON のオブジェクトに。フィールドは、見出しの Column で
   -- 読む（なければ文字のまま）。問題は、まとめて全部
   read : Map String Column -> String -> Result [Problem] Json
-  read columns s = do
-    (header, body) <- table s
-    noneMissing columns header
-    Result.map JArr (Decode.collect
-      [ fits header row |> Result.andThen (object columns header)
-      | row <- body ])
+  read columns s = Result.map JArr (eachRow columns (\\_ j -> Ok j) s)
 
-  -- 🎯 Read every row with a decoder, after the columns.
-  -- 列を読んだあと、どの行も Decoder で読む
+  -- A problem a decoder found in the row on this line: .price is the
+  -- column price.
+  -- この行で、Decoder が見つけた問題。.price は、列 price
+  placed : Int -> Problem -> Problem
+  placed line p =
+    if p.path == "" then { p | path = f"line {line}" }
+    else if String.startsWith "." p.path then
+      { p | path = f"line {line}, column {String.drop 1 p.path}" }
+    else { p | path = f"line {line}, column {p.path}" }
+
+  -- 🎯 Read every row with a decoder, after the columns. A problem
+  --    says the line of the file, not the number of the row.
+  -- 列を読んだあと、どの行も Decoder で読む。問題は、行の番号ではなく
+  -- ファイルの行を言う
   decode : Map String Column -> Decoder a -> String
            -> Result [Problem] [a]
   decode columns d s =
-    read columns s |> Result.andThen (Decode.run (Decode.list d))
+    eachRow columns
+      (\\line j -> Result.mapError (map (placed line)) (Decode.run d j)) s
   -- ANCHOR_END: csvRead
   """
 -- ANCHOR_END: csvModule
@@ -2317,11 +2456,13 @@ httpSource = """
   -- ANCHOR: response
   -- 📬 An answer: the status (200, 404, ...), the headers, and the
   --    body. Http.send (a builtin) makes it. The names of the headers
-  --    are in small letters.
+  --    are in small letters. The body is bytes: an image is not text.
+  --    Http.string reads it as text (UTF-8).
   -- 答え：状態コード（200、404 など）、ヘッダー、本文。作るのは組み込みの
-  -- Http.send。ヘッダーの名前は小文字
+  -- Http.send。ヘッダーの名前は小文字。本文はバイト列（画像は文字では
+  -- ない）。文字として読むのは Http.string（UTF-8）
   type alias Response =
-    { status : Int, headers : Map String String, body : String }
+    { status : Int, headers : Map String String, body : Bytes }
 
   header : String -> Response -> Maybe String
   header name r = Map.lookup (toLower name) r.headers
@@ -2342,10 +2483,10 @@ httpSource = """
   -- 📖 Readers: how to read the body of an answer.
   -- 読み方：答えの本文を、どう読むか
   string : Response -> Result String String
-  string r = Ok r.body
+  string r = Bytes.toString r.body
 
   json : Response -> Result String Json
-  json r = Json.parse r.body
+  json r = string r |> Result.andThen Json.parse
 
   response : Response -> Result String Response
   response r = Ok r
@@ -2358,7 +2499,8 @@ httpSource = """
   -- する：Decode.explain で、1つにつき1行
   expectJson : Decoder a -> Response -> Result String a
   expectJson d r =
-    Decode.fromString d r.body |> Result.mapError Decode.explain
+    string r |> Result.andThen (\\s ->
+      Decode.fromString d s |> Result.mapError Decode.explain)
   -- ANCHOR_END: expectJson
 
   -- ANCHOR: request
@@ -2959,7 +3101,8 @@ actorSource = """
 responseSource :: Text
 responseSource = """
   module Response exposing
-    ( text, html, json, withHeader, notFound, badRequest, file )
+    ( text, html, json, bytes, withHeader, notFound, badRequest, file
+    , typeOf )
 
   -- ANCHOR: makers
   -- 📮 Answers to give back: a status, the headers, and the body.
@@ -2968,9 +3111,13 @@ responseSource = """
   -- 同じレコード
   text : Int -> String -> Response
   text status body =
-    { status = status
-    , headers = {"content-type": "text/plain; charset=utf-8"}
-    , body = body }
+    bytes status "text/plain; charset=utf-8" (Bytes.fromString body)
+
+  -- 🖼️ Bytes as they are, with their type (image/png, ...).
+  -- バイト列をそのまま、その型（image/png など）を付けて
+  bytes : Int -> String -> Bytes -> Response
+  bytes status kind body =
+    { status = status, headers = {"content-type": kind}, body = body }
 
   withHeader : String -> String -> Response -> Response
   withHeader name value r =
@@ -2991,28 +3138,38 @@ responseSource = """
   badRequest why = text 400 f"bad request: {why}\n"
   -- ANCHOR_END: makers
 
-  -- ANCHOR: file
-  -- 📄 A file as the answer, with its type from its extension. A file
-  --    that is not there (or not allowed: --allow-read) is 404.
-  -- ファイルを答えに。型は拡張子から。ないファイル（か、許されていない
-  -- ファイル：--allow-read）は 404
+  -- ANCHOR: responseFile
+  -- 📄 A file as the answer, read as bytes, with its type from its
+  --    extension. A file that is not there (or not allowed:
+  --    --allow-read) is 404.
+  -- ファイルを答えに。バイト列で読み、型は拡張子から。ないファイル
+  -- （か、許されていないファイル：--allow-read）は 404
   typeOf : String -> String
   typeOf path =
-    case Path.extension path of
+    case String.toLower (Path.extension path) of
       | ".html" -> "text/html; charset=utf-8"
       | ".css" -> "text/css; charset=utf-8"
       | ".js" -> "text/javascript; charset=utf-8"
       | ".json" -> "application/json"
+      | ".txt" -> "text/plain; charset=utf-8"
       | ".svg" -> "image/svg+xml"
-      | _ -> "text/plain; charset=utf-8"
+      | ".png" -> "image/png"
+      | ".jpg" -> "image/jpeg"
+      | ".jpeg" -> "image/jpeg"
+      | ".gif" -> "image/gif"
+      | ".webp" -> "image/webp"
+      | ".ico" -> "image/x-icon"
+      | ".pdf" -> "application/pdf"
+      | ".wasm" -> "application/wasm"
+      | _ -> "application/octet-stream"
   file : String -> IO Response
   file path = do
-    found <- readFile path
+    found <- File.readBytes path
     pure (case found of
-      | Ok body -> withHeader "content-type" (typeOf path) (text 200 body)
+      | Ok body -> bytes 200 (typeOf path) body
       | Err _ -> notFound)
 
-  -- ANCHOR_END: file
+  -- ANCHOR_END: responseFile
   """
 -- ANCHOR_END: responseModule
 

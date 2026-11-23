@@ -1,0 +1,9 @@
+-- ANCHOR: all
+type alias Options =
+  { name : String
+  , since : Time
+  }
+
+main : Options -> IO ()
+main opts = putStrLn opts.name
+-- ANCHOR_END: all

@@ -1,0 +1,14 @@
+-- ANCHOR: all
+-- 🐛 Two functions that call each other, and need a dictionary
+--    (display): their annotations are needed.
+-- おたがいを呼び、辞書（display）の要る2つの関数：注釈が要る
+left xs = case xs of
+  | [] -> ""
+  | x : rest -> display x ++ right rest
+
+right xs = case xs of
+  | [] -> ""
+  | _ -> "," ++ left xs
+
+main = putStrLn (left [1, 2, 3])
+-- ANCHOR_END: all

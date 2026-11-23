@@ -1,0 +1,26 @@
+-- ANCHOR: all
+-- 🔷 Shapes: a data type, and a class with its instance. Describe (..)
+--    shows the class and its method describe.
+-- Shapes：data の型と、クラスとそのインスタンス。Describe (..) は、
+-- クラスとメソッド describe を見せる
+module Shapes exposing (Shape (..), Describe (..), area)
+
+data Shape = Circle Int | Rect Int Int
+
+-- ✍️ Something that can tell what it is, in words.
+-- 自分が何かを、言葉で言えるもの
+class Describe a where
+  describe : a -> String
+
+instance Describe Shape where
+  describe s =
+    case s of
+      | Circle r -> f"a circle of radius {r}"
+      | Rect w h -> f"a {w} x {h} rectangle"
+
+area : Shape -> Int
+area s =
+  case s of
+    | Circle r -> 3 * r * r
+    | Rect w h -> w * h
+-- ANCHOR_END: all

@@ -1,0 +1,32 @@
+-- ANCHOR: all
+-- 🤝 IO that runs side by side: the lines of an ado do not look at
+--    each other, so they need not wait for each other. The same idea
+--    as Concurrently of Haskell's async (and Haxl).
+-- 並んで動く IO。ado の行はおたがいを見ないので、待ち合わなくてよい。
+-- Haskell の async の Concurrently（と Haxl）と同じ考え方
+module Par exposing (Par (..), run)
+
+-- ANCHOR: par
+-- 📦 An IO in a box of its own: the box says "you may run me at once".
+-- 自分の箱に入れた IO。箱が「同時に動かしてよい」と言う
+data Par a = Par (IO a)
+
+run : Par a -> IO a
+run p = case p of | Par io -> io
+-- ANCHOR_END: par
+
+-- ANCHOR: instances
+-- 🔗 map runs the IO and changes its answer; ap runs both at once,
+--    with IO.both. There is no instance Monad: the next line of a do
+--    may need the answer, and then it must wait.
+-- map は IO をやって答えを変える。ap は IO.both で両方を同時に。
+-- instance Monad は書かない：do の次の行は答えを使うかもしれず、
+-- そうなら待つしかない
+instance Functor Par where
+  map f p = Par (map f (run p))
+
+instance Applicative Par where
+  pure x = Par (pure x)
+  ap pf px = Par (map (\(f, x) -> f x) (IO.both (run pf) (run px)))
+-- ANCHOR_END: instances
+-- ANCHOR_END: all

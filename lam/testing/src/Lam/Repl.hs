@@ -16,11 +16,12 @@ module Lam.Repl
 
 import Data.List (sortOn)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Text.Megaparsec
 
-import Lam.Eval (Value (..))
+import Lam.Eval (Request (..), Value (..))
 import Lam.Io (Concurrent, Handler)
 import Lam.Parser
 import Lam.Pretty (render)
@@ -141,8 +142,14 @@ withoutPlaces i = case i of
 -- REPL の1回分（:load は、ファイルを読む Main がする）。IO の式は
 -- ハンドラーがやるので、step はそのモナドの中で動く。ほかは前と同じ
 step :: Concurrent m => Handler m -> Session -> Text -> m (Session, Text)
-step handle session line =
-  case parseInput (sessionOperators session) line of
+step handle session line = do
+  let input = parseInput (sessionOperators session) line
+  -- ANCHOR: lineWarnings
+  -- A warning goes to the standard error first; the line still runs.
+  -- 警告を先に標準エラーへ。行は、それでも動かす
+  mapM_ (\w -> handle (PutErr (w <> "\n"))) (lineWarnings session input)
+  -- ANCHOR_END: lineWarnings
+  case input of
     -- ANCHOR: stepIt
     -- The value of an expression is kept as it, for the next line.
     -- 式の値を、次の行のために it として取っておく
@@ -150,7 +157,32 @@ step handle session line =
       (out, value) <- evaluateIt handle session e
       pure (withIt value session, endingText out)
     -- ANCHOR_END: stepIt
-    other -> pure (answer session other)
+    other -> pure (owning other (answer session other))
+  where
+    -- A name defined in the REPL is the user's own (see keyWarnings).
+    -- REPL で定義した名前は、自分のもの（keyWarnings を見る）
+    owning input (s, shown) = case defined input of
+      Just x  -> (s { sessionOwn = Set.insert x (sessionOwn s) }, shown)
+      Nothing -> (s, shown)
+
+-- ⚠️ The warnings of one line of the REPL (see keyWarnings).
+-- REPL の1行の警告（keyWarnings を見る）
+lineWarnings :: Session -> Either Text Input -> [Text]
+lineWarnings session input = case input of
+  Right (Evaluate e)        -> keyWarnings own e
+  Right (Define x e)        -> keyWarnings (Set.insert x own) e
+  Right (DefineTyped x _ e) -> keyWarnings (Set.insert x own) e
+  _                         -> []
+  where
+    own = sessionOwn session
+
+-- 🏷️ The name a line defines, if it defines one.
+-- 行が定義する名前（あれば）
+defined :: Either Text Input -> Maybe Name
+defined input = case input of
+  Right (Define x _)        -> Just x
+  Right (DefineTyped x _ _) -> Just x
+  _                         -> Nothing
 
 -- ANCHOR: endingText
 -- 🏁 What the REPL shows for an ending. exit does not end the REPL:

@@ -1,0 +1,7 @@
+{
+  "shop": "Lam Fruits",
+  "orders": [
+    {"id": 1, "user": "alice", "items": [{"name": "apple", "price": 120}]},
+    {"id": 2, "items": [{"name": "banana", "price": "free"}]}
+  ]
+}

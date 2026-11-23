@@ -1,0 +1,56 @@
+-- ANCHOR: all
+-- 👯 Find the files with the same contents, photos too: first by size,
+--    then by the SHA-256 of their bytes.
+--   lam dupes.lam photos
+-- 中身が同じファイルを、写真も探す。まず大きさで、次にバイト列の
+-- SHA-256 で
+
+-- ANCHOR: sizes
+-- 📏 A file and its size (none for a folder).
+-- ファイルとその大きさ（フォルダーなら、なし）
+sizeOf : String -> IO [(Int, String)]
+sizeOf path = do
+  folder <- File.isDir path
+  if folder then pure [] else do
+    info <- File.info path
+    pure (case info of
+      | Ok i -> [(i.size, path)]
+      | Err _ -> [])
+
+-- 🗂️ Put each value under its key: [(k, v)] to {k: [v, ...]}.
+-- 値をキーごとにまとめる
+groupBy : Comparable k => [(k, v)] -> Map k [v]
+groupBy pairs =
+  foldl (\m (k, v) -> Map.insertWith (\new old -> old ++ new) k [v] m)
+    Map.empty pairs
+-- ANCHOR_END: sizes
+
+-- ANCHOR: prints
+-- 🔏 The fingerprint of a file: the SHA-256 of its bytes, in hex.
+-- ファイルの指紋：バイト列の SHA-256 を、16進で
+fingerprint : String -> IO [(String, String)]
+fingerprint path = do
+  hash <- Hash.file path
+  pure (case hash of
+    | Ok h -> [(Bytes.toHex h, path)]
+    | Err _ -> [])
+-- ANCHOR_END: prints
+
+-- ANCHOR: main
+main : [String] -> IO (Result String ())
+main args = do
+  let dir = case args of | d : _ -> d | [] -> "."
+  paths <- File.glob (Path.join dir "**/*") ?
+  sizes <- mapM sizeOf paths
+  -- Only a size that two files or more share can hide a pair.
+  -- 2つ以上が同じ大きさのときだけ、組がありうる
+  let suspects = concat (filter (\g -> length g > 1)
+                                (Map.values (groupBy (concat sizes))))
+  prints <- mapM fingerprint suspects
+  forEach (Map.toList (groupBy (concat prints))) (\(h, group) ->
+    if length group > 1
+      then putStrLn f"{slice 0 12 h}  {join " = " group}"
+      else pure ())
+  pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

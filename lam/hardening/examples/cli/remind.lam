@@ -1,0 +1,50 @@
+-- ANCHOR: all
+-- ANCHOR: level
+-- 📢 How loud to say it.
+-- どのくらい大きな声で言うか
+data Level = Quiet | Normal | Loud
+
+-- 🔤 quiet, normal or loud (Loud and LOUD too) on the command line.
+-- コマンドラインでは quiet・normal・loud（Loud や LOUD も）
+instance FromArg Level where
+  fromArg s =
+    case toLower s of
+      | "quiet" -> Ok Quiet
+      | "normal" -> Ok Normal
+      | "loud" -> Ok Loud
+      | _ -> Err "quiet, normal or loud"
+-- ANCHOR_END: level
+
+-- ANCHOR: time
+-- 🕘 A time, as Time.fromIso reads it: 2026-11-27T09:00:00Z
+-- 時刻。Time.fromIso が読む形で
+instance FromArg Time where
+  fromArg s =
+    Result.mapError (\_ -> "a time like 2026-11-27T09:00:00Z")
+      (Time.fromIso s)
+-- ANCHOR_END: time
+
+-- ANCHOR: options
+type alias Remind =
+  { --- What to remember
+    -- 覚えておくこと
+    what : String
+    --- When (2026-11-27T09:00:00Z)
+    -- いつ
+  , at : Time
+    --- How loud: quiet, normal or loud
+    -- どのくらいの声で
+  , level : Level = Normal
+  , alias l = level
+  }
+
+--- Say what to remember, and when.
+-- 覚えておくことと、その時刻を言う
+main : Remind -> IO ()
+main r =
+  case r.level of
+    | Quiet -> putStrLn f"({r.what} at {r.at})"
+    | Normal -> putStrLn f"{r.what} at {r.at}"
+    | Loud -> putStrLn f"{toUpper r.what}! AT {r.at}!"
+-- ANCHOR_END: options
+-- ANCHOR_END: all

@@ -41,8 +41,11 @@ tests =
           (askOnce (Test.request "GET" "/todos" ""))
           (\r ->
             [ Test.equal "status" (map .status r.value) (Just 200)
+            -- The body is Bytes: Http.string reads it as text.
+            -- 本文はバイト列。Http.string で文字として読む
             , Test.that "body"
-                (map (\res -> String.contains "write the notes" res.body)
+                (map (\res -> String.contains "write the notes"
+                                 (Http.string res ?: ""))
                      r.value
                    == Just true) ])
       -- 「番号でないと 400」

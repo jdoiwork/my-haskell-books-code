@@ -1,0 +1,1 @@
+examples/channels/broken/wrong-message.lam:17:3: in the definition of main: type error: this line gives Pid Msg, but the lines below use it as Pid String

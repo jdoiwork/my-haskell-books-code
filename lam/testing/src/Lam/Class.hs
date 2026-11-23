@@ -7,6 +7,9 @@
 module Lam.Class
   ( declareClass
   , declareInstance
+  , Part (..)
+  , declareClassPart
+  , declareInstancePart
   , defaultName
   , methodName
   ) where
@@ -53,8 +56,31 @@ methodName c h m = "$" <> c <> "$" <> h <> "$" <> m
 declareClass
   :: DataTable -> TypeEnv -> ClassDecl
   -> Either TypeError (DataTable, [(Name, Scheme)], [(Name, Expr)])
-declareClass table env (ClassDecl supers c a sigs defaults) = do
-  when (lookupClass table c /= Nothing) $ Left (DuplicateClass c)
+declareClass = declareClassPart Whole
+
+-- ANCHOR: part
+-- ✂️ Which part of a class or an instance to do. A file does the heads
+--    first (what the definitions need to know), then the definitions,
+--    then the bodies (which may use any definition). The REPL does the
+--    whole at once.
+-- クラスやインスタンスの、どの部分をするか。ファイルは、先に頭（定義が
+-- 知っておくもの）、それから定義、最後に中身（どの定義を使ってもよい）。
+-- REPL は全部を一度にする
+data Part
+  = Whole   -- all of it
+  | Head    -- the class and its methods' types; the instance in the table
+  | Body    -- the defaults; the methods and the dictionary
+  deriving (Eq, Show)
+-- ANCHOR_END: part
+
+declareClassPart
+  :: Part -> DataTable -> TypeEnv -> ClassDecl
+  -> Either TypeError (DataTable, [(Name, Scheme)], [(Name, Expr)])
+declareClassPart part table env (ClassDecl supers c a sigs defaults) = do
+  -- The body comes after the head: the class is in the table already.
+  -- 中身は頭のあと。クラスはもう表にある
+  when (part /= Body && lookupClass table c /= Nothing) $
+    Left (DuplicateClass c)
   -- The classes above: known ones, of the same a.
   -- 上位のクラス：知っているもので、同じ a のもの
   above <- forM supers $ \(k, b) -> do
@@ -88,12 +114,14 @@ declareClass table env (ClassDecl supers c a sigs defaults) = do
   -- ANCHOR: defaultValues
   -- A default may use every method of the class (its own, too).
   -- 既定のメソッドは、クラスのどのメソッドも使える（自分自身も）
-  defaultValues <- forM defaults $ \(m, e) -> do
-    (sc, names) <- typeOf m methods
-    (_, e') <- inferAnnotated table1 env1 m names sc e
-    pure (defaultName c m, e')
+  defaultValues <- forM (if part == Head then [] else defaults) $
+    \(m, e) -> do
+      (sc, names) <- typeOf m methods
+      (_, e') <- inferAnnotated table1 env1 m names sc e
+      pure (defaultName c m, e')
   -- ANCHOR_END: defaultValues
-  pure (table1, types, [ (m, pick m) | m <- ms ] <> defaultValues)
+  let picks = if part == Body then [] else [ (m, pick m) | m <- ms ]
+  pure (table1, types, picks <> defaultValues)
   where
     sigType (Signature _ te) = te
     duplicates xs = nub [ x | x <- xs, count x xs > 1 ]
@@ -125,7 +153,12 @@ declareClass table env (ClassDecl supers c a sigs defaults) = do
 declareInstance
   :: DataTable -> TypeEnv -> InstanceDecl
   -> Either TypeError (DataTable, [(Name, Expr)], Text)
-declareInstance table env (InstanceDecl context c te defs) = do
+declareInstance = declareInstancePart Whole
+
+declareInstancePart
+  :: Part -> DataTable -> TypeEnv -> InstanceDecl
+  -> Either TypeError (DataTable, [(Name, Expr)], Text)
+declareInstancePart part table env (InstanceDecl context c te defs) = do
   cls <- maybe (Left (UnknownClass c)) Right (lookupClass table c)
   info <- case Map.lookup c (classes table) of
     Just i  -> Right i
@@ -148,7 +181,7 @@ declareInstance table env (InstanceDecl context c te defs) = do
   unless (holesLeft == classKind info) $
     Left (InstanceKind c (renderTypeExpr 0 te) (classKind info))
   -- ANCHOR_END: instanceKind
-  when (Map.member (c, h) (instances table)) $
+  when (part /= Body && Map.member (c, h) (instances table)) $
     Left (DuplicateInstance cls h)
   -- The context: Describe a gives (Describe, 0).
   -- 文脈：Describe a は (Describe, 0)
@@ -159,36 +192,39 @@ declareInstance table env (InstanceDecl context c te defs) = do
   let ctx    = nub (sortOn (\(k, i) -> (i, k)) needs)
       table1 = table { instances = Map.insert (c, h) (Instance arity ctx)
                                      (instances table) }
-  aboveDicts <- checkInstanceSupers table1 (classSuper info) ty vars ctx
-  -- The methods: each one once, known, and none missing.
-  -- メソッド：どれも1度だけ、知っているもので、足りないものはない
-  let ms       = [ m | (m, _, _) <- classMethodsOf info ]
-      written  = map fst defs
-  forM_ written $ \m -> do
-    unless (m `elem` ms) $ Left (UnknownMethod c m)
-    when (length (filter (== m) written) > 1) $ Left (DuplicateMethod m)
-  forM_ ms $ \m ->
-    unless (m `elem` written || m `elem` classDefaultsOf info) $
-      Left (MissingMethod c m)
-  methodValues <- forM defs $ \(m, e) -> do
-    (sc, names) <- typeOf m (classMethodsOf info)
-    let (sc', names') = forInstance cls sc names ty arity ctx vars
-    (_, e') <- checkAnnotated table1 env m names' sc' e
-    pure (methodName c h m, e')
-  -- ANCHOR: dictionary
-  -- The dictionary is itself under the name $self: a default gets it.
-  -- 辞書は、$self という名前で自分自身。既定のメソッドが受け取る
-  let params = [ dictParam k (vars !! i) | (k@(Declared _), i) <- ctx ]
-      self   = Var "$self"
-      field m
-        | m `elem` written =
-            (m, foldl App (Var (methodName c h m)) (map Var params))
-        | otherwise = (m, App (Var (defaultName c m)) self)
-      record = Record (map field ms
-                       <> [ ("$" <> n, d) | (n, d) <- aboveDicts ])
-      dict   = foldr Lam (Let "$self" record self) params
-  -- ANCHOR_END: dictionary
-  pure (table1, methodValues <> [(dictName c h, dict)], label)
+  -- The head stops here: the instance is in the table.
+  -- 頭はここまで。インスタンスは表に入った
+  if part == Head then pure (table1, [], "") else do
+    aboveDicts <- checkInstanceSupers table1 (classSuper info) ty vars ctx
+    -- The methods: each one once, known, and none missing.
+    -- メソッド：どれも1度だけ、知っているもので、足りないものはない
+    let ms       = [ m | (m, _, _) <- classMethodsOf info ]
+        written  = map fst defs
+    forM_ written $ \m -> do
+      unless (m `elem` ms) $ Left (UnknownMethod c m)
+      when (length (filter (== m) written) > 1) $ Left (DuplicateMethod m)
+    forM_ ms $ \m ->
+      unless (m `elem` written || m `elem` classDefaultsOf info) $
+        Left (MissingMethod c m)
+    methodValues <- forM defs $ \(m, e) -> do
+      (sc, names) <- typeOf m (classMethodsOf info)
+      let (sc', names') = forInstance cls sc names ty arity ctx vars
+      (_, e') <- checkAnnotated table1 env m names' sc' e
+      pure (methodName c h m, e')
+    -- ANCHOR: dictionary
+    -- The dictionary is itself under the name $self: a default gets it.
+    -- 辞書は、$self という名前で自分自身。既定のメソッドが受け取る
+    let params = [ dictParam k (vars !! i) | (k@(Declared _), i) <- ctx ]
+        self   = Var "$self"
+        field m
+          | m `elem` written =
+              (m, foldl App (Var (methodName c h m)) (map Var params))
+          | otherwise = (m, App (Var (defaultName c m)) self)
+        record = Record (map field ms
+                         <> [ ("$" <> n, d) | (n, d) <- aboveDicts ])
+        dict   = foldr Lam (Let "$self" record self) params
+    -- ANCHOR_END: dictionary
+    pure (table1, methodValues <> [(dictName c h, dict)], label)
   where
     label = "instance " <> contextText <> c <> " " <> renderTypeExpr 2 te
     contextText = case context of

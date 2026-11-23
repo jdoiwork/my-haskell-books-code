@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- 🔁 Step 1: the runs of the same letter, with how long each one is
+--    (run-length encoding), with groupBy.
+-- ステップ1：同じ文字の続き（ラン）と、その長さ。groupBy で
+runs : String -> [(String, Int)]
+runs s = [ (head g, length g) | g <- groupBy (\a b -> a == b) (chars s) ]
+
+main = do
+  print (runs "aaabccdd")
+  print (runs "")
+-- ANCHOR_END: all

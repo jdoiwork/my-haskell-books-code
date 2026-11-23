@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- ✍️ Step 1: the annotations let each of the two be checked alone, at
+--    the type it says. Then the dictionary is passed as usual.
+-- ステップ1：注釈があれば、2つはそれぞれ1つずつ、書いた型で確かめる。
+-- 辞書も、いつもどおりに渡る
+left : Display a => [a] -> String
+left xs = case xs of
+  | [] -> ""
+  | x : rest -> display x ++ right rest
+
+right : Display a => [a] -> String
+right xs = case xs of
+  | [] -> ""
+  | _ -> "," ++ left xs
+
+main = do
+  putStrLn (left [1, 2, 3])
+  putStrLn (left ["a", "b"])
+-- ANCHOR_END: all

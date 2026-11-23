@@ -1,0 +1,17 @@
+-- ANCHOR: all
+-- 👥 Who wrote how many commits, with a pipe of four commands, in the
+--    folder of the repository. sort's order follows LC_ALL: C is the
+--    same everywhere.
+-- だれが何回コミットしたか。4つのコマンドのパイプで、リポジトリの
+-- フォルダーの中で。sort の順は LC_ALL しだい。C なら、どこでも同じ
+main : { --- The folder of the repository
+         -- リポジトリのフォルダー
+         repo : String = "." } -> IO (Result String ())
+main opts = do
+  let count = $"git log --all --format=%an" .| $"sort" .| $"uniq -c"
+                .| $"sort -rn"
+  rows <- Shell.lines (count |> Shell.within opts.repo
+                             |> Shell.withEnv {"LC_ALL": "C"}) ?
+  forEach rows (\row -> putStrLn (String.trim row))
+  pure (Ok ())
+-- ANCHOR_END: all

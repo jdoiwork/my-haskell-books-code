@@ -1,0 +1,5 @@
+{
+  "dryRun": {
+    "allow": ["git branch --show-current"]
+  }
+}

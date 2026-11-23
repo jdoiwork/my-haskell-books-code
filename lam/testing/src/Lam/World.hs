@@ -8,6 +8,8 @@
 -- テスト用の偽物（行とファイルを、Haskell の値に持つ）。
 module Lam.World
   ( realWorld
+  , textOf
+  , cleanPath
   , Dice
   , newDice
   , Desk
@@ -350,7 +352,7 @@ httpSend outside method url headers body = do
       (statusCode (H.responseStatus response))
       [ (T.toLower (lenient (CI.original k)), lenient v)
       | (k, v) <- H.responseHeaders response ]
-      (lenient (BL.toStrict (H.responseBody response)))]
+      (BL.toStrict (H.responseBody response))]
   where
     lenient = TE.decodeUtf8With TE.lenientDecode
     -- 「つながらない」「時間内に答えがない」「URL ではない」
@@ -852,7 +854,8 @@ fakeWorld request = case request of
     tick delay
     found <- gets (Map.lookup url . worldWeb)
     pure $ case found of
-      Just (status, text) -> ok (responseValue status [] text)
+      Just (status, text) ->
+        ok (responseValue status [] (TE.encodeUtf8 text))
       Nothing -> bad url "cannot connect"
   -- ANCHOR_END: fakeWeb
   -- A pure world has no databases: see fakeWorldIO.

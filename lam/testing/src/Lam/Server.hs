@@ -22,6 +22,7 @@ module Lam.Server
 
 import Control.Concurrent.MVar (newEmptyMVar, takeMVar, tryPutMVar)
 import Control.Concurrent.Async (race)
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
@@ -69,10 +70,16 @@ serverBuiltins =
       , ("headers", tMap tString tString)
       , ("body", tString) ]) Nothing
     -- ANCHOR_END: requestType
+    -- ANCHOR: responseType
+    -- The answer: the same record as the answers of Http.send. Its
+    -- body is bytes, so it can be an image too.
+    -- 答え：Http.send の答えと同じレコード。本文はバイト列なので、
+    -- 画像も返せる
     tResponse = TRecord (Map.fromList
       [ ("status", TInt)
       , ("headers", tMap tString tString)
-      , ("body", tString) ]) Nothing
+      , ("body", TCon "Bytes" []) ]) Nothing
+    -- ANCHOR_END: responseType
 -- ANCHOR_END: table
 
 -- ANCHOR: webRequest
@@ -150,17 +157,28 @@ answering handler req =
       VRecord m | Just (VString t) <- Map.lookup name m -> t
       _ -> ""
     served resp =
-      let (status, _, text) = responseParts resp
-      in Bind (Ask (Served (Exchange method path status text)))
-           (\_ -> Right (Pure resp))
+      let (status, _, body) = responseParts resp
+          exchange = Exchange method path status (forPeople body)
+      in Bind (Ask (Served exchange)) (\_ -> Right (Pure resp))
 -- ANCHOR_END: answering
+
+-- ANCHOR: forPeople
+-- 👀 The body of an answer, for the record of the exchanges (and the
+--    tests): the text if it is UTF-8, or how many bytes it is.
+-- 答えの本文を、やりとりの記録（とテスト）のために：UTF-8 なら文字、
+-- そうでなければ何バイトか
+forPeople :: B.ByteString -> Text
+forPeople body = case TE.decodeUtf8' body of
+  Right text -> text
+  Left _     -> "<" <> T.pack (show (B.length body)) <> " bytes>"
+-- ANCHOR_END: forPeople
 
 -- ANCHOR: responseParts
 -- 🔍 The status, the headers, and the body of a Response record. A
 --    status that is not 100 to 599 becomes 500.
 -- Response のレコードの状態コード・ヘッダー・本文。100〜599 でない
 -- 状態コードは 500 にする
-responseParts :: Value -> (Int, [(Text, Text)], Text)
+responseParts :: Value -> (Int, [(Text, Text)], B.ByteString)
 responseParts v = case v of
   VRecord m ->
     let status = case Map.lookup "status" m of
@@ -171,10 +189,10 @@ responseParts v = case v of
                                          <- Map.toList hs ]
           _ -> []
         body = case Map.lookup "body" m of
-          Just (VString t) -> t
-          _ -> ""
+          Just (VBytes b) -> b
+          _ -> B.empty
     in (status, headers, body)
-  _ -> (500, [], "")
+  _ -> (500, [], B.empty)
 
 -- 🧯 A plain answer of our own: 500 when the handler failed.
 -- 自分で作る、ただの答え：handler が失敗したときの 500
@@ -183,7 +201,7 @@ errorResponse status text = VRecord (Map.fromList
   [ ("status", VInt (toInteger status))
   , ("headers", VMap (Map.singleton (Key (VString "content-type"))
                         (VString "text/plain; charset=utf-8")))
-  , ("body", VString (text <> "\n")) ])
+  , ("body", VBytes (TE.encodeUtf8 (text <> "\n"))) ])
 -- ANCHOR_END: responseParts
 
 -- ANCHOR: fakeServe
@@ -282,6 +300,6 @@ toWai resp =
   let (status, headers, body) = responseParts resp
   in Wai.responseLBS (toEnum status)
        [ (CI.mk (TE.encodeUtf8 k), TE.encodeUtf8 v) | (k, v) <- headers ]
-       (BL.fromStrict (TE.encodeUtf8 body))
+       (BL.fromStrict body)
 -- ANCHOR_END: wai
 -- ANCHOR_END: all

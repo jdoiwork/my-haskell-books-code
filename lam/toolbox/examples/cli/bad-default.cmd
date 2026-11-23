@@ -1,0 +1,1 @@
+lam bad-default.lam

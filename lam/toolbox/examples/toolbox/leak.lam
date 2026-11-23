@@ -1,0 +1,8 @@
+-- ANCHOR: all
+-- 📝 git log, with a word after it that writes a file: --output.
+-- git log に、ファイルを書く語 --output を続ける
+main : IO (Result String ())
+main = do
+  Shell.ok $"git log -1 --oneline --output=log.txt" ?
+  pure (Ok ())
+-- ANCHOR_END: all

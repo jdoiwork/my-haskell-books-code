@@ -1,0 +1,1 @@
+--print-script -i.bak -pe 's/colour/color/g'

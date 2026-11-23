@@ -1,0 +1,4 @@
+-- ✅ A check that passes: a JSON number.
+-- 通る確かめ：JSON の数
+main : IO ()
+main = if Json.parse "618" == Ok (JInt 618) then putStrLn "618" else exit 1

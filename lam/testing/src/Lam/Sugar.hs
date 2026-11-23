@@ -261,8 +261,8 @@ doBlock statements = case statements of
          DoLet x e        -> Let x e inner
          DoLetPattern p e -> letPattern p e inner
          -- ANCHOR: doBlockTry
-         DoTry p e        -> bindThen e (tryThen p inner)
-         DoTryRun e       -> bindThen e (tryThen PWild inner)
+         DoTry p e        -> bindThen e (tryThen (lineOf e) p inner)
+         DoTryRun e       -> bindThen e (tryThen (lineOf e) PWild inner)
          DoDefer cleanup  -> App (App (Var doFinally) (later inner)) cleanup
          -- ANCHOR_END: doBlockTry
   where
@@ -274,6 +274,11 @@ doBlock statements = case statements of
     -- やる途中で止まったことになる
     later rest = bindThen (App (Var doPure) (Tuple [])) (Lam "$_" rest)
     -- ANCHOR_END: later
+    -- The place of the line (the parser puts it on e).
+    -- 行の場所（パーサーが e に付けている）
+    lineOf e = case e of
+      At loc _ -> Just loc
+      _        -> Nothing
 
 -- 🙈 The hidden name of bind.
 -- bind の隠した名前
@@ -342,11 +347,15 @@ doAp   = "$do.ap"
 --      \$try -> case $try.branch $try of
 --        | Ok p        -> rest
 --        | Err $failed -> $do.pure $failed
+--    The place of the line goes on the $try that branch opens: the type
+--    checker says there when ? cannot be used (see tryUnify).
 -- p <- e ? の続き。e の答えは入れ物（Maybe か Result）。branch で
--- 開き、値なら残りの行へ。失敗なら、それがすぐに do 全体の答え
-tryThen :: Pattern -> Expr -> Expr
-tryThen p rest =
-  Lam "$try" $ Case (App (Var tryBranch) (Var "$try"))
+-- 開き、値なら残りの行へ。失敗なら、それがすぐに do 全体の答え。
+-- 行の場所は、branch が開く $try に付ける。? を使えないとき、型検査器が
+-- そこを指す（tryUnify を見る）
+tryThen :: Maybe Loc -> Pattern -> Expr -> Expr
+tryThen line p rest =
+  Lam "$try" $ Case (App (Var tryBranch) (maybe id At line (Var "$try")))
     [ (PCon "Ok" [p], rest)
     , (PCon "Err" [PVar "$failed"], App (Var doPure) (Var "$failed")) ]
 

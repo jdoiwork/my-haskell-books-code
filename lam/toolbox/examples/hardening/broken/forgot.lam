@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- 🐛 A ? left out: readFile gives a Result, not the text.
+-- ? の付け忘れ：readFile の答えは Result で、文字ではない
+main : IO (Result String ())
+main = do
+  text <- readFile "memos.txt"
+  putStrLn text
+  pure (Ok ())
+-- ANCHOR_END: all

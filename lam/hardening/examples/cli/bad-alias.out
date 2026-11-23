@@ -1,0 +1,7 @@
+bad-alias.lam:6:3:
+  |
+6 |   }
+  |   ^
+alias n: there is no field cuont
+
+[exit 1]

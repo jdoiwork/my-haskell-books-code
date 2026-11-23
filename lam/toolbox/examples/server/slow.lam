@@ -1,0 +1,13 @@
+-- ANCHOR: all
+-- 🐢 One slow path, and one fast path. A slow request does not keep
+--    the others waiting: each request is a job of its own.
+--   lam slow.lam
+-- 遅い道1つと、速い道1つ。遅い頼みが、ほかを待たせない。頼みは
+-- それぞれ、自分の仕事
+main = Http.serve 8080 (\req ->
+  case req.path of
+    | "/slow" -> do
+        sleep 500
+        pure (Response.text 200 "slow, but here\n")
+    | _ -> pure (Response.text 200 "fast\n"))
+-- ANCHOR_END: all

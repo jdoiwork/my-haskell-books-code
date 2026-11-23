@@ -1,0 +1,17 @@
+-- ANCHOR: all
+-- ✨ Shapes in f"...", in a fancy way: <circle r=2>.
+-- f"..." の図形を、しゃれた形で
+module Fancy exposing (..)
+
+import Shapes (Shape (..))
+
+instance Display Shape where
+  display s =
+    case s of
+      | Circle r -> f"<circle r={r}>"
+      | Rect w h -> f"<rect {w}x{h}>"
+
+-- A frame around a shape.
+-- 図形を枠で囲む
+framed s = f"[ {s} ]"
+-- ANCHOR_END: all

@@ -1,49 +1,17 @@
--- 📤 Any value to JSON with one name, toJson: a class of our own,
---    with instances for the builtin types, a Map, and a data type.
--- どんな値も、1つの名前 toJson で JSON に。自分で作るクラスと、
--- 組み込みの型・Map・data の型のインスタンス
+-- 📤 Any value to JSON with one name, toJson: the class of the module
+--    Json, and an instance for a data type of our own.
+-- どんな値も、1つの名前 toJson で JSON に。モジュール Json のクラスと、
+-- 自分の data の型のインスタンス
 --   lam examples/json/tojson.lam
 
 -- ANCHOR: class
--- What a type needs to be written as JSON.
--- JSON に書ける型が持つもの
-class ToJson a where
-  toJson : a -> Json
-
-instance ToJson Int where
-  toJson n = JInt n
-
-instance ToJson Float where
-  toJson x = Json.fromFloat x
-
-instance ToJson String where
-  toJson s = JStr s
-
-instance ToJson Bool where
-  toJson b = JBool b
-
-instance ToJson a => ToJson [a] where
-  toJson xs = JArr (map toJson xs)
+-- ToJson and ToKey, with the instances for the builtin types, a list,
+-- and a Map, are in the module Json now ("Making the tools sturdier").
+-- Here is only the instance for a type of our own.
+-- ToJson と ToKey、組み込みの型・リスト・Map のインスタンスは、いまは
+-- モジュール Json にある（「道具を補強する」）。ここには、自分の型の
+-- インスタンスだけを書く
 -- ANCHOR_END: class
-
--- ANCHOR: keys
--- 🔑 A key of a JSON object is always a string. A Map can be written
---    as JSON when its keys can be strings, and its values JSON.
--- JSON のオブジェクトのキーは、いつも文字列。キーを文字列にでき、
--- 値を JSON にできる Map なら、JSON に書ける
-class ToKey a where
-  toKey : a -> String
-
-instance ToKey String where
-  toKey s = s
-
-instance ToKey Int where
-  toKey n = showInt n
-
-instance (ToKey k, ToJson v) => ToJson (Map k v) where
-  toJson m =
-    JObj (Map.fromList [(toKey k, toJson v) | (k, v) <- Map.toList m])
--- ANCHOR_END: keys
 
 -- ANCHOR: shape
 -- 🔷 A type of our own: the kind of shape goes into "kind".

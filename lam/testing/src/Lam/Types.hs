@@ -46,9 +46,14 @@ module Lam.Types
   , appT
   , closeOver
   , closeOverWith
+  , annotationScheme
+  , toType
+  , varsIn
+  , fitsDefault
   , inferType
   , inferIO
   , inferDefinition
+  , inferGroup
   , inferAnnotated
   , checkAnnotated
   , checkInstanceSupers
@@ -59,8 +64,8 @@ module Lam.Types
   , renderTypeError
   ) where
 
-import Control.Monad (foldM, forM, when)
-import Data.List (nub, sortOn)
+import Control.Monad (foldM, forM, forM_, unless, when)
+import Data.List (nub, partition, sortOn)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
@@ -69,6 +74,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Lam.Syntax
+import Lam.Sugar (doBind, tryBranch)
 
 -- ANCHOR: types
 -- 🏷️ A type: Int, Bool, a type variable (not known yet), a function,
@@ -288,6 +294,25 @@ data TypeError
   -- 同じエラーと、それが起きた場所（いちばん内側の場所）
   | TypeAt Loc TypeError
   -- ANCHOR_END: scriptErrors
+  -- ANCHOR: hardeningErrors
+  -- x <- readFile path  gives a Result, but the lines below use x as a
+  -- String: the line gives the first type, the lines use the second.
+  -- x <- readFile path の答えは Result なのに、下の行は x を String と
+  -- して使う：行が出すのが1つ目の型、下の行が使うのが2つ目
+  | LineGives Type Type
+  -- A ? where the do gives no Result or Maybe: the type of the lines
+  -- below it (IO ()).
+  -- do が Result も Maybe も出さない所の ?。下の行の型（IO ()）
+  | TryNeeds Type
+  -- Functions that use each other need a dictionary: write their
+  -- annotations.
+  -- おたがいを使う関数に、辞書が要る：注釈を書く
+  | GroupNeedsAnnotation [Name]
+  -- Which definition of a group an error happened in (only inside
+  -- inferGroup).
+  -- グループのどの定義でエラーが起きたか（inferGroup の中だけ）
+  | GroupIn Name TypeError
+  -- ANCHOR_END: hardeningErrors
   deriving (Eq, Show)
 -- ANCHOR_END: types
 
@@ -597,12 +622,21 @@ data InferState = InferState
   -- f を待っている条件。HasLength (f Int) は、f がわかるまで確かめられない
   , pending :: [(Class, Type)]
   -- ANCHOR_END: pendingField
+  -- ANCHOR: localsField
+  -- The local names here: the arguments of the lambdas around, the
+  -- names of the patterns, and the lets that were not made general.
+  -- A let that uses none of them is closed (see inferLet).
+  -- ここで見えるローカルな名前：外側のラムダの引数、パターンの名前、
+  -- 一般にしなかった let。どれも使わない let は「閉じている」
+  , locals  :: Set Name
+  -- ANCHOR_END: localsField
   }
 
 newtype Infer a = Infer (InferState -> Either TypeError (a, InferState))
 
 runInfer :: DataTable -> Infer a -> Either TypeError a
-runInfer table (Infer f) = fst <$> f (InferState 0 Map.empty table [] [])
+runInfer table (Infer f) =
+  fst <$> f (InferState 0 Map.empty table [] [] Set.empty)
 
 -- 📚 The data types we know.
 -- 知っている data の型
@@ -653,6 +687,39 @@ freshRow = Infer $ \st -> Right (nextVar st, st { nextVar = nextVar st + 1 })
 -- エラーで止まる
 failWith :: TypeError -> Infer a
 failWith err = Infer (\_ -> Left err)
+
+-- ANCHOR: scoped
+-- 🏠 Run m with the local names changed, then put them back.
+-- ローカルな名前を変えて m を動かし、元に戻す
+scoped :: (Set Name -> Set Name) -> Infer a -> Infer a
+scoped change m = do
+  old <- Infer (\st -> Right (locals st, st))
+  Infer (\st -> Right ((), st { locals = change old }))
+  a <- m
+  Infer (\st -> Right ((), st { locals = old }))
+  pure a
+
+-- 🏠 The local names here.
+-- ここで見えるローカルな名前
+localNames :: Infer (Set Name)
+localNames = Infer (\st -> Right (locals st, st))
+-- ANCHOR_END: scoped
+
+-- ANCHOR: attempt
+-- 🧪 Try m: its error, or what it gave. On an error, nothing of m is
+--    kept (the state goes back to before).
+-- m を試す。エラーか、くれたもの。エラーなら、m がしたことは何も残らない
+attempt :: Infer a -> Infer (Either TypeError a)
+attempt (Infer f) = Infer $ \st -> case f st of
+  Left err         -> Right (Left err, st)
+  Right (a, after) -> Right (Right a, after)
+
+-- 🧪 Would m go through? Nothing of m is kept, either way.
+-- m が通るか。どちらでも、m がしたことは残らない
+fitsAlone :: Infer a -> Infer Bool
+fitsAlone (Infer f) = Infer $ \st ->
+  Right (either (const False) (const True) (f st), st)
+-- ANCHOR_END: attempt
 
 -- ANCHOR: inPlace
 -- 📍 Put the place on an error inside. An error that already has a
@@ -1056,6 +1123,192 @@ generalizeIn inner env t = do
 -- ANCHOR_END: generalizeIn
 -- ANCHOR_END: scheme
 
+-- ANCHOR: annotationScheme
+-- ✍️ An annotation, as a type that works for any a, b, ...:
+--      largest : Comparable a => [a] -> Maybe a
+--    gives  forall t0. Comparable t0 => [t0] -> Maybe t0,  and the
+--    names {t0 := a} for the errors. The type variables are numbered
+--    in the order they appear.
+-- 注釈を、どんな a、b でも使える型にする。型変数は、出てきた順に番号を
+-- 付ける。名前の表は、エラーのため
+annotationScheme
+  :: DataTable -> Signature -> Either TypeError (Scheme, Map Int Name)
+annotationScheme table (Signature conds te) = do
+  let rows  = nub (restsIn te)
+      plain = nub (varsIn te)
+      names = nub (rows <> plain)
+      vars  = Map.fromList (zip names [0 ..])
+  case filter (`elem` plain) rows of
+    r : _ -> Left (RowAndType r)
+    []    -> Right ()
+  t <- toType table vars te
+  needs <- traverse (condition vars) conds
+  pure ( Forall (Map.elems vars) (Map.fromListWith (<>) needs) t
+       , Map.fromList [ (i, x) | (x, i) <- Map.toList vars ] )
+  where
+    -- Comparable a: the class must be known (builtin, or declared
+    -- above), and a must be in the type.
+    -- クラスは知っているもの（組み込みか、上で宣言したもの）、
+    -- a は型の中にあるもの
+    condition vars (c, a) = do
+      cls <- maybe (Left (UnknownClass c)) Right (lookupClass table c)
+      i <- maybe (Left (UnknownTypeVar a)) Right (Map.lookup a vars)
+      pure (i, Set.singleton cls)
+
+-- 🔎 The type variables written in a type, and the rests of records.
+-- 型に書かれた型変数と、レコードの残り
+varsIn :: TypeExpr -> [Name]
+varsIn te = case te of
+  TyVar a       -> [a]
+  TyApp f ts    -> f : concatMap varsIn ts
+  TyCon _ ts    -> concatMap varsIn ts
+  TyFun a b     -> varsIn a <> varsIn b
+  TyList a      -> varsIn a
+  TyTuple ts    -> concatMap varsIn ts
+  TyRecord fs _ -> concatMap (varsIn . fieldType) fs
+
+restsIn :: TypeExpr -> [Name]
+restsIn te = case te of
+  TyVar _       -> []
+  TyApp _ ts    -> concatMap restsIn ts
+  TyCon _ ts    -> concatMap restsIn ts
+  TyFun a b     -> restsIn a <> restsIn b
+  TyList a      -> restsIn a
+  TyTuple ts    -> concatMap restsIn ts
+  TyRecord fs r -> maybe [] pure r <> concatMap (restsIn . fieldType) fs
+-- ANCHOR_END: annotationScheme
+
+-- ANCHOR: toType
+-- 🏷️ A written type, as a Type.  Maybe a  is  TCon "Maybe" [TVar 0].
+--    It takes the whole table, to look up the aliases too.
+-- 書かれた型を、Type にする。別名も引けるように、表をまるごと受け取る
+toType :: DataTable -> Map Name Int -> TypeExpr -> Either TypeError Type
+toType table vars te = case te of
+  TyVar a ->
+    maybe (Left (UnknownTypeVar a)) (Right . TVar) (Map.lookup a vars)
+  -- ANCHOR: toTypeApp
+  -- f a: the type in f's hole. When f is known to be List later,
+  -- f Int becomes [Int] (see appT).
+  -- f a：f の穴に入った型。あとで f が List だとわかれば、f Int は
+  -- [Int] になる（appT を見る）
+  TyApp f args -> do
+    i <- maybe (Left (UnknownTypeVar f)) Right (Map.lookup f vars)
+    foldl appT (TVar i) <$> traverse go args
+  -- ANCHOR_END: toTypeApp
+  TyFun a b -> TFun <$> go a <*> go b
+  TyList a -> tList <$> go a
+  TyTuple ts -> tTuple <$> traverse go ts
+  TyCon "Int" [] -> Right TInt
+  TyCon "Bool" [] -> Right TBool
+  TyCon "String" [] -> Right tString
+  -- ANCHOR: floatType
+  TyCon "Float" [] -> Right tFloat
+  TyCon "Float" args -> Left (WrongTypeArgs "Float" 0 (length args))
+  -- ANCHOR_END: floatType
+  -- ANCHOR: toTypeMap
+  -- Map String Int, and Set Int
+  TyCon "Map" [k, v] -> tMap <$> go k <*> go v
+  TyCon "Map" args -> Left (WrongTypeArgs "Map" 2 (length args))
+  TyCon "Set" [a] -> tSet <$> go a
+  TyCon "Set" args -> Left (WrongTypeArgs "Set" 1 (length args))
+  -- ANCHOR_END: toTypeMap
+  -- ANCHOR: toTypeIO
+  -- IO String
+  TyCon "IO" [a] -> tIO <$> go a
+  TyCon "IO" args -> Left (WrongTypeArgs "IO" 1 (length args))
+  -- ANCHOR_END: toTypeIO
+  -- ANCHOR: toTypeBytes
+  TyCon "Bytes" [] -> Right (TCon "Bytes" [])
+  TyCon "Bytes" args -> Left (WrongTypeArgs "Bytes" 0 (length args))
+  -- ANCHOR_END: toTypeBytes
+  -- ANCHOR: toTypeRegex
+  TyCon "Regex" [] -> Right (TCon "Regex" [])
+  TyCon "Regex" args -> Left (WrongTypeArgs "Regex" 0 (length args))
+  -- ANCHOR_END: toTypeRegex
+  -- ANCHOR: toTypeParser
+  -- Parser Int: a parser that gives an Int.
+  -- Int をくれるパーサー
+  TyCon "Parser" [a] -> TCon "Parser" <$> traverse go [a]
+  TyCon "Parser" args -> Left (WrongTypeArgs "Parser" 1 (length args))
+  -- ANCHOR: toTypeTask
+  -- Task Int: a job started with spawn, that gives an Int.
+  -- Task Int：spawn で始めた、Int をくれる仕事
+  TyCon "Task" [a] -> TCon "Task" <$> traverse go [a]
+  TyCon "Task" args -> Left (WrongTypeArgs "Task" 1 (length args))
+  -- ANCHOR_END: toTypeTask
+  -- ANCHOR: toTypeChan
+  -- Chan Int: a channel of Ints. Pid Msg: a mailbox that takes Msgs.
+  -- Chan Int：Int を流すチャネル。Pid Msg：Msg を受け取る受け箱
+  TyCon "Chan" [a] -> TCon "Chan" <$> traverse go [a]
+  TyCon "Chan" args -> Left (WrongTypeArgs "Chan" 1 (length args))
+  TyCon "Pid" [a] -> TCon "Pid" <$> traverse go [a]
+  TyCon "Pid" args -> Left (WrongTypeArgs "Pid" 1 (length args))
+  -- ANCHOR_END: toTypeChan
+  -- ANCHOR_END: toTypeParser
+  -- ANCHOR: toTypeRecord
+  -- { name : String, age : Int }, and { r | name : String }
+  TyRecord fs rest -> do
+    let names = map fieldName fs
+    case [ f | (i, f) <- zip [0 :: Int ..] names
+             , f `elem` drop (i + 1) names ] of
+      f : _ -> Left (DuplicateField f)
+      []    -> Right ()
+    fields <- traverse (\f -> (,) (fieldName f) <$> go (fieldType f)) fs
+    -- ANCHOR: checkDefaults
+    -- A default must fit the type of its field (count : Int = 1).
+    -- 既定値は、そのフィールドの型に合わなければならない
+    case [ (f, t) | (FieldType f _ (Just d) _ _, (_, t)) <- zip fs fields
+                  , not (fitsDefault table d t) ] of
+      (f, t) : _ -> Left (BadDefault f t)
+      []         -> Right ()
+    -- ANCHOR_END: checkDefaults
+    r <- traverse (\a -> maybe (Left (UnknownTypeVar a)) Right
+                           (Map.lookup a vars)) rest
+    pure (TRecord (Map.fromList fields) r)
+  -- ANCHOR_END: toTypeRecord
+  -- ANCHOR: toTypeAlias
+  -- An alias: the type it stands for, with the arguments put in.
+  -- 別名：表す型に、引数を入れたもの
+  TyCon c args
+    | Just (Alias n body _) <- Map.lookup c (aliases table) -> do
+        unless (n == length args) $
+          Left (WrongTypeArgs c n (length args))
+        ts <- traverse go args
+        pure (substitute ts body)
+  -- ANCHOR_END: toTypeAlias
+  TyCon c args -> case Map.lookup c (dataTypes table) of
+    Nothing -> Left (UnknownType c)
+    Just dt
+      | typeArity dt /= length args ->
+          Left (WrongTypeArgs c (typeArity dt) (length args))
+      | otherwise -> TCon c <$> traverse go args
+  where
+    go = toType table vars
+
+-- ANCHOR: fits
+-- 🎚️ Does the default fit the type? A whole number also fits Float,
+--    and a constructor with no fields fits its own type (Normal fits
+--    Level).
+-- 既定値は型に合うか。整数は Float にも合う。フィールドのない構成子は、
+-- 自分の型に合う（Normal は Level に合う）
+fitsDefault :: DataTable -> Default -> Type -> Bool
+fitsDefault table d t = case (d, t) of
+  (DefaultOne (LInt _),    TInt)              -> True
+  (DefaultOne (LInt _),    TCon "Float" [])   -> True
+  (DefaultOne (LFloat _),  TCon "Float" [])   -> True
+  (DefaultOne (LString _), TCon "String" [])  -> True
+  (DefaultOne (LBool _),   TBool)             -> True
+  (DefaultCon c,           TCon h _)          -> constructorOf c h
+  (DefaultList ds,         TCon "List" [a])   ->
+    all (\x -> fitsDefault table x a) ds
+  _                                           -> False
+  where
+    constructorOf c h = case Map.lookup c (constructors table) of
+      Just con -> conTypeName con == h && conArity con == 0
+      Nothing  -> False
+-- ANCHOR_END: fits
+-- ANCHOR_END: toType
+
 -- ANCHOR: infer
 -- 🔍 Algorithm W: the type of an expression, what we learned, and the
 --    expression again, with holes for the dictionaries of the declared
@@ -1102,8 +1355,18 @@ infer env expr = case expr of
   -- x の型はまだわからないので、新しい t にしておく
   Lam x body -> do
     tx <- fresh
-    (s, tb, body') <- infer (Map.insert x (Forall [] Map.empty tx) env) body
+    (s, tb, body') <- scoped (Set.insert x)
+      (infer (Map.insert x (Forall [] Map.empty tx) env) body)
     pure (s, TFun (applyT s tx) tb, Lam x body')
+
+  -- An annotation outside a let: the expression must fit it.
+  -- let の外の注釈：式が注釈に合わなければならない
+  Annot sig e -> do
+    table <- knownData
+    (sc, _) <- either failWith pure (annotationScheme table sig)
+    (t, _) <- instantiate sc
+    (s1, e') <- check env e t
+    pure (s1, applyT s1 t, Annot sig e')
 
   -- ANCHOR: inferApp
   -- f a : f must be a function from a's type to something new.
@@ -1125,7 +1388,7 @@ infer env expr = case expr of
       TRecord {} -> failWith (Mismatch tf' needed)
       -- Otherwise the argument must fit the function: found first.
       -- そうでなければ、引数が関数に合うはず（来たものを先に）
-      _       -> liftUnify needed tf'
+      _       -> doLine f ta tf' (liftUnify needed tf')
     -- ANCHOR_END: notAFunction
     pure (s3 `compose` s2 `compose` s1, applyT s3 tr, App f' a')
   -- ANCHOR_END: inferApp
@@ -1134,20 +1397,9 @@ infer env expr = case expr of
   -- Then x gets a forall type, so that the body can use it in many ways.
   -- let は再帰する。e を見るあいだ、x は新しい t。
   -- そのあと x を forall の型にして、本体でいろいろな型で使えるようにする
-  Let x e body -> do
-    tx <- fresh
-    (s1, te, e') <- infer (Map.insert x (Forall [] Map.empty tx) env) e
-    s2 <- liftUnify (applyT s1 tx) te
-    -- ANCHOR: settleLet
-    -- The f that are still not known become lists (see settle).
-    -- まだわからない f は、リストにする（settle を見る）
-    s2' <- settle
-    let s    = s2' `compose` s2 `compose` s1
-    -- ANCHOR_END: settleLet
-        env' = applyEnv s env
-    sc <- generalizeIn True env' (applyT s te)
-    (s3, tb, body') <- infer (Map.insert x sc env') body
-    pure (s3 `compose` s, tb, Let x e' body')
+  Let x e body -> case annotated e of
+    Just (sig, inner) -> inferLetAnnotated env x sig inner body
+    Nothing           -> inferLet env x e body
 
   If c t e -> do
     (s1, tc, c') <- infer env c
@@ -1231,8 +1483,10 @@ infer env expr = case expr of
                 (Map.fromList [ (x, Forall [] Map.empty (applyT sp t))
                               | (x, t) <- names ])
                 (applyEnv (sp `compose` s) env)
-          (s4, tb, body') <- infer env' body
-          s5 <- liftUnify tb (applyT (s4 `compose` sp) ta)
+          (s4, tb, body') <- scoped (<> Set.fromList (map fst names))
+                               (infer env' body)
+          s5 <- tryLine scrutinee p (applyT (s4 `compose` sp) ta)
+                  (liftUnify tb (applyT (s4 `compose` sp) ta))
           let sAll = s5 `compose` s4 `compose` sp `compose` s
           pure (sAll, applyT sAll te', applyT sAll ta, done <> [(p, body')])
     (s, _, ta, branches') <- foldM oneBranch (s1, te, answer, []) branches
@@ -1272,6 +1526,247 @@ infer env expr = case expr of
     pure (s, applyT s te, Update e' (zip (map fst fields) es'))
   -- ANCHOR_END: inferRecord
 -- ANCHOR_END: infer
+
+-- ANCHOR: inferLet
+-- 🏷️ let x = e in body, with no annotation. let is recursive: x has a
+--    new t while we look at e. Then x gets a forall type, so that the
+--    body can use it in many ways.
+--    A closed let (it uses no local name: no argument of a lambda
+--    around, no name of a pattern) is made general with its declared
+--    classes too, as GHC does with MonoLocalBinds: it takes their
+--    dictionaries, like a definition at the top. Otherwise its
+--    declared classes stay with the definition outside, as before.
+-- 注釈のない let x = e in body。let は再帰する。e を見るあいだ、x は
+-- 新しい t。そのあと x を forall の型にして、本体でいろいろな型で使える
+-- ようにする。閉じた let（ローカルな名前を使わない：外側のラムダの引数も、
+-- パターンの名前も使わない）は、GHC の MonoLocalBinds と同じく、宣言した
+-- クラスも一般にする。いちばん外の定義と同じく、その辞書を受け取る。
+-- そうでなければ、宣言したクラスは、これまでどおり外の定義に残す
+inferLet :: TypeEnv -> Name -> Expr -> Expr -> Infer (Subst, Type, Expr)
+inferLet env x e body = do
+  here' <- localNames
+  let closed = Set.null (Set.delete x (freeVars e) `Set.intersection` here')
+  before <- holeCount
+  tx <- fresh
+  -- Inside e, x is local: a let inside that uses x is not closed.
+  -- e の中では x はローカル。x を使う中の let は、閉じていない
+  (s1, te, e') <- scoped (Set.insert x)
+    (infer (Map.insert x (Forall [] Map.empty tx) env) e)
+  s2 <- liftUnify (applyT s1 tx) te
+  -- ANCHOR: settleLet
+  -- The f that are still not known become lists (see settle).
+  -- まだわからない f は、リストにする（settle を見る）
+  s2' <- settle
+  let s    = s2' `compose` s2 `compose` s1
+  -- ANCHOR_END: settleLet
+      env' = applyEnv s env
+  sc <- generalizeIn (not closed) env' (applyT s te)
+  e'' <- if closed then localDictionaries s sc before x e' else pure e'
+  let inBody = if closed then Set.delete x else Set.insert x
+  (s3, tb, body') <- scoped inBody (infer (Map.insert x sc env') body)
+  pure (s3 `compose` s, tb, Let x e'' body')
+-- ANCHOR_END: inferLet
+
+-- ANCHOR: localDictionaries
+-- 🎁 A closed let that needs dictionaries takes them in front, like a
+--    definition at the top. It calls itself through a let inside, so
+--    that it passes on the same dictionaries:
+--      let wrap = \$Display_l7 -> let wrap = ... in wrap in ...
+--    The holes made inside it, for its own type variables, are filled
+--    now; the others wait for the definition outside.
+-- 辞書の要る閉じた let は、いちばん外の定義と同じく、辞書を前で受け取る。
+-- 中の let を通して自分を呼ぶので、同じ辞書を渡し続ける。中で空けた穴の
+-- うち、自分の型変数のものは、いま埋める。ほかは外の定義を待つ
+localDictionaries :: Subst -> Scheme -> Int -> Name -> Expr -> Infer Expr
+localDictionaries s (Forall vs ns _) before x e
+  | null ps   = pure e
+  | otherwise = do
+      filled <- fillLocal s (Set.fromList vs) given before (Let x e (Var x))
+      pure (foldr (\(v, c) -> Lam (param v c)) filled ps)
+  where
+    ps    = dictNeeds ns
+    given = [ (c, v, Var (param v c)) | (v, c) <- ps ]
+    -- $Display_l7: a name of its own, so that it never hides the
+    -- dictionary of the definition outside ($Display_a).
+    -- 自分だけの名前。外の定義の辞書（$Display_a）を隠さない
+    param v c = localParam c v
+-- ANCHOR_END: localDictionaries
+
+-- 🏷️ The dictionary parameter of a let inside:  $Display_l7
+-- 中の let の辞書の引数の名前
+localParam :: Class -> Int -> Name
+localParam c v = dictParam c ("l" <> T.pack (show v))
+
+-- ANCHOR: inferLetAnnotated
+-- ✍️ let x : sig, then x = e, then body. The annotation is the type x
+--    gets, even when e uses local names: it is checked as at the top
+--    (see checkAnnotated), and it takes the dictionaries of its
+--    classes.
+-- 注釈のある let。注釈が x の型になる。e がローカルな名前を使っていても
+-- よい。いちばん外と同じく確かめ（checkAnnotated を見る）、クラスの辞書を
+-- 受け取る
+inferLetAnnotated
+  :: TypeEnv -> Name -> Signature -> Expr -> Expr
+  -> Infer (Subst, Type, Expr)
+inferLetAnnotated env x sig e body = do
+  table <- knownData
+  (declared, names) <- either failWith pure (annotationScheme table sig)
+  let Forall vs wanted t0 = declared
+      nameOf v = Map.findWithDefault "?" v names
+      classesOf v = maybe [] Set.toList (Map.lookup v wanted)
+  before <- holeCount
+  news <- mapM (const freshRow) vs
+  let t = applyT (Map.fromList (zip vs (map TVar news))) t0
+  sequence_ [ require c (TVar new) | (v, new) <- zip vs news
+                                   , c <- classesOf v ]
+  (s0, e') <- check (Map.insert x declared env) e t
+  s1 <- settle
+  let s      = s1 `compose` s0
+      images = [ (v, applyT s (TVar new)) | (v, new) <- zip vs news ]
+      outer  = Set.unions [ ftv ty `Set.difference` Set.fromList bound
+                          | Forall bound _ ty <- Map.elems (applyEnv s env) ]
+  ns <- currentNeeds
+  -- Each variable of the annotation stays a variable of its own, not
+  -- one of the types outside, with only the classes written.
+  -- 注釈の型変数は、それぞれ別の型変数のまま。外の型にもならず、
+  -- 書いたクラスだけを持つ
+  forM_ images $ \(v, image) -> case image of
+    TVar m
+      | m `Set.member` outer -> failWith (TooGeneral x (nameOf v) image)
+      | (w, _) : _ <- [ (w, ()) | (w, TVar m') <- images, m' == m, w > v ]
+          -> failWith (SameVariables x (nameOf v) (nameOf w))
+      | c : _ <- Set.toList (Map.findWithDefault Set.empty m ns
+                   `Set.difference`
+                   Set.unions (map (superClosure table) (classesOf v)))
+          -> failWith (AnnotationNeeds x c (nameOf v))
+      | otherwise -> pure ()
+    _ -> failWith (TooGeneral x (nameOf v) image)
+  let ps    = [ (v, m, c) | (v, c) <- dictNeeds wanted
+                          , Just (TVar m) <- [lookup v images] ]
+      given = [ (c, m, Var (localParam c m)) | (_, m, c) <- ps ]
+      mine  = Set.fromList [ m | (_, TVar m) <- images ]
+  filled <- fillLocal s mine given before e'
+  let e'' = foldr (\(_, m, c) -> Lam (localParam c m)) filled ps
+  (s2, tb, body') <- scoped (Set.delete x)
+    (infer (Map.insert x declared (applyEnv s env)) body)
+  pure (s2 `compose` s, tb, Let x e'' body')
+-- ANCHOR_END: inferLetAnnotated
+
+-- ✍️ The annotation of a let, if it has one:  Let x (Annot sig e) ...
+-- let の注釈（あれば）
+annotated :: Expr -> Maybe (Signature, Expr)
+annotated e = case e of
+  Annot sig inner -> Just (sig, inner)
+  At _ inner      -> annotated inner
+  _               -> Nothing
+
+-- ANCHOR: fillLocal
+-- 🕳️ How many holes there are now: the holes made after this are at
+--    the front of the list.
+-- いまの穴の数。このあとで空けた穴は、リストの前にある
+holeCount :: Infer Int
+holeCount = Infer (\st -> Right (length (holes st), st))
+
+-- 🕳️ Fill the holes made since there were  before  holes, whose types
+--    use the variables mine: they are for the dictionaries given. The
+--    other holes stay, for the definition outside.
+-- before 個だったときから空けた穴のうち、型が mine の型変数を使うものを、
+-- 渡された辞書で埋める。ほかの穴は、外の定義のために残す
+fillLocal :: Subst -> Set Int -> Given -> Int -> Expr -> Infer Expr
+fillLocal s mine given before e = do
+  hs    <- Infer (\st -> Right (holes st, st))
+  table <- knownData
+  let made         = length hs - before
+      uses (_, _, t) =
+        not (Set.null (ftv (applyT s t) `Set.intersection` mine))
+      (now, later) = partition uses (take made hs)
+  filled <- forM now $ \(h, c, t) ->
+    either failWith (\d -> pure (h, d)) (dictFor table given c (applyT s t))
+  Infer (\st -> Right ((), st { holes = later <> drop made hs }))
+  pure (fillVars (Map.fromList filled) e)
+-- ANCHOR_END: fillLocal
+
+-- ANCHOR: doLine
+-- 📝 p <- e in a do is  $do.bind e (\p -> rest). When the value of the
+--    line does not fit the way the lines below use it, say so, at the
+--    line: a ? left out is the usual reason.
+-- do の p <- e は $do.bind e (\p -> rest)。行の値が、下の行の使い方に
+-- 合わないなら、行の場所でそう言う。よくあるわけは、? の付け忘れ
+doLine :: Expr -> Type -> Type -> Infer Subst -> Infer Subst
+doLine f ta tf' unifying = case (f, ta, tf') of
+  (App (Var b) (At loc _), TFun used _, TFun (TFun given _) _)
+    | b == doBind -> do
+        tried <- attempt unifying
+        case tried of
+          Right s  -> pure s
+          Left err -> do
+            alone <- fitsAlone (liftUnify given used)
+            if alone then failWith err
+              else failWith (TypeAt loc (LineGives given used))
+  _ -> unifying
+-- ANCHOR_END: doLine
+
+-- ANCHOR: tryLine
+-- ❓ p <- e ? opens to a case with $try.branch, whose Err branch gives
+--    the failure as the answer of the whole do. When that does not fit
+--    what the lines below give, say so, at the line of the ?.
+-- p <- e ? は $try.branch の case に開く。その Err の枝は、失敗を do 全体の
+-- 答えにする。それが下の行の答えに合わないなら、? の行の場所でそう言う
+tryLine :: Expr -> Pattern -> Type -> Infer Subst -> Infer Subst
+tryLine scrutinee p rest unifying = case (scrutinee, p) of
+  (App (Var b) (At loc _), PCon "Err" _)
+    | b == tryBranch -> do
+        tried <- attempt unifying
+        either (const (failWith (TypeAt loc (TryNeeds rest)))) pure tried
+  _ -> unifying
+-- ANCHOR_END: tryLine
+
+-- ANCHOR: inferGroup
+-- 👯 Definitions at the top that use each other (isEven and isOdd):
+--    their types are found together. Each has a new t while we look at
+--    them all; then each gets a forall type. Dictionaries cannot be
+--    passed around in a ring here: then their annotations are needed
+--    (like Haskell, where an annotated one is checked alone).
+--    The error says which definition went wrong.
+-- おたがいを使う、いちばん外の定義（isEven と isOdd）：型を一緒に
+-- 見つける。全部を見るあいだ、それぞれ新しい t。そのあとそれぞれを
+-- forall の型にする。ここでは辞書を輪にして渡せないので、そのときは注釈が
+-- 要る（Haskell でも、注釈のあるものは1つずつ確かめる）。エラーには、
+-- どの定義でまちがえたかを書く
+inferGroup
+  :: DataTable -> TypeEnv -> [(Name, Expr)]
+  -> Either (Name, TypeError) [(Name, Scheme, Expr)]
+inferGroup table env defs = runInferAt table $ do
+  ts <- mapM (const fresh) defs
+  let inside = Map.fromList [ (x, Forall [] Map.empty t)
+                            | ((x, _), t) <- zip defs ts ] `Map.union` env
+      one (s, done) ((x, e), t) = blame x $ do
+        (s1, te, e') <- infer (applyEnv s inside) e
+        s2 <- liftUnify (applyT (s1 `compose` s) t) te
+        pure (s2 `compose` s1 `compose` s, done <> [(x, e')])
+  (s0, typed) <- foldM one (Map.empty, []) (zip defs ts)
+  s1 <- settle
+  let s = s1 `compose` s0
+  schemes <- forM (zip typed ts) $ \((x, _), t) ->
+    blame x (generalizeIn False (applyEnv s env) (applyT s t))
+  case [ x | ((x, _), Forall _ ns _) <- zip typed schemes
+           , not (null (dictNeeds ns)) ] of
+    x : _ -> blame x (failWith (GroupNeedsAnnotation (map fst defs)))
+    []    -> pure ()
+  forM (zip typed schemes) $ \((x, e'), sc) ->
+    blame x ((,,) x sc <$> withDictionaries s sc e')
+  where
+    -- Which definition an error happened in.
+    -- エラーが、どの定義で起きたか
+    blame x (Infer f) = Infer $ \st -> case f st of
+      Left err   -> Left (GroupIn x err)
+      Right done -> Right done
+    runInferAt t m = case (runInfer t m, defs) of
+      (Left (GroupIn x err), _)  -> Left (x, err)
+      (Left err, (x, _) : _)     -> Left (x, err)
+      (Left err, [])             -> Left ("", err)
+      (Right done, _)            -> Right done
+-- ANCHOR_END: inferGroup
 
 -- ANCHOR: inferPattern
 -- 🧩 The type of a pattern, and the names it gives with their types.
@@ -1480,9 +1975,10 @@ finish env s0 t e' = do
   known' <- knownData
   picks <- fmap concat $ forM vs $ \v -> do
     let cs = Map.findWithDefault Set.empty v ns
-        fits k = all (\c -> inClass known' c k /= Nothing) (Set.toList cs)
+        fitsAll k = all (\c -> inClass known' c k /= Nothing) (Set.toList cs)
     pure [ (v, k) | Number `Set.member` cs, not (null (dictNeeds
-             (Map.singleton v cs))), k : _ <- [filter fits [TInt, tFloat]] ]
+             (Map.singleton v cs)))
+         , k : _ <- [filter fitsAll [TInt, tFloat]] ]
   let chosen = Map.fromList picks
       sc     = Forall (filter (`Map.notMember` chosen) vs)
                       (foldr Map.delete ns (Map.keys chosen))
@@ -1679,9 +2175,9 @@ fillHoles s given e = do
                            , v `notElem` mine ]
   picks <- forM (nubOn fst open) $ \(v, c) -> do
     let cs   = Map.findWithDefault Set.empty v ns
-        fits ty = all (\k -> inClass table k ty /= Nothing) (Set.toList cs)
+        fitsAll ty = all (\k -> inClass table k ty /= Nothing) (Set.toList cs)
     if Number `Set.member` cs
-      then case filter fits [TInt, tFloat] of
+      then case filter fitsAll [TInt, tFloat] of
              ty : _ -> pure [(v, ty)]
              []     -> failWith (NotInClass c TInt)
       -- ANCHOR: unusedOpen
@@ -1724,6 +2220,7 @@ fillVars m = go
       Field x f    -> Field (go x) f
       Update x fs  -> Update (go x) [ (f, go y) | (f, y) <- fs ]
       At loc x     -> At loc (go x)
+      Annot t x    -> Annot t (go x)
 -- ANCHOR_END: fillHoles
 
 -- ANCHOR: checkInstanceSupers
@@ -1775,13 +2272,49 @@ check env expr t = case (expr, t) of
     (s, e') <- inPlace loc (check env e t)
     pure (s, At loc e')
   (Lam y body, TFun a b) -> do
-    (s, body') <- check (Map.insert y (Forall [] Map.empty a) env) body b
+    (s, body') <- scoped (Set.insert y)
+      (check (Map.insert y (Forall [] Map.empty a) env) body b)
     pure (s, Lam y body')
   _ -> do
     (s1, te, expr') <- infer env expr
     s2 <- liftUnify te (applyT s1 t)
     pure (s2 `compose` s1, expr')
 -- ANCHOR_END: check
+
+-- ANCHOR: renderHelpers
+-- 🔢 A type a number can never be: String, a list, a record, Bool, ...
+--    (not a function: that has its own words, see numberCalled).
+-- 数が決してならない型：String、リスト、レコード、Bool など
+--（関数は除く。関数には専用の文がある）
+plainType :: Type -> Bool
+plainType t = case t of
+  TCon _ _     -> True
+  TBool        -> True
+  TRecord _ _  -> True
+  _            -> False
+
+-- 🖨️ How the lines below use a value: "String", or "a number".
+-- 下の行が値をどう使うか
+asUsed :: Type -> Text
+asUsed t = case t of
+  TVar _ -> "a number"
+  _      -> renderType t
+
+-- ❓ The hint for a ? left out: the line gives a Result (or a Maybe),
+--    and the lines below want what is inside.
+-- ? の付け忘れのヒント：行は Result（か Maybe）を出し、下の行は中身が欲しい
+forgotTry :: Type -> Type -> Text
+forgotTry given used = case (given, used) of
+  (TCon "Result" _, TCon "Result" _) -> ""
+  (TCon "Maybe" _, TCon "Maybe" _)   -> ""
+  (TCon "Result" _, _) ->
+    ": write ? at the end of the line, to go on with what is in Ok"
+      <> " (and stop the do at an Err)"
+  (TCon "Maybe" _, _) ->
+    ": write ? at the end of the line, to go on with what is in Just"
+      <> " (and stop the do at Nothing)"
+  _ -> ""
+-- ANCHOR_END: renderHelpers
 
 -- ANCHOR: render
 -- 🖨️ Show a type, naming the variables a, b, c, ... in order.
@@ -1991,6 +2524,12 @@ renderTypeError err = case err of
             _      -> renderType t)
       <> " (only a Maybe or a Result can be missing its value)"
   -- ANCHOR_END: renderOrElse
+  -- ANCHOR: renderNumberWhere
+  -- 「String が要るところに、数が来ました」
+  NotInClass Number t | plainType t ->
+    "the types do not fit: a number where " <> renderType t
+      <> " is needed"
+  -- ANCHOR_END: renderNumberWhere
   -- 「a -> a は、Comparable のクラスに入っていません」
   NotInClass c t   -> renderType t <> " is not in the class "
                         <> className c
@@ -2067,6 +2606,26 @@ renderTypeError err = case err of
                  <> renderType t
   -- 「場所：……」
   TypeAt loc e -> renderLoc loc <> ": " <> renderTypeError e
+  -- ANCHOR: renderHardening
+  -- 「この行は Result String String を出しますが、下の行は String として
+  --   使っています。行の終わりに ? を書くと、Ok の中身で続けます」
+  LineGives given used ->
+    "this line gives " <> renderType given
+      <> ", but the lines below use it as " <> asUsed used
+      <> forgotTry given used
+  -- 「? は Err で do を止めるので、do は Result か Maybe を出さなければ
+  --   なりませんが、下の行は IO () を出しています」
+  TryNeeds t ->
+    "? stops the do at an Err (or a Nothing), so the do must give a "
+      <> "Result or a Maybe (main : IO (Result String ()), for "
+      <> "example), but the lines below it give " <> renderType t
+  -- 「おたがいを使う isEven と isOdd には辞書が要るので、型の注釈を
+  --   書いてください」
+  GroupNeedsAnnotation xs ->
+    T.intercalate " and " xs <> " use each other and need a "
+      <> "dictionary: write their type annotations"
+  GroupIn _ e -> renderTypeError e
+  -- ANCHOR_END: renderHardening
   DuplicateClass c -> "the class " <> c <> " is already declared"
   -- 「Comparable は組み込みのクラスで、仲間は言語が決めます」
   BuiltinClassInstance c -> className c <> " is a builtin class: the "

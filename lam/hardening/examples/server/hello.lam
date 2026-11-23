@@ -1,0 +1,16 @@
+-- ANCHOR: all
+-- 👋 The smallest web server: one function from a request to an
+--    answer.
+--   lam hello.lam
+-- いちばん小さな Web サーバー：頼みから答えへの関数1つ
+
+-- ANCHOR: handler
+-- 💬 Say hello, with the method and the path of the request.
+-- 頼みのメソッドと道を入れて、あいさつする
+hello : Request -> IO Response
+hello req =
+  pure (Response.text 200 f"hello! you asked {req.method} {req.path}\n")
+-- ANCHOR_END: handler
+
+main = Http.serve 8080 hello
+-- ANCHOR_END: all

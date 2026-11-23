@@ -1,0 +1,1 @@
+-F, -an --begin 0 -e 'acc + (String.toInt (field 2) ?: 0) * (String.toInt (field 3) ?: 0)' --end 'putStrLn f"total {acc:,}"' examples/oneliner/sales.csv

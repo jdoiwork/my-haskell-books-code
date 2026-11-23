@@ -1,0 +1,79 @@
+-- ANCHOR: all
+-- 📝 The TODO list, kept by one actor: requests that come at once ask
+--    it one by one, so no two TODOs get the same number.
+-- TODO の一覧を、アクター1人が持つ。同時に来た頼みも、1つずつ頼むので、
+-- 2つの TODO が同じ番号になることはない
+module Todos exposing
+  (Todo, Store, start, all, add, finish, remove, toJson, newTitle)
+
+-- ANCHOR: types
+-- 📌 One TODO, and what the actor understands.
+-- TODO 1つと、アクターがわかる手紙
+type alias Todo = { id : Int, title : String, done : Bool }
+
+data Msg
+  = All (Pid [Todo])
+  | Add String (Pid Todo)
+  | Finish Int (Pid (Maybe Todo))
+  | Remove Int (Pid Bool)
+
+type alias Store = Pid Msg
+-- ANCHOR_END: types
+
+-- ANCHOR: keep
+-- ✔️ The TODO numbered n, done; the others as they are.
+-- n 番の TODO は済みに。ほかはそのまま
+markDone : Int -> Todo -> Todo
+markDone n t = if t.id == n then { t | done = true } else t
+
+-- 🗃️ The actor: the next number, and the list. Each message gets its
+--    answer, and the actor goes on with the new list.
+-- アクター：次の番号と、一覧。手紙ごとに答え、新しい一覧で続ける
+keep : Int -> [Todo] -> Pid Msg -> IO ()
+keep next todos me =
+  receive me
+    | All reply -> do
+        reply ! todos
+        keep next todos me
+    | Add title reply -> do
+        todo <- pure { id = next, title = title, done = false }
+        reply ! todo
+        keep (next + 1) (todos ++ [todo]) me
+    | Finish n reply -> do
+        changed <- pure (map (markDone n) todos)
+        reply ! find (\t -> t.id == n) changed
+        keep next changed me
+    | Remove n reply -> do
+        reply ! any (\t -> t.id == n) todos
+        keep next [t | t <- todos, t.id /= n] me
+-- ANCHOR_END: keep
+
+-- ANCHOR: ask
+-- 🙋 Start the actor, and ask it (Actor.call waits for the answer).
+-- アクターを始め、頼む（Actor.call は答えを待つ）
+start : IO Store
+start = Actor.spawn (keep 1 [])
+
+all : Store -> IO [Todo]
+all store = Actor.call store All
+
+add : Store -> String -> IO Todo
+add store title = Actor.call store (Add title)
+
+finish : Store -> Int -> IO (Maybe Todo)
+finish store n = Actor.call store (Finish n)
+
+remove : Store -> Int -> IO Bool
+remove store n = Actor.call store (Remove n)
+-- ANCHOR_END: ask
+
+-- ANCHOR: json
+-- 📤 A TODO as JSON, and how to read the body of a new one.
+-- TODO を JSON に。新しい TODO の本文の読み方
+toJson : Todo -> Json
+toJson t = JObj {id: JInt t.id, title: JStr t.title, done: JBool t.done}
+
+newTitle : Decoder String
+newTitle = Decode.field "title" Decode.string
+-- ANCHOR_END: json
+-- ANCHOR_END: all

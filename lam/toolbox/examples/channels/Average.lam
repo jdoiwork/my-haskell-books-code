@@ -1,0 +1,32 @@
+-- ANCHOR: all
+-- 🧮 An actor that computes averages, and a helper to ask it (for the
+--    examples of crashing and of the supervisor).
+-- 平均を計算するアクターと、頼むための道具（落ちる例と、監督役の例のため）
+module Average exposing (Ask (..), averager, ask)
+
+data Ask = Average [Int] (Pid Int)
+
+-- ANCHOR: averager
+-- 🧮 // by 0 is a runtime error: an empty list crashes the actor.
+-- 0 で // すると、実行時のエラー：空のリストで、アクターが落ちる
+averager : Pid Ask -> IO ()
+averager me =
+  receive me
+    | Average xs from -> do
+        from ! (sum xs // length xs)
+        averager me
+-- ANCHOR_END: averager
+
+-- ANCHOR: ask
+-- 🙋 Ask for an average, and wait half a second at most.
+-- 平均を頼み、0.5 秒まで待つ
+ask : Pid Ask -> [Int] -> IO ()
+ask avg xs = do
+  me <- Actor.new
+  avg ! Average xs me
+  receive me
+    | n -> putStrLn f"average of {xs}: {n}"
+    -- 「（xs）の平均：答えなし」
+    after 500 -> putStrLn f"average of {xs}: no answer"
+-- ANCHOR_END: ask
+-- ANCHOR_END: all

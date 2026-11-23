@@ -1,0 +1,2 @@
+error: examples/oneliner/broken.log: line 2: not UTF-8 from byte 31
+[exit 1]

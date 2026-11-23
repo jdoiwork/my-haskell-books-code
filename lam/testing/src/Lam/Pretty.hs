@@ -29,8 +29,10 @@ level expr = case expr of
   -- A mark of a place is not shown: the expression inside decides.
   -- 場所の印は見せない。中の式で決まる
   At _ e        -> level e
+  Annot _ e     -> level e
   -- re"\d+" stands alone, like a string.  re"…" は文字列と同じく1つの部品
   App (Var "$regex") (Lit (LString _)) -> 9
+  App (Var "$key.name") (Lit (LString _)) -> 9
   Lam {}        -> 0   -- \x -> ...     （右の端まで続く）
   Let {}        -> 0   -- let ... in ...
   If {}         -> 0   -- if ... then ... else ...
@@ -108,6 +110,7 @@ at p e
 plain :: Expr -> Text
 plain expr = case expr of
   At _ e            -> plain e
+  Annot _ e         -> plain e
   Lit (LInt n)      -> T.pack (show n)
   Lit (LFloat x)    -> floatLiteral x
   Lit (LBool True)  -> "true"
@@ -118,6 +121,9 @@ plain expr = case expr of
   -- $regex "\\d+" is sugar for re"\d+": show it as it was written.
   -- $regex "…" は re"…" の糖衣構文。書いたとおりに見せる
   App (Var "$regex") (Lit (LString s)) -> "re\"" <> s <> "\""
+  -- A key written as a name is shown as the text it is.
+  -- 名前の形のキーは、その文字として見せる
+  App (Var "$key.name") k@(Lit (LString _)) -> plain k
   -- ANCHOR_END: renderRegex
   -- ANCHOR: renderAccessor
   -- .name is sugar for  \$r -> $r.name: show it as it was written.

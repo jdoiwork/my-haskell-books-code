@@ -12,6 +12,7 @@ module Lam.Outside
   , cellValue
   ) where
 
+import Data.ByteString (ByteString)
 import Data.Int (Int64)
 import qualified Data.Map as Map
 import Data.Scientific (scientific)
@@ -72,24 +73,24 @@ outsideBuiltins =
     tJson = TCon "Json" []
     -- ANCHOR: responseType
     -- An answer is a record: the status (200, 404, ...), the headers
-    -- (their names in small letters), and the body.
+    -- (their names in small letters), and the body, as bytes.
     -- 答えはレコード：状態コード（200、404 など）、ヘッダー（名前は
-    -- 小文字）、本文
+    -- 小文字）、本文（バイト列）
     tResponse = TRecord (Map.fromList
       [ ("status", TInt)
       , ("headers", tMap tString tString)
-      , ("body", tString) ]) Nothing
+      , ("body", TCon "Bytes" []) ]) Nothing
     -- ANCHOR_END: responseType
 -- ANCHOR_END: table
 
 -- 🧱 The record of an answer, as the runner makes it.
 -- 答えのレコード。実行役が作る
-responseValue :: Int -> [(Text, Text)] -> Text -> Value
+responseValue :: Int -> [(Text, Text)] -> ByteString -> Value
 responseValue status headers body = VRecord (Map.fromList
   [ ("status", VInt (toInteger status))
   , ("headers", VMap (Map.fromList
       [ (Key (VString k), VString v) | (k, v) <- headers ]))
-  , ("body", VString body) ])
+  , ("body", VBytes body) ])
 
 -- ANCHOR: withCells
 -- 🧱 The SQL and its arguments, as a request. A Json that cannot be a

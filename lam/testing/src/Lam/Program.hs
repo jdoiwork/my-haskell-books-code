@@ -32,10 +32,19 @@ module Lam.Program
   , runMain
   , printText
   , addDecls
+  , keyWarnings
+  , children
+  , Def (..)
+  , pairSignatures
+  , groupsOf
   ) where
 
+import Control.Monad (foldM, forM)
+import Data.Graph (flattenSCC, stronglyConnComp)
+import Data.List (nub, sortOn)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Text (Text)
 
 import Lam.Builtins
@@ -58,6 +67,7 @@ import Lam.Decode (decodeBuiltins)
 import Lam.Outside (outsideBuiltins)
 import Lam.Server (serverBuiltins)
 import Lam.Stdlib (stdlibBuiltins)
+import Lam.Toolbox (toolboxBuiltins)
 import Lam.Pretty (renderTypeExpr)
 import Lam.Syntax
 import Lam.Types
@@ -111,6 +121,17 @@ data Session = Session
   -- ラインは、その名前と、main の上のヘルプを取る
   , sessionProgram :: Maybe (FilePath, Text)
   -- ANCHOR_END: sigsField
+  -- ANCHOR: warningsField
+  -- The names the program (or the REPL) defined itself, not the
+  -- prelude's: a key of a Map that looks like one of them gets a
+  -- warning. And the warnings found while loading, to tell before the
+  -- program runs.
+  -- プログラム（か REPL）が自分で定義した名前（プレリュードのものでは
+  -- ない）：そのどれかに見える Map のキーには警告を出す。それと、読み
+  -- こむあいだに見つけた警告。プログラムを動かす前に知らせる
+  , sessionOwn      :: Set.Set Name
+  , sessionWarnings :: [Text]
+  -- ANCHOR_END: warningsField
   }
 
 -- ANCHOR: module
@@ -150,6 +171,9 @@ data Module = Module
     -- 見せる演算子。呼ぶ関数は、モジュールの中の名前のまま
   , moduleOperators :: Operators
     -- ANCHOR_END: moduleOperators
+    -- The warnings found while loading its file.
+    -- そのファイルを読みこむあいだに見つけた警告
+  , moduleWarnings :: [Text]
   }
 -- ANCHOR_END: module
 
@@ -170,6 +194,8 @@ emptySession = Session
   , sessionOperators = Map.empty
   , sessionSigs    = Map.empty
   , sessionProgram = Nothing
+  , sessionOwn      = Set.empty
+  , sessionWarnings = []
   }
 
 -- ANCHOR: allBuiltins
@@ -185,6 +211,7 @@ allBuiltins =
     <> channelBuiltins
     <> actorBuiltins
     <> serverBuiltins
+    <> toolboxBuiltins
     <> testingBuiltins
 -- ANCHOR_END: allBuiltins
 -- ANCHOR_END: session
@@ -572,39 +599,85 @@ constructorValue c i arity
 -- クラスを足す。メソッドが環境に入る：型と、値（辞書からメソッドを
 -- 取り出す）。答えには、メソッドごとの型を見せる
 defineClass :: Session -> ClassDecl -> Either Text (Session, Text)
-defineClass session decl
+defineClass = defineClassPart Whole
+
+-- 🎓 A part of a class (see Part), with its values computed.
+-- クラスの一部（Part を見る）。値も計算する
+defineClassPart
+  :: Part -> Session -> ClassDecl -> Either Text (Session, Text)
+defineClassPart part session decl = do
+  (s, values) <- classParts part session decl
+  env <- computeAll (sessionValues s) values
+  let info  = Map.lookup (classDeclName decl) (classes (sessionData s))
+      types = [ (m, sc) | (m, sc, _) <- maybe [] classMethodsOf info ]
+  Right ( s { sessionValues = env }
+        , T.intercalate "\n"
+            [ m <> " : " <> renderScheme sc | (m, sc) <- types ] )
+
+-- 🎓 A part of a class: the session with its types, and the values to
+--    compute.
+-- クラスの一部：型を入れたセッションと、計算する値
+classParts
+  :: Part -> Session -> ClassDecl -> Either Text (Session, [(Name, Expr)])
+classParts part session decl
   | Just m <- Map.lookup (classDeclName decl) (sessionHomes session) =
       Left ("in the class " <> classDeclName decl <> ": type error: "
             <> renderTypeError (ForeignType "class" (classDeclName decl) m))
   | otherwise =
-  case declareClass (sessionData session) (sessionTypes session) decl of
+  case declareClassPart part (sessionData session) (sessionTypes session)
+         decl of
     -- 「クラス Describe で：型のエラー：……」
     Left err -> Left ("in the class " <> classDeclName decl
                       <> ": type error: " <> renderTypeError err)
-    Right (table, types, values) -> do
-      env <- computeAll (sessionValues session) values
-      Right ( session
-                { sessionTypes = Map.fromList types
-                                   `Map.union` sessionTypes session
-                , sessionValues = env
-                , sessionData   = table }
-            , T.intercalate "\n"
-                [ m <> " : " <> renderScheme sc | (m, sc) <- types ] )
+    Right (table, types, values) -> Right
+      ( session
+          { sessionTypes = Map.fromList types
+                             `Map.union` sessionTypes session
+          , sessionData  = table }
+      , values )
 
 -- 🧩 Add an instance: its methods and its dictionary are values (with
 --    names a program cannot write). Nothing new gets a type.
 -- インスタンスを足す。メソッドと辞書は値になる（プログラムからは
 -- 書けない名前）。型の付く新しい名前は、ない
 defineInstance :: Session -> InstanceDecl -> Either Text (Session, Text)
-defineInstance session decl =
-  case declareInstance (sessionData session) (sessionTypes session) decl of
+defineInstance = defineInstancePart Whole
+
+-- 🧩 A part of an instance (see Part), with its values computed.
+-- インスタンスの一部（Part を見る）。値も計算する
+defineInstancePart
+  :: Part -> Session -> InstanceDecl -> Either Text (Session, Text)
+defineInstancePart part session decl = do
+  (s, values) <- instanceParts part session decl
+  env <- computeAll (sessionValues s) values
+  Right (s { sessionValues = env }, instanceLabel decl)
+
+-- 🧩 A part of an instance: the session with its table, and the values
+--    to compute.
+-- インスタンスの一部：表を入れたセッションと、計算する値
+instanceParts
+  :: Part -> Session -> InstanceDecl -> Either Text (Session, [(Name, Expr)])
+instanceParts part session decl =
+  case declareInstancePart part (sessionData session)
+         (sessionTypes session) decl of
     -- 「インスタンス Describe Shape で：型のエラー：……」
     Left err -> Left ("in the instance " <> instClass decl <> " "
                       <> renderTypeExpr 2 (instType decl) <> ": type error: "
                       <> renderTypeError err)
-    Right (table, values, label) -> do
-      env <- computeAll (sessionValues session) values
-      Right (session { sessionValues = env, sessionData = table }, label)
+    Right (table, values, _) ->
+      Right (session { sessionData = table }, values)
+
+-- 🏷️ What the REPL shows for an instance:  instance Describe Shape
+-- REPL がインスタンスに見せるもの
+instanceLabel :: InstanceDecl -> Text
+instanceLabel (InstanceDecl context c te _) =
+  "instance " <> contextText <> c <> " " <> renderTypeExpr 2 te
+  where
+    contextText = case context of
+      []  -> ""
+      [k] -> cond k <> " => "
+      ks  -> "(" <> T.intercalate ", " (map cond ks) <> ") => "
+    cond (k, b) = k <> " " <> b
 
 -- ⚙️ Compute some values together: each may use the others (the
 --    dictionary uses the methods, and the methods use the dictionary).
@@ -642,32 +715,278 @@ defineAlias session decl
 
 -- ANCHOR: load
 -- ANCHOR: addDecls
--- 📜 Add declarations to a session, in order. A type annotation goes
---    with the definition right below it.
--- 宣言を、順にセッションに足す。型の注釈は、すぐ下の定義と組にする
+-- 📜 Add declarations to a session. A type annotation goes with the
+--    definition right below it. The order of the definitions does not
+--    matter, as in Haskell:
+--      1. the types (data, type alias) and the infix lines, in order,
+--      2. the heads of the classes and the instances,
+--      3. the definitions, each after the ones it uses (the ones that
+--         use each other, together: see groupsOf),
+--      4. the bodies of the classes and the instances (they may use
+--         any definition),
+--      5. every value is computed together (see computeLabelled).
+-- 宣言をセッションに足す。型の注釈は、すぐ下の定義と組にする。定義の
+-- 順番は、Haskell と同じく、どうでもよい：
+--   1. 型（data、type alias）と infix の行を、順に
+--   2. クラスとインスタンスの頭
+--   3. 定義。それぞれ、使う定義のあとに（おたがいを使うものは一緒に。
+--      groupsOf を見る）
+--   4. クラスとインスタンスの中身（どの定義を使ってもよい）
+--   5. 値は全部まとめて計算する（computeLabelled を見る）
 addDecls :: Session -> [Decl] -> Either Text Session
-addDecls s decls = case decls of
-  [] -> Right s
+addDecls s decls = do
+  defs <- pairSignatures decls
+  s1 <- foldM addType s decls
+  s2 <- foldM addHead s1 decls
+  (s3, values) <- foldM addGroup (s2, []) (groupsOf defs)
+  (s4, bodies) <- foldM addBody (s3, []) decls
+  env <- computeLabelled (sessionValues s4) (values <> bodies)
+  let own = sessionOwn s <> Set.fromList (map defName defs)
+      found = concatMap (keyWarnings own)
+        (map defExpr defs <> [ e | (_, e, _) <- values <> bodies ])
+  pure s4 { sessionValues = env, sessionOwn = own
+          , sessionWarnings = sessionWarnings s <> nub found }
+-- ANCHOR_END: addDecls
+
+-- ANCHOR: pairSignatures
+-- 🏷️ One definition of a file, with its annotation (if it has one).
+-- ファイルの定義1つと、その注釈（あれば）
+data Def = Def
+  { defName :: Name
+  , defSig  :: Maybe Signature
+  , defExpr :: Expr
+  }
+
+-- ✍️ Each annotation with the definition right below it.
+-- 注釈を、すぐ下の定義と組にする
+pairSignatures :: [Decl] -> Either Text [Def]
+pairSignatures decls = case decls of
+  [] -> Right []
   DefSig x sig : DefValue y e : rest
-    | x == y -> next (defineTyped s x sig e) rest
+    | x == y -> (Def x (Just sig) e :) <$> pairSignatures rest
   -- 「add の型の注釈のすぐ下に、add の定義が要ります」
   DefSig x _ : _ -> Left ("error: the type annotation of " <> x
     <> " needs the definition of " <> x <> " right below it")
-  DefValue x e : rest -> next (define s x e) rest
-  DefData d : rest    -> next (defineData s d) rest
-  DefAlias a : rest   -> next (defineAlias s a) rest
-  -- ANCHOR: addClasses
-  DefClass c : rest   -> next (defineClass s c) rest
-  DefInstance i : rest -> next (defineInstance s i) rest
-  -- ANCHOR_END: addClasses
-  -- ANCHOR: addInfix
-  DefInfix _ o f : rest -> next (Right (defineInfix s o f, T.empty)) rest
-  -- ANCHOR_END: addInfix
+  DefValue x e : rest -> (Def x Nothing e :) <$> pairSignatures rest
+  _ : rest -> pairSignatures rest
+-- ANCHOR_END: pairSignatures
+
+-- ANCHOR: groupsOf
+-- 🔗 The definitions in groups, each group after the groups it uses:
+--    the strongly connected components of "uses", as Haskell does.
+--    isEven and isOdd use each other, so they are one group. Groups
+--    that do not use each other keep the order they were written in.
+--    (A name defined twice keeps the old way: one by one, in order.)
+-- 定義をグループに分け、使うグループのあとに並べる。Haskell と同じく、
+-- 「使う」の強連結成分。isEven と isOdd はおたがいを使うので、1つの
+-- グループ。使い合わないグループは、書いた順のまま（2回定義した名前が
+-- あれば、これまでどおり1つずつ、順に）
+groupsOf :: [Def] -> [[Def]]
+groupsOf defs
+  | length (nub names) /= length names = map pure defs
+  | otherwise = map (map (byName Map.!)) (reverse (snd (foldl visit
+      (Set.empty, []) (map fst comps))))
   where
-    next done rest = do
-      (s', _) <- done
-      addDecls s' rest
--- ANCHOR_END: addDecls
+    names  = map defName defs
+    byName = Map.fromList [ (defName d, d) | d <- defs ]
+    uses d = [ y | y <- names, y `Set.member` freeVars (defExpr d) ]
+    -- The groups, numbered in the order of their first definition.
+    -- グループ。最初の定義の順に番号を付ける
+    comps = zip [0 :: Int ..] (sortOn (minimum . map place) (map flattenSCC
+      (stronglyConnComp [ (defName d, defName d, uses d) | d <- defs ])))
+    place x = Map.findWithDefault 0 x (Map.fromList (zip names [0 :: Int ..]))
+    groupOf = Map.fromList [ (x, i) | (i, xs) <- comps, x <- xs ]
+    members = Map.fromList comps
+    needed i = nub [ j | x <- members Map.! i, y <- uses (byName Map.! x)
+                       , let j = groupOf Map.! y, j /= i ]
+    visit (seen, out) i
+      | i `Set.member` seen = (seen, out)
+      | otherwise =
+          let (seen', out') = foldl visit (Set.insert i seen, out)
+                                (sortOn id (needed i))
+          in (seen', members Map.! i : out')
+-- ANCHOR_END: groupsOf
+
+-- ANCHOR: addParts
+-- 🧱 Step 1: a data type, a type alias, an infix line.
+-- 手順1：data の型、型の別名、infix の行
+addType :: Session -> Decl -> Either Text Session
+addType s d = case d of
+  DefData x       -> fst <$> defineData s x
+  DefAlias a      -> fst <$> defineAlias s a
+  DefInfix _ o f  -> Right (defineInfix s o f)
+  _               -> Right s
+
+-- 🎓 Step 2: the head of a class (its methods' types and values), or
+--    of an instance (into the table).
+-- 手順2：クラスの頭（メソッドの型と値）か、インスタンスの頭（表へ）
+addHead :: Session -> Decl -> Either Text Session
+addHead s d = case d of
+  DefClass c    -> fst <$> defineClassPart Head s c
+  DefInstance i -> fst <$> defineInstancePart Head s i
+  _             -> Right s
+
+-- 🧩 Step 4: the body of a class (its defaults) or of an instance (its
+--    methods and dictionary): the values, to compute in step 5.
+-- 手順4：クラスの中身（既定のメソッド）か、インスタンスの中身（メソッドと
+-- 辞書）。値は、手順5で計算する
+addBody
+  :: (Session, [Pending]) -> Decl -> Either Text (Session, [Pending])
+addBody (s, done) d = case d of
+  DefClass c    -> later (classParts Body s c)
+  DefInstance i -> later (instanceParts Body s i)
+  _             -> Right (s, done)
+  where
+    later parts = do
+      (s', values) <- parts
+      Right (s', done <> [ (x, e, plainError) | (x, e) <- values ])
+    plainError err = "error: " <> renderError err
+-- ANCHOR_END: addParts
+
+-- ANCHOR: addGroup
+-- 🔁 A value to compute, and how to say its error.
+-- 計算する値と、そのエラーの言い方
+type Pending = (Name, Expr, EvalError -> Text)
+
+-- 👯 Step 3: the types of one group of definitions. The annotated ones
+--    have their types from the start; the others are found alone, or
+--    together (inferGroup) when they use each other.
+-- 手順3：定義のグループ1つの型。注釈のあるものは、はじめから型がある。
+-- ほかは1つで、おたがいを使うなら一緒に（inferGroup）見つける
+addGroup
+  :: (Session, [Pending]) -> [Def] -> Either Text (Session, [Pending])
+addGroup (s, done) group = do
+  let table = sessionData s
+  declared <- forM [ (d, sig) | d <- group, Just sig <- [defSig d] ] $
+    \(d, sig) -> case annotationScheme table sig of
+      Left err -> Left (inDefinition (defName d) (typeFailure s err))
+      Right (sc, names) -> Right (d, sig, sc, names)
+  let withDeclared = s { sessionTypes = Map.fromList
+        [ (defName d, sc) | (d, _, sc, _) <- declared ]
+        `Map.union` sessionTypes s }
+      plain = [ d | d <- group, defSig d == Nothing ]
+  found <- case plain of
+    [] -> Right []
+    [d] -> either (Left . inDefinition (defName d) . typeFailure s)
+             (\(sc, e) -> Right [(defName d, sc, e)])
+             (inferDefinition table (sessionTypes withDeclared)
+                (defName d) (defExpr d))
+    _ -> either (\(x, err) -> Left (inDefinition x (typeFailure s err)))
+           Right
+           (inferGroup table (sessionTypes withDeclared)
+              [ (defName d, defExpr d) | d <- plain ])
+  let s' = withDeclared
+        { sessionTypes = Map.fromList [ (x, sc) | (x, sc, _) <- found ]
+                           `Map.union` sessionTypes withDeclared
+        , sessionSigs = foldr Map.delete (sessionSigs s)
+                          [ x | (x, _, _) <- found ] }
+  checked <- forM declared $ \(d, sig, sc, names) ->
+    case inferAnnotated table (sessionTypes s') (defName d) names sc
+           (defExpr d) of
+      Left err -> Left (inDefinition (defName d) (typeFailure s err))
+      Right (_, e) -> Right (defName d, sig, e)
+  let signed = s' { sessionSigs = Map.fromList
+        [ (x, sig) | (x, sig, _) <- checked ] `Map.union` sessionSigs s' }
+      values = [ (x, e) | (x, _, e) <- found ]
+               <> [ (x, e) | (x, _, e) <- checked ]
+  Right (signed, done <> [ (x, e, inDefinition x . placedEval)
+                         | (x, e) <- values ])
+
+-- 「場所：x の定義で：……」
+inDefinition :: Name -> (Text, Text) -> Text
+inDefinition x (place, msg) =
+  place <> "in the definition of " <> x <> ": " <> msg
+
+-- A type error, with its place cut out (see placedType).
+-- 型のエラー。場所を切り出す（placedType を見る）
+typeFailure :: Session -> TypeError -> (Text, Text)
+typeFailure s err = placedType (explain s err)
+-- ANCHOR_END: addGroup
+
+-- ANCHOR: keyWarnings
+-- ⚠️ The warnings for the keys of Maps written as names:  {url: ms}
+--    is the text "url", even when a variable url is right there. own
+--    is the names defined at the top; the arguments, the lets and the
+--    names of the patterns around count too. (The prelude's names do
+--    not: {length: 3} is fine.)
+-- 名前の形で書いた Map のキーへの警告。{url: ms} は、すぐそこに変数 url
+-- があっても、文字 "url"。own は、いちばん外で定義した名前。まわりの
+-- 引数・let・パターンの名前も数える（プレリュードの名前は数えない。
+-- {length: 3} はよい）
+keyWarnings :: Set.Set Name -> Expr -> [Text]
+keyWarnings own = go own Nothing
+  where
+    go seen place e = case e of
+      -- One entry of a Map: (key, value). A value that uses the
+      -- variable itself ({radius: toJson radius}) means the text.
+      -- Map の1項目。変数そのものを使う値（{radius: toJson radius}）なら、
+      -- 文字のつもり
+      Tuple [key, value]
+        | Just (loc, x) <- nameKey key, x `Set.member` seen
+        , not (x `Set.member` freeVars value) ->
+            warnKey (maybe place Just loc) x : go seen place value
+      At loc inner   -> go seen (Just loc) inner
+      Lam x body     -> go (Set.insert x seen) place body
+      Let x a body   -> go (Set.insert x seen) place a
+                          <> go (Set.insert x seen) place body
+      Case x alts    -> go seen place x <> concat
+        [ go (seen <> patternVars p) place b | (p, b) <- alts ]
+      _              -> concatMap (go seen place) (children e)
+
+-- 🏷️ A key written as a name, with its place:  $key.name "url"
+-- 名前の形で書いたキーと、その場所
+nameKey :: Expr -> Maybe (Maybe Loc, Name)
+nameKey e = case e of
+  At loc (App (Var k) (Lit (LString x))) | k == keyName -> Just (Just loc, x)
+  App (Var k) (Lit (LString x)) | k == keyName -> Just (Nothing, x)
+  _ -> Nothing
+
+-- 🖨️ 「url というキーは文字の "url" で、変数 url ではありません」
+warnKey :: Maybe Loc -> Name -> Text
+warnKey place x =
+  maybe "" (\loc -> renderLoc loc <> ": ") place
+    <> "warning: the key " <> x <> " is the text \"" <> x
+    <> "\", not the variable " <> x <> " (write {[" <> x
+    <> "]: …} for the variable, or {\"" <> x <> "\": …} to keep the text)"
+
+-- 🌿 The expressions right inside an expression.
+-- 式のすぐ内側の式
+children :: Expr -> [Expr]
+children e = case e of
+  Lit _        -> []
+  Var _        -> []
+  Lam _ b      -> [b]
+  App f a      -> [f, a]
+  Let _ a b    -> [a, b]
+  If c a b     -> [c, a, b]
+  BinOp _ l r  -> [l, r]
+  Tuple es     -> es
+  List es      -> es
+  Case x alts  -> x : map snd alts
+  Record fs    -> map snd fs
+  Field x _    -> [x]
+  Update x fs  -> x : map snd fs
+  At _ x       -> [x]
+  Annot _ x    -> [x]
+-- ANCHOR_END: keyWarnings
+
+-- ANCHOR: computeLabelled
+-- ⚙️ Step 5: compute every value together, as computeAll does: each
+--    may use the others, in any order. The first error is told, in the
+--    way of its definition.
+-- 手順5：computeAll と同じく、値を全部まとめて計算する。どれも、ほかを
+-- どの順で使ってもよい。最初のエラーを、その定義の言い方で知らせる
+computeLabelled :: Env -> [Pending] -> Either Text Env
+computeLabelled env pending =
+  let env'    = Map.union
+                  (Map.fromList [ (x, valueOf r) | (x, r, _) <- results ])
+                  env
+      results = [ (x, eval env' e, say) | (x, e, say) <- pending ]
+      valueOf = either (const (VInt 0)) id
+  in case [ say err | (_, Left err, say) <- results ] of
+       msg : _ -> Left msg
+       []      -> Right env'
+-- ANCHOR_END: computeLabelled
 
 -- ANCHOR: defineInfix
 -- ➕ infixl 7 addPrice as <+>: from now on, the parser reads <+>.

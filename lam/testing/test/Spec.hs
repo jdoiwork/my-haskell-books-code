@@ -58,6 +58,8 @@ import Lam.Eval (Exchange (..), Cell (..), OpenMode (..), Request (..), Value (.
 import Lam.Shell (displayWidth, quoteWord, stripStyles)
 import Lam.Server (webRequest)
 import Lam.Bundle
+import Lam.Settings (allowedOnDryRun, loadSettings, readSettings)
+import Lam.Toolbox (csvLines, numberedRows)
 import Lam.TestRun
 import Lam.Answers (matching, readMatch)
 import Lam.Sqlite
@@ -249,8 +251,13 @@ runFlaggedEnding
   :: Databases -> (FakeWorld -> FakeWorld) -> [String] -> FilePath
   -> IO (Ending, FakeWorld)
 runFlaggedEnding dbs change flags file = do
-  guard <- either (fail . T.unpack) (guarded . fst)
-             (readOptions flags Nothing)
+  -- The flags, and the lam.json next to the file (or --settings), as
+  -- lam reads them.
+  -- フラグと、ファイルの隣の lam.json（か --settings）を、lam と同じく
+  opts <- either (fail . T.unpack) (pure . fst) (readOptions flags Nothing)
+  allowed <- loadSettings (settingsFile opts) (Just file)
+               >>= either (fail . T.unpack) pure
+  guard <- guarded opts { dryAllowed = allowed }
   source  <- Utf8.readFile file
   modules <- lamFiles "examples"
   env     <- linesOf (dropExtension file <> ".env")
@@ -370,6 +377,55 @@ scriptFlagged dbs flags world source = do
       Left err              -> pure (Errored err)
       Right (loaded, final) ->
         runProgram (guard (fakeWorldIO dbs)) loaded final
+
+-- ANCHOR: scriptWith
+-- 🎭 Run a script in the fake world with databases, with the options
+--    of lam as they are (the dry run and its allowed commands too).
+-- データベースのある偽物の世界で、lam のオプションをそのまま渡して
+-- スクリプトを動かす（試しに動かすことと、その許すコマンドも）
+scriptWith
+  :: Databases -> Options -> FakeWorld -> Text -> IO (Ending, FakeWorld)
+scriptWith dbs opts world source = do
+  guard <- guarded opts
+  runFakeIO world $
+    case runIdentity (loadProgram (mapFiles Map.empty []) preludeSession
+                        preludeSession "script.lam" source) of
+      Left err              -> pure (Errored err)
+      Right (loaded, final) ->
+        runProgram (guard (fakeWorldIO dbs)) loaded final
+-- ANCHOR_END: scriptWith
+
+-- ANCHOR: genLinedCsv
+-- 🎲 A CSV and the line each field starts on: fields plain or in
+--    quotes (with "" and line breaks inside), lines that end with \n or
+--    \r\n, and empty lines here and there.
+-- CSV と、フィールドが始まる行：そのままか引用符の中（中に "" と改行）の
+-- フィールド、\n か \r\n で終わる行、ところどころに空の行
+genLinedCsv :: Gen (Text, [[Int]])
+genLinedCsv = do
+  rows <- listOf1 (listOf1 genField)
+  ends <- vectorOf (length rows) (elements ["\n", "\r\n", "\n\n"])
+  pure (build 1 (zip rows ends))
+  where
+    genField = oneof
+      [ T.pack <$> listOf1 (elements "ab 1λ")
+      , (\parts -> "\"" <> T.concat parts <> "\"")
+          <$> listOf (elements ["a", ",", "\n", "\"\"", "λ"]) ]
+    build _ [] = ("", [])
+    build line ((fields, end) : rest) =
+      let (text, ls) = fieldsAt line fields
+          line' = line + T.count "\n" text + T.count "\n" end
+          (more, lss) = build line' rest
+          -- A row of one empty field ("" alone) is not a row (cassava).
+          -- 空のフィールド1つだけの行は、行に数えない（cassava）
+          kept = if fields == ["\"\""] then lss else ls : lss
+      in (text <> end <> more, kept)
+    fieldsAt line fields = case fields of
+      [] -> ("", [])
+      f : more ->
+        let (text, ls) = fieldsAt (line + T.count "\n" f) more
+        in (f <> (if null more then "" else ",") <> text, line : ls)
+-- ANCHOR_END: genLinedCsv
 
 -- 🎲 Requests of every kind, for the property of the guards.
 -- いろいろな頼みごと。見張りの性質のテストのため
@@ -561,7 +617,7 @@ main = hspec $ do
           [ "12 : Int", "true : Bool"
           , "add : Number a => a -> a -> a", "3 : Int"
           , "in the definition of bad: type error: \
-            \Bool is not in the class Number"
+            \the types do not fit: a number where Bool is needed"
           , "(a -> a) -> a -> a" ]
 
   -- 「文字列」
@@ -587,7 +643,8 @@ main = hspec $ do
           , "\"LAM\" : String"
           , "3 : Int"
           , "\"say \\\"hi\\\"\\n\" : String"
-          , "type error: String is not in the class Number" ]
+          , "type error: the types do not fit: a number where String \
+            \is needed" ]
     -- ANCHOR_END: stringExamples
 
   -- 「タプルとリスト」
@@ -615,7 +672,7 @@ main = hspec $ do
           , "[1, 2, 3] : [Int]"
           , "3 : Int"
           , "type error: Int is not in the class HasLength"
-          , "type error: Bool is not in the class Number"
+          , "type error: the types do not fit: a number where Bool is needed"
           , "error: head: the list is empty" ]
     -- ANCHOR_END: collections
 
@@ -999,7 +1056,7 @@ main = hspec $ do
           , "[20, 30] : [Int]"
           , "[1, 3] : [Int]"
           , "[a] -> [(a, a)]"
-          , "type error: [a] is not in the class Number" ]
+          , "type error: the types do not fit: a number where [a] is needed" ]
     -- ANCHOR_END: comprehensions
 
     -- ANCHOR: comprehensionLikeHaskell
@@ -1118,7 +1175,8 @@ main = hspec $ do
           , "{ age = 3, name = \"Lam\" } : { age : Int, name : String }"
           , "type error: { age : a, name : String } has no field title"
           , "type error: { age : a, name : String } has no field title"
-          , "type error: String is not in the class Number"
+          , "type error: the types do not fit: a number where String \
+            \is needed"
           , "label : { r | name : String } -> String"
           , "\"[Lam]\" : String"
           , "\"[Ruby]\" : String"
@@ -1297,7 +1355,8 @@ main = hspec $ do
           , "double : Number a => a -> a", "8 : Int", "3 : Float"
           , "type error: the types do not fit: Float where Int is needed"
           , "3 : Float"
-          , "type error: String is not in the class Number"
+          , "type error: the types do not fit: a number where String \
+            \is needed"
           , "3 : Int", "Number a => a\n  -- usually : Int"
           , "n : Number a => a\n  -- usually : Int"
           , "3 : Int", "-4 : Int", "error: divided by zero"
@@ -1456,10 +1515,10 @@ main = hspec $ do
     -- ANCHOR_END: totalProp
 
     -- ANCHOR: classSelf
-    -- 「注釈のない定義も、同じ辞書で自分を呼ぶ。中の let は、辞書の
-    --   型変数を1つの型に決める」
-    it "calls itself with the same dictionary, and keeps a local let \
-       \to one type" $
+    -- 「注釈のない定義も、同じ辞書で自分を呼ぶ。閉じた中の let は、
+    --   宣言したクラスも一般にする（言葉を補強する章から）」
+    it "calls itself with the same dictionary, and makes a closed \
+       \local let general" $
       runLines
         [ "class Describe a where describe : a -> String"
         , "instance Describe Int where describe n = showInt n"
@@ -1472,7 +1531,7 @@ main = hspec $ do
           [ "describe : Describe a => a -> String", "instance Describe Int"
           , "describeEach : Describe a => [a] -> String", "\"123\" : String"
           , "(\"1\", \"2\") : (String, String)"
-          , "type error: String is not in the class Number" ]
+          , "type error: String is not in the class Describe" ]
     -- ANCHOR_END: classSelf
 
     -- 「組み込みのクラスも、上位のクラスに書ける（辞書はない）」
@@ -1606,7 +1665,8 @@ main = hspec $ do
           , "{-1: 2, 1.5: 3} : Map Float Int"
           , "{[Nothing]: 0, [Just 2]: 1} : Map (Maybe Int) Int"
           , "type error: String -> String is not in the class KeyComparable"
-          , "type error: String is not in the class Number" ]
+          , "type error: the types do not fit: a number where String \
+            \is needed" ]
     -- ANCHOR_END: anyKeys
 
     -- ANCHOR: sets
@@ -2322,8 +2382,10 @@ main = hspec $ do
           , "<repl>:1:4:\n  |\n1 | f\"{\\n -> n}\"\n  |    ^\n\
             \inside { }, put \\, let, if and case in ( )\n"
           , "type error: a -> a is not in the class Display"
-          , "type error: String is not in the class Number"
-          , "type error: String is not in the class Number"
+          , "type error: the types do not fit: a number where String \
+            \is needed"
+          , "type error: the types do not fit: a number where String \
+            \is needed"
           , "Button : (Int -> Int) -> Handler"
           , "type error: Handler is not in the class Showable \
             \(Button holds Int -> Int)"
@@ -3081,12 +3143,12 @@ main = hspec $ do
       map (\src -> fst (runFile (mapFiles Map.empty []) emptyWorld "m" src))
         ["main = 1", "main = putStrLn", "main = pure 3"]
         `shouldBe` map (Left . ("in main: type error: " <>))
-          [ "IO () is not in the class Number"
+          [ "the types do not fit: a number where IO () is needed"
           , "main must be IO (), [String] -> IO (), [String] -> \
             \Map String String -> IO (), a record -> IO (), or a record of \
             \those (or IO (Result e ()) in place of IO ()), but it is \
             \String -> IO ()"
-          , "() is not in the class Number" ]
+          , "the types do not fit: a number where () is needed" ]
     -- ANCHOR_END: checkMain
 
     -- ANCHOR: ioGolden
@@ -3372,7 +3434,8 @@ main = hspec $ do
           , Errored "script.lam:4:3: error: boom"
           , Errored "script.lam:3:3: error: not written yet: the rest"
           , Errored "script.lam:2:3: in the definition of main: \
-                    \type error: String is not in the class Number" ]
+                    \type error: the types do not fit: a number where \
+                    \String is needed" ]
       runLines ["10 // 0", "error \"boom\""]
         `shouldBe` ["error: divided by zero", "error: boom"]
     -- ANCHOR_END: placeTests
@@ -5679,16 +5742,227 @@ main = hspec $ do
     it "reads back the bundle it wrote" $ do
       let b = Bundle "todo.lam" ["--allow-net=localhost"]
                 [("todo.lam", "main = pure ()\n"), ("Todos.lam", "-- 📝\n")] []
-          bytes = "lam itself" <> encodeBundle b
+                [["git", "log"]] [("public/logo.png", 3)]
+          files = [("public/logo.png", B.pack [0x89, 0x50, 0x4e])]
+          packed = encodeBundle b files
+          bytes = "lam itself" <> packed
           (body, tailBytes) = B.splitAt (B.length bytes - trailerSize) bytes
-          size = B.length (encodeBundle b) - trailerSize
-      fmap fst (decodeBundle tailBytes (B.drop (B.length body - size) body))
-        `shouldBe` Just b
+          size = B.length packed - trailerSize
+          found = decodeBundle tailBytes (B.drop (B.length body - size) body)
+      fmap (\(b', fs, _) -> (b', fs)) found `shouldBe` Just (b, files)
     -- 「印のないファイルには、包みはない」
     it "finds no bundle in lam alone" $
       decodeBundle (B.replicate trailerSize 0) "" `shouldBe` Nothing
     -- ANCHOR_END: bundleTests
 
+  -- 「言葉を補強する」
+  describe "a sturdier language" $ do
+    -- ANCHOR: hardeningGolden
+    -- 「章の例を、偽物の世界で」
+    mapM_ golden
+      [ "hardening/memo", "hardening/parity", "hardening/table"
+      , "hardening/nested", "hardening/keys", "hardening/broken/forgot"
+      , "hardening/broken/plain-main", "hardening/broken/number"
+      , "hardening/broken/outer", "hardening/broken/ring"
+      , "hardening/cells", "hardening/broken/liar" ]
+    -- ANCHOR_END: hardeningGolden
+    -- ANCHOR: orderProp
+    -- 「いちばん外の定義は、どの順に並べても同じ答え」
+    it "gives the same answer in any order of the definitions" $
+      property $ forAll (shuffle parityParts) $ \parts ->
+        let source = T.unlines (parts <> ["map steps [1, 6, 27]"])
+        in fmap snd (loadPlain preludeSession "parity.lam" source)
+             === Right (Just "[0, 8, 111] : [Int]")
+    -- ANCHOR_END: orderProp
+    -- ANCHOR: whereOrder
+    -- 「where の部品も、下の部品を使ってよい」
+    it "lets a part of where use a part below it" $
+      fmap snd (loadPlain preludeSession "w.lam"
+        "double x = twice\n  where\n    twice = once + once\n    once = x\n\
+        \double 21\n")
+        `shouldBe` Right (Just "42 : Int")
+    -- ANCHOR_END: whereOrder
+    -- ANCHOR: closedRepl
+    -- 「閉じた let は一般に。外の名前を使う let は、注釈がなければ1つの型」
+    it "makes a closed let general, and a let with an outer name not" $
+      runLines
+        [ "let wrap x = display x in wrap 1 ++ wrap \"a\""
+        , "(\\n -> let f x = display x ++ display n in f 1 ++ f \"a\") 2"
+        , "(\\n -> let f x = display x ++ display n in f 1 ++ f 3) 2" ]
+        `shouldBe`
+          [ "\"1a\" : String"
+          , "type error: the types do not fit: a number where String \
+            \is needed"
+          , "\"1232\" : String" ]
+    -- ANCHOR_END: closedRepl
+    -- ANCHOR: nestedCase
+    -- 「中の case より左の | は、外の case の枝。1行なら、これまでどおり
+    --   中の case の枝」
+    it "gives a | left of the inner branches to the outer case" $ do
+      let source = T.unlines
+            [ "case a of"
+            , "  | 1 -> case b of"
+            , "      | 2 -> x"
+            , "      | _ -> y"
+            , "  | _ -> z" ]
+      fmap render (parseExpr source) `shouldBe`
+        Right "case a of | 1 -> (case b of | 2 -> x | _ -> y) | _ -> z"
+      fmap render (parseExpr "case a of | 1 -> case b of | 2 -> x | _ -> y")
+        `shouldBe` Right "case a of | 1 -> case b of | 2 -> x | _ -> y"
+    -- ANCHOR_END: nestedCase
+    -- ANCHOR: keyRepl
+    -- 「REPL でも、名前の形のキーに警告する（行は動かす）」
+    it "warns about a key in the REPL too, and runs the line" $ do
+      let (outs, world) = runLinesIn emptyWorld
+            [ "let url = \"/memos\"", "{url: 1}", "{[url]: 1}" ]
+      drop 1 outs `shouldBe`
+        [ "{\"url\": 1} : Map String Int"
+        , "{\"/memos\": 1} : Map String Int" ]
+      errorsOf world `shouldBe`
+        "warning: the key url is the text \"url\", not the variable url \
+        \(write {[url]: …} for the variable, or {\"url\": …} to keep \
+        \the text)\n"
+    -- ANCHOR_END: keyRepl
+
+  -- 「道具を補強する」
+  describe "sturdier tools" $ do
+    -- ANCHOR: toolboxGolden
+    -- 「章の例を、偽物の世界で」
+    mapM_ golden
+      [ "toolbox/site", "toolbox/names", "toolbox/budget"
+      , "toolbox/broken/own-tojson" ]
+    -- 「同じ budget.lam に、まちがいのある CSV を渡す」
+    it "examples/toolbox/budget.lam expenses-bad.csv" $ do
+      dbs <- memoryDatabases
+      bad <- B.readFile "examples/toolbox/expenses-bad.csv"
+      let path = "examples/toolbox/expenses-bad.csv"
+          change w = w { worldArgs = [path]
+                       , worldFiles = Map.insert path bad (worldFiles w) }
+      (actual, _) <- runExampleWith dbs change "examples/toolbox/budget.lam"
+      expected <- Utf8.readFile "examples/toolbox/budget-bad.out"
+      actual `shouldBe` expected
+    -- ANCHOR_END: toolboxGolden
+    -- ANCHOR: settingsTests
+    -- 「lam.json の許すリストは、空白で語に切る。知らないキーはまちがい」
+    it "reads the allowed commands of lam.json, and says what is wrong" $ do
+      readSettings "lam.json"
+        "{\"dryRun\": {\"allow\": [\"git log\", \" git  status \"]}}"
+        `shouldBe` Right [["git", "log"], ["git", "status"]]
+      readSettings "lam.json" "{}" `shouldBe` Right []
+      readSettings "lam.json" "{\"dryrun\": {}}" `shouldBe`
+        Left "lam: lam.json: unknown key \"dryrun\" (lam knows \"dryRun\")"
+      readSettings "lam.json" "{\"dryRun\": {\"allow\": [\"\"]}}" `shouldBe`
+        Left "lam: lam.json: dryRun.allow has an empty command"
+      readSettings "lam.json" "{\"dryRun\": {\"allow\": \"git log\"}}"
+        `shouldBe`
+          Left "lam: lam.json: dryRun.allow must be a list of strings"
+      fmap (const ()) (readSettings "lam.json" "{dryRun")
+        `shouldSatisfy` isLeft
+    -- 「語の列の頭でくらべる。git log; rm は git log ではない」
+    it "allows a command whose words start with an allowed list" $ do
+      let allowed = [["git", "log"]]
+          git ws = RunProcess "git" ws ""
+      allowedOnDryRun allowed (git ["log", "--oneline"]) `shouldBe` True
+      allowedOnDryRun allowed (git ["log"]) `shouldBe` True
+      allowedOnDryRun allowed (git ["log;", "rm", "x"]) `shouldBe` False
+      allowedOnDryRun allowed (git ["-C", "repo", "log"]) `shouldBe` False
+      allowedOnDryRun allowed (RunProcess "git-log" [] "") `shouldBe` False
+      allowedOnDryRun allowed (WriteFile "git log" "") `shouldBe` False
+    -- ANCHOR_END: settingsTests
+    -- ANCHOR: dryAllowedTest
+    -- 「試しに動かすとき、許したコマンドは本当に動き、ほかは知らせるだけ」
+    it "runs the allowed commands on a dry run, and only tells the rest" $ do
+      dbs <- memoryDatabases
+      let source = T.unlines
+            [ "main : IO (Result String ())"
+            , "main = do"
+            , "  out <- Shell.out $\"git log --oneline\" ?"
+            , "  putStrLn out"
+            , "  Shell.ok $\"git tag v1\" ?"
+            , "  pure (Ok ())" ]
+          world = emptyWorld { worldCommands = Map.fromList
+            [ (["git", "log", "--oneline"], (0, "51e7f53 start\n", "")) ] }
+          opts = defaultOptions { dryRunning = True
+                                , dryAllowed = [["git", "log"]] }
+      (ending, w) <- scriptWith dbs opts world source
+      outputOf w `shouldBe` "51e7f53 start\n"
+      errorsOf w `shouldBe`
+        "dry-run: runs: Shell.run $\"git log --oneline\"\n\
+        \dry-run: Shell.run $\"git tag v1\"\n"
+      map commandArgs (worldRan w) `shouldBe` [["log", "--oneline"]]
+      fmap (const ()) (shownBy ending) `shouldSatisfy` isLeft
+    -- 「許すリストでも、--allow-run の門は通れない」
+    it "does not let the list go past --allow-run" $ do
+      dbs <- memoryDatabases
+      let source = T.unlines
+            [ "main : IO (Result String ())"
+            , "main = do"
+            , "  Shell.ok $\"git log\" ?"
+            , "  pure (Ok ())" ]
+          opts = defaultOptions
+            { dryRunning = True, dryAllowed = [["git", "log"]]
+            , permissions = Only (Map.fromList [(Run, Within ["ls"])]) }
+      (ending, w) <- scriptWith dbs opts emptyWorld source
+      worldRan w `shouldBe` []
+      shownBy ending `shouldBe` Left "error: git: needs --allow-run=git"
+    -- ANCHOR_END: dryAllowedTest
+    -- ANCHOR: csvLinesTests
+    -- 「引用符の中の改行も数えて、フィールドの始まる行を言う」
+    it "tells the line each field starts on, line breaks in quotes too" $ do
+      csvLines "a,b\n1,\"x\ny\",2\n\n3,4\r\n" `shouldBe`
+        [[1, 1], [2, 2, 3], [5, 5]]
+      numberedRows "a,b\n1,\"x\ny\"\n" `shouldBe`
+        Right [[(1, "a"), (1, "b")], [(2, "1"), (2, "x\ny")]]
+    -- 「どんな表でも、数えた行は、書いたとおり」
+    it "counts the lines of any table as they were written" $
+      withMaxSuccess 300 $ forAll genLinedCsv $ \(csv, want) ->
+        (csvLines csv === want)
+          .&&. (fmap (map (map fst)) (numberedRows csv) === Right want)
+    -- ANCHOR_END: csvLinesTests
+    -- ANCHOR: includedTests
+    -- 「入れたファイルは、ディスクより先に答える。ほかはディスクへ」
+    it "answers the included files first, and the rest from the disk" $ do
+      let files = [("public/logo.png", B.pack [0x89, 0x50]),
+                   ("public/index.html", "<h1>hi</h1>")]
+          disk r = pure (case r of
+            ReadFile p -> VString ("disk: " <> p)
+            _          -> VBool False)
+          ask r = renderValue <$> withIncluded files disk r
+      ask (ReadBytes "public/./logo.png") `shouldReturn` "Ok <2 bytes: 8950>"
+      ask (ReadFile "public/index.html") `shouldReturn` "Ok \"<h1>hi</h1>\""
+      ask (IsDir "public") `shouldReturn` "true"
+      ask (Exists "public/logo.png") `shouldReturn` "true"
+      ask (ReadFile "secret.txt") `shouldReturn` "\"disk: secret.txt\""
+    -- ANCHOR_END: includedTests
+    -- ANCHOR: toolboxRepl
+    -- 「抜けていた名前と、標準の ToJson」
+    it "has the names that were missing, and the ToJson of the standard" $
+      runLines
+        [ "String.toLower \"Lam.PDF\""
+        , "String.join \"-\" (String.lines \"a\\nb\")"
+        , "splitAt 2 [1, 2, 3]"
+        , "groupBy (\\a b -> a == b) [1, 1, 2, 1]"
+        , "Json.encode {pdf: [\"a.pdf\"], png: []}"
+        , "Json.encode [Just 1.5, Nothing]"
+        , "toJson (Set.fromList [3, 1])" ]
+        `shouldBe`
+        [ "\"lam.pdf\" : String"
+        , "\"a-b\" : String"
+        , "([1, 2], [3]) : ([Int], [Int])"
+        , "[[1, 1], [2], [1]] : [[Int]]"
+        , "\"{\\\"pdf\\\":[\\\"a.pdf\\\"],\\\"png\\\":[]}\" : String"
+        , "\"[1.5,null]\" : String"
+        , "JArr [JInt 1, JInt 3] : Json" ]
+    -- 「本文が UTF-8 でなければ、Http.string は Err」
+    it "reads a body as text only when it is UTF-8" $
+      runLines
+        [ "Http.string { status = 200, headers = {}, \
+          \body = Bytes.fromList [255] }"
+        , "Http.string (Response.text 200 \"λ\")" ]
+        `shouldBe`
+        [ "Err \"not UTF-8 from byte 0\" : Result String String"
+        , "Ok \"λ\" : Result String String" ]
+    -- ANCHOR_END: toolboxRepl
   -- ANCHOR: testingSpec
   -- 「テストとデバッグ」
   describe "tests and debugging" $ do
@@ -5719,6 +5993,32 @@ main = hspec $ do
           out = head (runLines [e])
       out `shouldBe` "\"hi, Lam\\n\" : String"
     -- ANCHOR_END: testRunPure
+
+    -- ANCHOR: servedBytes
+    -- 「served の本文は文字：UTF-8 でないバイト列は <3 bytes>」
+    it "shows the body of a served answer as text, or its size" $ do
+      let logo = "(\\_ -> pure (Response.bytes 200 \"image/png\" "
+                 <> "(Bytes.fromList [137, 80, 78])))"
+          served answer = "(map .body (Test.run { Test.world | requests "
+                 <> "= [\"0 GET /\"] } (Http.serve 8080 " <> answer
+                 <> ")).served)"
+      runLines [ served logo
+               , served "(\\_ -> pure (Response.text 200 \"hi\"))" ]
+        `shouldBe` [ "[\"<3 bytes>\"] : [String]", "[\"hi\"] : [String]" ]
+    -- ANCHOR_END: servedBytes
+
+    -- ANCHOR: testKeysSpec
+    -- 「lam test も、キーの警告を出す（テストは動かす）」
+    it "warns about a key in a test file, as lam does" $ do
+      files <- realFiles
+      let file = "examples/testing/keys/keys_test.lam"
+      source <- Utf8.readFile file
+      loaded <- loadProgram files preludeSession preludeSession file source
+      fmap (fileWarnings . fst) loaded `shouldBe` Right
+        [ T.pack file <> ":8:19: warning: the key url is the text \"url\", \
+          \not the variable url (write {[url]: \x2026} for the variable, \
+          \or {\"url\": \x2026} to keep the text)" ]
+    -- ANCHOR_END: testKeysSpec
 
     -- 「ファイルの木も、終了コードも、エラーも」
     it "gives the files, the exit code and the error" $ do
@@ -6352,3 +6652,12 @@ realRun = realRunWith []
 lamInts :: [Integer] -> Text
 lamInts ns = "[" <> T.intercalate ", " (map (T.pack . show) ns) <> "]"
 -- ANCHOR_END: realRun
+
+-- 🔁 The definitions of examples/hardening/parity.lam, one string each.
+-- examples/hardening/parity.lam の定義。1つずつ文字に
+parityParts :: [Text]
+parityParts =
+  [ "isEven n = if n == 0 then true else isOdd (n - 1)"
+  , "isOdd n = if n == 0 then false else isEven (n - 1)"
+  , "steps : Int -> Int\nsteps n = if n == 1 then 0 else 1 + steps (next n)"
+  , "next : Int -> Int\nnext n = if isEven n then n // 2 else 3 * n + 1" ]

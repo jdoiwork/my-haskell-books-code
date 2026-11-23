@@ -1,0 +1,20 @@
+-- ANCHOR: all
+-- 📂 The files of a folder, over the web (python -m http.server).
+--   lam --allow-net=localhost --allow-read=public static.lam
+-- フォルダーのファイルを、Web で見せる（python -m http.server のように）
+
+-- ANCHOR: serveFile
+-- 📄 "/" is index.html, ".." is never followed, and the rest is the
+--    file under the folder.
+-- "/" は index.html、".." はたどらない。ほかは、フォルダーの下のファイル
+serveFile : String -> Request -> IO Response
+serveFile root req =
+  let pieces = Http.segments req.path in
+  if elem ".." pieces then pure Response.notFound
+  else if pieces == [] then Response.file (Path.join root "index.html")
+  else Response.file (Path.join root (join "/" pieces))
+-- ANCHOR_END: serveFile
+
+main : { root : String = "public", port : Int = 8000 } -> IO ()
+main opts = Http.serve opts.port (serveFile opts.root)
+-- ANCHOR_END: all
