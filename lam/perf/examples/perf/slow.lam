@@ -5,6 +5,9 @@
 line : Regex
 line = re"^(?<ip>\S+) .*\" (?<status>\d{3}) \d+ rt=(?<rt>[\d.]+)$"
 
+ipOf : Match -> String
+ipOf m = fromMaybe "?" (Regex.named "ip" m)
+
 step : Map String Int -> String -> Map String Int
 step acc l =
   case Regex.find line l of
@@ -14,9 +17,8 @@ step acc l =
         let rt = Regex.named "rt" m |> Maybe.andThen String.toFloat in
         case (st, rt) of
           | (Just s, Just t) ->
-              let ip = fromMaybe "?" (Regex.named "ip" m) in
               if s >= 500 && t > 0.5
-                then Map.insertWith (+) ip 1 acc
+                then Map.insertWith (+) (ipOf m) 1 acc
                 else acc
           | _ -> acc
 

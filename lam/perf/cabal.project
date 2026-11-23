@@ -1,3 +1,6 @@
 -- 第16部「Lam を速くする」の段階の小さな言語 Lam。
 -- 章ごとに育つので、段階ごとに別のプロジェクトにしている
+-- ANCHOR: all
 packages: .
+          ../../miniregex/polish
+-- ANCHOR_END: all

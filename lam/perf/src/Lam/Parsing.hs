@@ -31,7 +31,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 import Lam.Builtins
 import Lam.Eval
-import Lam.Pcre
+import Lam.MiniRegex
 import Lam.Regex (matchesOf, tMatch, tRegex)
 import Lam.Syntax (Name)
 import Lam.Types

@@ -74,7 +74,7 @@ import Lam.Guard
 import Lam.OneLiner
 import Lam.Cli
 import Lam.Utf8 (Decoding (..), decodeWith, hexOf)
-import Lam.Pcre (Cut (..), Regex (..), compileRegex)
+import Lam.MiniRegex (Cut (..), Regex (..), compileRegex)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Crypto.Hash.SHA256 as Sha
 import Data.IORef (modifyIORef', newIORef, readIORef)
@@ -3976,12 +3976,36 @@ main = hspec $ do
     -- ANCHOR_END: regexTypes
 
     -- ANCHOR: regexLimit
-    -- 「試す道が多すぎると、PCRE2 はあきらめて、エラーにする」
-    it "gives up on a regex that would try too many ways" $
+    -- What the engine does with a regex that would try too many ways.
+    -- pcre2 gives up; MiniRegex runs it in linear time and answers.
+    -- 試す道が多すぎる正規表現を、エンジンがどうするか。pcre2 は
+    -- あきらめるが、MiniRegex は線形時間で動かして、答える
+    -- 「MiniRegex は、あきらめずに false と答える」
+    it "answers a regex that pcre2 gives up on" $
       runLines
         [ "Regex.matches re\"(a+)+$\" \"" <> T.replicate 40 "a" <> "b\"" ]
-        `shouldBe` ["error: Regex.matches: match limit exceeded"]
+        `shouldBe` ["false : Bool"]
     -- ANCHOR_END: regexLimit
+
+    -- ANCHOR: regexLimitBackref
+    -- 「\1 があると線形時間では動かせないので、MiniRegex もあきらめる」
+    it "gives up, as pcre2 does, when \\1 needs backtracking" $
+      runLines
+        [ "Regex.matches re\"(a+)+\\1$\" \"" <> T.replicate 30 "a"
+            <> "b b\"" ]
+        `shouldBe` ["error: Regex.matches: match limit exceeded"]
+    -- ANCHOR_END: regexLimitBackref
+
+    -- ANCHOR: regexUnsupported
+    -- 「MiniRegex がまだ読めない書き方は、動かす前のエラーになる」
+    it "stops before running at what MiniRegex cannot read yet" $
+      runLines
+        [ "Regex.compile \"(?(1)a|b)\""
+        , "Regex.compile \"(*SKIP)(*FAIL)|x\"" ]
+        `shouldBe`
+          [ "Err \"not supported yet: (?(\" : Result String Regex"
+          , "Err \"not supported yet: (*\" : Result String Regex" ]
+    -- ANCHOR_END: regexUnsupported
 
     -- ANCHOR: cutProps
     -- 「切れ端と見つかったものを順に並べると、もとの文字列に戻る」
@@ -3998,7 +4022,7 @@ main = hspec $ do
              .&&. sewn === t
     -- ANCHOR_END: cutProps
 
-    -- 「名前付きのグループの番号を、PCRE2 から読む」
+    -- 「名前付きのグループの番号を、パターンから読む」
     it "knows the numbers of the named groups" $
       fmap regexNames (compileRegex "(?<y>\\d+)-(x)-(?<z>.)")
         `shouldBe` Right [("y", 1), ("z", 3)]

@@ -43,7 +43,7 @@ import Lam.Guard (Options, readOptions)
 import Lam.Io (Concurrent, Handler)
 import Lam.Module (Files, importAt, loadProgram, runProgram, runProgramWith)
 import Lam.Parser (importLine, parseLam, runLamParser, spaces)
-import Lam.Pcre (compileRegex)
+import Lam.MiniRegex (compileRegex)
 import Lam.Program
 import Lam.Syntax
 import Lam.Types

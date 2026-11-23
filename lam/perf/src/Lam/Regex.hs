@@ -21,7 +21,7 @@ import qualified Data.Text as T
 
 import Lam.Builtins
 import Lam.Eval
-import Lam.Pcre
+import Lam.MiniRegex
 import Lam.Syntax (Name)
 import Lam.Types
 -- ANCHOR_END: head

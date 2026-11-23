@@ -64,7 +64,7 @@ import System.IO.Unsafe (unsafeDupablePerformIO, unsafePerformIO)
 
 import Lam.Clock (isoOf, offsetText)
 import Lam.Utf8 (Decoding, renderBytes)
-import Lam.Pcre (Regex (..))
+import Lam.MiniRegex (Regex (..))
 import Lam.Pretty (opSymbol, renderString, showFloat)
 import Lam.Syntax
 

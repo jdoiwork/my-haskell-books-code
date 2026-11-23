@@ -47,7 +47,7 @@ library
                     Lam.Files
                     Lam.Utf8
                     Lam.Bytes
-                    Lam.Pcre
+                    Lam.MiniRegex
                     Lam.Regex
                     Lam.Parsing
                     Lam.Decode
@@ -115,12 +115,12 @@ library
     , base16-bytestring  ^>=1.0
     -- ANCHOR_END: bytesDeps
     -- ANCHOR: regexDeps
-    -- Regular expressions (PCRE2, the C library comes inside)
-    -- 正規表現（PCRE2。C のライブラリが中に入っている）
-    , pcre2              ^>=2.3
-    -- To search to the end at once, and catch a mistake there
-    -- 探すのを一度に最後までやり、そこで起きたまちがいを受け止めるため
-    , deepseq            ^>=1.5
+    -- Regular expressions: MiniRegex, from the regex part of the book
+    -- (cabal.project points at its folder), in place of pcre2: see the
+    -- chapter on making Lam fast.
+    -- 正規表現：MiniRegex（cabal.project がフォルダーを指す）。pcre2 の
+    -- 代わり（Lam を速くするの章を見る）。pcre2 と deepseq は、いらなくなった
+    , miniregex
     -- ANCHOR_END: regexDeps
     -- ANCHOR: decodeDeps
     -- CSV (RFC 4180) and TOML (1.1)
