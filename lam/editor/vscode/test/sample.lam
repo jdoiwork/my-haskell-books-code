@@ -1,0 +1,17 @@
+#!/usr/bin/env lam
+-- 🎨 A sample for the colors: one of each kind of word.
+import Price (Price (..), (<+>))
+
+data Size = Small | Large
+
+price : Size -> Price
+price size = case size of
+  | Small -> Price 300
+  | Large -> Price 1_200
+
+main = do
+  name <- getLine
+  putStrLn f"hi, {name ?: "?"}! {String.length "λ":>3}"
+  found = Regex.findAll re"[0-9]+" "a1b22"
+  _ <- $"git log -n {2}" |> Shell.run
+  if true then print 1.5 else print (2 + 3)

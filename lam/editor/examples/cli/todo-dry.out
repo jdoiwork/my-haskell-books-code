@@ -1,0 +1,3 @@
+added: Write the chapter
+dry-run: writeFile "todo.txt" (41 letters)
+1. [ ] Buy milk #shop

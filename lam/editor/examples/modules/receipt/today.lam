@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- 🛒 Today's receipt, with the tools of Receipt.lam (next to this
+--    file).
+-- 今日のレシート。道具は、隣の Receipt.lam のもの
+--   lam examples/modules/receipt/today.lam
+--   lam> :load examples/modules/receipt/today.lam
+--   lam> :print today
+import Receipt
+
+-- 🏷️ The price of each item, in yen, and what was sold today.
+-- 品物ごとの値段（円）と、今日売れたもの
+prices = {sticker: 300, mug: 1200, tshirt: 2500}
+
+orders = [("sticker", 4), ("mug", 1), ("tshirt", 3)]
+
+today = Receipt.receipt prices orders
+
+Receipt.total prices orders
+-- ANCHOR_END: all

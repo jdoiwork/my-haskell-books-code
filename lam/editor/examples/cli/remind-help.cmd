@@ -1,0 +1,1 @@
+lam remind.lam --help

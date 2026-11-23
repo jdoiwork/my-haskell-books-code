@@ -1,0 +1,21 @@
+#!/bin/sh
+# ANCHOR: all
+# ✅ Step 1: a pre-commit hook of git. Before each commit, check the
+#    .lam files that are going in with lam --check. A mistake stops the
+#    commit (a warning does not). Put it at .git/hooks/pre-commit, and
+#    make it runnable (chmod +x).
+# ステップ1：git の pre-commit フック。コミットのたびに、入る .lam の
+# ファイルを lam --check で確かめる。まちがいがあれば、コミットを止める
+# （警告では止めない）。.git/hooks/pre-commit に置き、chmod +x で動かせる
+# ようにする
+# The .lam files added, copied or changed in this commit.
+# このコミットで足した・写した・変えた .lam のファイル
+files=$(git diff --cached --name-only --diff-filter=ACM -- '*.lam')
+if [ -z "$files" ]; then
+  exit 0
+fi
+# The names have no spaces here (see the answer for a way with them).
+# ここでは、名前に空白はないとする（空白のあるときは解答の文を見る）
+# shellcheck disable=SC2086
+${LAM:-lam} --check $files
+# ANCHOR_END: all

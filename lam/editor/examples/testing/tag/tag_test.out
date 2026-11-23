@@ -1,0 +1,8 @@
+tag_test.lam
+  ✓ writes the version of the tag > VERSION
+  ✓ writes the version of the tag > ran
+  ✓ writes the version of the tag > stdout
+  ✓ stops when there is no tag > value
+  ✓ stops when there is no tag > VERSION
+  ✓ needs the key to write > value
+  ✓ needs the key to write > VERSION

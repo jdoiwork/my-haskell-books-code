@@ -1,0 +1,67 @@
+-- ANCHOR: all
+-- 💰 The household account: the CSV of the expenses, added up by
+--    category, written as JSON.
+--   lam budget.lam expenses.csv
+-- 家計簿：出費の CSV を、種類ごとに足して、JSON で書く
+
+-- ANCHOR: category
+-- 🏷️ The kinds of expenses, a type of our own. A Map with them as its
+--    keys can be JSON, when they can be strings (ToKey).
+-- 出費の種類。自分の型。これをキーにした Map も、キーを文字列にできれば
+-- （ToKey）JSON になる
+data Category = Food | Books | Transport
+
+instance ToKey Category where
+  toKey c =
+    case c of
+      | Food -> "food"
+      | Books -> "books"
+      | Transport -> "transport"
+-- ANCHOR_END: category
+
+-- ANCHOR: decoders
+type alias Expense = { date : String, category : Category, amount : Int }
+
+-- 🔍 A category from its name in the CSV.
+-- CSV の名前から、種類を
+category : Decoder Category
+category =
+  Decode.andThen
+    (\name ->
+      case name of
+        | "food" -> Decode.succeed Food
+        | "books" -> Decode.succeed Books
+        | "transport" -> Decode.succeed Transport
+        | _ -> Decode.fail f"unknown category {show name}")
+    Decode.string
+
+expense : Decoder Expense
+expense =
+  Decode.map3
+    (\d c a -> { date = d, category = c, amount = a })
+    (Decode.field "date" Decode.string)
+    (Decode.field "category" category)
+    (Decode.field "amount" Decode.int)
+-- ANCHOR_END: decoders
+
+-- ANCHOR: placed
+-- 📍 The problems, one in a line, each with the file in front.
+-- 問題を1行に1つ。どれも、頭にファイルを付ける
+placed : String -> [Problem] -> String
+placed path problems =
+  join "\n" [ f"{path}: {line}" | line <- lines (Decode.explain problems) ]
+-- ANCHOR_END: placed
+
+-- ANCHOR: main
+main : [String] -> IO (Result String ())
+main args = do
+  let path = case args of | p : _ -> p | [] -> "expenses.csv"
+  text <- readFile path ?
+  rows <- pure (Csv.decode {amount: Csv.int} expense text
+                  |> Result.mapError (placed path)) ?
+  let totals = foldl (\m r -> Map.insertWith (+) r.category r.amount m)
+                 {} rows
+  putStrLn (Json.encode totals)
+  pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

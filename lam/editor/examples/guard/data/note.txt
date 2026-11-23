@@ -1,0 +1,2 @@
+Lam is a small language.
+It likes scripts.

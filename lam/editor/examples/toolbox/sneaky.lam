@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- 🕵️ A command that looks like two: "git log; touch hacked". Lam has
+--    no shell, so it is one command, git, with the words "log;",
+--    "touch" and "hacked".
+-- 2つに見えるコマンド。Lam はシェルを通さないので、これはコマンド1つ：
+-- 語 "log;"・"touch"・"hacked" を持つ git
+main : IO (Result String ())
+main = do
+  Shell.ok $"git log; touch hacked" ?
+  pure (Ok ())
+-- ANCHOR_END: all

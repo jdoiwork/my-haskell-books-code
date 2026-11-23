@@ -1,0 +1,7 @@
+-e:1:37:
+  |
+1 | Shell.out $"git log -1 --format=%an:
+  |                                     ^
+unexpected end of input
+expecting "{{", "}}", '"', ''', '{', or '}'
+[exit 1]

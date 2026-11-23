@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- 💴 A script, with no module line: the tip on a bill.
+--      lam Tip.lam 2400
+-- module の行のないスクリプト：お会計のチップ
+tip : Int -> Int
+tip bill = bill * 15 // 100
+
+main args = case args of
+  | [bill] -> print (tip (String.toInt bill ?: 0))
+  | _      -> putStrLn "lam Tip.lam BILL"
+-- ANCHOR_END: all

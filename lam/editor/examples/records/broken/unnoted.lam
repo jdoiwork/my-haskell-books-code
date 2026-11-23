@@ -1,0 +1,9 @@
+-- 🐛 A mistake in add (++ joins strings and lists, not numbers). With
+--    no annotation, the error comes out where add is used.
+-- add のまちがい（++ は文字列やリストをつなぐもので、数は足さない）。
+-- 注釈がなければ、エラーは add を使った所に出る
+add x y = x ++ y
+
+total = add 1 2
+
+total

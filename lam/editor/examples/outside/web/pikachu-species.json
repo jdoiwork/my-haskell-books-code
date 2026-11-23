@@ -1,0 +1,18 @@
+{
+ "id": 25,
+ "name": "pikachu",
+ "names": [
+  {
+   "language": {
+    "name": "en"
+   },
+   "name": "Pikachu"
+  },
+  {
+   "language": {
+    "name": "ja"
+   },
+   "name": "ピカチュウ"
+  }
+ ]
+}

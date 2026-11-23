@@ -1,0 +1,35 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🚀 wordfreq, as a module: lam test can import its main.
+--      lam Wordfreq.lam sample.txt     (a file)
+--      lam Wordfreq.lam < sample.txt   (the standard input)
+-- モジュールにした wordfreq。lam test が main を import できる
+module Wordfreq exposing (main)
+
+import Words
+
+-- 📥 The text: the file in the arguments, or the standard input.
+-- 文字列：引数のファイルか、標準入力
+readInput : [String] -> IO (Result String String)
+readInput args =
+  case args of
+    | [] -> getContents |> IO.andThen (\text -> pure (Ok text))
+    | [file] -> readFile file
+    | _ -> pure (Err "give one file, or none to read the standard input")
+
+main : [String] -> IO ()
+main args = do
+  input <- readInput args
+  case input of
+    | Err message -> do
+        -- 「wordfreq：（わけ）」
+        ePutStrLn f"wordfreq: {message}"
+        exit 1
+    | Ok text -> do
+        let ranking =
+              text
+                |> Words.splitIntoWords
+                |> Words.countWords
+                |> Words.topN 3
+        forEach ranking (\pair -> putStrLn f"{fst pair:<8}{snd pair}")
+-- ANCHOR_END: all

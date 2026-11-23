@@ -1,0 +1,15 @@
+-- ANCHOR: all
+-- 💥 A handler that stops: an error is 500 for that request only, and
+--    the server goes on. exit stops the whole server.
+--   lam oops.lam
+-- 止まる handler：エラーは、その頼みだけ 500 にして、サーバーは続ける。
+-- exit なら、サーバーまるごと止まる
+main = Http.serve 8080 (\req ->
+  case Http.segments req.path of
+    | ["divide", a, b] -> do
+        x <- pure (String.toInt a ?: 0)
+        y <- pure (String.toInt b ?: 0)
+        pure (Response.text 200 f"{x // y}\n")
+    | ["stop"] -> exit 3
+    | _ -> pure Response.notFound)
+-- ANCHOR_END: all

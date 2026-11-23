@@ -1,0 +1,13 @@
+-- ANCHOR: all
+-- 🗂️ Each branch, who touched it last, and when: one line of git for
+--    each, cut at the tabs, then lined up by Term.table.
+-- ブランチごとに、最後にだれが、いつ触ったか。git の1行をタブで切り、
+-- Term.table でそろえる
+main : IO (Result String ())
+main = do
+  let format = "%(refname:short)\t%(authorname)\t%(committerdate:short)"
+  rows <- Shell.lines $"git for-each-ref --format={format} refs/heads" ?
+  Term.say (Term.table ["branch", "author", "date"]
+                       (map (String.split "\t") rows))
+  pure (Ok ())
+-- ANCHOR_END: all

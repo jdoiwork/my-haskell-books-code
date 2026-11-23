@@ -1,0 +1,22 @@
+trace 0.000s: getArgs
+trace 0.000s: Shell.run $"git branch --show-current"
+trace 0.000s: Shell.run $"git branch --merged main --format=%(refname:short)"
+trace 0.000s: Shell.run $"git log -1 --format=%an%x09%cs add-shell"
+trace 0.000s: Shell.run $"git log -1 --format=%an%x09%cs fix-typo"
+trace 0.000s: Shell.run $"git log -1 --format=%an%x09%cs 機能/表"
+trace 0.000s: Term.isTerminal
+trace 0.000s: lookupEnv "NO_COLOR"
+branch     author  date
+---------  ------  ----------
+add-shell  Rust    2026-11-24
+fix-typo   Python  2026-11-20
+機能/表    Ruby    2026-11-26
+trace 0.000s: Shell.run $"git branch -d add-shell"
+trace 0.000s: Term.isTerminal
+trace 0.000s: Shell.run $"git branch -d fix-typo"
+trace 0.000s: Term.isTerminal
+trace 0.000s: Shell.run $"git branch -d 機能/表"
+trace 0.000s: Term.isTerminal
+trace 0.000s: Term.isTerminal
+trace 0.000s: lookupEnv "NO_COLOR"
+deleted 3 of 3

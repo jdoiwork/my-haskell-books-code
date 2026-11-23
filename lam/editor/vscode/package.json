@@ -1,0 +1,62 @@
+{
+  "name": "lam",
+  "displayName": "Lam",
+  "description": "Colors and lam lsp for Lam, the language of the book.",
+  "version": "0.30.0",
+  "publisher": "my-haskell-books",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "lam",
+        "aliases": [
+          "Lam"
+        ],
+        "extensions": [
+          ".lam"
+        ],
+        "firstLine": "^#!.*\\blam\\b",
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lam",
+        "scopeName": "source.lam",
+        "path": "./syntaxes/lam.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Lam",
+      "properties": {
+        "lam.path": {
+          "type": "string",
+          "default": "lam",
+          "description": "The lam to start as the server (lam lsp)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "tsc -p . && node out/test/grammar.js"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^11.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/vscode": "~1.100.0",
+    "typescript": "7.0.2",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
+  }
+}

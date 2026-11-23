@@ -1,0 +1,5 @@
+dry-run: writeFile "examples/oneliner/notes.txt.lam-tmp" (0 letters)
+dry-run: File.append "examples/oneliner/notes.txt.lam-tmp" (21 letters)
+dry-run: File.append "examples/oneliner/notes.txt.lam-tmp" (19 letters)
+dry-run: File.rename "examples/oneliner/notes.txt.lam-tmp" "examples/oneliner/notes.txt"
+dry-run: File.remove "examples/oneliner/notes.txt.lam-tmp"

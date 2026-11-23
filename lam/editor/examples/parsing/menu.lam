@@ -1,0 +1,83 @@
+-- ANCHOR: all
+-- 🍽️ The menu of the shop, read from a file: groups in { }, which may
+--    hold more groups, and items with a name in quotes and a price.
+--    Show it with the total of each group.
+--   lam menu.lam menu.txt
+-- お店のメニューを、ファイルから読む。{ } のグループは、中にまた
+-- グループを持てる。品物は、引用符の中の名前と値段。グループごとの
+-- 合計を付けて見せる
+
+-- ANCHOR: tree
+-- A menu: an item with its price, or a group of more menus.
+-- メニュー：値段の付いた品物か、メニューを集めたグループ
+data Menu = Item String Int | Group String [Menu]
+-- ANCHOR_END: tree
+
+-- ANCHOR: parser
+-- A name in quotes:  "T-shirt, large"  (no "" inside, to keep it short).
+-- 引用符の中の名前（短くするため、中の "" はなし）
+name : Parser String
+name = Parser.token (do
+  Parser.string "\""
+  letters <- Parser.many (Parser.satisfy (\c -> c /= "\"" && c /= "\n"))
+  Parser.label "a closing quote" (Parser.string "\"")
+  pure (join "" letters))
+
+-- item "mug" 1200
+item : Parser Menu
+item = do
+  Parser.symbol "item"
+  n <- Parser.label "the name of the item" name
+  price <- Parser.label "a price" (Parser.token Parser.int)
+  pure (Item n price)
+
+-- A menu: an item, or a group "stickers" { ... }. A group holds
+-- menus, so the menu points at itself.
+-- メニューは、品物か、グループ。グループはメニューを持つので、
+-- メニューは自分を指す
+menu : Parser Menu
+menu = Parser.oneOf [item, group]
+  where
+    group = do
+      Parser.symbol "group"
+      n <- Parser.label "the name of the group" name
+      inside <- Parser.between "{" "}"
+        (Parser.many (Parser.lazy (\_ -> menu)))
+      pure (Group n inside)
+-- ANCHOR_END: parser
+
+-- ANCHOR: show
+-- The price of a menu: a group costs what its menus cost.
+-- メニューの値段。グループは、中のメニューの合計
+price : Menu -> Int
+price m =
+  case m of
+    | Item _ p -> p
+    | Group _ ms -> sum (map price ms)
+
+-- One line for each item and group, pushed right by its depth.
+-- 品物とグループを1行ずつ。深さの分だけ右へずらす
+render : Int -> Menu -> [String]
+render depth m =
+  case m of
+    | Item n _ -> [line n]
+    | Group n ms -> line n : concatMap (render (depth + 1)) ms
+  where
+    line n = f"{String.repeat depth "  " ++ n:<24}{price m:>6}"
+-- ANCHOR_END: show
+
+-- ANCHOR: main
+main : [String] -> IO (Result String ())
+main args =
+  case args of
+    | [path] -> do
+        text <- readFile path ?
+        -- The error starts with the path:  menu.txt:3:3:
+        -- エラーの頭に、ファイルの道を付ける
+        m <- pure (Result.mapError (\e -> f"{path}:{e.pretty}")
+                     (Parser.run (do Parser.spaces; menu) text)) ?
+        forEach (render 0 m) putStrLn
+        pure (Ok ())
+    | _ -> pure (Err "usage: lam menu.lam FILE")
+-- ANCHOR_END: main
+-- ANCHOR_END: all

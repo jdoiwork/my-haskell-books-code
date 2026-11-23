@@ -1,0 +1,29 @@
+-- ANCHOR: all
+-- 🧾 The receipt, kept in a file too. The line of writeFile throws
+--    away its Result (a warning, not a mistake).
+-- レシートを、ファイルにも残す。writeFile の行は Result を捨てる
+-- （まちがいではなく、警告）
+--   lam --check Receipt.lam
+import Price (Price (..), yen, (<+>))
+
+items : [(String, Price)]
+items =
+  [ ("sticker", Price 300)
+  , ("mug", Price 1200)
+  , ("t-shirt", Price 2500) ]
+
+-- 🧮 The total of the receipt.
+-- レシートの合計
+total : [(String, Price)] -> Price
+total xs = foldl (<+>) (Price 0) (map snd xs)
+
+-- 🖨️ One line of the receipt.
+-- レシートの1行
+line : (String, Price) -> String
+line (name, p) = f"{name:<10}{yen p:>6,}"
+
+main = do
+  forEach items (\i -> putStrLn (line i))
+  writeFile "receipt.txt" (join "\n" (map line items))
+  putStrLn f"🧾 total: {total items}"
+-- ANCHOR_END: all

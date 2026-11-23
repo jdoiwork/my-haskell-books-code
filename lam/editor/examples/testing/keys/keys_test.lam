@@ -1,0 +1,17 @@
+-- ANCHOR: all
+-- ⚠️ lam test warns as lam does: a key written as a name is the text,
+--    even in a test file. The tests still run.
+--      lam test keys_test.lam
+-- lam test も lam と同じく警告する：名前の形のキーは文字。テストの
+-- ファイルの中でも。テストは、それでも動かす
+timings : String -> Int -> Map String Int
+timings url ms = {url: ms}
+
+tests : [Test]
+tests =
+  -- 「キーは変数ではなく、文字の url」
+  [ Test.equal "the key is the text" (timings "/memos" 12) {"url": 12}
+  -- 「変数の値をキーにするなら、[url]」
+  , Test.equal "the key is the variable"
+      (Map.keys (let url = "/memos" in {[url]: 12})) ["/memos"] ]
+-- ANCHOR_END: all

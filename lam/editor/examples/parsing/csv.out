@@ -1,0 +1,9 @@
+3 fields: ["Lam T-shirt, large", "2500", "3"]
+3 fields: ["mug", "1200", ""]
+3 fields: ["say \"hi\"", "0", "1"]
+1:8:
+  |
+1 | "open,1
+  |        ^
+unexpected end of input
+expecting a closing quote or a letter

@@ -1,0 +1,9 @@
+[1/7] failed (1) checks/divide.lam
+[2/7] ok         checks/hello.lam
+[3/7] ok         checks/json.lam
+[4/7] ok         checks/slow.lam
+[5/7] ok         checks/sum.lam
+[6/7] ok         checks/upper.lam
+[7/7] ok         checks/words.lam
+7 checks, 1 failed: ["checks/divide.lam"]
+[exit 1]

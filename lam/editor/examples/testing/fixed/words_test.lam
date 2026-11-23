@@ -1,0 +1,31 @@
+-- ANCHOR: all
+-- 🧪 The tests of Words.  lam test words_test.lam
+-- Words のテスト
+import Words
+
+-- ANCHOR: tests
+tests : [Test]
+tests =
+  [ Test.group "splitIntoWords"
+      -- 「小文字にして、記号で区切る」
+      [ Test.equal "makes lowercase words"
+          (Words.splitIntoWords "Hello, World!") ["hello", "world"]
+      -- 「空の文字列には、単語がない」
+      , Test.equal "finds no words in an empty text"
+          (Words.splitIntoWords "") []
+      -- 「don't は1語のまま」
+      , Test.equal "keeps don't as one word"
+          (Words.splitIntoWords "Don't panic") ["don't", "panic"] ]
+  , Test.group "countWords"
+      -- 「同じ単語を数える」
+      [ Test.equal "counts the same word"
+          (Words.countWords ["a", "b", "a"]) {"a": 2, "b": 1} ]
+  , Test.group "topN"
+      -- 「多い順、同じなら a から z」
+      [ Test.equal "puts the most first, then a to z"
+          (Words.topN 2 {"b": 1, "c": 3, "a": 1}) [("c", 3), ("a", 1)]
+      -- 「n 個より多くは返さない」
+      , Test.that "gives at most n"
+          (length (Words.topN 1 {"a": 1, "b": 1}) == 1) ] ]
+-- ANCHOR_END: tests
+-- ANCHOR_END: all

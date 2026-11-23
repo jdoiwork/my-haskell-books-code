@@ -1,0 +1,17 @@
+-- ANCHOR: all
+-- 🚏 Choose what to do by the method and the pieces of the path, with
+--    case: a tuple, and a list in it.
+--   lam paths.lam
+-- メソッドと道のかけらで、することを選ぶ。case で、タプルと、その中の
+-- リストに合わせる
+paths : Request -> IO Response
+paths req =
+  case (req.method, Http.segments req.path) of
+    | ("GET", ["todos"]) -> pure (Response.text 200 "all the TODOs\n")
+    | ("GET", ["todos", n]) -> pure (Response.text 200 f"TODO number {n}\n")
+    | ("DELETE", ["todos", n]) -> pure (Response.text 200 f"removed {n}\n")
+    | (_, ["todos"]) -> pure (Response.text 405 "method not allowed\n")
+    | _ -> pure Response.notFound
+
+main = Http.serve 8080 paths
+-- ANCHOR_END: all

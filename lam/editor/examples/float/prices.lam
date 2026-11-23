@@ -1,0 +1,19 @@
+-- 🧾 Prices added up as Floats, and as whole cents.
+-- 値段を Float で足す。セントの整数でも足す
+--   lam examples/float/prices.lam
+
+-- ANCHOR: prices
+-- A cup of tea and a cake, in dollars.
+-- 紅茶とケーキ（ドル）
+prices : [Float]
+prices = [0.1, 0.2]
+
+-- The same prices, in whole cents.
+-- 同じ値段を、セントの整数で
+cents : [Int]
+cents = [10, 20]
+-- ANCHOR_END: prices
+
+-- ANCHOR: main
+(sum prices, Float.fixed 2 (sum prices), sum cents)
+-- ANCHOR_END: main

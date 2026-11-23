@@ -1,0 +1,4 @@
+[
+  {"id": 1, "pay": {"kind": "coupon"}},
+  {"id": "2", "pay": {"kind": "card"}, "gift": "yes"}
+]

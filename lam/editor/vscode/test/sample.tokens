@@ -1,0 +1,100 @@
+#!/usr/bin/env lam
+  "#!/usr/bin/env lam" comment.line.shebang.lam
+-- 🎨 A sample for the colors: one of each kind of word.
+  "-- 🎨 A sample for the colors: one of each kind of word." comment.line.double-dash.lam
+import Price (Price (..), (<+>))
+  "import" keyword.other.lam
+  "Price" entity.name.type.lam
+  "Price" entity.name.type.lam
+  ".." keyword.operator.lam
+  "<+>" keyword.operator.lam
+
+data Size = Small | Large
+  "data" keyword.other.lam
+  "Size" entity.name.type.lam
+  "=" keyword.operator.lam
+  "Small" entity.name.type.lam
+  "|" keyword.operator.lam
+  "Large" entity.name.type.lam
+
+price : Size -> Price
+  "price" entity.name.function.lam
+  ":" keyword.operator.lam
+  "Size" entity.name.type.lam
+  "->" keyword.operator.lam
+  "Price" entity.name.type.lam
+price size = case size of
+  "price" entity.name.function.lam
+  "=" keyword.operator.lam
+  "case" keyword.control.lam
+  "of" keyword.control.lam
+  | Small -> Price 300
+  "|" keyword.operator.lam
+  "Small" entity.name.type.lam
+  "->" keyword.operator.lam
+  "Price" entity.name.type.lam
+  "300" constant.numeric.lam
+  | Large -> Price 1_200
+  "|" keyword.operator.lam
+  "Large" entity.name.type.lam
+  "->" keyword.operator.lam
+  "Price" entity.name.type.lam
+  "1_200" constant.numeric.lam
+
+main = do
+  "main" entity.name.function.lam
+  "=" keyword.operator.lam
+  "do" keyword.control.lam
+  name <- getLine
+  "<-" keyword.operator.lam
+  putStrLn f"hi, {name ?: "?"}! {String.length "λ":>3}"
+  "f\"" string.interpolated.lam
+  "hi, " string.interpolated.lam
+  "{" punctuation.section.embedded.begin.lam
+  "name " meta.embedded.field.lam
+  "?:" keyword.operator.lam
+  "\"" string.quoted.double.lam
+  "?" string.quoted.double.lam
+  "\"" string.quoted.double.lam
+  "}" punctuation.section.embedded.end.lam
+  "! " string.interpolated.lam
+  "{" punctuation.section.embedded.begin.lam
+  "String" entity.name.namespace.lam
+  "." punctuation.separator.lam
+  "length " meta.embedded.field.lam
+  "\"" string.quoted.double.lam
+  "λ" string.quoted.double.lam
+  "\"" string.quoted.double.lam
+  ":>3" constant.other.format.lam
+  "}" punctuation.section.embedded.end.lam
+  "\"" string.interpolated.lam
+  found = Regex.findAll re"[0-9]+" "a1b22"
+  "=" keyword.operator.lam
+  "Regex" entity.name.namespace.lam
+  "." punctuation.separator.lam
+  "re\"" string.regexp.lam
+  "[0-9]+" string.regexp.lam
+  "\"" string.regexp.lam
+  "\"" string.quoted.double.lam
+  "a1b22" string.quoted.double.lam
+  "\"" string.quoted.double.lam
+  _ <- $"git log -n {2}" |> Shell.run
+  "<-" keyword.operator.lam
+  "$\"" string.interpolated.command.lam
+  "git log -n " string.interpolated.command.lam
+  "{" punctuation.section.embedded.begin.lam
+  "2" constant.numeric.lam
+  "}" punctuation.section.embedded.end.lam
+  "\"" string.interpolated.command.lam
+  "|>" keyword.operator.lam
+  "Shell" entity.name.namespace.lam
+  "." punctuation.separator.lam
+  if true then print 1.5 else print (2 + 3)
+  "if" keyword.control.lam
+  "true" constant.language.boolean.lam
+  "then" keyword.control.lam
+  "1.5" constant.numeric.lam
+  "else" keyword.control.lam
+  "2" constant.numeric.lam
+  "+" keyword.operator.lam
+  "3" constant.numeric.lam

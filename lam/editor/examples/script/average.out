@@ -1,0 +1,3 @@
+4
+examples/script/average.lam:7:21: error: divided by zero
+  in average, called at examples/script/average.lam:12:15

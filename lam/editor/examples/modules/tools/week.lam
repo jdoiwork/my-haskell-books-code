@@ -1,0 +1,19 @@
+-- ANCHOR: all
+-- 📅 The totals of three days. Receipt.lam is not next to this file:
+--    run it with  LAM_PATH=examples/modules/receipt.
+-- 3日分の合計。Receipt.lam は隣にないので、LAM_PATH を付けて動かす
+import Receipt (total)
+
+prices = {sticker: 300, mug: 1200, tshirt: 2500}
+
+days =
+  [ ("mon", [("sticker", 4), ("mug", 1)])
+  , ("tue", [("tshirt", 3)])
+  , ("wed", [("mug", 2), ("sticker", 10)]) ]
+
+-- 💴 The total of each day, and of the week.
+-- 日ごとの合計と、1週間の合計
+totals = map (\(day, orders) -> (day, total prices orders)) days
+
+(totals, sum (map snd totals))
+-- ANCHOR_END: all

@@ -1,0 +1,121 @@
+{
+  "name": "Lam",
+  "scopeName": "source.lam",
+  "patterns": [
+    {"include": "#shebang"},
+    {"include": "#comment"},
+    {"include": "#keyword"},
+    {"include": "#definition"},
+    {"include": "#expression"}
+  ],
+  "repository": {
+    "shebang": {"name": "comment.line.shebang.lam", "match": "\\A#!.*$"},
+    "comment": {"name": "comment.line.double-dash.lam", "match": "--.*$"},
+    "definition": {
+      "match": "^([a-z_][A-Za-z0-9_']*)(?=\\s*(:\\s|[^=\\n]*=(?!=)))",
+      "captures": {"1": {"name": "entity.name.function.lam"}}
+    },
+    "expression": {
+      "patterns": [
+        {"include": "#comment"},
+        {"include": "#fstring"},
+        {"include": "#regex"},
+        {"include": "#command"},
+        {"include": "#string"},
+        {"include": "#number"},
+        {"include": "#keyword"},
+        {"include": "#constant"},
+        {"include": "#module"},
+        {"include": "#type"},
+        {"include": "#operator"}
+      ]
+    },
+    "keyword": {
+      "patterns": [
+        {
+          "name": "keyword.control.lam",
+          "match": "\\b(if|then|else|case|of)\\b"
+        },
+        {
+          "name": "keyword.control.lam",
+          "match": "\\b(let|in|where|do|ado|defer)\\b"
+        },
+        {"name": "keyword.control.lam", "match": "\\b(receive|after)\\b"},
+        {
+          "name": "keyword.other.lam",
+          "match": "\\b(data|type|alias|class|instance)\\b"
+        },
+        {
+          "name": "keyword.other.lam",
+          "match": "\\b(module|import|exposing|as)\\b"
+        },
+        {"name": "keyword.other.lam", "match": "\\b(infixl|infixr|infix)\\b"}
+      ]
+    },
+    "constant": {
+      "name": "constant.language.boolean.lam",
+      "match": "\\b(true|false)\\b"
+    },
+    "number": {
+      "name": "constant.numeric.lam",
+      "match": "\\b[0-9][0-9_]*(\\.[0-9]+)?([eE][+-]?[0-9]+)?\\b"
+    },
+    "module": {
+      "match": "\\b([A-Z][A-Za-z0-9_']*)(\\.)(?=[a-z])",
+      "captures": {
+        "1": {"name": "entity.name.namespace.lam"},
+        "2": {"name": "punctuation.separator.lam"}
+      }
+    },
+    "type": {
+      "name": "entity.name.type.lam",
+      "match": "\\b[A-Z][A-Za-z0-9_']*"
+    },
+    "operator": {
+      "name": "keyword.operator.lam",
+      "match": "[-+*/<>=|&:!?%.$^~\\\\]+"
+    },
+    "escape": {"name": "constant.character.escape.lam", "match": "\\\\."},
+    "string": {
+      "name": "string.quoted.double.lam",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [{"include": "#escape"}]
+    },
+    "regex": {
+      "name": "string.regexp.lam",
+      "begin": "\\bre\"",
+      "end": "\"",
+      "patterns": [{"match": "\\\\."}]
+    },
+    "fstring": {
+      "name": "string.interpolated.lam",
+      "begin": "\\bf\"",
+      "end": "\"",
+      "patterns": [
+        {"include": "#escape"},
+        {"match": "\\{\\{|\\}\\}"},
+        {"include": "#field"}
+      ]
+    },
+    "command": {
+      "name": "string.interpolated.command.lam",
+      "begin": "\\$\"",
+      "end": "\"",
+      "patterns": [{"include": "#escape"}, {"include": "#field"}]
+    },
+    "field": {
+      "name": "meta.embedded.field.lam",
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {"name": "punctuation.section.embedded.begin.lam"}
+      },
+      "endCaptures": {"0": {"name": "punctuation.section.embedded.end.lam"}},
+      "patterns": [
+        {"match": ":[^}\"]*(?=\\})", "name": "constant.other.format.lam"},
+        {"include": "#expression"}
+      ]
+    }
+  }
+}

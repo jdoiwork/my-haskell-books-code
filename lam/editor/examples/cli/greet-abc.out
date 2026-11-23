@@ -1,0 +1,4 @@
+error: --count needs a whole number, not "abc"
+Usage: greet.lam [OPTIONS] NAME
+Try "greet.lam --help" for help.
+[exit 2]

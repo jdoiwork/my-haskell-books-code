@@ -1,0 +1,11 @@
+:load examples/decode/try.lam
+:type Decode.int
+Decode.run Decode.int (JInt 42)
+check Decode.int "\"42\""
+check (Decode.field "price" Decode.int) sample
+check (Decode.field "cost" Decode.int) sample
+check (Decode.list Decode.int) "[1, 2, \"three\", 4.5]"
+check (Decode.at ["shop", "tax"] Decode.int) settings
+check Decode.int "[1, 2"
+:type Decode.map2
+:type do x <- Decode.int; pure (x, x)

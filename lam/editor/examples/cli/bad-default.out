@@ -1,0 +1,2 @@
+in the type alias Options: type error: the default of the field count does not fit its type Int
+[exit 1]

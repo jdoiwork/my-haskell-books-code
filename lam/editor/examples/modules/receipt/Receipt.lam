@@ -1,0 +1,38 @@
+-- ANCHOR: all
+-- 🧾 Receipt: the tools to write the receipt of the shop. Other files
+--    see line, total and receipt; priceOf is used only in here.
+-- Receipt：お店のレシートを書く道具。ほかのファイルに見せるのは line・
+-- total・receipt。priceOf は、ここの中だけで使う
+module Receipt exposing (line, total, receipt)
+
+-- 🏷️ The price of one item; 0 for an item not in the prices.
+-- 品物1つの値段。値段の表になければ 0
+priceOf prices item = Map.lookup item prices ?: 0
+
+-- 📏 One line of the receipt.
+-- レシートの1行
+line : Map String Int -> (String, Int) -> String
+line prices (item, n) =
+  let price = priceOf prices item in
+  f"{item:<10}{n:>3} x {price:>6,} = {n * price:>9,}"
+
+-- 🧮 What all the orders cost.
+-- 注文の全部の値段
+total : Map String Int -> [(String, Int)] -> Int
+total prices orders =
+  sum (map (\(item, n) -> n * priceOf prices item) orders)
+
+-- 🧾 The whole receipt, one line a string.
+-- レシート全体。1行が1つの文字列
+receipt : Map String Int -> [(String, Int)] -> [String]
+receipt prices orders =
+  [f"{"RECEIPT":^34}"]
+    ++ map (line prices) orders
+    ++ [ "----------------------------------"
+       -- 「合計」「1つあたり」
+       , f"{"total":<10}{total prices orders:>24,}"
+       , f"{"per item":<10}{average:>24,.1}" ]
+  where
+    count = sum (map snd orders)
+    average = toFloat (total prices orders) / toFloat count
+-- ANCHOR_END: all

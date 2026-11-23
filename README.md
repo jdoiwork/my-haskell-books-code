@@ -298,6 +298,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 言葉を補強する：定義の順・where の一般化・エラーの文 | [`lam/hardening/`](lam/hardening/)、[`lam/server/`](lam/server/)、[`langs/interp-hardening/`](langs/interp-hardening/) |
 | 道具を補強する：`--dry-run` の許可・バイト列・ToJson | [`lam/toolbox/`](lam/toolbox/)、[`lam/hardening/`](lam/hardening/)、[`lam/shell/`](lam/shell/)、[`langs/interp-toolbox/`](langs/interp-toolbox/)、[`langs/cargo/`](langs/cargo/) |
 | テストとデバッグ：lam test | [`lam/testing/`](lam/testing/)、[`lam/toolbox/`](lam/toolbox/)、[`langs/interp-testing/`](langs/interp-testing/)、[`langs/cargo/`](langs/cargo/) |
+| エディタで書く：色付けと LSP | [`lam/editor/`](lam/editor/)、[`lam/testing/`](lam/testing/)、[`langs/interp-editor/`](langs/interp-editor/) |
 
 ### 第17部 プログラマーのための数学
 

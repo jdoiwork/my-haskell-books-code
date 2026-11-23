@@ -1,0 +1,17 @@
+-- 📊 The body first, the parts after it with where.
+-- 本体を先に、部品は where で後ろに
+--   lam examples/records/report.lam
+
+-- ANCHOR: summary
+summary : [Int] -> String
+summary scores =
+  showInt count ++ " scores, total " ++ showInt total
+    ++ ", average " ++ showFloat average ++ ", best " ++ showInt best
+  where
+    count = length scores
+    total = sum scores
+    average = toFloat total / toFloat count
+    best = foldl max 0 scores
+-- ANCHOR_END: summary
+
+summary [82, 75, 91, 65]

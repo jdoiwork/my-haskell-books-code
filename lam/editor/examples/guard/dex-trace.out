@@ -1,0 +1,14 @@
+#25  ピカチュウ  0.4 m  6.0 kg  electric  (web)
+#25  ピカチュウ  0.4 m  6.0 kg  electric  (cache)
+trace 0.000s: getArgs
+trace 0.000s: Sql.open "dex.db"
+trace 0.000s: Sql.exec #1 "CREATE TABLE IF NOT EXISTS dex (name TEXT PRIMARY KEY, id INTEGER, ja TEXT, height INTEGER, weight INTEGER, types TEXT)" []
+trace 0.000s: Sql.query #1 "SELECT * FROM dex WHERE name = ?" ["pikachu"]
+trace 0.000s: Http.send "GET" "https://pokeapi.co/api/v2/pokemon/pikachu"
+trace 0.000s: Http.send "GET" "https://pokeapi.co/api/v2/pokemon-species/pikachu"
+trace 0.000s: Sql.exec #1 "INSERT INTO dex VALUES (?, ?, ?, ?, ?, ?)" ["pikachu", 25, "ピカチュウ", 4, 60, "electric"]
+trace 0.000s: Sql.query #1 "SELECT * FROM dex WHERE name = ?" ["nosuchmon"]
+trace 0.000s: Http.send "GET" "https://pokeapi.co/api/v2/pokemon/nosuchmon"
+dex: NoSuchMon: status 404: {"status":404,"message":"Not Found"}
+trace 0.000s: Sql.query #1 "SELECT * FROM dex WHERE name = ?" ["pikachu"]
+trace 0.000s: Sql.close #1

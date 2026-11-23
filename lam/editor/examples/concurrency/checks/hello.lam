@@ -1,0 +1,4 @@
+-- ✅ A check that passes: say hello.
+-- 通る確かめ：あいさつする
+main : IO ()
+main = putStrLn "hello"

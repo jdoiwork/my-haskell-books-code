@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- 🧪 The test of the script: import it, as a module.
+--      lam test tip_test.lam
+-- スクリプトのテスト：モジュールとして import する
+import Tip
+
+tests : [Test]
+tests =
+  -- 「2400 円なら 360 円」
+  [ Test.equal "15 percent" (Tip.tip 2400) 360 ]
+-- ANCHOR_END: all
