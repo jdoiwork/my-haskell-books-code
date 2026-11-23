@@ -1,24 +1,28 @@
 -- 👯 Find the files with the same contents under a folder (by SHA-256).
 -- フォルダーの下の、中身が同じファイルを探す（SHA-256 で）
 
--- 🔑 A file and the hash of its contents; Nothing for a folder.
--- ファイルと、その中身のハッシュ。フォルダーなら Nothing
-hashOf : String -> IO (Result String (Maybe (String, String)))
+-- 🔑 The hash of the contents of a file, and the file.
+-- ファイルの中身のハッシュと、ファイル
+hashOf : String -> IO (Result String (String, String))
 hashOf path = do
-  file <- File.isFile path
-  if not file then pure (Ok Nothing) else do
-    hash <- Hash.file path ?
-    pure (Ok (Just (Bytes.toHex hash, path)))
+  hash <- Hash.file path ?
+  pure (Ok (Bytes.toHex hash, path))
 
 --- Find the files with the same contents
 -- 中身が同じファイルを探す
 main : { dir : String } -> IO (Result String ())
 main o = do
   paths <- File.glob f"{o.dir}/**/*" ?
-  found <- mapM hashOf paths
-  hashed <- pure (map (mapMaybe id) (Result.combine found)) ?
+  -- Only the files, not the folders. / フォルダーを除き、ファイルだけ
+  isFile <- mapM File.isFile paths
+  let onlyFiles = zip paths isFile |> filter snd |> map fst
+  found <- mapM hashOf onlyFiles
+  hashed <- pure (Result.combine found) ?
   let groups = foldl (\m (h, p) -> Map.insertWith (++) h [p] m)
                      Map.empty hashed
-  forEach (Map.values groups) (\same ->
-    when (length same > 1) (putStrLn (String.join "  =  " (sort same))))
+  Map.values groups
+    |> filter (\same -> length same > 1)
+    |> map (\same -> String.join "  =  " (sort same))
+    |> String.join "\n"
+    |> putStrLn
   pure (Ok ())

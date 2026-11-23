@@ -6,12 +6,17 @@
 removeIfOld : Time -> Int -> String -> IO (Result String ())
 removeIfOld now days path = do
   info <- File.info path ?
-  when (Time.diffDays now info.modified > days) (do
-    gone <- File.remove path
-    case gone of
-      | Ok _ -> putStrLn f"removed {path}"
-      | Err e -> IO.ePutStrLn f"kept {path}: {e}")
+  when (Time.diffDays now info.modified > days) (remove path)
   pure (Ok ())
+
+-- 🗑️ Remove a file, and say what happened.
+-- ファイルを消し、どうなったかを言う
+remove : String -> IO ()
+remove path = do
+  gone <- File.remove path
+  case gone of
+    | Ok _ -> putStrLn f"removed {path}"
+    | Err e -> IO.ePutStrLn f"kept {path}: {e}"
 
 --- Remove the old logs of a folder
 -- フォルダーの古いログを消す

@@ -8,11 +8,11 @@ type alias Expense =
 
 expense : Decoder Expense
 expense =
-  Decode.map4 (\d c a m -> { date = d, category = c, amount = a, memo = m })
-    (Decode.field "date" Decode.string)
-    (Decode.field "category" Decode.string)
-    (Decode.field "amount" Decode.int)
-    (Decode.field "memo" Decode.string)
+  (\d c a m -> { date = d, category = c, amount = a, memo = m })
+    <$> Decode.field "date" Decode.string
+    <*> Decode.field "category" Decode.string
+    <*> Decode.field "amount" Decode.int
+    <*> Decode.field "memo" Decode.string
 
 -- ➕ One row into the table. / 1行を表に入れる
 insert : Db -> Expense -> IO (Result String Int)

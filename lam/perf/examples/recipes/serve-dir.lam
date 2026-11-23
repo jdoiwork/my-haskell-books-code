@@ -7,10 +7,10 @@
 -- 道に当たるファイル（配ってよければ）
 fileFor : String -> String -> Maybe String
 fileFor dir path =
-  let parts = Http.segments path in
-  if elem ".." parts then Nothing
-  else if null parts then Just (Path.join dir "index.html")
-  else Just (foldl Path.join dir parts)
+  case Http.segments path of
+    | parts if elem ".." parts -> Nothing
+    | [] -> Just (Path.join dir "index.html")
+    | parts -> Just (foldl Path.join dir parts)
 
 --- Serve the files of a folder
 -- フォルダーのファイルを配る

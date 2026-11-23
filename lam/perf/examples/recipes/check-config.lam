@@ -8,12 +8,11 @@ type alias Config =
 -- それぞれの設定が、TOML のどこにあるか
 config : Decoder Config
 config =
-  Decode.map4
-    (\h p n o -> { host = h, port = p, perPage = n, owners = o })
-    (Decode.at ["server", "host"] Decode.string)
-    (Decode.at ["server", "port"] Decode.int)
-    (Decode.at ["shelf", "per_page"] Decode.int)
-    (Decode.at ["shelf", "owners"] (Decode.list Decode.string))
+  (\h p n o -> { host = h, port = p, perPage = n, owners = o })
+    <$> Decode.at ["server", "host"] Decode.string
+    <*> Decode.at ["server", "port"] Decode.int
+    <*> Decode.at ["shelf", "per_page"] Decode.int
+    <*> Decode.at ["shelf", "owners"] (Decode.list Decode.string)
 
 --- Check the settings of the shelf
 -- 本棚の設定を確かめる

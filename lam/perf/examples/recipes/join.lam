@@ -9,11 +9,16 @@ main o = do
   let names = Map.fromList (map (\r -> (Map.findWithDefault "" "user" r,
                                         Map.findWithDefault "" "name" r))
                                 rows)
-  File.forEachLine o.log (\line ->
-    case Json.parse line of
-      | Err e -> IO.ePutStrLn f"skip: {e}"
-      | Ok j ->
-          let user = Maybe.andThen Json.string (Json.get "user" j) ?: "" in
-          let path = Maybe.andThen Json.string (Json.get "path" j) ?: "" in
-          putStrLn f"{Map.lookup user names ?: "(unknown)":<10} {path}") ?
+  File.forEachLine o.log (showRequest names) ?
   pure (Ok ())
+
+-- 📝 One request (a line of JSON), with the name of its user.
+-- リクエストを1つ（JSON の1行）、使った人の名前を付けて見せる
+showRequest : Map String String -> String -> IO ()
+showRequest names line =
+  case Json.parse line of
+    | Err e -> IO.ePutStrLn f"skip: {e}"
+    | Ok j ->
+        let user = Maybe.andThen Json.string (Json.get "user" j) ?: "" in
+        let path = Maybe.andThen Json.string (Json.get "path" j) ?: "" in
+        putStrLn f"{Map.lookup user names ?: "(unknown)":<10} {path}"

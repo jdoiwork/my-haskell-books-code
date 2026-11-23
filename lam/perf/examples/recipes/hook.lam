@@ -19,5 +19,6 @@ keep file body =
 -- Webhook をファイルに受ける
 main : { port : Int = 8080, file : String = "hooks.jsonl" } -> IO ()
 main o = Http.serve o.port (\req ->
-  if req.method == "POST" && req.path == "/hook" then keep o.file req.body
-  else pure Response.notFound)
+  case (req.method, req.path) of
+    | ("POST", "/hook") -> keep o.file req.body
+    | _ -> pure Response.notFound)

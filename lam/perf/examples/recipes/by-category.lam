@@ -9,9 +9,9 @@ type alias Expense = { category : String, amount : Int }
 -- 1行を読む（Csv.int で amount の列を数として読む）
 expense : Decoder Expense
 expense =
-  Decode.map2 (\c a -> { category = c, amount = a })
-    (Decode.field "category" Decode.string)
-    (Decode.field "amount" Decode.int)
+  (\c a -> { category = c, amount = a })
+    <$> Decode.field "category" Decode.string
+    <*> Decode.field "amount" Decode.int
 
 --- Sum a household account book by category
 -- 家計簿をカテゴリーごとに合計する
@@ -22,7 +22,10 @@ main o = do
                   (Csv.decode {"amount": Csv.int} expense text)) ?
   let sums = foldl (\m e -> Map.insertWith (+) e.category e.amount m)
                    Map.empty rows
-  forEach (sortOn (\(_, n) -> -n) (Map.toList sums)) (\(c, n) ->
-    putStrLn f"{c:<8}{n:>8,}")
+  Map.toList sums
+    |> sortOn (\(_, n) -> -n)
+    |> map (\(c, n) -> f"{c:<8}{n:>8,}")
+    |> String.join "\n"
+    |> putStrLn
   putStrLn f"{"total":<8}{sum (Map.values sums):>8,}"
   pure (Ok ())

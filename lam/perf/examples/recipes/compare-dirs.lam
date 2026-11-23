@@ -7,14 +7,32 @@
 hashes : String -> IO (Result String (Map String String))
 hashes dir = do
   paths <- File.glob f"{dir}/**/*" ?
-  found <- mapM (\path -> do
-      file <- File.isFile path
-      if not file then pure (Ok Nothing) else do
-        hash <- Hash.file path ?
-        let inside = String.drop (String.length dir + 1) path
-        pure (Ok (Just (inside, Bytes.toHex hash)))) paths
-  pairs <- pure (map (mapMaybe id) (Result.combine found)) ?
+  -- Only the files, not the folders. / フォルダーを除き、ファイルだけ
+  isFile <- mapM File.isFile paths
+  let onlyFiles = zip paths isFile |> filter snd |> map fst
+  found <- mapM (hashOf dir) onlyFiles
+  pairs <- pure (Result.combine found) ?
   pure (Ok (Map.fromList pairs))
+
+-- 🔑 One file: the path inside the folder, and the hash.
+-- 1つのファイル：フォルダーの中の道と、ハッシュ
+hashOf : String -> String -> IO (Result String (String, String))
+hashOf dir path = do
+  hash <- Hash.file path ?
+  let inside = String.drop (String.length dir + 1) path
+  pure (Ok (inside, Bytes.toHex hash))
+
+-- 📣 One name: only in the old one (-), only in the new one (+), or
+--    different (~). The same in both says nothing.
+-- 1つの名前：古いほうだけ（-）、新しいほうだけ（+）、ちがう（~）。
+-- 同じなら何も言わない
+report : Map String String -> Map String String -> String -> IO ()
+report a b name =
+  case (Map.lookup name a, Map.lookup name b) of
+    | (Just _, Nothing) -> putStrLn f"- {name}"
+    | (Nothing, Just _) -> putStrLn f"+ {name}"
+    | (Just x, Just y) -> when (x /= y) (putStrLn f"~ {name}")
+    | _ -> pure ()
 
 --- Compare two folders
 -- 2つのフォルダーをくらべる
@@ -23,10 +41,5 @@ main o = do
   a <- hashes o.old ?
   b <- hashes o.new ?
   let names = Set.toList (Set.fromList (Map.keys a ++ Map.keys b))
-  forEach names (\name ->
-    case (Map.lookup name a, Map.lookup name b) of
-      | (Just _, Nothing) -> putStrLn f"- {name}"
-      | (Nothing, Just _) -> putStrLn f"+ {name}"
-      | (Just x, Just y) -> when (x /= y) (putStrLn f"~ {name}")
-      | _ -> pure ())
+  forEach names (report a b)
   pure (Ok ())

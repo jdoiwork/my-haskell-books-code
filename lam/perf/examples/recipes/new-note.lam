@@ -21,8 +21,10 @@ main = do
   title <- Term.ask "Title?"
   let file = f"notes/{String.toLower (Regex.replaceAll re"\W+" "-" title)}.md"
   taken <- File.exists file
-  if taken then pure (Err f"{file} is already there") else do
-    _ <- File.makeDir "notes" ?
-    writeFile file f"# {title}\n\n{body}" ?
-    putStrLn f"wrote {file}"
-    pure (Ok ())
+  if taken
+    then pure (Err f"{file} is already there")
+    else do
+      _ <- File.makeDir "notes" ?
+      writeFile file f"# {title}\n\n{body}" ?
+      putStrLn f"wrote {file}"
+      pure (Ok ())

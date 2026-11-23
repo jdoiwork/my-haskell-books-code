@@ -10,11 +10,16 @@ main o = do
   let found = sort (tmp ++ bak)
   forEach found (\p -> putStrLn f"  {p}")
   yes <- Term.confirm f"Remove these {length found} files?"
-  if not yes then do
-    putStrLn "kept them all"
-    pure (Ok ())
-  else do
-    gone <- mapM File.remove found
-    _ <- pure (Result.combine gone) ?
-    putStrLn f"removed {length found} files"
-    pure (Ok ())
+  if yes
+    then removeAll found
+    else do
+      putStrLn "kept them all"
+      pure (Ok ())
+
+-- 🗑️ Remove the files. / ファイルを消す
+removeAll : [String] -> IO (Result String ())
+removeAll found = do
+  gone <- mapM File.remove found
+  _ <- pure (Result.combine gone) ?
+  putStrLn f"removed {length found} files"
+  pure (Ok ())

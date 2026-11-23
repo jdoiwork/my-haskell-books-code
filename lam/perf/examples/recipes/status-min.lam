@@ -17,7 +17,9 @@ fieldOf fields n =
 -- 1行：5列目の状態コード（3けた）を数える
 step acc line =
   let field = fieldOf (words line) in
-  if field 5 =~ m/^\d{3}$/ then Map.insertWith (+) (field 5) 1 acc else acc
+  if field 5 =~ m/^\d{3}$/
+    then Map.insertWith (+) (field 5) 1 acc
+    else acc
 
 -- 📂 The files, one after another ("-" is the standard input).
 -- ファイルを、順に（"-" は標準入力）

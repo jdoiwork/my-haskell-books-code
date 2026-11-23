@@ -12,11 +12,13 @@ tidy name = String.toLower (Regex.replaceAll re"\s+" "-" name)
 rename : String -> String -> String -> IO ()
 rename dir name new = do
   taken <- File.exists (Path.join dir new)
-  if taken then IO.ePutStrLn f"skip: {new} is already there" else do
-    moved <- File.rename (Path.join dir name) (Path.join dir new)
-    case moved of
-      | Ok _ -> putStrLn f"{name} -> {new}"
-      | Err e -> IO.ePutStrLn f"skip: {e}"
+  if taken
+    then IO.ePutStrLn f"skip: {new} is already there"
+    else do
+      moved <- File.rename (Path.join dir name) (Path.join dir new)
+      case moved of
+        | Ok _ -> putStrLn f"{name} -> {new}"
+        | Err e -> IO.ePutStrLn f"skip: {e}"
 
 --- Give the files of a folder tidy names
 -- フォルダーのファイルに、整った名前を付ける

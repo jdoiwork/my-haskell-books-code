@@ -14,15 +14,18 @@ nth log n = f"{log}.{n}"
 shift : String -> Int -> IO (Result String ())
 shift log n = do
   there <- File.exists (nth log n)
-  if there then File.rename (nth log n) (nth log (n + 1))
-  else pure (Ok ())
+  if there
+    then File.rename (nth log n) (nth log (n + 1))
+    else pure (Ok ())
 
 -- 🗑️ Remove a file, if it is there.
 -- あれば消す
 removeIfThere : String -> IO (Result String ())
 removeIfThere path = do
   there <- File.exists path
-  if there then File.remove path else pure (Ok ())
+  if there
+    then File.remove path
+    else pure (Ok ())
 
 --- Rotate a log
 -- ログを回す

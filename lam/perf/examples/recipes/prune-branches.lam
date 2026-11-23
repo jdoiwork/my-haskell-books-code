@@ -9,10 +9,15 @@ main o = do
   -- "  fix-typo", "* main": the name comes after 2 letters.
   -- 名前は2文字のあと
   merged <- Shell.lines (git $"git branch --merged main") ?
-  let names = map (String.drop 2) merged
-  forEach (filter (\b -> b /= "main") names) (\b -> do
-    done <- Shell.ok (git $"git branch -d {b}")
-    case done of
-      | Ok _ -> putStrLn f"removed {b}"
-      | Err e -> IO.ePutStrLn f"kept {b}: {e}")
+  let names = merged |> map (String.drop 2) |> filter (\b -> b /= "main")
+  forEach names (removeBranch o.repo)
   pure (Ok ())
+
+-- 🗑️ Remove one branch, and say what happened.
+-- ブランチを1つ消し、どうなったかを言う
+removeBranch : String -> String -> IO ()
+removeBranch repo b = do
+  done <- Shell.ok (Shell.within repo $"git branch -d {b}")
+  case done of
+    | Ok _ -> putStrLn f"removed {b}"
+    | Err e -> IO.ePutStrLn f"kept {b}: {e}"
