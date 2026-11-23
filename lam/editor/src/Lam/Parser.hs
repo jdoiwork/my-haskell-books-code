@@ -615,9 +615,24 @@ application = do
         Nothing        -> pure []
         Just (a, sp')  -> (a :) <$> arguments sp'
     argument afterSpace
-      | afterSpace = atom
-      | otherwise  = notFollowedBy (char '-') *> atom
+      | afterSpace = marked atom
+      | otherwise  = notFollowedBy (char '-') *> marked atom
     -- ANCHOR_END: arguments
+    -- ANCHOR: markedArgument
+    -- Each argument gets the mark of where it starts: a type that does
+    -- not fit is told at the argument (putStrLn 42: at the 42;
+    -- putStrLn (1 + 2): at the parenthesis), and the editor can show
+    -- its type. A mark at the same place is not put twice.
+    -- 引数にも、始まる場所の印を付ける。型が合わなければ引数の場所で
+    -- 知らせ（putStrLn 42 なら 42、putStrLn (1 + 2) ならかっこ）、
+    -- エディターは引数の型も見せられる。同じ場所の印は2度付けない
+    marked p = do
+      loc <- here
+      a   <- p
+      pure $ case a of
+        At inner _ | inner == loc -> a
+        _                         -> At loc a
+    -- ANCHOR_END: markedArgument
 
 -- 📏 Read p, and tell if it ended with a space (or a line break, or a
 --    comment): the spaces after it are read by lexeme.

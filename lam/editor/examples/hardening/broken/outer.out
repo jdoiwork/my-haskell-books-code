@@ -1,1 +1,1 @@
-examples/hardening/broken/outer.lam:7:39: in the definition of tagged: type error: the types do not fit: String where Int is needed
+examples/hardening/broken/outer.lam:7:45: in the definition of tagged: type error: the types do not fit: String where Int is needed

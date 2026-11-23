@@ -3443,7 +3443,7 @@ main = hspec $ do
                      <> "  in half, called at script.lam:4:15")
           , Errored "script.lam:4:3: error: boom"
           , Errored "script.lam:3:3: error: not written yet: the rest"
-          , Errored "script.lam:2:3: in the definition of main: \
+          , Errored "script.lam:2:12: in the definition of main: \
                     \type error: the types do not fit: a number where \
                     \String is needed" ]
       runLines ["10 // 0", "error \"boom\""]
@@ -6273,6 +6273,16 @@ main = hspec $ do
       map problemMessage saved `shouldSatisfy`
         all ("the Result of this line is thrown away" `T.isPrefixOf`)
     -- ANCHOR_END: checkSpec
+    -- ANCHOR: argumentSpec
+    -- 「型が合わない呼び出しは、引数の場所で知らせる（かっこなら、かっこ）」
+    it "puts a mismatch of a call at its argument" $ do
+      hello <- problemsIn "examples/editor/argument/hello.lam"
+      map placeOf' hello `shouldBe` [(8, 12, AnError)]
+      files <- realFiles
+      let source = "main =\n  putStrLn (1 + 2)\n"
+      checked <- checkSource files preludeSession "p.lam" source
+      map placeOf' (checkedProblems checked) `shouldBe` [(2, 12, AnError)]
+    -- ANCHOR_END: argumentSpec
     -- ANCHOR: problemOfSpec
     -- 「lam の文から場所を読み戻す。megaparsec の絵は外す。場所のない
     -- まちがいは、定義の行に」
@@ -6345,15 +6355,20 @@ main = hspec $ do
                      "\\xs -> length xs + 1"
           found e = [ (c, renderType t)
                     | (Loc _ _ c, t) <- typesAt (sessionData preludeSession)
-                                          (sessionTypes preludeSession) e ]
+                                          (sessionTypes preludeSession)
+                                          Nothing e ]
       either (const []) found marked
-        `shouldBe` [(8, "Int"), (18, "Int")]
+        `shouldBe` [(15, "a"), (8, "Int"), (18, "Int")]
     -- ANCHOR_END: typesAtSpec
     -- ANCHOR: sessionSpec
     -- 「エディターとの話を、知らせの一覧で流す。答えは .out と同じ」
     it "answers a session of an editor as session.out" $ do
       out <- talkSession "examples/editor/session/session.jsonl"
       expected <- Utf8.readFile "examples/editor/session/session.out"
+      -- What it said, to look at when it differs (not kept in Git).
+      -- ちがったときに見るための、いまの答え（Git には入れない）
+      if out == expected then pure ()
+        else Utf8.writeFile "examples/editor/session/session.actual" out
       out `shouldBe` expected
     -- ANCHOR_END: sessionSpec
 

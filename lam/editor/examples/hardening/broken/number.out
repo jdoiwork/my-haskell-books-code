@@ -1,1 +1,1 @@
-examples/hardening/broken/number.lam:7:8: in the definition of main: type error: the types do not fit: a number where String is needed
+examples/hardening/broken/number.lam:7:17: in the definition of main: type error: the types do not fit: a number where String is needed

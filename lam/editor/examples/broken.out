@@ -1,1 +1,1 @@
-examples/broken.lam:5:20: in the definition of oops: type error: the types do not fit: a number where Bool is needed
+examples/broken.lam:5:26: in the definition of oops: type error: the types do not fit: a number where Bool is needed

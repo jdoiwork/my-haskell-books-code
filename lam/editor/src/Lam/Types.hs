@@ -742,6 +742,19 @@ inPlace loc (Infer f) = Infer $ \st -> case f st of
   Right done            -> Right done
 -- ANCHOR_END: inPlace
 
+-- ANCHOR: atArgument
+-- 📍 A call whose argument does not fit: the place is the argument's
+--    (its mark), not the call's. An argument with no mark (made by
+--    the sugar, not written) leaves the place to the call.
+-- 引数が合わない呼び出し：場所は呼び出しではなく、引数のもの（その印）。
+-- 印のない引数（書いたものではなく、糖衣構文が作ったもの）なら、
+-- 場所は呼び出しに任せる
+atArgument :: Expr -> Infer a -> Infer a
+atArgument arg m = case arg of
+  At loc _ -> inPlace loc m
+  _        -> m
+-- ANCHOR_END: atArgument
+
 -- ANCHOR: liftUnify
 -- 🤝 unify, inside Infer. Then check the classes: when t3 must be
 --    Comparable and t3 turned out to be Int -> Int, that is an error.
@@ -1400,8 +1413,10 @@ infer env expr = case expr of
       TCon {} -> failWith (Mismatch tf' needed)
       TRecord {} -> failWith (Mismatch tf' needed)
       -- Otherwise the argument must fit the function: found first.
-      -- そうでなければ、引数が関数に合うはず（来たものを先に）
-      _       -> doLine f ta tf' (liftUnify needed tf')
+      -- If not, the mistake is the argument's: told at its place.
+      -- そうでなければ、引数が関数に合うはず（来たものを先に）。
+      -- 合わなければ、まちがいは引数のもの。引数の場所で知らせる
+      _       -> atArgument a (doLine f ta tf' (liftUnify needed tf'))
     -- ANCHOR_END: notAFunction
     pure (s3 `compose` s2 `compose` s1, applyT s3 tr,
           App f' (dropped f (applyT s3 tf') a'))
@@ -1996,21 +2011,30 @@ inferType table env e = runInfer table $ do
 
 -- ANCHOR: typesAt
 -- 🔍 The type at each mark of a place in an expression: a call, an
---    operator, a line of a do. The marks were written down on the way,
---    with the types known then; the substitution at the end makes them
---    whole (t3 found early may turn out to be Int). A mistake gives
---    nothing: the editor shows the mistake instead.
--- 式の中の、場所の印ごとの型：呼び出し・演算子・do の行。印は途中で、
--- そのときわかっていた型と一緒に書き留めた。最後の代入で仕上げる
--- （はじめに見つけた t3 が、あとで Int とわかることがある）。まちがいなら
--- 何も返さない（エディターは、かわりにまちがいを見せる）
-typesAt :: DataTable -> TypeEnv -> Expr -> [(Loc, Type)]
-typesAt table env e = either (const []) id $ runInfer table $ do
-  (s0, _, _) <- infer env e
-  s1 <- settle
-  let s = s1 `compose` s0
+--    argument, an operator, a line of a do. The marks were written
+--    down on the way, with the types known then; the substitution at
+--    the end makes them whole (t3 found early may turn out to be Int).
+--    The type the definition got (its annotation, say) is fitted
+--    first, if given. A mistake gives nothing: the editor shows the
+--    mistake instead.
+-- 式の中の、場所の印ごとの型：呼び出し・引数・演算子・do の行。印は
+-- 途中で、そのときわかっていた型と一緒に書き留めた。最後の代入で仕上げる
+-- （はじめに見つけた t3 が、あとで Int とわかることがある）。定義が
+-- もらった型（注釈など）があれば、先に合わせる。まちがいなら何も返さない
+-- （エディターは、かわりにまちがいを見せる）
+typesAt :: DataTable -> TypeEnv -> Maybe Scheme -> Expr -> [(Loc, Type)]
+typesAt table env given e = either (const []) id $ runInfer table $ do
+  (s0, t, _) <- infer env e
+  s1 <- case given of
+    Nothing -> pure Map.empty
+    Just sc -> do
+      (whole, _) <- instantiate sc
+      fitted <- attempt (liftUnify whole (applyT s0 t))
+      pure (either (const Map.empty) id fitted)
+  s2 <- settle
+  let s = s2 `compose` s1 `compose` s0
   found <- Infer (\st -> Right (marks st, st))
-  pure [ (loc, applyT s t) | (loc, t) <- reverse found ]
+  pure [ (loc, applyT s ty) | (loc, ty) <- reverse found ]
 -- ANCHOR_END: typesAt
 
 -- ANCHOR: inferIO

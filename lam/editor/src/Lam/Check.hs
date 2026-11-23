@@ -260,19 +260,25 @@ hoverAt session file source line column = do
                       , f == file, l == line, c == start ]
       shown = [ "```lam\n" <> T.intercalate "\n" named <> "\n```"
               | not (null named) ]
-           <> [ "the call from here : `" <> t <> "`" | t <- called ]
+           <> [ "the expression from here : `" <> t <> "`" | t <- called ]
   if null shown then Nothing else Just (T.intercalate "\n\n" shown)
 
--- 📍 The types at the marks of the file: each definition and the
---    expression at the end, checked once more by typesAt.
--- ファイルの印ごとの型：定義と最後の式を、typesAt でもう一度確かめる
+-- 📍 The types at the marks of the file: each definition (with the
+--    type it got) and the expression at the end, checked once more by
+--    typesAt.
+-- ファイルの印ごとの型：定義（もらった型と一緒に）と最後の式を、
+-- typesAt でもう一度確かめる
 marksIn :: Session -> FilePath -> Text -> [(Loc, Type)]
 marksIn session file source =
   case readProgram False (sessionOperators session) file source of
     Left _     -> []
     Right prog ->
-      concatMap (typesAt (sessionData session) (sessionTypes session))
-        ([ e | DefValue _ e <- programDecls prog ]
-           <> maybe [] pure (programFinal prog))
+      concat ([ typesAt data' types (Map.lookup x types) e
+              | DefValue x e <- programDecls prog ]
+              <> [ typesAt data' types Nothing e
+                 | Just e <- [programFinal prog] ])
+  where
+    data' = sessionData session
+    types = sessionTypes session
 -- ANCHOR_END: hoverAt
 -- ANCHOR_END: all
