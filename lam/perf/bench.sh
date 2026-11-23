@@ -5,13 +5,17 @@
 #    way cannot run the program).
 #      sh bench.sh                 this lam
 #      sh bench.sh PATH/TO/lam     another lam (the one of to-python)
-#      sh bench.sh --node          lam to-js, run by node
-#      sh bench.sh --python        lam to-python, run by python3
+#      sh bench.sh --python        the same work, written by hand in Python
+#      sh bench.sh --node          the same, in TypeScript, run by node
+#      sh bench.sh --awk           count and slow, in awk
 #      sh bench.sh --direct        the same work, written in Haskell
-#      sh bench.sh --by-hand       count and slow in Python and in awk
+#    The other languages' programs are in code/langs/interp-performance/run/
+#    (not turned from Lam: written as each language is usually written).
 # examples/perf のプログラムの時間を測る。1回目は慣らし（macOS では、
 # 新しいプログラムの初めの1回が遅い）。そのあと3回動かし、いちばん短い
-# 時間を見せる（秒。そのやり方で動かせないものは「-」）
+# 時間を見せる（秒。そのやり方で動かせないものは「-」）。ほかの言語の
+# プログラムは code/langs/interp-performance/run/ にある（Lam から変換した
+# ものではなく、その言語でふつうに書いたもの）
 set -eu
 cd "$(dirname "$0")/examples/perf"
 here=$(pwd)
@@ -21,8 +25,6 @@ python=/opt/homebrew/bin/python3.15
 [ -x "$python" ] || python=python3
 mode="${1:-$lam}"
 [ -f big.log ] || "$python" make-log.py 200000 big.log
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
 
 # 🏃 The shortest of three runs, in seconds.
 # 3回のうち、いちばん短い時間（秒）
@@ -44,20 +46,12 @@ timed() {
   case $mode in
     --direct) best "$(cd ../.. && cabal list-bin -v0 exe:lam-direct)" \
                 $name $file ;;
-    --node)
-      if "$lam" to-js "$name.lam" -o "$tmp/$name.mjs" 2> /dev/null; then
-        best node "$tmp/$name.mjs" $file
-      else echo "-"; fi ;;
-    --python)
-      if "$lam" to-python "$name.lam" -o "$tmp/$name.py" 2> /dev/null; then
-        best "$python" "$tmp/$name.py" $file
-      else echo "-"; fi ;;
-    --by-hand)
+    --python) best "$python" "$langs/run/perf.py" $name $file ;;
+    --node)   best node --no-warnings "$langs/run/perf.ts" $name $file ;;
+    --awk)
       case $name in
-        count) echo "$(best "$python" "$langs/count.py" big.log)" \
-                    "$(best awk 'END { print NR }' big.log)" ;;
-        slow)  echo "$(best "$python" "$langs/slow.py" big.log)" \
-                    "$(best awk -f "$langs/run/slow.awk" big.log)" ;;
+        count) best awk 'END { print NR }' big.log ;;
+        slow)  best awk -f "$langs/run/slow.awk" big.log ;;
         *)     echo "-" ;;
       esac ;;
     *) best "$mode" "$name.lam" $file ;;

@@ -1,15 +1,16 @@
 #!/bin/sh
 # Make examples/perf/<name>.out: what each program of the chapter writes.
 # Then check that every other way writes the same: lam with LAM_NO_FAST
-# (only the Lam definitions), the Haskell programs of lam-direct, and,
-# for the programs that can be turned, node and python3. The two log
+# (only the Lam definitions), the Haskell programs of lam-direct, the
+# programs written by hand in Python and TypeScript, and, for the
+# programs that can be turned, lam to-js and lam to-python. The two log
 # programs read a log of 2,000 lines, made with the seed 618. With
 # --check, compare with the .out files and change nothing. Times are not
 # checked: a busy machine changes them, not the answers.
 # examples/perf/<名前>.out を作る：章のプログラムが書くもの。そのうえで、
 # ほかのやり方も同じものを書くかを確かめる：LAM_NO_FAST の lam（Lam の
-# 定義だけ）、lam-direct の Haskell のプログラム、変換できるものは node と
-# python3。ログの2つは、種 618 で作った 2,000 行のログを読む。--check なら
+# 定義だけ）、lam-direct の Haskell のプログラム、Python と TypeScript で
+# 手で書いたもの、変換できるものは lam to-js と lam to-python。ログの2つは、種 618 で作った 2,000 行のログを読む。--check なら
 # .out とくらべ、何も変えない。時間は確かめない（忙しいマシンで変わるのは
 # 時間で、答えではない）
 set -eu
@@ -19,6 +20,7 @@ LAMBIN=$(cabal list-bin -v0 exe:lam)
 DIRECT=$(cabal list-bin -v0 exe:lam-direct)
 PYTHON=${PYTHON:-/opt/homebrew/bin/python3.15}
 [ -x "$PYTHON" ] || PYTHON=python3
+LANGS=../../langs/interp-performance
 check=no
 [ "${1:-}" = --check ] && check=yes
 status=0
@@ -65,6 +67,16 @@ for name in loop fib range sort deep count slow; do
     "$PYTHON" "$tmp/$name.py" $file > "$tmp/$name.python"
     same "$tmp/$name.out" "$tmp/$name.python" "$name in python3"
   fi
+  # The same work written by hand in Python and TypeScript (the times of
+  # bench.sh --python and --node).
+  # 同じ仕事を Python と TypeScript で手で書いたもの（bench.sh の
+  # --python と --node の時間）
+  # shellcheck disable=SC2086
+  "$PYTHON" "$LANGS/run/perf.py" $name $file > "$tmp/$name.byhand"
+  same "$tmp/$name.out" "$tmp/$name.byhand" "$name of run/perf.py"
+  # shellcheck disable=SC2086
+  node --no-warnings "$LANGS/run/perf.ts" $name $file > "$tmp/$name.byhand"
+  same "$tmp/$name.out" "$tmp/$name.byhand" "$name of run/perf.ts"
 done
 
 # The answer of step 3: one more program, the same with LAM_NO_FAST.
