@@ -1,0 +1,3 @@
+race_test.lam
+  ✓ the left job answers first > stdout
+  ✓ one of the two answers > stdout

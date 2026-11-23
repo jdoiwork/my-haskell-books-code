@@ -1,0 +1,4 @@
+error: missing the argument NAME
+Usage: greet.lam [OPTIONS] NAME
+Try "greet.lam --help" for help.
+[exit 2]

@@ -1,0 +1,26 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🎛️ Many Pokémon, but at most --jobs at once: kind to the server.
+--      lam jobs.lam pikachu eevee snorlax --jobs 2
+-- たくさんのポケモンを、同時には多くて --jobs 匹ずつ：サーバーにやさしく
+import Dex (Mon, fetch, line)
+
+-- ANCHOR: main
+--- Look up Pokémon, a few at once.
+-- ポケモンを、何匹かずつ同時に調べる
+main :
+  { --- The English names of the Pokémon
+    -- ポケモンの英語の名前
+    names : [String]
+    --- How many to ask at once
+    -- 同時にいくつ聞くか
+  , jobs : Int = 4 }
+  -> IO ()
+main opts = do
+  done <- IO.timed (IO.allN opts.jobs (map fetch opts.names))
+  forEach done.value (\r -> case r of
+    | Ok m -> putStrLn (line m)
+    | Err e -> ePutStrLn e)
+  putStrLn f"took {done.seconds:.2} s, {opts.jobs} at once"
+-- ANCHOR_END: main
+-- ANCHOR_END: all

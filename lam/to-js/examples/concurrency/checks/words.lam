@@ -1,0 +1,4 @@
+-- ✅ A check that passes: three words.
+-- 通る確かめ：3つの語
+main : IO ()
+main = if length (words "a b c") == 3 then putStrLn "3" else exit 1

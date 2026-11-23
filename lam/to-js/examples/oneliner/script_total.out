@@ -1,0 +1,57 @@
+#!/usr/bin/env lam
+-- 📜 Made with lam --print-script: the same as this one-liner:
+-- --print-script で作った、このワンライナーと同じ動きのスクリプト：
+--   lam -a -n --begin 0 -e 'acc + (String.toInt (field 2) ?: 0)' --end print
+-- Run it:  lam this.lam [files...]   (no files: the standard input)
+-- 動かし方：lam このファイル.lam [ファイル…]（なければ標準入力）
+
+-- 🔢 field n is the column n: 1 is the first, 0 the whole line,
+--    -1 the last (awk's $NF), and a column that is not there is "".
+-- field n は n 列目。1 が1列目、0 は行全体、-1 は最後（awk の $NF）、
+-- ない列は ""
+fieldOf : String -> [String] -> Int -> String
+fieldOf line fields n =
+  if n == 0 then line
+  else if n < 0 then
+    (if length fields + n < 0 then ""
+     else fieldOf line fields (length fields + 1 + n))
+  else case drop (n - 1) fields of
+    | x : _ -> x
+    | [] -> ""
+
+-- 🔁 The program of -e, for one line.
+-- -e のプログラム。line を1つ受け取る
+step acc line =
+  let fields = words line in
+  let field = fieldOf line fields in
+  acc + (String.toInt (field 2) ?: 0)
+
+-- 🌱 --begin: the first acc. / 初めの acc
+start =
+  0
+
+-- 🏁 --end: what to do with the last acc.
+-- 最後の acc ですること
+finish acc =
+  (print) acc
+
+-- 👣 One line, with its number: give the acc for the next one.
+-- 1行（と番号）をやって、次の行のための acc を返す
+visit acc n line = pure (step acc line)
+
+-- 📂 The files, one after another ("-" is the standard input).
+-- ファイルを、順に（"-" は標準入力）
+readAll acc files =
+  case files of
+    | [] -> pure (Ok acc)
+    | file : rest -> do
+        next <- File.forLines Ignore file acc visit ?
+        readAll next rest
+
+--- Run the one-liner on each file (none: the standard input)
+-- ファイルごとに、ワンライナーを動かす（なければ標準入力）
+main : { files : [String] } -> IO (Result String ())
+main o = do
+  last <- readAll start (if null o.files then ["-"] else o.files) ?
+  finish last
+  pure (Ok ())

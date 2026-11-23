@@ -299,6 +299,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | 道具を補強する：`--dry-run` の許可・バイト列・ToJson | [`lam/toolbox/`](lam/toolbox/)、[`lam/hardening/`](lam/hardening/)、[`lam/shell/`](lam/shell/)、[`langs/interp-toolbox/`](langs/interp-toolbox/)、[`langs/cargo/`](langs/cargo/) |
 | テストとデバッグ：lam test | [`lam/testing/`](lam/testing/)、[`lam/toolbox/`](lam/toolbox/)、[`langs/interp-testing/`](langs/interp-testing/)、[`langs/cargo/`](langs/cargo/) |
 | エディタで書く：色付けと LSP | [`lam/editor/`](lam/editor/)、[`lam/testing/`](lam/testing/)、[`langs/interp-editor/`](langs/interp-editor/) |
+| JavaScript に変換する | [`lam/to-js/`](lam/to-js/)、[`lam/editor/`](lam/editor/)、[`langs/interp-to-js/`](langs/interp-to-js/) |
 
 ### 第17部 プログラマーのための数学
 

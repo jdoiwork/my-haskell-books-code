@@ -1,0 +1,1 @@
+--json --path=orders -pe 'Json.get "user" json ?: JNull' examples/oneliner/shop.json

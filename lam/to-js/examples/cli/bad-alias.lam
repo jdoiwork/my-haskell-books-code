@@ -1,0 +1,10 @@
+-- ANCHOR: all
+type alias Options =
+  { name : String
+  , count : Int = 1
+  , alias n = cuont
+  }
+
+main : Options -> IO ()
+main opts = putStrLn opts.name
+-- ANCHOR_END: all

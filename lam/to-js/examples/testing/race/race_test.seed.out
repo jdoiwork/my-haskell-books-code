@@ -1,0 +1,5 @@
+race_test.lam (seed 618)
+  ✗ the left job answers first > stdout
+      expected: "first: left\n"
+      actual:   "first: right\n"
+  ✓ one of the two answers > stdout

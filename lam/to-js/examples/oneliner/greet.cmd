@@ -1,0 +1,1 @@
+-e 'main : { name : String, loud : Bool } -> IO ()' -e 'main o = putStrLn (if o.loud then toUpper f"hi {o.name}" else f"hi {o.name}")' Lam --loud

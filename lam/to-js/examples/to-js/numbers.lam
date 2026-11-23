@@ -1,0 +1,16 @@
+-- ANCHOR: all
+-- 🔢 Numbers: an Int can be as long as it likes, // rounds down, and
+--    a Float is a Float.
+-- 数：Int はいくらでも長く、// は下へ丸め、Float は Float
+factorial n = List.product (range 1 n)
+
+main = do
+  print (factorial 25)
+  print (factorial 30 // factorial 28)
+  print (-7 // 2, 7 // -2)
+  print (-7 % 2, 7 % -2)
+  print (0.1 + 0.2)
+  print (7 / 2, 1 / 0)
+  print (round 2.5, round (-2.5))
+  print (Float.roundTiesEven 2.5, Float.fixed 2 1.005)
+-- ANCHOR_END: all

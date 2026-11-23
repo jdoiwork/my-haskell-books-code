@@ -1,0 +1,1 @@
+Receipt.lam:27:3: warning: the Result of this line is thrown away: write ? at the end of the line to stop at an Err, or _ <- (or 🗑️ <-) to throw it away

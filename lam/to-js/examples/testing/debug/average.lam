@@ -1,0 +1,24 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 📈 The average of the numbers in the input. The answer looks low...
+--      echo "70 90 abc 60" | lam average.lam
+-- 入力の数の平均。答えが低いような……
+
+-- ANCHOR: average
+average : [Int] -> Int
+average xs =
+  let total = xs |> sum |> Debug.log "total" in
+  let count = xs |> length |> Debug.log "count" in
+  total // count
+-- ANCHOR_END: average
+
+main : IO ()
+main = do
+  text <- getContents
+  let numbers =
+        text
+          |> words
+          |> map (\w -> String.toInt w ?: 0)
+          |> Debug.log "numbers"
+  print (average numbers)
+-- ANCHOR_END: all

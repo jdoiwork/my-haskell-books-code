@@ -1,0 +1,6 @@
+readFile: ok
+writeFile: peek.txt: needs --allow-write=peek.txt
+File.remove: peek.txt: needs --allow-write=peek.txt
+Http.get: https://pokeapi.co/api/v2/pokemon/pikachu: needs --allow-net=pokeapi.co
+Sql.open: peek.db: needs --allow-write=peek.db
+Sql.open :memory:: ok

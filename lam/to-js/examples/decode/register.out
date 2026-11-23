@@ -1,0 +1,11 @@
+== examples/decode/register.csv
+Just "2" Just ""
+Just "1" Just "gift wrap, \"blue\" ribbon"
+Just "3" Just ""
+Just "10" Just "for the\nschool festival"
+total 9,700
+== examples/decode/register-bad.csv
+line 4: 6 fields, but the header has 5
+line 2, column count: not an Int: "two"
+line 3, column price: not an Int: "25OO"
+line 4: 6 fields, but the header has 5

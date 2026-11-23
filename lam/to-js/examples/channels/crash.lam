@@ -1,0 +1,13 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 💥 The averager crashes on an empty list. Nobody watches it.
+--      lam crash.lam
+-- 平均のアクターが、空のリストで落ちる。だれも見張っていない
+import Average (averager, ask)
+
+main = do
+  avg <- Actor.spawn averager
+  ask avg [1, 2, 3]
+  ask avg []
+  ask avg [4, 6]
+-- ANCHOR_END: all

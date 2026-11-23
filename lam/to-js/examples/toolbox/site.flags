@@ -1,0 +1,2 @@
+--allow-net=localhost
+--allow-read=examples/toolbox/public

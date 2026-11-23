@@ -1,0 +1,5 @@
+GET /divide/7/0: divided by zero
+[exit 3]
+<- GET /divide/7/2 200 3
+<- GET /divide/7/0 500 internal server error
+<- GET /divide/9/3 200 3

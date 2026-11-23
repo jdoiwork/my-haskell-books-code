@@ -1,0 +1,2 @@
+error: examples/oneliner/notes.txt.lam-tmp: needs --allow-write=examples/oneliner/notes.txt.lam-tmp
+[exit 1]

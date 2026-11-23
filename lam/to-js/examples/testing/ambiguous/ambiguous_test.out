@@ -1,0 +1,2 @@
+in the definition of tests: type error: cannot choose an instance of Arbitrary: the type a is not known here (an annotation can tell it)
+0 tests: 0 passed, 0 failed, 1 broken file

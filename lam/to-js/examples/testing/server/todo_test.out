@@ -1,0 +1,7 @@
+todo_test.lam
+  ✓ the handler, by hand > GET /todos > status
+  ✓ the handler, by hand > GET /todos > body
+  ✓ the handler, by hand > PUT /todos/abc/done > status
+  ✓ the whole server > statuses
+  ✓ the whole server > the last list
+  ✓ the whole server > stderr

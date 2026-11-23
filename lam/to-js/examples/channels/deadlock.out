@@ -1,0 +1,5 @@
+got 1
+got 2
+got 3
+error: deadlock: every job is waiting, and none can go on
+  main  waits to receive from <chan #1>

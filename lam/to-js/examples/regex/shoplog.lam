@@ -1,0 +1,61 @@
+-- ANCHOR: all
+-- 🧾 The log of the shop, one line at a time: count the lines of each
+--    day and level, and show the errors with the phone numbers hidden.
+--   lam shoplog.lam shop.log
+-- お店のログを1行ずつ読む。日ごと・種類ごとに行を数え、エラーの行を、
+-- 電話番号を伏せて見せる
+
+-- ANCHOR: regexes
+-- A line of the log:  2026-11-20 09:15:40 ERROR order 1043 ...
+-- ログの1行
+entry : Regex
+entry = m/^(?<date>\d{4}-\d\d-\d\d) [\d:]+ (?<level>[A-Z]+) +(?<text>.*)$/
+
+-- 090-1234-5678 becomes ***-****-5678 (only the last 4 digits stay).
+-- 下の4桁だけを残して、伏せる
+hide : String -> String
+hide = s/\d{2,4}-\d{2,4}-(?<last>\d{4})/***-****-{last}/g
+-- ANCHOR_END: regexes
+
+-- ANCHOR: tally
+-- 🧮 What we know so far: how many lines, how many for each
+--    "date level", and the errors (the newest first).
+-- ここまでにわかったこと：行の数、「日付 種類」ごとの数、エラー
+-- （新しいものが先）
+type alias Tally =
+  { lines : Int
+  , counts : Map String Int
+  , errors : [String] }
+
+-- One more line. A line that is not a log line is only counted.
+-- もう1行。ログの行でない行は、数えるだけ
+tally : Tally -> String -> Tally
+tally t line =
+  case Regex.find entry line of
+    | Nothing -> { t | lines = t.lines + 1 }
+    | Just m ->
+        let part k = Regex.named k m ?: "" in
+        let key = f"{part "date"} {part "level"}" in
+        { lines = t.lines + 1
+        , counts = Map.insertWith (+) key 1 t.counts
+        , errors =
+            if part "level" == "ERROR"
+              then f"{part "date"} {hide (part "text")}" : t.errors
+              else t.errors }
+-- ANCHOR_END: tally
+
+-- ANCHOR: main
+main : [String] -> IO (Result String ())
+main args = do
+  let path = case args of | p : _ -> p | [] -> "shop.log"
+  let start = { lines = 0, counts = Map.empty, errors = [] }
+  t <- File.foldLines tally start path ?
+  let logs = sum (Map.values t.counts)
+  putStrLn f"{logs} of {t.lines} lines are log lines"
+  forEach (Map.toList t.counts) (\(key, n) ->
+    putStrLn f"  {key:<17}{n:>2}")
+  putStrLn "errors:"
+  forEach (reverse t.errors) (\e -> putStrLn f"  {e}")
+  pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

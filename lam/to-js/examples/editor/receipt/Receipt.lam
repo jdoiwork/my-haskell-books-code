@@ -1,0 +1,26 @@
+-- ANCHOR: all
+-- 🧾 A receipt: the items, their prices, and the total.
+-- レシート：品物と値段と合計
+--   lam Receipt.lam
+import Price (Price (..), yen, (<+>))
+
+items : [(String, Price)]
+items =
+  [ ("sticker", Price 300)
+  , ("mug", Price 1200)
+  , ("t-shirt", Price 2500) ]
+
+-- 🧮 The total of the receipt.
+-- レシートの合計
+total : [(String, Price)] -> Price
+total xs = foldl (<+>) (Price 0) (map snd xs)
+
+-- 🖨️ One line of the receipt.
+-- レシートの1行
+line : (String, Price) -> String
+line (name, p) = f"{name:<10}{yen p:>6,}"
+
+main = do
+  forEach items (\i -> putStrLn (line i))
+  putStrLn f"🧾 total: {total items}"
+-- ANCHOR_END: all

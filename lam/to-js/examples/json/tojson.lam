@@ -1,0 +1,46 @@
+-- 📤 Any value to JSON with one name, toJson: the class of the module
+--    Json, and an instance for a data type of our own.
+-- どんな値も、1つの名前 toJson で JSON に。モジュール Json のクラスと、
+-- 自分の data の型のインスタンス
+--   lam examples/json/tojson.lam
+
+-- ANCHOR: class
+-- ToJson and ToKey, with the instances for the builtin types, a list,
+-- and a Map, are in the module Json now ("Making the tools sturdier").
+-- Here is only the instance for a type of our own.
+-- ToJson と ToKey、組み込みの型・リスト・Map のインスタンスは、いまは
+-- モジュール Json にある（「道具を補強する」）。ここには、自分の型の
+-- インスタンスだけを書く
+-- ANCHOR_END: class
+
+-- ANCHOR: shape
+-- 🔷 A type of our own: the kind of shape goes into "kind".
+-- 自分の型。図形の種類は "kind" に入れる
+data Shape
+  = Circle { radius : Float }
+  | Rect { width : Float, height : Float }
+
+instance ToJson Shape where
+  toJson s =
+    case s of
+      | Circle { radius } ->
+          JObj {kind: JStr "circle", radius: toJson radius}
+      | Rect { width, height } ->
+          JObj { kind: JStr "rect"
+               , width: toJson width
+               , height: toJson height }
+-- ANCHOR_END: shape
+
+-- ANCHOR: use
+shapes = [Circle { radius = 1.5 }, Rect { width = 2, height = 0.5 }]
+
+scores : Map String Int
+scores = {Python: 82, TS: 75}
+
+floors : Map Int [String]
+floors = {1: ["shop"], 2: ["workshop", "library"]}
+
+[ Json.show (toJson shapes)
+, Json.show (toJson scores)
+, Json.show (toJson floors) ]
+-- ANCHOR_END: use

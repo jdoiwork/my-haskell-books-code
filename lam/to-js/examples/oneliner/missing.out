@@ -1,0 +1,2 @@
+error: examples/oneliner/nope.txt: no such file
+[exit 1]

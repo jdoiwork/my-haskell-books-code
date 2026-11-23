@@ -1,0 +1,5 @@
+pdf: b.PDF, a.pdf
+png: photo.png, c.Png
+txt: notes.TXT, todo.txt
+first: b.PDF photo.png / rest: 4
+DONE
