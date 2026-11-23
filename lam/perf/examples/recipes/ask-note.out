@@ -1,0 +1,21 @@
+💻 $ printf '2\nLogin fails\n' | lam new-note.lam
+1) meeting
+2) bug
+3) diary
+Template? Title? wrote notes/login-fails.md
+
+💻 $ cat notes/login-fails.md
+# Login fails
+
+## What happened
+
+## Steps
+
+## Expected
+
+💻 $ printf '2\nLogin fails\n' | lam new-note.lam
+1) meeting
+2) bug
+3) diary
+Template? Title? error: notes/login-fails.md is already there
+[exit 1]

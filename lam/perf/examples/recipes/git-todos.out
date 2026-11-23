@@ -1,0 +1,5 @@
+💻 $ lam todos.lam --repo shelf
+## TODO (3)
+- [ ] src/main.lam:1 TODO: say the name
+- [ ] src/run.lam:2 FIXME: stop when git is not there
+- [ ] src/table.lam:2 TODO: sort the rows by date

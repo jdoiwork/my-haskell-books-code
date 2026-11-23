@@ -1,0 +1,18 @@
+-- 🌿 Remove the branches already merged into main (not main itself).
+-- main に取りこみ済みのブランチを消す（main そのものは残す）
+
+--- Remove the merged branches of a repository
+-- リポジトリの、取りこみ済みのブランチを消す
+main : { repo : String = "." } -> IO (Result String ())
+main o = do
+  let git cmd = Shell.within o.repo cmd
+  -- "  fix-typo", "* main": the name comes after 2 letters.
+  -- 名前は2文字のあと
+  merged <- Shell.lines (git $"git branch --merged main") ?
+  let names = map (String.drop 2) merged
+  forEach (filter (\b -> b /= "main") names) (\b -> do
+    done <- Shell.ok (git $"git branch -d {b}")
+    case done of
+      | Ok _ -> putStrLn f"removed {b}"
+      | Err e -> IO.ePutStrLn f"kept {b}: {e}")
+  pure (Ok ())

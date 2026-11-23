@@ -1,0 +1,20 @@
+💻 $ cat lam.json
+{"dryRun": {"allow": ["git branch --merged"]}}
+
+💻 $ lam --dry-run prune-branches.lam --repo shelf
+dry-run: runs: Shell.run $"git branch --merged main" (in shelf)
+dry-run: Shell.run $"git branch -d add-shell" (in shelf)
+kept add-shell: dry run: git was not run
+dry-run: Shell.run $"git branch -d add-table" (in shelf)
+kept add-table: dry run: git was not run
+dry-run: Shell.run $"git branch -d fix-typo" (in shelf)
+kept fix-typo: dry run: git was not run
+
+💻 $ lam prune-branches.lam --repo shelf
+removed add-shell
+removed add-table
+removed fix-typo
+
+💻 $ git -C shelf branch
+* main
+  try-colors

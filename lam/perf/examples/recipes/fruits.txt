@@ -1,0 +1,7 @@
+pear
+apple
+pear
+fig
+apple
+pear
+kiwi

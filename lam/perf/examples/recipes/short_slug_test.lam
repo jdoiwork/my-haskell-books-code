@@ -1,0 +1,16 @@
+-- ✅ The tests of ShortSlug. / ShortSlug のテスト
+import Slug (slug)
+import ShortSlug (shortSlug)
+
+tests : [Test]
+tests =
+  [ Test.equal "cut at a dash" (shortSlug 6 "Login fails!") "login"
+  , Test.equal "short enough" (shortSlug 40 "Login fails!") "login-fails"
+  -- Never longer than n. / n より長くならない
+  , Test.property "at most 12" (\t -> length (shortSlug 12 t) <= 12)
+  -- No "-" at the end. / 最後は「-」でない
+  , Test.property "no dash at the end"
+      (\t -> not (String.endsWith "-" (shortSlug 12 t)))
+  -- The beginning of the whole slug. / 長い slug の頭
+  , Test.property "the head of the slug"
+      (\t -> String.startsWith (shortSlug 12 t) (slug t)) ]

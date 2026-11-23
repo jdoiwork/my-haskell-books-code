@@ -1,0 +1,39 @@
+-- 🗄️ Put a household account book (CSV) into a SQLite table, in one
+--    transaction (all the rows, or none of them).
+-- 家計簿（CSV）を SQLite の表に入れる。1つのトランザクションで（全部の
+-- 行か、1行も入れないか）
+
+type alias Expense =
+  { date : String, category : String, amount : Int, memo : String }
+
+expense : Decoder Expense
+expense =
+  Decode.map4 (\d c a m -> { date = d, category = c, amount = a, memo = m })
+    (Decode.field "date" Decode.string)
+    (Decode.field "category" Decode.string)
+    (Decode.field "amount" Decode.int)
+    (Decode.field "memo" Decode.string)
+
+-- ➕ One row into the table. / 1行を表に入れる
+insert : Db -> Expense -> IO (Result String Int)
+insert db e =
+  Sql.exec db "INSERT INTO expenses VALUES (?, ?, ?, ?)"
+    [JStr e.date, JStr e.category, JInt e.amount, JStr e.memo]
+
+--- Put a CSV of expenses into a SQLite database
+-- 出費の CSV を SQLite のデータベースに入れる
+main : { csv : String, db : String } -> IO (Result String ())
+main o = do
+  text <- readFile o.csv ?
+  rows <- pure (Result.mapError Decode.explain
+                  (Csv.decode {"amount": Csv.int} expense text)) ?
+  Sql.withDb o.db (\db -> do
+    _ <- Sql.exec db ("CREATE TABLE IF NOT EXISTS expenses "
+                      ++ "(date TEXT, category TEXT, amount INT, memo TEXT)")
+                  [] ?
+    Sql.transaction db (do
+      done <- mapM (insert db) rows
+      _ <- pure (Result.combine done) ?
+      pure (Ok ()))) ?
+  putStrLn f"{length rows} rows into {o.db}"
+  pure (Ok ())

@@ -1,0 +1,24 @@
+-- 🧹 Remove the logs older than some days (30 if not said).
+-- 何日か（言わなければ 30 日）より古いログを消す
+
+-- 🗑️ Remove one log if it is older than days.
+-- 1つのログを、days 日より古ければ消す
+removeIfOld : Time -> Int -> String -> IO (Result String ())
+removeIfOld now days path = do
+  info <- File.info path ?
+  when (Time.diffDays now info.modified > days) (do
+    gone <- File.remove path
+    case gone of
+      | Ok _ -> putStrLn f"removed {path}"
+      | Err e -> IO.ePutStrLn f"kept {path}: {e}")
+  pure (Ok ())
+
+--- Remove the old logs of a folder
+-- フォルダーの古いログを消す
+main : { days : Int = 30, dir : String } -> IO (Result String ())
+main o = do
+  now <- Time.now
+  logs <- File.glob f"{o.dir}/*.log" ?
+  done <- mapM (removeIfOld now o.days) (sort logs)
+  _ <- pure (Result.combine done) ?
+  pure (Ok ())

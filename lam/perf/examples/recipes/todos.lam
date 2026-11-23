@@ -1,0 +1,25 @@
+-- 📝 Gather the TODO and FIXME lines of the files git knows, as a
+--    Markdown check list with the file and the line number.
+-- git が知っているファイルから TODO・FIXME の行を集め、ファイルと
+-- 行の番号つきの、Markdown のチェックリストにする
+
+-- 👀 One line: a check box if it says TODO or FIXME.
+-- 1行：TODO か FIXME があれば、チェックの箱にする
+visit : String -> [String] -> Int -> String -> IO [String]
+visit file found n line =
+  case Regex.find re"(TODO|FIXME).*" line of
+    | Nothing -> pure found
+    | Just m -> pure (found ++ [f"- [ ] {file}:{n} {m.text}"])
+
+--- Gather the TODO lines of a repository
+-- リポジトリの TODO の行を集める
+main : { repo : String = "." } -> IO (Result String ())
+main o = do
+  files <- Shell.lines (Shell.within o.repo $"git ls-files") ?
+  found <- mapM (\file ->
+             File.forLines Ignore (Path.join o.repo file) [] (visit file))
+             files
+  items <- pure (map concat (Result.combine found)) ?
+  putStrLn f"## TODO ({length items})"
+  forEach items putStrLn
+  pure (Ok ())

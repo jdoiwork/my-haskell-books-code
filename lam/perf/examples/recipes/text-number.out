@@ -1,0 +1,15 @@
+💻 $ lam -e 'do
+      text <- getContents
+      forEach (indexed (lines text))
+        (\(i, l) -> putStrLn f"{i + 1:>3}  {l}")' < settings.conf
+  1  # The settings of the book shelf
+  2  # 本棚の設定
+  3  
+  4  port = 8080
+  5  # host = 0.0.0.0
+  6  host = 127.0.0.1
+  7  
+  8     
+  9  # How many books on a page
+ 10  per_page = 20
+ 11  theme = dark

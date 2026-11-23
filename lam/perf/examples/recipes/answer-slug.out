@@ -1,0 +1,8 @@
+💻 $ lam test short_slug_test.lam
+short_slug_test.lam (seed 618)
+  ✓ cut at a dash
+  ✓ short enough
+  ✓ at most 12
+  ✓ no dash at the end
+  ✓ the head of the slug
+5 tests: 5 passed, 0 failed

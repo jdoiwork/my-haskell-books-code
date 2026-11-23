@@ -1,0 +1,21 @@
+-- ✅ Try Rotate in a fake world: no file on the disk is touched.
+-- Rotate を偽物の世界で試す。ディスクのファイルには触れない
+import Rotate (main, nth)
+
+-- 🌍 Two logs, as files of the fake world.
+-- 偽物の世界のファイルとして、ログが2つ
+world =
+  { Test.world | files = {"app.log": "day 2\n", "app.log.1": "day 1\n"} }
+
+tests : [Test]
+tests =
+  [ Test.equal "the names" (nth "app.log" 2) "app.log.2"
+  , Test.io "rotate keeping 2" world (main { keep = 2, log = "app.log" })
+      (\r -> [ Test.equal "files" r.files
+                 { "app.log": ""
+                 , "app.log.1": "day 2\n"
+                 , "app.log.2": "day 1\n" }
+             , Test.equal "said" r.stdout "rotated app.log (keeping 2)\n" ])
+  , Test.io "the oldest goes away" world (main { keep = 1, log = "app.log" })
+      (\r -> [ Test.equal "files" r.files
+                 {"app.log": "", "app.log.1": "day 2\n"} ]) ]

@@ -1,0 +1,13 @@
+💻 $ lam -pe 'Time.toIso (Time.fromMillis (String.toInt line ?: 0))' \
+    epochs.txt
+2026-11-24T00:00:00Z
+2026-11-24T03:30:00Z
+2026-11-25T12:00:00Z
+
+💻 $ lam -ne 'do
+      zone <- Time.here
+      let t = Time.fromMillis (String.toInt line ?: 0)
+      putStrLn (Time.format zone t)' epochs.txt
+2026-11-24 09:00:00 +09:00
+2026-11-24 12:30:00 +09:00
+2026-11-25 21:00:00 +09:00

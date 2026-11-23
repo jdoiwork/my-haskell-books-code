@@ -1,0 +1,2 @@
+mkdir work
+touch work/a.tmp work/b.tmp work/notes.txt.bak work/notes.txt

@@ -1,0 +1,7 @@
+💻 $ lam -F, -ane 'putStrLn (field 4)' expenses.csv
+
+💻 $ lam -e 'main = do
+      text <- readFile "expenses.csv" ?
+      rows <- pure (Result.mapError Decode.explain (Csv.parse text)) ?
+      forEach rows (\r -> putStrLn (Map.findWithDefault "" "memo" r))
+      pure (Ok ())'

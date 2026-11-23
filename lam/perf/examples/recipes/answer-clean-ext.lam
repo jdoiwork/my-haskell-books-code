@@ -1,0 +1,27 @@
+-- 🧹 Remove the files of an extension (log if not said) older than some
+--    days (30 if not said).
+-- ある拡張子（言わなければ log）の、何日か（言わなければ 30 日）より
+-- 古いファイルを消す
+
+-- 🗑️ Remove one log if it is older than days.
+-- 1つのログを、days 日より古ければ消す
+removeIfOld : Time -> Int -> String -> IO (Result String ())
+removeIfOld now days path = do
+  info <- File.info path ?
+  when (Time.diffDays now info.modified > days) (do
+    gone <- File.remove path
+    case gone of
+      | Ok _ -> putStrLn f"removed {path}"
+      | Err e -> IO.ePutStrLn f"kept {path}: {e}")
+  pure (Ok ())
+
+--- Remove the old files of an extension in a folder
+-- フォルダーの、ある拡張子の古いファイルを消す
+main : { days : Int = 30, ext : String = "log", dir : String }
+       -> IO (Result String ())
+main o = do
+  now <- Time.now
+  logs <- File.glob f"{o.dir}/*.{o.ext}" ?
+  done <- mapM (removeIfOld now o.days) (sort logs)
+  _ <- pure (Result.combine done) ?
+  pure (Ok ())

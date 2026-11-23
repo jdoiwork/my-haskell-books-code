@@ -1,0 +1,6 @@
+[server]
+port = "eighty"
+
+[shelf]
+per_page = 20
+owners = ["ruby", 7]

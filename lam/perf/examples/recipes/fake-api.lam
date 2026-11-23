@@ -1,0 +1,36 @@
+-- 🧪 A small API on this machine, for the recipes: users, a slow one,
+--    a broken one, and one that answers in HTML.
+-- レシピのための、手元の小さな API：名簿、遅いもの、壊れたもの、
+-- HTML で答えるもの
+
+type alias User = { id : Int, name : String, team : String }
+
+users : [User]
+users =
+  [ { id = 1, name = "Ruby", team = "web" }
+  , { id = 2, name = "TS", team = "web" }
+  , { id = 3, name = "Rust", team = "core" } ]
+
+-- 🧾 A user as JSON. / 1人を JSON に
+userJson : User -> Json
+userJson u =
+  JObj {"id": JInt u.id, "name": JStr u.name, "team": JStr u.team}
+
+handler : Request -> IO Response
+handler req =
+  case Http.segments req.path of
+    | ["users"] -> pure (Response.json 200 (JArr (map userJson users)))
+    | ["users", id] ->
+        case find (\u -> show u.id == id) users of
+          | Just u -> pure (Response.json 200 (userJson u))
+          | Nothing -> pure Response.notFound
+    | ["echo"] -> pure (Response.text 200 f"got {req.method} {req.body}")
+    | ["slow", ms] -> do
+        sleep (String.toInt ms ?: 0)
+        pure (Response.text 200 f"slow {ms}")
+    | ["broken"] -> pure (Response.json 500 (JObj {"error": JStr "db down"}))
+    | ["html"] -> pure (Response.html 200 "<h1>maintenance</h1>")
+    | _ -> pure Response.notFound
+
+main : { port : Int = 18731 } -> IO ()
+main o = Http.serve o.port handler

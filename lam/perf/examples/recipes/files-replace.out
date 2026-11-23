@@ -1,0 +1,14 @@
+💻 $ lam -i.bak -pe 's/http:/https:/g' docs/*.md
+
+💻 $ cat docs/links.md
+# Links
+
+- https://example.com/lam
+- https://example.org/
+- https://example.net/shelf
+
+💻 $ ls docs
+about.md
+about.md.bak
+links.md
+links.md.bak

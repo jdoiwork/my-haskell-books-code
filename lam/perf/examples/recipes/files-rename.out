@@ -1,0 +1,12 @@
+💻 $ lam --dry-run rename-tidy.lam downloads
+dry-run: File.rename "downloads/My Photo 01.JPG" "downloads/my-photo-01.jpg"
+My Photo 01.JPG -> my-photo-01.jpg
+dry-run: File.rename "downloads/my photo 02.jpg" "downloads/my-photo-02.jpg"
+my photo 02.jpg -> my-photo-02.jpg
+dry-run: File.rename "downloads/notes (1).txt" "downloads/notes-(1).txt"
+notes (1).txt -> notes-(1).txt
+
+💻 $ lam rename-tidy.lam downloads
+My Photo 01.JPG -> my-photo-01.jpg
+my photo 02.jpg -> my-photo-02.jpg
+notes (1).txt -> notes-(1).txt

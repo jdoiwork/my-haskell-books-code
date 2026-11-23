@@ -1,0 +1,6 @@
+💻 $ lam join.lam users.csv requests.jsonl
+Ruby       /books
+TS         /search
+Rust       /books/618
+Python     /export
+(unknown)  /books

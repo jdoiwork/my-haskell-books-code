@@ -1,0 +1,28 @@
+-- 🏷️ Give the files of a folder tidy names: small letters, "-" for the
+--    spaces ("My Photo 01.JPG" -> "my-photo-01.jpg").
+-- フォルダーのファイルに、整った名前を付ける：小文字、空白は「-」
+
+-- ✂️ The tidy name of a file name.
+-- ファイルの名前の、整った名前
+tidy : String -> String
+tidy name = String.toLower (Regex.replaceAll re"\s+" "-" name)
+
+-- 🔁 Rename one file, but never over a file that is already there.
+-- 1つ付け替える。ただし、もうあるファイルの上には書かない
+rename : String -> String -> String -> IO ()
+rename dir name new = do
+  taken <- File.exists (Path.join dir new)
+  if taken then IO.ePutStrLn f"skip: {new} is already there" else do
+    moved <- File.rename (Path.join dir name) (Path.join dir new)
+    case moved of
+      | Ok _ -> putStrLn f"{name} -> {new}"
+      | Err e -> IO.ePutStrLn f"skip: {e}"
+
+--- Give the files of a folder tidy names
+-- フォルダーのファイルに、整った名前を付ける
+main : { dir : String } -> IO (Result String ())
+main o = do
+  names <- File.list o.dir ?
+  forEach names (\name ->
+    when (tidy name /= name) (rename o.dir name (tidy name)))
+  pure (Ok ())

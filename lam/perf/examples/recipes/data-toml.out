@@ -1,0 +1,9 @@
+💻 $ lam check-config.lam shelf.toml
+ok: 127.0.0.1:8080, 20 a page
+owners: ruby, ts
+
+💻 $ lam check-config.lam shelf-bad.toml
+error: line 1, server: missing field "host"
+line 2, server.port: expected an Int, got "eighty"
+line 6, shelf.owners[1]: expected a String, got 7
+[exit 1]

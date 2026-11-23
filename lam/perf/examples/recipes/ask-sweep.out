@@ -1,0 +1,14 @@
+💻 $ echo n | lam sweep.lam --dir work
+  work/a.tmp
+  work/b.tmp
+  work/notes.txt.bak
+Remove these 3 files? [y/N] kept them all
+
+💻 $ echo y | lam sweep.lam --dir work
+  work/a.tmp
+  work/b.tmp
+  work/notes.txt.bak
+Remove these 3 files? [y/N] removed 3 files
+
+💻 $ ls work
+notes.txt

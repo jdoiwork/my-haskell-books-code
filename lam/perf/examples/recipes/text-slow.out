@@ -1,0 +1,8 @@
+💻 $ lam -an \
+    -e 'let ms = String.toInt (String.replace "ms" "" (field 6)) ?: 0 in
+        when (ms >= 500) (putStrLn f"{ms:>5}ms {field 4}")' app.log
+  640ms /search
+ 2004ms /export
+  880ms /search
+ 2010ms /export
+  702ms /search

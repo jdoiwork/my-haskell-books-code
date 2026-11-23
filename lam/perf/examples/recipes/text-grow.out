@@ -1,0 +1,22 @@
+💻 $ lam -an --begin Map.empty \
+    -e 'if field 5 =~ m/^\d{3}$/
+        then Map.insertWith (+) (field 5) 1 acc else acc' \
+    --end 'forEach (Map.toList acc) (\(s, n) -> putStrLn f"{s} {n}")' \
+    --print-script=cli > status.lam
+
+💻 $ lam status-min.lam --min 2 app.log
+200 9
+500 2
+503 2
+
+💻 $ lam status-min.lam --help
+Usage: status-min.lam [OPTIONS] FILES...
+
+  Count the status codes of the logs (none: the standard input)
+
+Arguments:
+  FILES...
+
+Options:
+  --min INT  [default: 1]
+  --help     Show this message and exit

@@ -1,0 +1,7 @@
+💻 $ lam test rotate_test.lam
+rotate_test.lam (seed 618)
+  ✓ the names
+  ✓ rotate keeping 2 > files
+  ✓ rotate keeping 2 > said
+  ✓ the oldest goes away > files
+4 tests: 4 passed, 0 failed

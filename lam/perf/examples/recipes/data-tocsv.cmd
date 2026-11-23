@@ -1,0 +1,7 @@
+💻 $ lam --json -n --begin '[]' \
+    -e 'let text k = Maybe.andThen Json.string (Json.get k json) ?: "" in
+        let year = Maybe.andThen Json.int (Json.get "year" json) ?: 0 in
+        let tags = Maybe.andThen Json.array (Json.get "tags" json) ?: [] in
+        acc ++ [[text "title", display year,
+                 String.join ";" (mapMaybe Json.string tags)]]' \
+    --end 'putStr (Csv.encode ["title", "year", "tags"] acc)' books.json

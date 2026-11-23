@@ -1,0 +1,13 @@
+💻 $ lam Rotate.lam --keep 2 logs/app.log
+rotated logs/app.log (keeping 2)
+
+💻 $ lam Rotate.lam --keep 2 logs/app.log
+rotated logs/app.log (keeping 2)
+
+💻 $ ls logs
+app.log
+app.log.1
+app.log.2
+
+💻 $ cat logs/app.log.2
+day 1

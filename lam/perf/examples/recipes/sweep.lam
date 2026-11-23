@@ -1,0 +1,20 @@
+-- 🧹 Remove the leftover files (*.tmp, *.bak) of a folder, after asking.
+-- フォルダーの残りもの（*.tmp・*.bak）を、聞いてから消す
+
+--- Remove the leftover files of a folder, after asking
+-- フォルダーの残りものを、聞いてから消す
+main : { dir : String = "." } -> IO (Result String ())
+main o = do
+  tmp <- File.glob f"{o.dir}/*.tmp" ?
+  bak <- File.glob f"{o.dir}/*.bak" ?
+  let found = sort (tmp ++ bak)
+  forEach found (\p -> putStrLn f"  {p}")
+  yes <- Term.confirm f"Remove these {length found} files?"
+  if not yes then do
+    putStrLn "kept them all"
+    pure (Ok ())
+  else do
+    gone <- mapM File.remove found
+    _ <- pure (Result.combine gone) ?
+    putStrLn f"removed {length found} files"
+    pure (Ok ())

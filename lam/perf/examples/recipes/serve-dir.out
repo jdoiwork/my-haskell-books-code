@@ -1,0 +1,16 @@
+💻 $ lam serve-dir.lam --port 18732 --dir site &
+listening on http://localhost:18732/
+
+💻 $ curl -s localhost:18732/
+<h1>Shelf</h1>
+
+💻 $ curl -si localhost:18732/notes.txt | grep -i -e ^HTTP -e ^content-type
+HTTP/1.1 200 OK
+content-type: text/plain; charset=utf-8
+
+💻 $ curl -s -w ' %{http_code}\n' localhost:18732/nothing.txt
+not found
+ 404
+
+💻 $ curl -s -w ' %{http_code}\n' --path-as-is localhost:18732/../lam.json
+no 403

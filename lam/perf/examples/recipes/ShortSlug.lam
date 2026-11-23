@@ -1,0 +1,8 @@
+-- ✂️ A slug of at most n letters, with no "-" at the end.
+-- 長さが n 文字までの slug。最後に「-」を置かない
+module ShortSlug exposing (shortSlug)
+
+import Slug (slug)
+
+shortSlug : Int -> String -> String
+shortSlug n title = Regex.replaceAll re"-+$" "" (String.take n (slug title))

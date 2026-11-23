@@ -1,0 +1,7 @@
+date,category,amount,memo
+2026-11-01,food,1200,lunch
+2026-11-02,books,3300,"Haskell, the book"
+2026-11-03,food,800,
+2026-11-05,travel,5400,train
+2026-11-08,food,1500,"dinner with ""friends"""
+2026-11-09,books,2200,manga

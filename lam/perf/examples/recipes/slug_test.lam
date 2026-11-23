@@ -1,0 +1,15 @@
+-- ✅ The tests of Slug: some examples, and two properties.
+-- Slug のテスト：例をいくつかと、性質を2つ
+import Slug (slug)
+
+tests : [Test]
+tests =
+  [ Test.equal "a title" (slug "Login fails!") "login-fails"
+  , Test.equal "spaces at the ends" (slug "  Hello,  Lam  ") "hello-lam"
+  , Test.equal "only signs" (slug "!!!") ""
+  -- A slug only has small letters, digits and "-".
+  -- slug には小文字と数字と「-」しかない
+  , Test.property "only safe letters" (\t -> slug t =~ re"^[a-z0-9-]*$")
+  -- Making a slug of a slug changes nothing.
+  -- slug の slug は、同じ slug
+  , Test.property "twice is once" (\t -> slug (slug t) == slug t) ]

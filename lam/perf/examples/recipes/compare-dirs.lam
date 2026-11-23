@@ -1,0 +1,32 @@
+-- 🔍 Compare two folders by the contents of their files, like
+--    diff -rq: only in one, only in the other, or different.
+-- 2つのフォルダーを、ファイルの中身でくらべる（diff -rq のように）
+
+-- 🔑 The files under a folder: the path inside it -> the hash.
+-- フォルダーの下のファイル：中の道 → ハッシュ
+hashes : String -> IO (Result String (Map String String))
+hashes dir = do
+  paths <- File.glob f"{dir}/**/*" ?
+  found <- mapM (\path -> do
+      file <- File.isFile path
+      if not file then pure (Ok Nothing) else do
+        hash <- Hash.file path ?
+        let inside = String.drop (String.length dir + 1) path
+        pure (Ok (Just (inside, Bytes.toHex hash)))) paths
+  pairs <- pure (map (mapMaybe id) (Result.combine found)) ?
+  pure (Ok (Map.fromList pairs))
+
+--- Compare two folders
+-- 2つのフォルダーをくらべる
+main : { old : String, new : String } -> IO (Result String ())
+main o = do
+  a <- hashes o.old ?
+  b <- hashes o.new ?
+  let names = Set.toList (Set.fromList (Map.keys a ++ Map.keys b))
+  forEach names (\name ->
+    case (Map.lookup name a, Map.lookup name b) of
+      | (Just _, Nothing) -> putStrLn f"- {name}"
+      | (Nothing, Just _) -> putStrLn f"+ {name}"
+      | (Just x, Just y) -> when (x /= y) (putStrLn f"~ {name}")
+      | _ -> pure ())
+  pure (Ok ())

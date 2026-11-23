@@ -1,0 +1,10 @@
+💻 $ lam -e 'main = do
+      text <- readFile "app.log" ?
+      let stamp l = toMaybe (Time.fromIso (String.take 25 l))
+      let times = mapMaybe stamp (lines text)
+      case (times, last times) of
+        | (first : _, Just final) ->
+            let s = Time.diffSeconds final first in
+            putStrLn f"{s // 3600}:{s // 60 % 60:02}:{s % 60:02}"
+        | _ -> putStrLn "no times"
+      pure (Ok ())'

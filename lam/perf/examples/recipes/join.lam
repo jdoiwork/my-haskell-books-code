@@ -1,0 +1,19 @@
+-- 🤝 Add the names of the users (CSV) to the requests (JSON Lines).
+-- リクエスト（JSON Lines）に、名簿（CSV）の名前を足す
+
+main : { users : String, log : String } -> IO (Result String ())
+main o = do
+  text <- readFile o.users ?
+  rows <- pure (Result.mapError Decode.explain (Csv.parse text)) ?
+  -- 📇 user -> name. / user から名前へ
+  let names = Map.fromList (map (\r -> (Map.findWithDefault "" "user" r,
+                                        Map.findWithDefault "" "name" r))
+                                rows)
+  File.forEachLine o.log (\line ->
+    case Json.parse line of
+      | Err e -> IO.ePutStrLn f"skip: {e}"
+      | Ok j ->
+          let user = Maybe.andThen Json.string (Json.get "user" j) ?: "" in
+          let path = Maybe.andThen Json.string (Json.get "path" j) ?: "" in
+          putStrLn f"{Map.lookup user names ?: "(unknown)":<10} {path}") ?
+  pure (Ok ())

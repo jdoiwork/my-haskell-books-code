@@ -1,0 +1,9 @@
+💻 $ lam -ane 'when (field 1 >= "2026-11-24T09:15"
+                  && field 1 < "2026-11-24T10:15") (putStrLn line)' app.log
+2026-11-24T09:15:00+09:00 INFO  GET /books 200 11ms user=go
+2026-11-24T09:15:02+09:00 ERROR GET /export 503 2004ms user=python
+2026-11-24T09:31:45+09:00 INFO  GET /books/7 304 3ms user=python
+2026-11-24T09:47:30+09:00 WARN  GET /search 200 880ms user=ruby
+2026-11-24T10:05:11+09:00 INFO  GET /books 200 13ms user=ts
+2026-11-24T10:05:20+09:00 ERROR POST /books 500 41ms user=go
+2026-11-24T10:12:02+09:00 INFO  GET /books/12 404 4ms user=rust

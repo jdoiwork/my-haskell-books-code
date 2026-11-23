@@ -1,0 +1,1 @@
+lam csv2sqlite.lam expenses.csv money.db

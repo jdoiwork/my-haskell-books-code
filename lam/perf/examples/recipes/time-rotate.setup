@@ -1,0 +1,3 @@
+mkdir logs
+printf 'day 1\n' > logs/app.log
+printf 'day 0\n' > logs/app.log.1

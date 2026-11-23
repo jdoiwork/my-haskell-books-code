@@ -1,0 +1,12 @@
+💻 $ lam fake-api.lam --port 18734 &
+listening on http://localhost:18734/
+
+💻 $ lam check-urls.lam urls.txt
+url         answer
+----------  ----------------
+/users      200
+/slow/300   200
+/slow/5000  no answer in 1 s
+/broken     500
+/html       200
+/nothing    404

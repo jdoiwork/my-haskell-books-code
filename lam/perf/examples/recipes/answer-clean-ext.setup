@@ -1,0 +1,2 @@
+sh make-files.sh
+touch -t "$(date -v-90d +%Y%m%d%H%M)" downloads/logs/data-copy.csv

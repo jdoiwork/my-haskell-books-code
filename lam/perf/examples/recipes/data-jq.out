@@ -1,0 +1,10 @@
+💻 $ lam --jsonl \
+    -ne 'let ms = Maybe.andThen Json.int (Json.get "ms" json) ?: 0 in
+         when (ms >= 100) (putStrLn (Json.show json))' requests.jsonl
+{"ms":640,"path":"/search","status":200,"user":"ts"}
+{"ms":2004,"path":"/export","status":503,"user":"python"}
+
+💻 $ lam --json -pe 'json' books.json
+{"author":"Lambda","tags":["lam","fp"],"title":"Learn Lam","year":2026}
+{"author":"Terminal","tags":["shell"],"title":"Shells, Pipes","year":2019}
+{"author":"Python","tags":[],"title":"Say \"Hi\"","year":2024}

@@ -1,0 +1,38 @@
+#!/usr/bin/env lam
+-- 📜 Grown from lam --print-script=cli: count the status codes of a log,
+--    and show the ones seen --min times or more.
+-- lam --print-script=cli から育てた。ログの状態コードを数え、--min 回
+-- 以上のものを見せる
+
+-- 🔢 field n is the column n (1 is the first; a column that is not
+--    there is "").
+-- field n は n 列目（1 が1列目。ない列は ""）
+fieldOf : [String] -> Int -> String
+fieldOf fields n =
+  case drop (n - 1) fields of
+    | x : _ -> x
+    | [] -> ""
+
+-- 🔁 One line: count its status code (3 digits in the column 5).
+-- 1行：5列目の状態コード（3けた）を数える
+step acc line =
+  let field = fieldOf (words line) in
+  if field 5 =~ m/^\d{3}$/ then Map.insertWith (+) (field 5) 1 acc else acc
+
+-- 📂 The files, one after another ("-" is the standard input).
+-- ファイルを、順に（"-" は標準入力）
+readAll acc files =
+  case files of
+    | [] -> pure (Ok acc)
+    | file : rest -> do
+        next <- File.forLines Ignore file acc (\a _ l -> pure (step a l)) ?
+        readAll next rest
+
+--- Count the status codes of the logs (none: the standard input)
+-- ログの状態コードを数える（なければ標準入力）
+main : { min : Int = 1, files : [String] } -> IO (Result String ())
+main o = do
+  counts <- readAll Map.empty (if null o.files then ["-"] else o.files) ?
+  forEach (Map.toList counts) (\(s, n) ->
+    when (n >= o.min) (putStrLn f"{s} {n}"))
+  pure (Ok ())

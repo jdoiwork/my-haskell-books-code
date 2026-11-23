@@ -1,0 +1,5 @@
+💻 $ lam by-category.lam expenses.csv
+books      5,500
+travel     5,400
+food       3,500
+total     14,400

@@ -1,0 +1,12 @@
+💻 $ lam hook.lam --port 18733 &
+listening on http://localhost:18733/
+
+💻 $ curl -s -w ' %{http_code}\n' -d '{"event": "push"}' localhost:18733/hook
+{"kept":true} 200
+
+💻 $ curl -s -w ' %{http_code}\n' -d 'hello' localhost:18733/hook
+bad request: the body is not JSON
+ 400
+
+💻 $ cat hooks.jsonl
+{"event":"push"}

@@ -1,0 +1,4 @@
+💻 $ lam compare-dirs.lam backup downloads
++ logs/new.txt
+~ notes.txt
+- report.pdf

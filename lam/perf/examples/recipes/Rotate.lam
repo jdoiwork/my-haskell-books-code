@@ -1,0 +1,39 @@
+-- 🔄 Rotate a log, like logrotate: app.log -> app.log.1 -> app.log.2 ...,
+--    keep some old ones (3 if not said), and start an empty app.log.
+-- ログを回す（logrotate のように）。いくつか（言わなければ 3 つ）の古い
+-- ものを残し、空の app.log から始める
+module Rotate exposing (main, nth)
+
+-- 📛 The n-th old one: app.log.1, app.log.2, ...
+-- n 番目の古いもの
+nth : String -> Int -> String
+nth log n = f"{log}.{n}"
+
+-- ➡️ Move one along, if it is there: app.log.1 -> app.log.2.
+-- あれば、1つ送る
+shift : String -> Int -> IO (Result String ())
+shift log n = do
+  there <- File.exists (nth log n)
+  if there then File.rename (nth log n) (nth log (n + 1))
+  else pure (Ok ())
+
+-- 🗑️ Remove a file, if it is there.
+-- あれば消す
+removeIfThere : String -> IO (Result String ())
+removeIfThere path = do
+  there <- File.exists path
+  if there then File.remove path else pure (Ok ())
+
+--- Rotate a log
+-- ログを回す
+main : { keep : Int = 3, log : String } -> IO (Result String ())
+main o = do
+  -- The oldest one goes away first. / いちばん古いものから消す
+  removeIfThere (nth o.log o.keep) ?
+  -- Then from the back: 2 -> 3, 1 -> 2. / 後ろから送る
+  moved <- mapM (shift o.log) (reverse (range 1 (o.keep - 1)))
+  _ <- pure (Result.combine moved) ?
+  File.rename o.log (nth o.log 1) ?
+  writeFile o.log "" ?
+  putStrLn f"rotated {o.log} (keeping {o.keep})"
+  pure (Ok ())

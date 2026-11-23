@@ -1,0 +1,5 @@
+sh make-files.sh
+cp -R downloads backup
+rm downloads/report.pdf
+printf 'buy milk\ncall Rust\ncall Go\n' > downloads/notes.txt
+printf 'see you\n' > downloads/logs/new.txt

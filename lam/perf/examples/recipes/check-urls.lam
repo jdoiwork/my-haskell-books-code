@@ -1,0 +1,26 @@
+-- 🚦 Ask many URLs at once (4 at a time), give each 1 second, and show
+--    what each answered.
+-- たくさんの URL に同時に（4つずつ）聞き、どれにも1秒だけ待って、
+-- 答えを見せる
+
+-- 📨 One URL: its status code, or why there is none.
+-- 1つの URL：状態コードか、ない理由
+check : String -> IO (String, String)
+check url = do
+  answer <- IO.timeout 1000 (Http.send "GET" url Map.empty "")
+  pure (url, case answer of
+               | Nothing -> "no answer in 1 s"
+               | Just (Err e) -> e
+               | Just (Ok r) -> show r.status)
+
+--- Ask the URLs of a file (one in a line) at once
+-- ファイルの URL（1行に1つ）に、同時に聞く
+main : { file : String } -> IO (Result String ())
+main o = do
+  text <- readFile o.file ?
+  let urls = filter (\l -> String.trim l /= "") (lines text)
+  results <- IO.allN 4 (map check urls)
+  putStrLn (Term.table ["url", "answer"]
+              (map (\(u, a) -> [Regex.replace re"^\w+://[^/]+" "" u, a])
+                   results))
+  pure (Ok ())

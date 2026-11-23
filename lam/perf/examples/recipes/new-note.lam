@@ -1,0 +1,28 @@
+-- 🗒️ Make a new note from a template: choose one, give a title, and
+--    the note is written to notes/<title>.md (not over an old one).
+-- ひな形から新しいメモを作る：選んで、題を付けると、notes/<題>.md に
+-- 書く（前のメモの上には書かない）
+
+-- 📋 The templates: a name, and the lines after the title.
+-- ひな形：名前と、題のあとの行
+templates : [(String, String)]
+templates =
+  [ ("meeting", "## Who\n\n## Decided\n\n## Next\n")
+  , ("bug", "## What happened\n\n## Steps\n\n## Expected\n")
+  , ("diary", "## Today\n") ]
+
+--- Make a new note from a template
+-- ひな形から新しいメモを作る
+main : IO (Result String ())
+main = do
+  kind <- Term.select "Template?" (map (\(k, _) -> k) templates)
+  body <- pure (Result.fromMaybe "no template" (Maybe.andThen
+                  (\k -> lookup k templates) kind)) ?
+  title <- Term.ask "Title?"
+  let file = f"notes/{String.toLower (Regex.replaceAll re"\W+" "-" title)}.md"
+  taken <- File.exists file
+  if taken then pure (Err f"{file} is already there") else do
+    _ <- File.makeDir "notes" ?
+    writeFile file f"# {title}\n\n{body}" ?
+    putStrLn f"wrote {file}"
+    pure (Ok ())

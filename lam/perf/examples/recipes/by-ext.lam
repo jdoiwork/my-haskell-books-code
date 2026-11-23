@@ -1,0 +1,40 @@
+-- 📊 How many files of each extension, and how big, under a folder.
+-- フォルダーの下の、拡張子ごとのファイルの数と大きさ
+
+-- 📏 A file and its size; Nothing for a folder.
+-- ファイルとその大きさ。フォルダーなら Nothing
+sizeOf : String -> IO (Result String (Maybe (String, Int)))
+sizeOf path = do
+  file <- File.isFile path
+  if not file then pure (Ok Nothing) else do
+    info <- File.info path ?
+    pure (Ok (Just (path, info.size)))
+
+-- 🔤 The extension in small letters ("JPG" and "jpg" are the same).
+-- 小文字の拡張子（"JPG" も "jpg" も同じ）
+extOf : String -> String
+extOf path =
+  let e = String.toLower (Path.extension path) in
+  if e == "" then "(none)" else e
+
+-- 🧮 A size for people: 5.0 MB, 300 KB, 28 B.
+-- 人が読む大きさ
+human : Int -> String
+human size =
+  if size >= 1024 * 1024 then f"{toFloat size / 1048576.0:.1} MB"
+  else if size >= 1024 then f"{size // 1024} KB"
+  else f"{size} B"
+
+--- Count the files under a folder by extension
+-- フォルダーの下のファイルを、拡張子ごとに数える
+main : { dir : String } -> IO (Result String ())
+main o = do
+  paths <- File.glob f"{o.dir}/**/*" ?
+  found <- mapM sizeOf paths
+  files <- pure (map (mapMaybe id) (Result.combine found)) ?
+  let both (n1, s1) (n2, s2) = (n1 + n2, s1 + s2)
+  let byExt = foldl (\m (p, s) -> Map.insertWith both (extOf p) (1, s) m)
+                    Map.empty files
+  let rows = sortOn (\(_, (_, s)) -> -s) (Map.toList byExt)
+  forEach rows (\(e, (n, s)) -> putStrLn f"{e:<8}{n:>3} files {human s:>9}")
+  pure (Ok ())

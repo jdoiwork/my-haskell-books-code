@@ -1,0 +1,15 @@
+💻 $ lam -e 'main = do
+      paths <- File.glob "downloads/*.*" ?
+      let one p = map (Result.map (\h -> (p, Bytes.toHex h))) (Hash.file p)
+      found <- IO.allN 4 (map one (sort paths))
+      hashes <- pure (Result.combine found) ?
+      forEach hashes (\(p, h) -> putStrLn f"{String.take 12 h}  {p}")
+      pure (Ok ())'
+128e378fbfaa  downloads/My Photo 01.JPG
+baeec59aa415  downloads/archive.zip
+87235a7f2c14  downloads/data.csv
+f1f30bc985f3  downloads/movie.mp4
+33f0d522b615  downloads/my photo 02.jpg
+1b970f33dedd  downloads/notes (1).txt
+1b970f33dedd  downloads/notes.txt
+ef35e2440940  downloads/report.pdf

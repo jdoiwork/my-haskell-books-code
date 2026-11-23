@@ -1,0 +1,5 @@
+💻 $ lam csv2sqlite.lam expenses.csv money.db
+6 rows into money.db
+
+💻 $ sqlite3 money.db 'SELECT count(*), sum(amount) FROM expenses'
+6|14400

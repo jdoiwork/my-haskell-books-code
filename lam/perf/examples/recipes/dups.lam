@@ -1,0 +1,24 @@
+-- 👯 Find the files with the same contents under a folder (by SHA-256).
+-- フォルダーの下の、中身が同じファイルを探す（SHA-256 で）
+
+-- 🔑 A file and the hash of its contents; Nothing for a folder.
+-- ファイルと、その中身のハッシュ。フォルダーなら Nothing
+hashOf : String -> IO (Result String (Maybe (String, String)))
+hashOf path = do
+  file <- File.isFile path
+  if not file then pure (Ok Nothing) else do
+    hash <- Hash.file path ?
+    pure (Ok (Just (Bytes.toHex hash, path)))
+
+--- Find the files with the same contents
+-- 中身が同じファイルを探す
+main : { dir : String } -> IO (Result String ())
+main o = do
+  paths <- File.glob f"{o.dir}/**/*" ?
+  found <- mapM hashOf paths
+  hashed <- pure (map (mapMaybe id) (Result.combine found)) ?
+  let groups = foldl (\m (h, p) -> Map.insertWith (++) h [p] m)
+                     Map.empty hashed
+  forEach (Map.values groups) (\same ->
+    when (length same > 1) (putStrLn (String.join "  =  " (sort same))))
+  pure (Ok ())

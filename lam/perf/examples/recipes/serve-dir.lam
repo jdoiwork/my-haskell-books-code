@@ -1,0 +1,21 @@
+-- 📡 Serve the files of a folder, like python3 -m http.server.
+--    "/" is index.html; a path with ".." is not served.
+-- フォルダーのファイルを配る（python3 -m http.server のように）。
+-- 「/」は index.html。「..」のある道は配らない
+
+-- 📄 The file for a path, if it may be served.
+-- 道に当たるファイル（配ってよければ）
+fileFor : String -> String -> Maybe String
+fileFor dir path =
+  let parts = Http.segments path in
+  if elem ".." parts then Nothing
+  else if null parts then Just (Path.join dir "index.html")
+  else Just (foldl Path.join dir parts)
+
+--- Serve the files of a folder
+-- フォルダーのファイルを配る
+main : { port : Int = 8000, dir : String = "." } -> IO ()
+main o = Http.serve o.port (\req ->
+  case fileFor o.dir req.path of
+    | Nothing -> pure (Response.text 403 "no")
+    | Just file -> Response.file file)

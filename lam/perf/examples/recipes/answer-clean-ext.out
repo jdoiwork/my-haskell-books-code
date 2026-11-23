@@ -1,0 +1,15 @@
+💻 $ lam answer-clean-ext.lam --ext csv downloads/logs
+removed downloads/logs/data-copy.csv
+
+💻 $ lam answer-clean-ext.lam --help
+Usage: answer-clean-ext.lam [OPTIONS] DIR
+
+  Remove the old files of an extension in a folder
+
+Arguments:
+  DIR  [required]
+
+Options:
+  --days INT    [default: 30]
+  --ext STRING  [default: log]
+  --help        Show this message and exit

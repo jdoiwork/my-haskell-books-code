@@ -1,0 +1,11 @@
+💻 $ lam -e 'main = do
+      paths <- File.glob "downloads/**/*" ?
+      infos <- mapM (\p -> map (Result.map (\i -> (i.size, p))) (File.info p))
+                    paths
+      sized <- pure (Result.combine infos) ?
+      forEach (take 3 (sortOn (\(s, _) -> -s) sized))
+        (\(s, p) -> putStrLn f"{s:>10,}  {p}")
+      pure (Ok ())'
+ 5,242,880  downloads/movie.mp4
+ 2,097,152  downloads/archive.zip
+   921,600  downloads/My Photo 01.JPG

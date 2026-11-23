@@ -1,0 +1,23 @@
+-- 🪝 Take webhooks: each POST /hook with a JSON body is kept as one
+--    line of a JSON Lines file. Anything else is a 404.
+-- Webhook を受ける：JSON の本文の POST /hook を、JSON Lines のファイルに
+-- 1行ずつ残す。ほかは 404
+
+-- 📥 One hook: check the body is JSON, then add it to the file.
+-- 1つの hook：本文が JSON かを確かめ、ファイルに足す
+keep : String -> String -> IO Response
+keep file body =
+  case Json.parse body of
+    | Err _ -> pure (Response.badRequest "the body is not JSON")
+    | Ok json -> do
+        added <- File.append file (Json.show json ++ "\n")
+        pure (case added of
+                | Ok _ -> Response.json 200 (JObj {"kept": JBool true})
+                | Err e -> Response.text 500 e)
+
+--- Take webhooks into a file
+-- Webhook をファイルに受ける
+main : { port : Int = 8080, file : String = "hooks.jsonl" } -> IO ()
+main o = Http.serve o.port (\req ->
+  if req.method == "POST" && req.path == "/hook" then keep o.file req.body
+  else pure Response.notFound)

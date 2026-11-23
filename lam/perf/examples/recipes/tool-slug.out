@@ -1,0 +1,8 @@
+💻 $ lam test slug_test.lam
+slug_test.lam (seed 618)
+  ✓ a title
+  ✓ spaces at the ends
+  ✓ only signs
+  ✓ only safe letters
+  ✓ twice is once
+5 tests: 5 passed, 0 failed

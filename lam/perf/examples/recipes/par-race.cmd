@@ -1,0 +1,8 @@
+💻 $ lam fake-api.lam --port 18735 &
+
+💻 $ lam -e 'main = do
+      let get ms = Http.send "GET" f"http://127.0.0.1:18735/slow/{ms}"
+                     Map.empty ""
+      first <- IO.race [get 900, get 100, get 500] ?
+      putStrLn (Http.string first ?: "")
+      pure (Ok ())'

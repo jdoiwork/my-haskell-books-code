@@ -1,0 +1,13 @@
+💻 $ lam --dry-run clean-old.lam downloads/logs
+dry-run: File.remove "downloads/logs/forty-days.log"
+removed downloads/logs/forty-days.log
+dry-run: File.remove "downloads/logs/sixty-days.log"
+removed downloads/logs/sixty-days.log
+
+💻 $ lam clean-old.lam --days 50 downloads/logs
+removed downloads/logs/sixty-days.log
+
+💻 $ ls downloads/logs
+data-copy.csv
+forty-days.log
+today.log

@@ -1,0 +1,26 @@
+-- ⚙️ Read the settings of the shelf (TOML), and say what is wrong.
+-- 本棚の設定（TOML）を読み、まちがいを言う
+
+type alias Config =
+  { host : String, port : Int, perPage : Int, owners : [String] }
+
+-- 🔍 Where each setting is in the TOML.
+-- それぞれの設定が、TOML のどこにあるか
+config : Decoder Config
+config =
+  Decode.map4
+    (\h p n o -> { host = h, port = p, perPage = n, owners = o })
+    (Decode.at ["server", "host"] Decode.string)
+    (Decode.at ["server", "port"] Decode.int)
+    (Decode.at ["shelf", "per_page"] Decode.int)
+    (Decode.at ["shelf", "owners"] (Decode.list Decode.string))
+
+--- Check the settings of the shelf
+-- 本棚の設定を確かめる
+main : { file : String } -> IO (Result String ())
+main o = do
+  text <- readFile o.file ?
+  c <- pure (Result.mapError Decode.explain (Toml.decode config text)) ?
+  putStrLn f"ok: {c.host}:{c.port}, {c.perPage} a page"
+  putStrLn f"owners: {String.join ", " c.owners}"
+  pure (Ok ())

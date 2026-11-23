@@ -1,0 +1,12 @@
+-- 🐌 Make a slug from a title, for a file name or a URL:
+--    "Login fails!" -> "login-fails".
+-- 題から、ファイルの名前や URL に使う slug を作る
+module Slug exposing (slug)
+
+-- ✂️ Small letters; each run of other things becomes one "-", and
+--    there is no "-" at the ends.
+-- 小文字に。英数字でないものの並びは「-」1つに。両端には「-」を置かない
+slug : String -> String
+slug title =
+  let dashed = Regex.replaceAll re"[^a-z0-9]+" "-" (String.toLower title) in
+  Regex.replaceAll re"^-|-$" "" dashed
