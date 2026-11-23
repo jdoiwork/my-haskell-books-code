@@ -27,7 +27,7 @@ import Data.Either (isLeft, isRight)
 
 import Lam.Module
 import Data.Void (Void)
-import Text.Megaparsec (ParseErrorBundle, eof)
+import Text.Megaparsec (ParseErrorBundle, eof, errorBundlePretty)
 import Data.Functor.Identity (Identity, runIdentity)
 import Control.Monad.State.Strict (modify, runState)
 import Control.Monad (foldM)
@@ -59,7 +59,7 @@ import Lam.Shell (displayWidth, quoteWord, stripStyles)
 import Lam.Server (webRequest)
 import Lam.Bundle
 import Lam.Settings (allowedOnDryRun, loadSettings, readSettings)
-import Lam.Toolbox (csvLines, numberedRows)
+import Lam.Toolbox (csvLines, numberedRows, tomlLine)
 import Lam.TestRun
 import Lam.Answers (matching, readMatch)
 import Lam.Sqlite
@@ -72,7 +72,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Crypto.Hash.SHA256 as Sha
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import System.Directory (getTemporaryDirectory, removeFile)
-import System.IO (hClose, openTempFile)
+import System.IO (hClose, openTempFile, openBinaryTempFile)
 import System.Process (readProcessWithExitCode)
 -- ANCHOR_END: head
 
@@ -525,6 +525,13 @@ loadPlain :: Session -> FilePath -> Text -> Either Text (Session, Maybe Text)
 loadPlain session file source =
   runIdentity (loadProgram noFiles preludeSession session file source)
     >>= finalText
+
+-- 🗑️ The warning for a Result thrown away, after its place.
+-- 捨てた Result への警告（場所のあと）
+droppedText :: Text
+droppedText = "warning: the Result of this line is thrown away: write ? \
+  \at the end of the line to stop at an Err, or _ <- (or 🗑️ <-) to \
+  \throw it away"
 
 -- 🥇 Golden test: the output must be the same as the .out file.
 -- ゴールデンテスト：出力が .out ファイルと同じであること
@@ -3727,8 +3734,11 @@ main = hspec $ do
     -- 「大きなファイル（テストの中で作る）を、本物の世界で1行ずつ数える」
     it "counts a big file of the real world, one line at a time" $ do
       dir <- getTemporaryDirectory
-      let path = dir </> "lam-outside-big.log"
-          statuses = cycle ["200", "200", "304", "404", "200", "500"]
+      -- A name of its own: the tests of other stages may run at once.
+      -- 自分だけの名前：ほかの段階のテストが同時に動くかもしれない
+      (path, made) <- openBinaryTempFile dir "lam-outside-big.log"
+      hClose made
+      let statuses = cycle ["200", "200", "304", "404", "200", "500"]
           lines' = [ "t GET / " <> s <> " 1ms" | s <- take 200000 statuses ]
       B.writeFile path (encodeUtf8 (T.unlines lines'))
       source <- Utf8.readFile "examples/streams/count.lam"
@@ -4408,7 +4418,8 @@ main = hspec $ do
             <> "Err \"https://x.test/none: cannot connect\")"
         , "(Err (BadStatus 404 (JObj {\"error\": JStr \"no\"})), Ok 200)"
         , "(Ok 1, Err \".: missing field \\\"m\\\"\")"
-        , "Err \"object value: not enough input\"" ]
+        , "Err \"the answer is not JSON (no content-type; "
+            <> "it begins with \\\"{\\\\\\\"n\\\\\\\": \\\")\"" ]
     -- ANCHOR_END: readers
 
     -- ANCHOR: queryAsTest
@@ -4967,6 +4978,14 @@ main = hspec $ do
         [ "branch    author", "--------  ------"
         , "機能/表   Ruby", "fix-typo  Python" ]
       map columnOf shown `shouldBe` [10, 10, 10, 10]
+    -- 「表に印は入らない。マスの改行は ⏎ で、行は1行のまま」
+    it "puts no styles in a table, and keeps a row in one line" $ do
+      let source = T.unlines
+            [ "main = putStrLn (Term.table [\"api\", \"body\"]"
+            , "  [[\"slow\", \"not found\\n\"], [\"tab\", \"a\\tb\"]])" ]
+      T.lines (outputOf (snd (script emptyWorld source))) `shouldBe`
+        [ "api   body", "----  ----------"
+        , "slow  not found⏎", "tab   a b" ]
     -- 「漢字は2桁、印は0桁」
     it "counts the columns of a text" $
       map displayWidth ["abc", "機能", "\ESC[31mred\ESC[0m", "が"]
@@ -5093,6 +5112,19 @@ main = hspec $ do
       one ["--decoding=strict", "-ne", "x", "--", "-"] `shouldBe` Right
         (RunOneLiner noOneLiner { oneProgram = ["x"], oneMode = EachLine
                                 , oneDecoding = Just Strict } ["-"])
+    -- 「--print-script は、プログラムの後ろにも書ける。ほかの lam の
+    -- フラグは、-e より前に、と言う」
+    it "takes --print-script after the program too, and no other flag" $ do
+      let one args = fmap snd (readCommand args Nothing)
+      one ["-ne", "x", "--print-script=plain", "a.log"] `shouldBe` Right
+        (RunOneLiner noOneLiner { oneProgram = ["x"], oneMode = EachLine
+                                , oneScript = Just PlainForm } ["a.log"])
+      one ["-ne", "x", "--", "--print-script"] `shouldBe` Right
+        (RunOneLiner noOneLiner { oneProgram = ["x"], oneMode = EachLine }
+           ["--print-script"])
+      one ["-ne", "x", "--dry-run", "a.log"] `shouldBe`
+        Left "lam: --dry-run goes before -e (after the program come the \
+             \files)"
     -- 「一緒に使えないフラグや、知らないフラグは、動かす前に止める」
     it "stops flags that do not go together, before running" $
       map (either Left (const (Right ())) . flip readCommand Nothing)
@@ -5764,8 +5796,34 @@ main = hspec $ do
       , "hardening/nested", "hardening/keys", "hardening/broken/forgot"
       , "hardening/broken/plain-main", "hardening/broken/number"
       , "hardening/broken/outer", "hardening/broken/ring"
-      , "hardening/cells", "hardening/broken/liar" ]
+      , "hardening/cells", "hardening/broken/liar", "hardening/dropped" ]
     -- ANCHOR_END: hardeningGolden
+    -- ANCHOR: droppedTest
+    -- 「Result を捨てた行だけに警告。_ <- と 🗑️ <-、Maybe、最後の行は
+    --   言わない。ラムダの中の do でも言う」
+    it "warns about a Result thrown away, and only about that" $ do
+      let warned source = fmap (sessionWarnings . fst)
+            (loadPlain preludeSession "d.lam" source)
+      warned (T.unlines
+        [ "main = do"
+        , "  writeFile \"a\" \"x\""
+        , "  _ <- writeFile \"b\" \"x\""
+        , "  🗑️ <- writeFile \"c\" \"x\""
+        , "  🗑 <- writeFile \"d\" \"x\""
+        , "  lookupEnv \"HOME\""
+        , "  forEach [1, 2] (\\n -> do"
+        , "    writeFile f\"{n}\" \"x\""
+        , "    putStrLn \"one\")"
+        , "  writeFile \"e\" \"x\"" ])
+        `shouldBe` Right
+          [ "d.lam:2:3: " <> droppedText, "d.lam:8:5: " <> droppedText ]
+    -- 「🗑️ は、パターンの _ と同じ」
+    it "reads 🗑️ as _ in any pattern" $
+      fmap snd (loadPlain preludeSession "w.lam"
+        "f 🗑️ = case Just 3 of\n  | Just 🗑️ -> 1\n  | 🗑 -> 2\n\
+        \(\\🗑️ -> f 0) 9\n")
+        `shouldBe` Right (Just "1 : Int")
+    -- ANCHOR_END: droppedTest
     -- ANCHOR: orderProp
     -- 「いちばん外の定義は、どの順に並べても同じ答え」
     it "gives the same answer in any order of the definitions" $
@@ -5826,6 +5884,62 @@ main = hspec $ do
 
   -- 「道具を補強する」
   describe "sturdier tools" $ do
+    -- ANCHOR: namesMore
+    -- 「見直し4の名前：unique は Set で、ほかの名前も、探す所で見つかる」
+    it "finds the names where one looks for them" $
+      runLines
+        [ "unique [3, 1, 3, 2, 1]"
+        , "uniqueBy (\\a b -> a % 10 == b % 10) [11, 21, 3]"
+        , "length (unique (range 1 20000))"
+        , "Result.combine [Ok 1, Err \"x\", Err \"y\"]"
+        , "Map.findWithDefault 0 \"a\" {\"b\": 1}"
+        , "(last [1, 2, 3], List.mapMaybe String.toInt [\"1\", \"x\"])"
+        , "(String.length \"abc\", trim \" a \", List.groupBy (==) [1, 1, 2])"
+        , ":t String.padLeft"
+        , "String.size \"a\""
+        , "startsWit \"a\" \"abc\""
+        , "split \",\" \"a,b\""
+        , "String.reverse \"ab\" == reverse \"ab\"" ]
+        `shouldBe`
+          [ "[3, 1, 2] : [Int]"
+          , "[11, 3] : [Int]"
+          , "20000 : Int"
+          , "Err \"x\" : Result String [Int]"
+          , "0 : Int"
+          , "(Just 3, [1]) : (Maybe Int, [Int])"
+          , "(3, \"a\", [[1, 1], [2]]) : (Int, String, [[Int]])"
+          , "Int -> String -> String"
+          , "type error: unknown name: String.size"
+          , "type error: unknown name: startsWit"
+          , "type error: unknown name: split (did you mean String.split?)"
+          , "true : Bool" ]
+    -- 「Csv.encode は、カンマ・引用符・改行のあるマスを引用符で囲む」
+    it "writes CSV, with quotes where they are needed" $
+      runLines [ "Csv.encode [\"a\", \"b\"] [[\"x,y\", \"say \\\"hi\\\"\"], [\"1\", \"2\"]]" ]
+        `shouldBe`
+          [ "\"a,b\\n\\\"x,y\\\",\\\"say \\\"\\\"hi\\\"\\\"\\\"\\n1,2\\n\" : String" ]
+    -- 「Csv.encode で書いて Csv.parse で読むと、元の表」
+    it "reads back what Csv.encode wrote" $
+      property $ forAll (listOf1 (vectorOf 2 genCsvText)) $ \rows ->
+        let cells = map (\r -> "[" <> T.intercalate ", "
+                                   (map renderString r) <> "]") rows
+            table = "[" <> T.intercalate ", " cells <> "]"
+            back = "Csv.parse (Csv.encode [\"p\", \"q\"] " <> table <> ")"
+              <> " |> Result.map (List.map (\\r -> "
+              <> "[Map.findWithDefault \"\" \"p\" r, "
+              <> "Map.findWithDefault \"\" \"q\" r]))"
+        in runLines ["(" <> back <> ") == Ok " <> table]
+             === ["true : Bool"]
+    -- 「TOML の問題は、ファイルの行で」
+    it "tells the line of a TOML key" $
+      map (tomlLine (T.unlines
+            [ "dest = \"/tmp/x\"", "prune = \"yes\"", ""
+            , "[[source]]", "dir = \"/a\"", "", "[[source]]"
+            , "pattern = \"*.md\"", "", "[shop]", "tags = [1, 2]" ]))
+        [".prune", ".source[0].dir", ".source[1]", ".source[1].dir"
+        , ".shop.tags[1]", ".nothere", ""]
+        `shouldBe` [Just 2, Just 5, Just 7, Just 7, Just 11, Nothing, Nothing]
+    -- ANCHOR_END: namesMore
     -- ANCHOR: toolboxGolden
     -- 「章の例を、偽物の世界で」
     mapM_ golden
@@ -5966,6 +6080,16 @@ main = hspec $ do
   -- ANCHOR: testingSpec
   -- 「テストとデバッグ」
   describe "tests and debugging" $ do
+    -- 「import tip には、どうすればよいかを言う」
+    it "tells how to import a script whose name is small" $
+      either (T.pack . errorBundlePretty) (const "")
+        (runLamParser Map.empty (spaces *> importLine) "tip_test.lam"
+           "import tip")
+        `shouldBe` T.unlines
+          [ "tip_test.lam:1:8:", "  |", "1 | import tip", "  |        ^"
+          , "a module name begins with a capital letter: put module Tip \
+            \exposing (..) at the top of tip.lam, name the file Tip.lam, \
+            \and import Tip" ]
     -- ANCHOR: testGolden
     -- 「lam test が書くものは、ファイルの隣の .out と同じ」
     mapM_ testGolden
@@ -6343,6 +6467,11 @@ replAfter file inputs = do
 
 -- 🖨️ A list of numbers as Lam source (negative ones in brackets).
 -- 数のリストを Lam のソースに（負の数は括弧で）
+-- 🎲 A cell of CSV: letters, commas, quotes, line breaks, spaces.
+-- CSV のマス：文字・カンマ・引用符・改行・空白
+genCsvText :: Gen Text
+genCsvText = T.pack <$> listOf1 (elements "ab,\"\n λ")
+
 lamList :: [Integer] -> Text
 lamList xs = "[" <> T.intercalate ", " (map num xs) <> "]"
 -- ANCHOR_END: replAfter

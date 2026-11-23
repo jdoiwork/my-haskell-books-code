@@ -26,6 +26,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
+import Data.String (fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -33,6 +34,7 @@ import qualified Data.Text.Encoding.Error as TE
 import qualified Network.HTTP.Types as HT
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
+import System.Environment (lookupEnv)
 
 import Lam.Builtins
 import Lam.Eval
@@ -251,8 +253,15 @@ serveWarp run handle port = do
       pure (Left (Failed (BuiltinFailed "Http.serve" why)))
     _ -> do
       stopped <- newEmptyMVar
+      -- ANCHOR: host
+      -- Only this machine, unless LAM_HOST says more: in a container,
+      -- LAM_HOST=0.0.0.0 lets the requests from outside it in.
+      -- このマシンだけ。LAM_HOST があればそれ：コンテナーの中では、
+      -- LAM_HOST=0.0.0.0 で、外からの頼みを入れる
+      host <- maybe "127.0.0.1" fromString <$> lookupEnv "LAM_HOST"
+      -- ANCHOR_END: host
       let settings = Warp.setPort port
-                   $ Warp.setHost "127.0.0.1"
+                   $ Warp.setHost host
                    $ Warp.setBeforeMainLoop (listening handle port)
                    $ Warp.defaultSettings
           app wreq respond = do

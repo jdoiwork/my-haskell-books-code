@@ -1,0 +1,4 @@
+# Only the source goes into the build: not what cabal built here.
+# ビルドに入れるのはソースだけ。ここで cabal が作ったものは入れない
+dist-newstyle
+test

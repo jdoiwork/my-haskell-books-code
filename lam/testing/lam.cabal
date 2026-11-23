@@ -145,6 +145,10 @@ executable lam
   import:           shared
   main-is:          Main.hs
   hs-source-dirs:   app
+  -- The version for lam --version.
+  -- lam --version のための版
+  other-modules:    Paths_lam
+  autogen-modules:  Paths_lam
   -- +RTS -s: how much memory a script took (see the morning's log).
   -- +RTS -s：スクリプトがどれだけメモリを使ったか（朝のログで見る）
   -- ANCHOR: threaded

@@ -10,8 +10,11 @@ module Lam.Toolbox
   ( toolboxBuiltins
   , csvLines
   , numberedRows
+  , tomlLine
   ) where
 
+import Data.Char (isDigit)
+import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -25,7 +28,7 @@ import Lam.Types
 -- 📋 The rows to add to the table of builtins.
 -- 組み込みの関数の表に足す行
 toolboxBuiltins :: [Builtin]
-toolboxBuiltins = stringNames <> [numberedRowsBuiltin]
+toolboxBuiltins = stringNames <> [numberedRowsBuiltin, tomlPlaceBuiltin]
 -- ANCHOR_END: table
 
 -- ANCHOR: stringNames
@@ -143,4 +146,78 @@ csvLines = rows 1 . T.unpack
       '\r' : '\n' : _ -> True
       _               -> False
 -- ANCHOR_END: csvLines
+
+-- ANCHOR: tomlPlace
+-- 📍 Toml.place: the path of a problem (.source[0].dir), as a line of
+--    the file (line 5, source[0].dir). The path stays as it is when no
+--    line has that key.
+-- Toml.place：問題の道筋（.source[0].dir）を、ファイルの行で（line 5,
+-- source[0].dir）。そのキーの行がなければ、道筋はそのまま
+tomlPlaceBuiltin :: Builtin
+tomlPlaceBuiltin =
+  prim2 "Toml.place" (tString ~> tString ~> tString) $ \v p -> do
+    text <- string v
+    path <- string p
+    Right $ VString $ case tomlLine text path of
+      Just n  -> "line " <> T.pack (show n) <> ", " <> T.dropWhile (== '.') path
+      Nothing -> path
+-- ANCHOR_END: tomlPlace
+
+-- ANCHOR: tomlLine
+-- 🔎 The line (from 1) where a path is written: a key = value line
+--    under its [table] or [[array of tables]] (counted from 0), or the
+--    header of a table. A path into a value (.tags[1]) takes the line of
+--    its key. Only the common shapes: inline tables and keys in quotes
+--    with dots are not looked into.
+-- 道筋が書いてある行（1 から）：[表] や [[表の配列]]（0 から数える）の下の
+-- キー = 値 の行か、表の見出し。値の中への道筋（.tags[1]）は、そのキーの
+-- 行。よくある形だけ：インラインの表や、点のある引用符のキーは見ない
+tomlLine :: Text -> Text -> Maybe Int
+tomlLine text path = best (steps path)
+  where
+    -- The line of the path, or else of the longest part of it.
+    -- 道筋の行。なければ、いちばん長い前の部分の行
+    best target
+      | null target = Nothing
+      | Just n <- lookup target written = Just n
+      | otherwise = best (init target)
+    written = go [] Map.empty (zip [1 ..] (T.lines text))
+    go _ _ [] = []
+    go header counts ((n, raw) : rest)
+      | "[[" `T.isPrefixOf` line =
+          let keys = dotted (T.dropEnd 2 (T.drop 2 line))
+              i = Map.findWithDefault 0 keys counts
+              here = map Named keys <> [At i]
+          in (here, n) : go here (Map.insert keys (i + 1) counts) rest
+      | "[" `T.isPrefixOf` line =
+          let here = map Named (dotted (T.dropEnd 1 (T.drop 1 line)))
+          in (here, n) : go here counts rest
+      | (key, rest') <- T.breakOn "=" line, not (T.null rest')
+      , not (T.null (T.strip key)) =
+          (header <> map Named (dotted key), n) : go header counts rest
+      | otherwise = go header counts rest
+      where
+        line = T.strip raw
+    dotted = map (T.dropAround (`elem` ("\"'" :: String)) . T.strip)
+           . T.splitOn "."
+
+-- 🧭 A path as jq writes it, in steps:  .source[0].dir  is
+--    source, 0, dir.
+-- jq の書き方の道筋を、1歩ずつに
+data Step = Named Text | At Int
+  deriving (Eq, Show)
+
+steps :: Text -> [Step]
+steps = go . T.unpack
+  where
+    go cs = case cs of
+      [] -> []
+      '.' : rest -> go rest
+      '[' : rest ->
+        let (digits, more) = span isDigit rest
+        in At (read digits) : go (drop 1 more)
+      _ ->
+        let (key, more) = break (`elem` (".[" :: String)) cs
+        in Named (T.pack key) : go more
+-- ANCHOR_END: tomlLine
 -- ANCHOR_END: all

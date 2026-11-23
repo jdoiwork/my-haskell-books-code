@@ -63,7 +63,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Crypto.Hash.SHA256 as Sha
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import System.Directory (getTemporaryDirectory, removeFile)
-import System.IO (hClose, openTempFile)
+import System.IO (hClose, openTempFile, openBinaryTempFile)
 -- ANCHOR_END: head
 
 -- 📋 The operators of the Prelude (every file starts with them).
@@ -3597,8 +3597,11 @@ main = hspec $ do
     -- 「大きなファイル（テストの中で作る）を、本物の世界で1行ずつ数える」
     it "counts a big file of the real world, one line at a time" $ do
       dir <- getTemporaryDirectory
-      let path = dir </> "lam-outside-big.log"
-          statuses = cycle ["200", "200", "304", "404", "200", "500"]
+      -- A name of its own: the tests of other stages may run at once.
+      -- 自分だけの名前：ほかの段階のテストが同時に動くかもしれない
+      (path, made) <- openBinaryTempFile dir "lam-outside-big.log"
+      hClose made
+      let statuses = cycle ["200", "200", "304", "404", "200", "500"]
           lines' = [ "t GET / " <> s <> " 1ms" | s <- take 200000 statuses ]
       B.writeFile path (encodeUtf8 (T.unlines lines'))
       source <- Utf8.readFile "examples/streams/count.lam"
@@ -4278,7 +4281,8 @@ main = hspec $ do
             <> "Err \"https://x.test/none: cannot connect\")"
         , "(Err (BadStatus 404 (JObj {\"error\": JStr \"no\"})), Ok 200)"
         , "(Ok 1, Err \".: missing field \\\"m\\\"\")"
-        , "Err \"object value: not enough input\"" ]
+        , "Err \"the answer is not JSON (no content-type; "
+            <> "it begins with \\\"{\\\\\\\"n\\\\\\\": \\\")\"" ]
     -- ANCHOR_END: readers
 
     -- ANCHOR: queryAsTest

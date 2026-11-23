@@ -1814,6 +1814,33 @@ httpSource = """
     | BadBody String         -- the body could not be read (bad JSON)
   -- ANCHOR_END: httpError
 
+  -- ANCHOR: notJson
+  -- text/html; charset=utf-8  →  text/html
+  kindOf : String -> String
+  kindOf k =
+    case String.split ";" k of
+      | first : _ -> String.trim first
+      | [] -> k
+
+  -- The first 20 letters, and … if there are more.
+  -- 頭の20文字（もっとあれば …）
+  beginning : String -> String
+  beginning s =
+    if length s > 20 then String.take 20 s ++ "…" else s
+
+  -- 🙅 A body that is not JSON (an HTML page "under maintenance",
+  --    ...): say its kind and how it begins, not the words of the JSON
+  --    reader.
+  -- JSON でない本文（「メンテナンス中」の HTML のページなど）：JSON の
+  -- 読み手の言葉ではなく、本文の種類と頭を言う
+  notJson : Response -> String
+  notJson r =
+    f"the answer is not JSON ({kind}; it begins with {show start})"
+    where
+      kind = kindOf (header "content-type" r ?: "no content-type")
+      start = beginning (String.replace "\\n" " " r.body)
+  -- ANCHOR_END: notJson
+
   -- ANCHOR: readers
   -- 📖 Readers: how to read the body of an answer.
   -- 読み方：答えの本文を、どう読むか
@@ -1821,7 +1848,7 @@ httpSource = """
   string r = Ok r.body
 
   json : Response -> Result String Json
-  json r = Json.parse r.body
+  json r = Json.parse r.body |> Result.mapError (\\_ -> notJson r)
 
   response : Response -> Result String Response
   response r = Ok r
@@ -1834,7 +1861,9 @@ httpSource = """
   -- する：Decode.explain で、1つにつき1行
   expectJson : Decoder a -> Response -> Result String a
   expectJson d r =
-    Decode.fromString d r.body |> Result.mapError Decode.explain
+    case Json.parse r.body of
+      | Ok j -> Decode.run d j |> Result.mapError Decode.explain
+      | Err _ -> Err (notJson r)
   -- ANCHOR_END: expectJson
 
   -- ANCHOR: request

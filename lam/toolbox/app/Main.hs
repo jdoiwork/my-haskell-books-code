@@ -10,7 +10,7 @@
 module Main (main) where
 
 import Control.Exception (NonTermination (..), evaluate, try)
-import Control.Monad (forM_, unless)
+import Control.Monad (forM_, unless, when)
 import Data.IORef (newIORef, readIORef)
 import Data.List (nub, stripPrefix)
 import Control.Monad.IO.Class (liftIO)
@@ -18,6 +18,8 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Text.IO.Utf8 as Utf8
 import System.Console.Haskeline
+import Data.Version (showVersion)
+import qualified Paths_lam as Paths
 import System.Environment (getArgs, lookupEnv, withArgs)
 import System.Exit (ExitCode (..), exitWith)
 import System.FilePath (dropExtension, splitSearchPath, takeFileName)
@@ -55,6 +57,11 @@ main = do
     (Just (b, included), _) ->
       runWith (bundleFiles b) (Just (bundleAllowed b)) (withIncluded included)
         (bundleFlags b <> [bundleMain b] <> given)
+    -- lam --help and lam --version: alone, as the first word.
+    -- lam --help と lam --version：最初の語に、1つだけで
+    (Nothing, ["--help"]) -> TIO.putStr (usage <> oneLinerUsage)
+    (Nothing, ["--version"]) ->
+      putStrLn ("lam " <> showVersion Paths.version)
     (Nothing, "compile" : rest) -> compile rest
     (Nothing, _) -> realFiles >>= \files -> runWith files Nothing id given
 -- ANCHOR_END: main
@@ -194,6 +201,13 @@ answerLine world session text =
 loadFile :: Handler IO -> Session -> FilePath -> IO Session
 loadFile world session file = do
   source <- Utf8.readFile file
+  -- A file with nothing in it (left by a | tee whose lam stopped, ...)
+  -- runs nothing: say so, so the quiet is not taken for success.
+  -- 中身のないファイル（lam が止まった | tee が残したものなど）は、何も
+  -- しない。黙って終わると、うまくいったと思われるので、知らせる
+  when (T.null (T.strip source)) $
+    TIO.hPutStrLn stderr ("lam: warning: " <> T.pack file
+                            <> " is empty: there is nothing to run")
   files  <- realFiles
   loaded <- loadProgram files preludeSession session file source
   case loaded of

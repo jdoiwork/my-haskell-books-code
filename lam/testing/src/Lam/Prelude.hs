@@ -283,7 +283,7 @@ listSource = """
 resultSource :: Text
 resultSource = """
   module Result exposing
-    (Result (..), map, bind, andThen, fromMaybe, mapError)
+    (Result (..), map, bind, andThen, fromMaybe, mapError, combine)
 
   -- A result that may be an error
   -- エラーかもしれない結果
@@ -316,6 +316,16 @@ resultSource = """
       | Ok x -> Ok x
       | Err e -> Err (f e)
   -- ANCHOR_END: mapError
+  -- ANCHOR: combine
+  -- Many Results as one: Ok with all the values, or the first Err
+  -- (Elm's Result.Extra.combine, Haskell's sequence).
+  -- たくさんの Result を1つに：全部の値の Ok か、最初の Err
+  -- （Elm の Result.Extra.combine、Haskell の sequence）
+  let combine rs =
+    case rs of
+      | [] -> Ok []
+      | r : rest -> bind r (\\x -> map (\\xs -> x : xs) (combine rest))
+  -- ANCHOR_END: combine
   """
 -- ANCHOR_END: result
 
@@ -338,6 +348,7 @@ basicsSource = """
   infixl 8 intDiv as //
   infixl 8 divMaybe as /?
   infixl 8 intDivMaybe as //?
+  infixl 8 mod as %
   infixl 7 add as +
   infixl 7 sub as -
   infixr 6 append as ++
@@ -637,11 +648,6 @@ basicsSource = """
   -- The items that pass, and those that do not
   -- 合うものと、合わないもの
   let partition p xs = (filter p xs, filter (\\x -> not (p x)) xs)
-  -- Each item once, in the order they first came
-  -- 同じものは1つだけ。最初に出てきた順
-  let unique xs =
-    List.foldl (\\seen x -> if elem x seen then seen else seen ++ [x])
-      [] xs
   -- ANCHOR_END: lists
 
   -- ANCHOR: toolboxLists
@@ -667,6 +673,46 @@ basicsSource = """
           (x : takeWhile (same x) rest)
             : groupBy same (dropWhile (same x) rest)
   -- ANCHOR_END: toolboxLists
+
+  -- ANCHOR: toolboxUnique
+  -- Each item once, in the order they first came. What was seen is
+  -- kept in a Set, so each item is looked up in log n steps, not in
+  -- the whole list: 100000 items take a moment, not an hour (Python's
+  -- dict.fromkeys).
+  -- 同じものは1つだけ。最初に出てきた順。見たものは Set に覚えるので、
+  -- 1つを探すのは log n 回で、リスト全体ではない（Python の
+  -- dict.fromkeys）
+  let unique xs =
+    let keep acc x =
+          case acc of
+            | (seen, kept) ->
+                if Set.member x seen then acc
+                else (Set.insert x seen, x : kept)
+    in reverse (snd (List.foldl keep (Set.empty, []) xs))
+  -- Each item once, by a test of your own: for items that a Set cannot
+  -- hold (functions, ...), or "the same" of your own. It looks at all it
+  -- kept, so n × n steps (Haskell's nubBy).
+  -- 自分で決めた「同じ」で、1つずつ。Set に入らないもの（関数など）や、
+  -- 自分の「同じ」のために。残したもの全部を見るので、n × n 回
+  -- （Haskell の nubBy）
+  let uniqueBy same xs =
+    let keep kept x =
+          if List.any (same x) kept then kept else x : kept
+    in reverse (List.foldl keep [] xs)
+  -- The last item, if there is one.
+  -- 最後の要素（あれば）
+  let last xs =
+    case xs of
+      | [] -> Nothing
+      | [x] -> Just x
+      | _ : rest -> last rest
+  -- The Just values of f, the Nothings left out (Haskell's mapMaybe).
+  -- f の Just の値だけ。Nothing は飛ばす（Haskell の mapMaybe）
+  let mapMaybe f xs =
+    List.foldr (\\x rest -> case f x of
+                             | Just y -> y : rest
+                             | Nothing -> rest) [] xs
+  -- ANCHOR_END: toolboxUnique
 
   -- ANCHOR: sort
   -- Sort by a key, the smallest first (List.sortBy, a merge sort). Two
@@ -734,6 +780,17 @@ stringSource = """
 mapSource :: Text
 mapSource = """
   module Map exposing (..)
+
+  -- ANCHOR: findWithDefault
+  -- The value of k, or d when k is not there (Haskell's
+  -- findWithDefault, Python's dict.get(k, d)).
+  -- k の値。なければ d（Haskell の findWithDefault、Python の
+  -- dict.get(k, d)）
+  let findWithDefault d k m =
+    case lookup k m of
+      | Just v -> v
+      | Nothing -> d
+  -- ANCHOR_END: findWithDefault
 
   -- ANCHOR: insertWith
   -- Maps: functions that take a function, made of the builtins
@@ -1137,7 +1194,19 @@ fileSource = """
     , makeDir, remove, rename, copy, append
     , Handle, open, openWith, readLine, readChunk, close
     , withFile, withFileWith, foldLines, foldLinesWith, forEachLine
-    , forLines, readBytes, writeBytes )
+    , forLines, readBytes, writeBytes, isFile )
+
+  -- ANCHOR: isFile
+  -- A file that is there, and not a folder (Python's os.path.isfile).
+  -- File.glob gives folders too: filter them with this.
+  -- あって、フォルダーでないファイル（Python の os.path.isfile）。
+  -- File.glob はフォルダーも返すので、これでふるい分ける
+  isFile : String -> IO Bool
+  isFile path = do
+    there <- exists path
+    folder <- isDir path
+    pure (there && not folder)
+  -- ANCHOR_END: isFile
 
   -- The size in bytes, and when the file was last changed: what
   -- File.info gives.
@@ -2262,7 +2331,27 @@ decodeSource = """
 csvSource :: Text
 csvSource = """
   module Csv exposing
-    ( Column, parse, read, decode, text, int, number, bool, optional )
+    ( Column, parse, read, decode, text, int, number, bool, optional
+    , encode )
+
+  -- ANCHOR: csvEncode
+  -- ✍️ A table as CSV text (RFC 4180): a cell with a comma, a quote or
+  --    a line break goes in quotes, and a quote in it is written twice.
+  --    Each row ends with \\n (Python's csv.writer writes \\r\\n).
+  -- 表を CSV の文字に（RFC 4180）。カンマ・引用符・改行のあるマスは
+  -- 引用符で囲み、中の引用符は2つ重ねる。行の終わりは \\n（Python の
+  -- csv.writer は \\r\\n）
+  encode : [String] -> [[String]] -> String
+  encode header rows =
+    String.join "" [ join "," (List.map quoted row) ++ "\\n"
+                   | row <- header : rows ]
+
+  quoted : String -> String
+  quoted cell =
+    if List.any (\\c -> String.contains c cell) [",", "\\"", "\\n", "\\r"]
+    then "\\"" ++ String.replace "\\"" "\\"\\"" cell ++ "\\""
+    else cell
+  -- ANCHOR_END: csvEncode
 
   -- ANCHOR: csvColumn
   -- 🔧 How to read the string of one column. A column that is not in
@@ -2434,11 +2523,21 @@ tomlSource = """
   -- 🎯 Read TOML text with a decoder. parse is the builtin: the
   --    document as Json.
   -- TOML の文字を Decoder で読む。parse は組み込み（文書を Json に）
+  -- ANCHOR: tomlLines
   decode : Decoder a -> String -> Result [Problem] a
   decode d s =
     case parse s of
-      | Ok j -> Decode.run d j
+      | Ok j -> Decode.run d j |> Result.mapError (List.map (placed s))
       | Err e -> Err [{ path = "", message = f"not TOML: {e}" }]
+
+  -- 📍 A problem at the line of the file: .prune is line 2, prune.
+  --    place (a builtin) finds the line of the key; when it cannot, the
+  --    path stays as it is.
+  -- 問題を、ファイルの行で：.prune は line 2, prune。キーの行を探すのは
+  -- 組み込みの place。見つからなければ、道筋はそのまま
+  placed : String -> Problem -> Problem
+  placed s p = { p | path = place s p.path }
+  -- ANCHOR_END: tomlLines
   """
 -- ANCHOR_END: tomlModule
 
@@ -2479,6 +2578,33 @@ httpSource = """
     | BadBody String         -- the body could not be read (bad JSON)
   -- ANCHOR_END: httpError
 
+  -- ANCHOR: notJson
+  -- text/html; charset=utf-8  →  text/html
+  kindOf : String -> String
+  kindOf k =
+    case String.split ";" k of
+      | first : _ -> String.trim first
+      | [] -> k
+
+  -- The first 20 letters, and … if there are more.
+  -- 頭の20文字（もっとあれば …）
+  beginning : String -> String
+  beginning s =
+    if length s > 20 then String.take 20 s ++ "…" else s
+
+  -- 🙅 A body that is not JSON (an HTML page "under maintenance",
+  --    ...): say its kind and how it begins, not the words of the JSON
+  --    reader.
+  -- JSON でない本文（「メンテナンス中」の HTML のページなど）：JSON の
+  -- 読み手の言葉ではなく、本文の種類と頭を言う
+  notJson : Response -> String
+  notJson r =
+    f"the answer is not JSON ({kind}; it begins with {show start})"
+    where
+      kind = kindOf (header "content-type" r ?: "no content-type")
+      start = beginning (String.replace "\\n" " " (string r ?: ""))
+  -- ANCHOR_END: notJson
+
   -- ANCHOR: readers
   -- 📖 Readers: how to read the body of an answer.
   -- 読み方：答えの本文を、どう読むか
@@ -2486,7 +2612,8 @@ httpSource = """
   string r = Bytes.toString r.body
 
   json : Response -> Result String Json
-  json r = string r |> Result.andThen Json.parse
+  json r = string r |> Result.andThen (\\s ->
+    Json.parse s |> Result.mapError (\\_ -> notJson r))
 
   response : Response -> Result String Response
   response r = Ok r
@@ -2499,8 +2626,15 @@ httpSource = """
   -- する：Decode.explain で、1つにつき1行
   expectJson : Decoder a -> Response -> Result String a
   expectJson d r =
-    string r |> Result.andThen (\\s ->
-      Decode.fromString d s |> Result.mapError Decode.explain)
+    string r |> Result.andThen (readWith d r)
+
+  -- The text of the body, read with the decoder.
+  -- 本文の文字を、Decoder で読む
+  readWith : Decoder a -> Response -> String -> Result String a
+  readWith d r s =
+    case Json.parse s of
+      | Ok j -> Decode.run d j |> Result.mapError Decode.explain
+      | Err _ -> Err (notJson r)
   -- ANCHOR_END: expectJson
 
   -- ANCHOR: request
@@ -2579,7 +2713,12 @@ httpSource = """
   -- 同じ）
   bodyAs : Decoder a -> Request -> Result String a
   bodyAs d req =
-    Decode.fromString d req.body |> Result.mapError Decode.explain
+    case Json.parse req.body of
+      | Ok j -> Decode.run d j |> Result.mapError Decode.explain
+      | Err _ ->
+          Err f"the body is not JSON (it begins with {show (start req)})"
+    where
+      start r = beginning (String.replace "\\n" " " r.body)
   -- ANCHOR_END: segments
   """
 -- ANCHOR_END: http
@@ -2905,13 +3044,25 @@ termSource = """
       | [] -> []
       | row : rest -> wider (List.map width row) (widthsOf rest)
 
-  -- 🗂️ Rows lined up in columns, under a bold header and a line.
-  -- 行を列にそろえる。太字の見出しと線の下に
+  -- ⏎ A cell in one line: a newline is ⏎, a tab is a space.
+  -- マスを1行に：改行は ⏎、タブは空白
+  flat : String -> String
+  flat s =
+    String.replace "\\t" " "
+      (String.replace "\\n" "⏎" (String.replace "\\r" "" s))
+
+  -- 🗂️ Rows lined up in columns, under the header and a line. No
+  --    styles: the same text on a terminal and in a pipe (bold it with
+  --    Term.bold, and write it with Term.say).
+  -- 行を列にそろえる。見出しと線の下に。印は入れない：端末でもパイプでも
+  -- 同じ文字（太字にしたければ Term.bold で。書くのは Term.say で）
   table : [String] -> [[String]] -> String
   table header rows =
-    join "\\n" (bold (line header) : rule : List.map line rows)
+    join "\\n" (line top : rule : List.map line body)
     where
-      widths = widthsOf (header : rows)
+      top = List.map flat header
+      body = List.map (List.map flat) rows
+      widths = widthsOf (top : body)
       line row = String.trimEnd (join "  " (zipWith padTo widths row))
       rule = join "  " (List.map (\\w -> String.repeat w "-") widths)
   -- ANCHOR_END: table
@@ -2928,6 +3079,19 @@ termSource = """
     ePutStr (question ++ " [y/N] ")
     answer <- getLine
     pure (elem (toLower (String.trim (answer ?: ""))) ["y", "yes"])
+
+  -- ANCHOR: askLine
+  -- ❓ Ask, and read one line (Python's input("name? ")). The question
+  --    goes to the standard error, as confirm's does; the end of the
+  --    input is "".
+  -- 聞いて、1行読む（Python の input("name? ")）。問いは confirm と同じく
+  -- 標準エラーへ。入力の終わりは ""
+  ask : String -> IO String
+  ask question = do
+    ePutStr (question ++ " ")
+    answer <- getLine
+    pure (answer ?: "")
+  -- ANCHOR_END: askLine
 
   -- The first item, if there is one.
   -- 最初の要素（あれば）
@@ -3348,6 +3512,29 @@ hiddenNames =
     <> [ (recvName "with", "Actor.receiveWith")
        , (recvName "after", "Actor.receiveAfter") ]
     -- ANCHOR_END: recvHidden
+    <> secondNames
+
+-- ANCHOR: secondNames
+-- 🪪 Second names, so a name is found where one looks for it: the
+--    functions of strings under String. too (String.length), the ones
+--    of String. also without it (trim), and the list ones under List.
+--    (List.groupBy). Same values, so the same work.
+-- もう1つの名前。探す所で見つかるように：文字の関数は String. でも
+-- （String.length）、String. のものは付けなくても（trim）、リストの
+-- ものは List. でも（List.groupBy）。同じ値なので、することも同じ
+secondNames :: [(Name, Name)]
+secondNames =
+  [ ("String." <> x, x)
+  | x <- ["length", "padLeft", "padRight", "center"] ]
+    <> [ (x, "String." <> x)
+       | x <- [ "startsWith", "endsWith", "contains", "trim"
+              , "trimStart", "trimEnd" ] ]
+    <> [ ("List." <> x, x)
+       | x <- [ "filter", "length", "sort", "sortOn", "zip", "zipWith"
+              , "unzip", "indexed", "partition", "unique", "uniqueBy"
+              , "groupBy", "takeWhile", "dropWhile", "splitAt", "last"
+              , "mapMaybe", "elem" ] ]
+-- ANCHOR_END: secondNames
 
 regexSugarNames :: [Name]
 regexSugarNames =

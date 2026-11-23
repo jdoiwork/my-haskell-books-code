@@ -139,7 +139,9 @@ readCommand :: [String] -> Maybe String -> Either Text (Options, Command)
 readCommand args0 fromEnv = go [] noOneLiner args0
   where
     go guards one args = case args of
-      "--" : rest -> finish guards one rest
+      -- After --, every word is a file (trailing drops the --).
+      -- -- の後ろは、どの語もファイル（-- は trailing が外す）
+      "--" : _ -> finish guards one args
       -- After a program, only another -e, --begin and --end: any other
       -- word is a file to read, or an argument of the program.
       -- プログラムの後ろには、-e・--begin・--end だけ。ほかの語は、読む
@@ -198,14 +200,65 @@ readCommand args0 fromEnv = go [] noOneLiner args0
           (ByWords, ByRegex p) -> ByRegex p
           _                    -> s }
 
-    finish guards one rest = do
+    finish guards one rest0 = do
       (opts, _) <- readOptions guards fromEnv
+      (one', rest) <- trailing one rest0
       command <- if one == noOneLiner
         then Right (case rest of
                       []          -> Repl
                       file : more -> RunFile file more)
-        else RunOneLiner <$> checked one rest <*> Right rest
+        else RunOneLiner <$> checked one' rest <*> Right rest
       Right (opts, command)
+-- ANCHOR_END: readCommand
+
+-- ANCHOR: trailing
+-- 📜 The words after the program of -n or -p are files, but
+--    --print-script may come there too: it only shows the script, so it
+--    is lam's wherever it is (lam -ne '...' --print-script | tee a.lam).
+--    Another flag of lam there is told: it goes before -e. After --,
+--    every word is a file. With -e alone (a whole program, like a file),
+--    the words are the program's.
+-- -n・-p のプログラムの後ろの語はファイル。でも --print-script は後ろにも
+-- 書ける。スクリプトを見せるだけなので、どこにあっても lam のもの。ほかの
+-- lam のフラグが後ろにあれば、-e より前に、と言う。-- の後ろは全部ファイル。
+-- -e だけ（ファイルと同じく、プログラム全体）なら、語はプログラムのもの
+trailing :: OneLiner -> [String] -> Either Text (OneLiner, [String])
+trailing one given
+  | one == noOneLiner = Right (one, unDashed)
+  | oneMode one == Once, oneBegin one == Nothing, oneEnd one == Nothing =
+      Right (one, unDashed)
+  | otherwise = walk one given
+  where
+    walk o ws = case ws of
+      [] -> Right (o, [])
+      "--" : rest -> Right (o, rest)
+      w : rest
+        | isPrintScript w -> case longFlag o (T.pack w) of
+            Just changed -> changed >>= \o' -> walk o' rest
+            Nothing      -> walk o rest
+        | lamFlag w -> Left (lateFlag w)
+        | otherwise -> do
+            (o', more) <- walk o rest
+            Right (o', w : more)
+    unDashed = case given of
+      "--" : rest -> rest
+      _           -> given
+    isPrintScript w =
+      w == "--print-script" || "--print-script=" `T.isPrefixOf` T.pack w
+    -- A flag lam knows (--dry-run, --allow-read=data, --json, ...).
+    -- lam の知っているフラグ
+    lamFlag w = case w of
+      '-' : '-' : _ : _ ->
+        either (const False) (null . snd) (readOptions [w] Nothing)
+          || w `elem` ["--json", "--jsonl", "--begin", "--end"]
+          || isFlagOfOneLiner w
+      _ -> False
+    isFlagOfOneLiner w = case longFlag noOneLiner (T.pack w) of
+      Just _  -> True
+      Nothing -> False
+    lateFlag w = "lam: " <> T.pack w <> " goes before -e (after the \
+      \program come the files)"
+-- ANCHOR_END: trailing
 
 -- ANCHOR: longFlag
 -- 🚩 The long flags of one-liners with a value. Nothing: not one of
@@ -233,7 +286,6 @@ longFlag one flag
                 \--decoding=ignore"
   | otherwise = Nothing
 -- ANCHOR_END: longFlag
--- ANCHOR_END: readCommand
 
 -- 📖 How to use the one-liners, after the usage of the flags.
 -- ワンライナーの使い方。フラグの使い方のあとに見せる

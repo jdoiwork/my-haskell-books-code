@@ -8,7 +8,7 @@
 module Main (main) where
 
 import Control.Exception (NonTermination (..), evaluate, try)
-import Control.Monad (forM_, unless)
+import Control.Monad (forM_, unless, when)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -154,6 +154,13 @@ loadFile world session file = do
 runFile :: Handler IO -> FilePath -> IO ()
 runFile world file = do
   source <- Utf8.readFile file
+  -- A file with nothing in it (left by a | tee whose lam stopped, ...)
+  -- runs nothing: say so, so the quiet is not taken for success.
+  -- 中身のないファイル（lam が止まった | tee が残したものなど）は、何も
+  -- しない。黙って終わると、うまくいったと思われるので、知らせる
+  when (T.null (T.strip source)) $
+    TIO.hPutStrLn stderr ("lam: warning: " <> T.pack file
+                            <> " is empty: there is nothing to run")
   files  <- realFiles
   loaded <- loadProgram files preludeSession preludeSession file source
   ending <- case loaded of

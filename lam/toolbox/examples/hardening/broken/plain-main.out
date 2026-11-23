@@ -1,1 +1,1 @@
-examples/hardening/broken/plain-main.lam:6:3: in the definition of main: type error: ? stops the do at an Err (or a Nothing), so the do must give a Result or a Maybe (main : IO (Result String ()), for example), but the lines below it give IO ()
+examples/hardening/broken/plain-main.lam:6:3: in the definition of main: type error: ? stops the do at an Err (or a Nothing), so the do must give a Result or a Maybe, but the lines below it give IO () (in main: main : IO (Result String ()); in a lambda, as for forEach: end it with pure (Ok ()), and run it with mapM)

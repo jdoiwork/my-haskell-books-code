@@ -74,7 +74,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Lam.Syntax
-import Lam.Sugar (doBind, tryBranch)
+import Lam.Sugar (doBind, droppedLine, tryBranch)
 
 -- ANCHOR: types
 -- 🏷️ A type: Int, Bool, a type variable (not known yet), a function,
@@ -1390,7 +1390,8 @@ infer env expr = case expr of
       -- そうでなければ、引数が関数に合うはず（来たものを先に）
       _       -> doLine f ta tf' (liftUnify needed tf')
     -- ANCHOR_END: notAFunction
-    pure (s3 `compose` s2 `compose` s1, applyT s3 tr, App f' a')
+    pure (s3 `compose` s2 `compose` s1, applyT s3 tr,
+          App f' (dropped f (applyT s3 tf') a'))
   -- ANCHOR_END: inferApp
 
   -- let is recursive: x has a new t while we look at e.
@@ -1705,6 +1706,23 @@ doLine f ta tf' unifying = case (f, ta, tf') of
               else failWith (TypeAt loc (LineGives given used))
   _ -> unifying
 -- ANCHOR_END: doLine
+
+-- ANCHOR: dropped
+-- 🗑️ A line of a do with no ? and no <- whose value is a Result
+--    (File.copy a b gives IO (Result String ())): its Err would be lost
+--    without a word. Mark the rest of the do, so a warning tells it
+--    (see droppedWarnings). Like Rust's #[must_use], only Result:
+--    a Maybe thrown away is fine.
+-- ? も <- もない do の行で、値が Result のもの（File.copy a b は
+-- IO (Result String ())）：Err が黙って消えてしまう。do の残りに印を
+-- 付けて、警告で知らせる（droppedWarnings を見る）。Rust の #[must_use]
+-- と同じく Result だけ。Maybe を捨てるのはよい
+dropped :: Expr -> Type -> Expr -> Expr
+dropped f tf rest = case (f, tf, rest) of
+  (App (Var b) (At loc _), TFun (TFun (TCon "Result" _) _) _, Lam "$_" body)
+    | b == doBind -> At loc (Lam droppedLine body)
+  _ -> rest
+-- ANCHOR_END: dropped
 
 -- ANCHOR: tryLine
 -- ❓ p <- e ? opens to a case with $try.branch, whose Err branch gives
@@ -2614,11 +2632,14 @@ renderTypeError err = case err of
       <> ", but the lines below use it as " <> asUsed used
       <> forgotTry given used
   -- 「? は Err で do を止めるので、do は Result か Maybe を出さなければ
-  --   なりませんが、下の行は IO () を出しています」
+  --   なりませんが、下の行は IO () を出しています（main なら
+  --   main : IO (Result String ())。forEach のラムダのような中のものなら、
+  --   最後に pure (Ok ()) を書いて、mapM で動かす）」
   TryNeeds t ->
     "? stops the do at an Err (or a Nothing), so the do must give a "
-      <> "Result or a Maybe (main : IO (Result String ()), for "
-      <> "example), but the lines below it give " <> renderType t
+      <> "Result or a Maybe, but the lines below it give " <> renderType t
+      <> " (in main: main : IO (Result String ()); in a lambda, as for "
+      <> "forEach: end it with pure (Ok ()), and run it with mapM)"
   -- 「おたがいを使う isEven と isOdd には辞書が要るので、型の注釈を
   --   書いてください」
   GroupNeedsAnnotation xs ->

@@ -33,6 +33,7 @@ module Lam.Program
   , printText
   , addDecls
   , keyWarnings
+  , droppedWarnings
   , children
   , Def (..)
   , pairSignatures
@@ -69,6 +70,7 @@ import Lam.Server (serverBuiltins)
 import Lam.Stdlib (stdlibBuiltins)
 import Lam.Toolbox (toolboxBuiltins)
 import Lam.Pretty (renderTypeExpr)
+import Lam.Sugar (droppedLine)
 import Lam.Syntax
 import Lam.Types
 import qualified Data.Text as T
@@ -742,8 +744,9 @@ addDecls s decls = do
   (s4, bodies) <- foldM addBody (s3, []) decls
   env <- computeLabelled (sessionValues s4) (values <> bodies)
   let own = sessionOwn s <> Set.fromList (map defName defs)
-      found = concatMap (keyWarnings own)
-        (map defExpr defs <> [ e | (_, e, _) <- values <> bodies ])
+      typed = [ e | (_, e, _) <- values <> bodies ]
+      found = concatMap (keyWarnings own) (map defExpr defs <> typed)
+        <> concatMap droppedWarnings typed
   pure s4 { sessionValues = env, sessionOwn = own
           , sessionWarnings = sessionWarnings s <> nub found }
 -- ANCHOR_END: addDecls
@@ -948,6 +951,25 @@ warnKey place x =
     <> "warning: the key " <> x <> " is the text \"" <> x
     <> "\", not the variable " <> x <> " (write {[" <> x
     <> "]: …} for the variable, or {\"" <> x <> "\": …} to keep the text)"
+
+-- ANCHOR: droppedWarnings
+-- ⚠️ The warnings for a Result thrown away: the lines the type checker
+--    marked (see dropped).
+-- 捨てた Result への警告：型検査器が印を付けた行
+droppedWarnings :: Expr -> [Text]
+droppedWarnings e = case e of
+  At loc (Lam x body)
+    | x == droppedLine -> warnDropped loc : droppedWarnings body
+  _ -> concatMap droppedWarnings (children e)
+
+-- 🖨️ 「この行の Result は捨てられます。Err で止めるなら ?、わざと捨てる
+-- なら _ <-」
+warnDropped :: Loc -> Text
+warnDropped loc =
+  renderLoc loc <> ": warning: the Result of this line is thrown away: "
+    <> "write ? at the end of the line to stop at an Err, or _ <- "
+    <> "(or 🗑️ <-) to throw it away"
+-- ANCHOR_END: droppedWarnings
 
 -- 🌿 The expressions right inside an expression.
 -- 式のすぐ内側の式

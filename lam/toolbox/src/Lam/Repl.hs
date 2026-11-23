@@ -12,6 +12,7 @@ module Lam.Repl
   , showFixity
   ) where
 
+import Data.Char (isAlphaNum)
 import Data.List (sortOn)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -77,7 +78,9 @@ parseInput ops line =
     input = choice
       [ ShowNames <$ symbol ":env"
       , Help <$ symbol ":help"
-      , ShowType <$> (symbol ":type" *> expr)
+      -- :t is short for :type (as in GHCi); :test is not :t.
+      -- :t は :type の短い形（GHCi と同じ）。:test は :t ではない
+      , ShowType <$> (try (symbol ":type" <|> shortType) *> expr)
       , ShowDicts <$> (symbol ":dicts" *> expr)
       , PrintText <$> (symbol ":print" *> expr)
       , Load . T.unpack . T.strip <$> (symbol ":load" *> takeRest)
@@ -91,6 +94,8 @@ parseInput ops line =
       , typed
       , try (uncurry Define <$> topDefinition <* eof)
       , Evaluate <$> expr ]
+    shortType = try (chunk ":t" <* notFollowedBy (satisfy isAlphaNum))
+                  <* spaces
     infixInput = do
       d <- infixDecl
       case d of
@@ -291,7 +296,7 @@ helpText = T.intercalate "\n"
   , "infixl 7 f as <+>      make <+> another name for f (0 to 9)"
   , "{\"key\": expr, ...}     a Map: {\"Python\": 82}, {1: \"one\"}"
   , "expr                   compute an expression"
-  , ":type expr             show the type of an expression"
+  , ":type expr  (:t)       show the type of an expression"
   , ":dicts expr            show it with the dictionaries put in"
   , "do x <- e; f x         one line after another (an IO is done)"
   , "do x <- e ?; ...       a failure (Nothing, Err) is the answer at once"

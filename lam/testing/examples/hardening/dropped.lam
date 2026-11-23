@@ -1,0 +1,15 @@
+-- ANCHOR: all
+-- 🗑️ Lines whose Result nobody looks at: the copy, the write and the
+--    removes may fail, and main would still say done.
+-- だれも Result を見ていない行。コピーも書き込みも消すのも、失敗する
+-- かもしれないのに、main は done と言ってしまう
+main : IO ()
+main = do
+  File.copy "memos.txt" "backup/memos.txt"
+  writeFile "/no/such/dir/out.txt" "hello"
+  -- Thrown away on purpose: no warning.
+  -- わざと捨てる：警告なし
+  _ <- File.remove "old.txt"
+  🗑️ <- File.remove "older.txt"
+  putStrLn "done"
+-- ANCHOR_END: all

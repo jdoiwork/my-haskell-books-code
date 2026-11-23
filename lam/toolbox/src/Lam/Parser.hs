@@ -852,11 +852,11 @@ statement = choice
          Destructured p e -> DoLetPattern p e
   , DoDefer <$> (keyword "defer" *> expr)
   -- ANCHOR: statementPlace
-  -- p <- e and a line with ? keep the place of the line: an error of
-  -- the line itself (a ? left out, a ? where it cannot be) points
-  -- there.
-  -- p <- e と ? のある行は、行の場所を持っておく。行そのもののエラー
-  -- （? の付け忘れ、使えない所の ?）は、そこを指す
+  -- Every line keeps the place of the line: an error of the line
+  -- itself (a ? left out, a ? where it cannot be, a Result thrown
+  -- away) points there.
+  -- どの行も、行の場所を持っておく。行そのもののエラー（? の付け忘れ、
+  -- 使えない所の ?、捨てた Result）は、そこを指す
   , do loc <- here
        p <- try (pattern <* symbol "<-")
        e <- expr
@@ -865,7 +865,7 @@ statement = choice
   , do loc <- here
        e <- expr
        marked <- tryMark
-       pure (if marked then DoTryRun (At loc e) else DoRun e) ]
+       pure (if marked then DoTryRun (At loc e) else DoRun (At loc e)) ]
   -- ANCHOR_END: statementPlace
 -- ANCHOR_END: doExpr
 
@@ -1387,6 +1387,9 @@ patternApp =
 patternAtom :: Parser Pattern
 patternAtom = choice
   [ PWild <$ lexeme (try (char '_' <* notFollowedBy nameChar))
+  -- 🗑️ (a wastebasket) is _ too: a value thrown away.
+  -- 🗑️（ごみ箱）も _ と同じ：捨てる値
+  , PWild <$ lexeme (char '\x1F5D1' <* optional (char '\xFE0F'))
   , PVar <$> name
   , (\c -> PCon c []) <$> (qualifiedCon <|> conName)
   , PLit . LInt <$> integer

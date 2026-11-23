@@ -21,6 +21,7 @@ module Lam.Sugar
   , composeLeft
   , Statement (..)
   , doBind
+  , droppedLine
   , doPure
   , tryBranch
   , doFinally
@@ -252,10 +253,14 @@ data Statement
 doBlock :: [Statement] -> Expr
 doBlock statements = case statements of
   [] -> Tuple []                      -- the parser never makes this
-  [DoRun e] -> e
+  [DoRun e] -> unplaced e
   s : rest ->
     let inner = doBlock rest
     in case s of
+         -- _ <- e (or 🗑️ <- e): thrown away on purpose, so no warning
+         -- for a Result (see droppedLine).
+         -- _ <- e（🗑️ <- e）：わざと捨てるので、Result でも警告しない
+         DoBind PWild e   -> bindThen e (Lam "$wild" inner)
          DoBind p e       -> bindThen e (lambdaWith [p] inner)
          DoRun e          -> bindThen e (Lam "$_" inner)
          DoLet x e        -> Let x e inner
@@ -274,6 +279,12 @@ doBlock statements = case statements of
     -- やる途中で止まったことになる
     later rest = bindThen (App (Var doPure) (Tuple [])) (Lam "$_" rest)
     -- ANCHOR_END: later
+    -- The last line is the answer itself: it keeps no place of its own
+    -- (its errors point inside it, as before).
+    -- 最後の行は答えそのもの。行の場所は持たない（エラーは中を指す）
+    unplaced e = case e of
+      At _ inner -> inner
+      _          -> e
     -- The place of the line (the parser puts it on e).
     -- 行の場所（パーサーが e に付けている）
     lineOf e = case e of
@@ -284,6 +295,15 @@ doBlock statements = case statements of
 -- bind の隠した名前
 doBind :: Name
 doBind = "$do.bind"
+
+-- 🗑️ The mark of a line whose Result is thrown away (File.copy a b,
+--    with no ? and no <-). The type checker puts it on the rest of the
+--    do:  $do.bind e (At line (\$dropped -> rest)). It changes nothing
+--    when it runs; it is only for the warning.
+-- Result を捨てた行の印（? も <- もない File.copy a b）。型検査器が、do の
+-- 残りに付ける。動くときは何も変えない。警告のためだけ
+droppedLine :: Name
+droppedLine = "$dropped"
 -- ANCHOR_END: doBlock
 
 -- ANCHOR: adoBlock

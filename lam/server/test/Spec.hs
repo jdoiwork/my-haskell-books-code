@@ -69,7 +69,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Crypto.Hash.SHA256 as Sha
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import System.Directory (getTemporaryDirectory, removeFile)
-import System.IO (hClose, openTempFile)
+import System.IO (hClose, openTempFile, openBinaryTempFile)
 import System.Process (readProcessWithExitCode)
 -- ANCHOR_END: head
 
@@ -3660,8 +3660,11 @@ main = hspec $ do
     -- 「大きなファイル（テストの中で作る）を、本物の世界で1行ずつ数える」
     it "counts a big file of the real world, one line at a time" $ do
       dir <- getTemporaryDirectory
-      let path = dir </> "lam-outside-big.log"
-          statuses = cycle ["200", "200", "304", "404", "200", "500"]
+      -- A name of its own: the tests of other stages may run at once.
+      -- 自分だけの名前：ほかの段階のテストが同時に動くかもしれない
+      (path, made) <- openBinaryTempFile dir "lam-outside-big.log"
+      hClose made
+      let statuses = cycle ["200", "200", "304", "404", "200", "500"]
           lines' = [ "t GET / " <> s <> " 1ms" | s <- take 200000 statuses ]
       B.writeFile path (encodeUtf8 (T.unlines lines'))
       source <- Utf8.readFile "examples/streams/count.lam"
@@ -4341,7 +4344,8 @@ main = hspec $ do
             <> "Err \"https://x.test/none: cannot connect\")"
         , "(Err (BadStatus 404 (JObj {\"error\": JStr \"no\"})), Ok 200)"
         , "(Ok 1, Err \".: missing field \\\"m\\\"\")"
-        , "Err \"object value: not enough input\"" ]
+        , "Err \"the answer is not JSON (no content-type; "
+            <> "it begins with \\\"{\\\\\\\"n\\\\\\\": \\\")\"" ]
     -- ANCHOR_END: readers
 
     -- ANCHOR: queryAsTest
@@ -4900,6 +4904,14 @@ main = hspec $ do
         [ "branch    author", "--------  ------"
         , "機能/表   Ruby", "fix-typo  Python" ]
       map columnOf shown `shouldBe` [10, 10, 10, 10]
+    -- 「表に印は入らない。マスの改行は ⏎ で、行は1行のまま」
+    it "puts no styles in a table, and keeps a row in one line" $ do
+      let source = T.unlines
+            [ "main = putStrLn (Term.table [\"api\", \"body\"]"
+            , "  [[\"slow\", \"not found\\n\"], [\"tab\", \"a\\tb\"]])" ]
+      T.lines (outputOf (snd (script emptyWorld source))) `shouldBe`
+        [ "api   body", "----  ----------"
+        , "slow  not found⏎", "tab   a b" ]
     -- 「漢字は2桁、印は0桁」
     it "counts the columns of a text" $
       map displayWidth ["abc", "機能", "\ESC[31mred\ESC[0m", "が"]
@@ -5026,6 +5038,19 @@ main = hspec $ do
       one ["--decoding=strict", "-ne", "x", "--", "-"] `shouldBe` Right
         (RunOneLiner noOneLiner { oneProgram = ["x"], oneMode = EachLine
                                 , oneDecoding = Just Strict } ["-"])
+    -- 「--print-script は、プログラムの後ろにも書ける。ほかの lam の
+    -- フラグは、-e より前に、と言う」
+    it "takes --print-script after the program too, and no other flag" $ do
+      let one args = fmap snd (readCommand args Nothing)
+      one ["-ne", "x", "--print-script=plain", "a.log"] `shouldBe` Right
+        (RunOneLiner noOneLiner { oneProgram = ["x"], oneMode = EachLine
+                                , oneScript = Just PlainForm } ["a.log"])
+      one ["-ne", "x", "--", "--print-script"] `shouldBe` Right
+        (RunOneLiner noOneLiner { oneProgram = ["x"], oneMode = EachLine }
+           ["--print-script"])
+      one ["-ne", "x", "--dry-run", "a.log"] `shouldBe`
+        Left "lam: --dry-run goes before -e (after the program come the \
+             \files)"
     -- 「一緒に使えないフラグや、知らないフラグは、動かす前に止める」
     it "stops flags that do not go together, before running" $
       map (either Left (const (Right ())) . flip readCommand Nothing)

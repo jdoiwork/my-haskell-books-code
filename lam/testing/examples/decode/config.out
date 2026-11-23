@@ -3,6 +3,6 @@ Lam Shop, since 2026-11-01, tax 10%
   sticker: 20% off from 1
   mug: 10% off from 3
 == examples/decode/shop-bad.toml
-.shop: missing field "opened"
-.shop.tax_percent: expected an Int, got "10"
-.discount[0].percent: expected an Int, got 20.5
+line 1, shop: missing field "opened"
+line 3, shop.tax_percent: expected an Int, got "10"
+line 7, discount[0].percent: expected an Int, got 20.5
