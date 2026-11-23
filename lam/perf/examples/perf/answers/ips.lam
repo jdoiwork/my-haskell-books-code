@@ -1,0 +1,17 @@
+-- 🧾 Step 3: one more program to measure: how many requests came from
+--    each IP (the first word of a line), the most first.
+-- ステップ3：測るプログラムをもう1つ。IP（行の最初の語）ごとの、頼みの
+-- 数。多い順
+count : Map String Int -> String -> Map String Int
+count acc line =
+  case words line of
+    | ip : _ -> Map.insertWith (+) ip 1 acc
+    | []     -> acc
+
+main : [String] -> IO (Result String ())
+main args = do
+  let file = case args of | f : _ -> f | [] -> "../big.log"
+  counts <- File.foldLines count {} file ?
+  let top = take 3 (sortOn (\(_, n) -> 0 - n) (Map.toList counts))
+  forEach top (\(ip, n) -> putStrLn f"{n:>5}  {ip}")
+  pure (Ok ())

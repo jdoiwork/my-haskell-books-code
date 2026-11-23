@@ -1,0 +1,11 @@
+calls: 30,114 in all
+       6,010  bindIO
+       6,009  $do.bind
+       4,005  returnIO
+       4,004  pure
+       2,001  eachLine
+       2,001  f
+       2,001  nextLine
+       2,001  readLine
+       2,000  step
+          17  range

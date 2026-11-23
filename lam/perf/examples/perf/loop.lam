@@ -1,0 +1,6 @@
+-- 🔁 A loop of a million steps: a function that calls itself last.
+-- 百万歩のループ。最後に自分を呼ぶ関数
+countUp total n =
+  if n > 1000000 then total else countUp (total + n) (n + 1)
+
+main = print (countUp 0 1)

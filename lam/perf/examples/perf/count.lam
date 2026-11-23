@@ -1,0 +1,8 @@
+-- 📏 Count the lines of a log, one line at a time.
+-- ログの行を、1行ずつ数える
+main : [String] -> IO (Result String ())
+main args = do
+  let file = case args of | f : _ -> f | [] -> "big.log"
+  n <- File.foldLines (\acc _ -> acc + 1) 0 file ?
+  print n
+  pure (Ok ())

@@ -1,0 +1,29 @@
+-- 🐢 The requests that failed (5xx) and were slow (over 0.5 seconds),
+--    counted by IP: a regular expression reads each line.
+-- 失敗して（5xx）、遅かった（0.5 秒より長い）頼みを、IP ごとに数える。
+-- 1行ずつ、正規表現で読む
+line : Regex
+line = re"^(?<ip>\S+) .*\" (?<status>\d{3}) \d+ rt=(?<rt>[\d.]+)$"
+
+step : Map String Int -> String -> Map String Int
+step acc l =
+  case Regex.find line l of
+    | Nothing -> acc
+    | Just m ->
+        let st = Regex.named "status" m |> Maybe.andThen String.toInt in
+        let rt = Regex.named "rt" m |> Maybe.andThen String.toFloat in
+        case (st, rt) of
+          | (Just s, Just t) ->
+              let ip = fromMaybe "?" (Regex.named "ip" m) in
+              if s >= 500 && t > 0.5
+                then Map.insertWith (+) ip 1 acc
+                else acc
+          | _ -> acc
+
+main : [String] -> IO (Result String ())
+main args = do
+  let file = case args of | f : _ -> f | [] -> "big.log"
+  counts <- File.foldLines step {} file ?
+  let top = take 5 (sortOn (\(_, n) -> 0 - n) (Map.toList counts))
+  forEach top (\(ip, n) -> putStrLn f"{n:>5}  {ip}")
+  pure (Ok ())

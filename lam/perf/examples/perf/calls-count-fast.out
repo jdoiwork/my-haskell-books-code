@@ -1,0 +1,11 @@
+calls: 6,088 in all
+       2,003  returnIO
+       2,002  pure
+       2,001  f
+          12  $default$Display$display
+           8  bindIO
+           7  $do.bind
+           6  Map.fromList
+           5  Decoder
+           5  Gen
+           4  Ok

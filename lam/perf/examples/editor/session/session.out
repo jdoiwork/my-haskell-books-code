@@ -1,0 +1,14 @@
+{"id":1,"jsonrpc":"2.0","result":{"capabilities":{"hoverProvider":true,"textDocumentSync":1},"serverInfo":{"name":"lam","version":"0.31.0.0"}}}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[{"message":"in the definition of main: type error: the types do not fit: a number where Price is needed","range":{"end":{"character":37,"line":24},"start":{"character":36,"line":24}},"severity":1,"source":"lam"}],"uri":"file:///lam/Receipt.lam"}}
+{"id":2,"jsonrpc":"2.0","result":null}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[],"uri":"file:///lam/Receipt.lam"}}
+{"id":3,"jsonrpc":"2.0","result":{"contents":{"kind":"markdown","value":"```lam\ntotal : [(String, Price)] -> Price\n```\n\nthe expression from here : `Price`"}}}
+{"id":4,"jsonrpc":"2.0","result":{"contents":{"kind":"markdown","value":"```lam\nfoldl : Foldable f => (a -> b -> a) -> a -> f b -> a\n```\n\nthe expression from here : `Price`"}}}
+{"id":5,"jsonrpc":"2.0","result":null}
+{"id":8,"jsonrpc":"2.0","result":{"contents":{"kind":"markdown","value":"the expression from here : `[(String, Price)]`"}}}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[{"message":"in the definition of addPrice: type error: the types do not fit: Price where Int is needed","range":{"end":{"character":29,"line":11},"start":{"character":28,"line":11}},"severity":1,"source":"lam"}],"uri":"file:///lam/Price.lam"}}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[{"message":"Price.lam:12:29: in the definition of addPrice: type error: the types do not fit: Price where Int is needed","range":{"end":{"character":6,"line":4},"start":{"character":0,"line":4}},"severity":1,"source":"lam"}],"uri":"file:///lam/Receipt.lam"}}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[],"uri":"file:///lam/Receipt.lam"}}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"diagnostics":[],"uri":"file:///lam/Price.lam"}}
+{"error":{"code":-32601,"message":"unknown method: textDocument/definition"},"id":6,"jsonrpc":"2.0"}
+{"id":7,"jsonrpc":"2.0","result":null}

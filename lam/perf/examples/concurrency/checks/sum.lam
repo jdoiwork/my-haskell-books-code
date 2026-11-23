@@ -1,0 +1,4 @@
+-- ✅ A check that passes: 1 + 2 + 3 is 6.
+-- 通る確かめ：1 + 2 + 3 は 6
+main : IO ()
+main = if sum [1, 2, 3] == 6 then putStrLn "6" else exit 1

@@ -1,0 +1,16 @@
+-- ANCHOR: all
+-- 🔷 Shapes: a data type, case, and a list of them.
+-- 図形：data の型と case と、図形のリスト
+data Shape = Circle Float | Square Float | Box Float Float
+
+area shape =
+  case shape of
+    | Circle r -> 3.14 * r * r
+    | Square s -> s * s
+    | Box w h -> w * h
+
+main = do
+  let shapes = [Circle 1, Square 2, Box 2 3.5]
+  putStrLn f"total area: {List.sum (List.map area shapes):.2}"
+  print (List.map area shapes)
+-- ANCHOR_END: all

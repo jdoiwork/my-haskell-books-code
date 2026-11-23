@@ -1,0 +1,1 @@
+([("square", 9), ("circle", 12), ("triangle", 10), ("rect", 10)], true) : ([(String, Int)], Bool)

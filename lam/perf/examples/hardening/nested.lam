@@ -1,0 +1,18 @@
+-- ANCHOR: all
+-- 🪆 A case inside a case. The inner branches are further right, so a
+--    | back at the left is the outer case's again.
+-- case の中の case。中の枝はもっと右にあるので、左に戻った | は、また
+-- 外の case のもの
+ageOf : String -> Result String Int
+ageOf name =
+  case Map.lookup name {"lam": 3, "ghc": 34, "new": 0} of
+    | Just n -> case n of
+        | 0 -> Err (name ++ " is not born yet")
+        | _ -> Ok n
+    | Nothing -> Err ("no " ++ name)
+
+main = do
+  print (ageOf "lam")
+  print (ageOf "new")
+  print (ageOf "elm")
+-- ANCHOR_END: all

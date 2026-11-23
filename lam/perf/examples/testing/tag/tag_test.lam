@@ -1,0 +1,47 @@
+-- ANCHOR: all
+-- 🏷️ The tests of Tag: the answer of git comes from the world, and
+--    so do the keys (--allow-...).
+--      lam test tag_test.lam
+-- Tag のテスト。git の答えも、鍵（--allow-…）も、世界から
+import Tag
+
+-- ANCHOR: commands
+-- 🐚 What the fake git answers: exit code 0, and the tag.
+-- 偽物の git の答え：終了コード 0 と、タグ
+tagged =
+  { Test.world | commands =
+      {"git describe --tags --abbrev=0":
+         { code = 0, out = "v1.4.0\n", err = "" }} }
+-- ANCHOR_END: commands
+
+tests : [Test]
+tests =
+  -- ANCHOR: tagTests
+  -- 「タグから版を書く。動かしたコマンドも見える」
+  [ Test.io "writes the version of the tag" tagged Tag.main
+      (\r ->
+        [ Test.equal "VERSION" (Map.lookup "VERSION" r.files) (Just "1.4.0\n")
+        , Test.equal "ran" r.ran ["git describe --tags --abbrev=0"]
+        , Test.equal "stdout" r.stdout "VERSION is now 1.4.0\n" ])
+  -- 「タグがなければ、git のわけが Err で返る」
+  , Test.io "stops when there is no tag"
+      { tagged | commands =
+          {"git describe --tags --abbrev=0":
+             { code = 128, out = "", err = "fatal: No names found\n" }} }
+      Tag.main
+      (\r ->
+        [ Test.equal "value" r.value
+            (Just (Err ("git describe --tags --abbrev=0: exit 128: "
+                          ++ "fatal: No names found")))
+        , Test.equal "VERSION" (Map.lookup "VERSION" r.files) Nothing ])
+  -- ANCHOR_END: tagTests
+  -- ANCHOR: allowTests
+  -- 「書く鍵を渡し忘れたら、見張りが止める」
+  , Test.io "needs the key to write"
+      { tagged | allow = ["--allow-run=git"] } Tag.main
+      (\r ->
+        [ Test.equal "value" r.value
+            (Just (Err "VERSION: needs --allow-write=VERSION"))
+        , Test.equal "VERSION" (Map.lookup "VERSION" r.files) Nothing ]) ]
+  -- ANCHOR_END: allowTests
+-- ANCHOR_END: all

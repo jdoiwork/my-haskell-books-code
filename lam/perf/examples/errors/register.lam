@@ -1,0 +1,26 @@
+-- ANCHOR: all
+-- 🧹 The register is opened, used, and closed: IO.bracket closes it
+--    even when the use stops halfway.
+-- レジを開けて、使って、閉める。IO.bracket は、使う途中で止まっても
+-- 閉めてくれる
+-- 「レジを開ける」
+openRegister : IO Int
+openRegister = do
+  putStrLn "open the register"
+  pure 1000
+
+-- 「レジを閉める（中に cash 円）」
+closeRegister : Int -> IO ()
+closeRegister cash = putStrLn f"close the register ({cash} yen in it)"
+
+main : IO ()
+main = do
+  IO.bracket openRegister closeRegister (\cash ->
+    putStrLn f"{cash + 9900} yen now")
+  -- Split the cash among 0 people: it stops, but the register closes.
+  -- お金を 0 人で分ける：止まるが、レジは閉まる
+  IO.bracket openRegister closeRegister (\cash ->
+    putStrLn f"{cash // 0} yen each")
+  -- 「ここには来ない」
+  putStrLn "never here"
+-- ANCHOR_END: all

@@ -1,0 +1,83 @@
+-- ANCHOR: types
+-- ➕ What add takes.
+-- add が受け取るもの
+type alias Add =
+  { --- What to do
+    -- やること
+    title : String
+    --- A tag to find it by
+    -- 探すための札
+  , tag : [String] = []
+  , alias t = tag
+  }
+
+-- ✅ What done takes.
+-- done が受け取るもの
+type alias Done =
+  { --- The number that list shows
+    -- list が見せる番号
+    number : Int
+  }
+
+-- 🧭 The subcommands: a field is a command.
+-- サブコマンド：フィールドがコマンド
+type alias Commands =
+  { --- Add a thing to do
+    -- やることを足す
+    add : Add -> IO (Result String ())
+    --- Show the things to do
+    -- やることを見せる
+  , list : IO (Result String ())
+    --- Mark a thing as done
+    -- 済んだ印を付ける
+  , done : Done -> IO (Result String ())
+  }
+-- ANCHOR_END: types
+
+-- ANCHOR: commands
+-- 📂 The lines of todo.txt ([] if there is none yet).
+-- todo.txt の行（まだなければ []）
+load : IO [String]
+load = do
+  found <- readFile "todo.txt"
+  pure (case found of
+    | Ok text -> lines text
+    | Err _ -> [])
+
+-- 💾 Write the lines back. It may fail (an Err), so ? can stop at it.
+-- 行を書き戻す。失敗するかもしれない（Err）ので、? で止められる
+save : [String] -> IO (Result String ())
+save todos = writeFile "todo.txt" (join "" (map (\t -> t ++ "\n") todos))
+
+add : Add -> IO (Result String ())
+add opts = do
+  todos <- load
+  let tags = join "" (map (\t -> " #" ++ t) opts.tag)
+  save (todos ++ [f"[ ] {opts.title}{tags}"]) ?
+  putStrLn f"added: {opts.title}"
+  pure (Ok ())
+
+list : IO (Result String ())
+list = do
+  todos <- load
+  forEach (indexed todos) (\(i, t) -> putStrLn f"{i + 1}. {t}")
+  pure (Ok ())
+
+done : Done -> IO (Result String ())
+done opts = do
+  todos <- load
+  if opts.number < 1 || opts.number > length todos
+    then pure (Err f"there is no todo {opts.number}")
+    else do
+      let mark (i, t) = if i + 1 == opts.number then "[x]" ++ drop 3 t else t
+      save (map mark (indexed todos)) ?
+      putStrLn f"done: {opts.number}"
+      pure (Ok ())
+-- ANCHOR_END: commands
+
+-- ANCHOR: main
+--- Keep a small list of things to do, in todo.txt.
+-- やることの小さなリストを todo.txt に持つ
+main : Commands
+main = { add = add, list = list, done = done }
+-- ANCHOR_END: main

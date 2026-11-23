@@ -1,0 +1,12 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🏁 Two jobs answer at the same moment. Which one is first?
+--      lam first.lam
+-- 2つの仕事が、同じ瞬間に答える。どちらが先？
+main = do
+  c <- Chan.new 0
+  _ <- spawn (Chan.send c "left")
+  _ <- spawn (Chan.send c "right")
+  winner <- Chan.recv c
+  putStrLn f"first: {winner ?: "nobody"}"
+-- ANCHOR_END: all

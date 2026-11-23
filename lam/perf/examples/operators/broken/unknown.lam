@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- ❓ <+> is used, but this file neither declared it nor imported it:
+--    import Price (without a list) brings only Price.addPrice and so on.
+-- <+> を使っているのに、宣言も import もしていない。一覧のない
+-- import Price が持ってくるのは、Price.addPrice などだけ
+import Price
+
+both a b = Price.yen (a <+> b)
+-- ANCHOR_END: all

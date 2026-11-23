@@ -1,0 +1,47 @@
+rt = make_runtime()
+
+
+def program():
+    Prim_IO_putStrLn = rt.prim("IO.putStrLn")
+    Prim_List_foldr = rt.prim("List.foldr")
+    Prim_show = rt.prim("show")
+
+    @rt.curry(2)
+    def Closures_collect(fs, n):
+        while True:
+            if rt.gt(n, 3):
+                return fs
+            fs, n = Cons(lambda x, n=n: (x * n), fs), (n + 1)
+            continue
+
+    def Prelude_display(_d):
+        return _d["display"]
+
+    @rt.curry(2)
+    def Prelude__default_Display_display(_Display_a, x):
+        return Prim_show(x)
+
+    def Let_1():
+        _self = {}
+        _self.update({"display": Prelude__default_Display_display(_self)})
+        return _self
+    Prelude__Display_List = Let_1()
+
+    @rt.curry(2)
+    def List_map(f, xs):
+        return Prim_List_foldr(lambda x: lambda rest: Cons(f(x), rest))(None)(
+            xs
+        )
+
+    @rt.curry(2)
+    def IO_print(_Display_a, x):
+        return Prim_IO_putStrLn(Prelude_display(_Display_a)(x))
+
+    Closures_main = IO_print(Prelude__Display_List)(
+        List_map(lambda f: f(10))(Closures_collect(None)(1))
+    )
+
+    return Closures_main
+
+
+rt.start(program)

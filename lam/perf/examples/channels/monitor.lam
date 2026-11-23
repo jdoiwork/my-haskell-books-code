@@ -1,0 +1,17 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 👀 Watch an actor: when it ends, a Down comes to our mailbox.
+--      lam monitor.lam
+-- アクターを見張る：終わったら、受け箱に Down が届く
+import Average (averager, ask)
+
+main = do
+  avg <- Actor.spawn averager
+  me <- Actor.new
+  Actor.monitor avg me (\down -> down)
+  ask avg []
+  receive me
+    -- 「終わった」「落ちた：わけ」
+    | Normal -> putStrLn "it ended"
+    | Crashed why -> putStrLn f"it crashed: {why}"
+-- ANCHOR_END: all

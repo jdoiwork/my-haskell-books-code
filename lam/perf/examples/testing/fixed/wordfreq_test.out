@@ -1,0 +1,7 @@
+wordfreq_test.lam
+  ✓ reads the standard input > stdout
+  ✓ reads the standard input > exit
+  ✓ reads the file in the arguments > stdout
+  ✓ says why, when there is no file > stderr
+  ✓ says why, when there is no file > exit
+  ✓ says why, when there is no file > stdout

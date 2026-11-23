@@ -1,0 +1,6 @@
+typed_test.lam
+  ✓ sort keeps the length
+  ✓ no word has a space
+  ✗ the bonus stays in range
+      failed for Score 92 (test 6 of 100)
+      smallest: Score 91 (shrunk once)

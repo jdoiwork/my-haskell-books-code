@@ -1,0 +1,33 @@
+-- ANCHOR: all
+-- 📚 Words: cut a text into words, count them, and rank them (the
+--    tools of wordfreq, from the chapter on scripts).
+-- Words：文字列を単語に分け、数え、順位を付ける（スクリプトの章の
+-- wordfreq の道具）
+module Words exposing (splitIntoWords, countWords, topN)
+
+-- ANCHOR: split
+-- ✂️ Split text into lowercase words: "Hello, world!" gives
+--    ["hello", "world"]. A ' is a part of a word: don't.
+-- 文字列を、小文字の単語に分ける。' も単語の一部（don't）
+splitIntoWords : String -> [String]
+splitIntoWords text =
+  text
+    |> toLower
+    |> Regex.findAll re"[\p{L}']+"
+    |> map .text
+-- ANCHOR_END: split
+
+-- 🔢 Count how many times each word appears: {"a": 2, "b": 1}
+-- 単語ごとの出現回数を数える
+countWords : [String] -> Map String Int
+countWords ws =
+  foldl (\counts w -> Map.insertWith (+) w 1 counts) Map.empty ws
+
+-- 🏆 The n most frequent words (the same count: a to z).
+-- 出現回数の多い順に n 個（同じ回数なら a から z）
+topN : Int -> Map String Int -> [(String, Int)]
+topN n counts =
+  Map.toList counts
+    |> sortOn (\(_, count) -> -count)
+    |> take n
+-- ANCHOR_END: all

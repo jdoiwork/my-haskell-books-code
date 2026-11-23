@@ -1,0 +1,1 @@
+{"orders":[{"id":1,"items":[{"name":"apple","price":120},{"name":"fig","price":300}],"user":"alice"},{"id":2,"items":[{"name":"banana","price":80}],"user":"bob"},{"id":3,"items":[{"name":"cherry","price":1500}],"user":"alice"}],"shop":"Lam Fruits"}

@@ -1,0 +1,14 @@
+-- ANCHOR: all
+-- 🔤 Letters: Lam counts code points, not UTF-16 units.
+-- 文字：Lam が数えるのはコードポイント。UTF-16 の単位ではない
+main = do
+  let receipt = "🧾日本"
+  print (length receipt)
+  print (String.take 1 receipt)
+  print (String.reverse receipt)
+  print (padLeft 6 receipt)
+  -- U+FF61 (｡) comes before U+1F600 (😀)
+  -- U+FF61 は U+1F600 より前
+  print ("｡" < "😀")
+  print (List.sort ["😀", "｡", "a"])
+-- ANCHOR_END: all

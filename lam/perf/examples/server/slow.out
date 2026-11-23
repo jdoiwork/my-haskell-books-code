@@ -1,0 +1,8 @@
+trace 0.000s: Http.serve 8080
+trace 0.000s: sleep 500
+trace 0.000s: GET /fast -> 200
+trace 0.100s: GET /fast -> 200
+trace 0.500s: GET /slow -> 200
+<- GET /fast 200 fast
+<- GET /fast 200 fast
+<- GET /slow 200 slow, but here

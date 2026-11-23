@@ -1,0 +1,11 @@
+-- 🔁 A loop of a million steps, written as Lam writes loops: a
+--    function that calls itself last.
+-- 百万歩のループ。Lam のループの書き方：最後に自分を呼ぶ関数
+countUp total n =
+  if n > 1000000 then total else countUp (total + n) (n + 1)
+
+main = do
+  print (countUp 0 1)
+  let xs = range 1 200000
+  print (List.sum (List.map (\x -> x * 2) xs))
+  print (List.length (List.sort (List.reverse xs)))

@@ -1,0 +1,33 @@
+#!/usr/bin/env lam
+-- 📜 Made with lam --print-script: the same as this one-liner:
+-- --print-script で作った、このワンライナーと同じ動きのスクリプト：
+--   lam -n -e 'when (line =~ m/ERROR/) (putStrLn line)'
+-- Run it:  lam this.lam [files...]   (no files: the standard input)
+-- 動かし方：lam このファイル.lam [ファイル…]（なければ標準入力）
+
+-- 🔁 The program of -e, for one line.
+-- -e のプログラム。line を1つ受け取る
+step line =
+  when (line =~ m/ERROR/) (putStrLn line)
+
+-- 👣 One line, with its number: give the acc for the next one.
+-- 1行（と番号）をやって、次の行のための acc を返す
+visit acc n line = do
+  step line
+  pure acc
+
+-- 📂 The files, one after another ("-" is the standard input).
+-- ファイルを、順に（"-" は標準入力）
+readAll acc files =
+  case files of
+    | [] -> pure (Ok acc)
+    | file : rest -> do
+        next <- File.forLines Ignore file acc visit ?
+        readAll next rest
+
+-- 🚪 The files are the arguments (none: the standard input).
+-- 引数がファイル（なければ標準入力）
+main : [String] -> IO (Result String ())
+main files = do
+  _ <- readAll () (if null files then ["-"] else files) ?
+  pure (Ok ())

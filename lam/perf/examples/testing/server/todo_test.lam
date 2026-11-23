@@ -1,0 +1,69 @@
+-- ANCHOR: all
+-- 🌐 The tests of the TODO API, in fake worlds: first the handler by
+--    hand, then the whole server with the requests of a world.
+--      lam test todo_test.lam
+-- TODO の API のテストを、偽物の世界で。まず handler を手で呼び、次に
+-- 世界の頼みでサーバーまるごと
+import Todos (Store)
+import TodoApp
+
+-- ANCHOR: byHand
+-- 🖐️ Start the store, and ask the router once: the handler is only a
+--    function from a Request to an IO Response.
+-- 店を始めて、道案内に1度だけ頼む。handler は、Request から
+-- IO Response へのただの関数
+askOnce : Request -> IO Response
+askOnce req = do
+  store <- Todos.start
+  _ <- Todos.add store "write the notes"
+  Route.router (TodoApp.routes store) req
+-- ANCHOR_END: byHand
+
+-- ANCHOR: requests
+-- 📨 The requests of the fake world: when (ms), the method, the path,
+--    and the body, as in the .req files of the chapter on web servers.
+-- 偽物の世界の頼み：いつ（ミリ秒）、メソッド、道、本文
+morning =
+  { Test.world | requests =
+      [ "0 POST /todos {\"title\": \"write the notes\"}"
+      , "0 POST /todos {\"title\": \"draw\"}"
+      , "10 PUT /todos/1/done"
+      , "20 DELETE /todos/9"
+      , "30 GET /todos" ] }
+-- ANCHOR_END: requests
+
+tests : [Test]
+tests =
+  -- ANCHOR: handlerTests
+  [ Test.group "the handler, by hand"
+      -- 「一覧は 200 で、足したものが入っている」
+      [ Test.io "GET /todos" Test.world
+          (askOnce (Test.request "GET" "/todos" ""))
+          (\r ->
+            [ Test.equal "status" (map .status r.value) (Just 200)
+            -- The body is Bytes: Http.string reads it as text.
+            -- 本文はバイト列。Http.string で文字として読む
+            , Test.that "body"
+                (map (\res -> String.contains "write the notes"
+                                 (Http.string res ?: ""))
+                     r.value
+                   == Just true) ])
+      -- 「番号でないと 400」
+      , Test.io "PUT /todos/abc/done" Test.world
+          (askOnce (Test.request "PUT" "/todos/abc/done" ""))
+          (\r -> [ Test.equal "status" (map .status r.value) (Just 400) ]) ]
+  -- ANCHOR_END: handlerTests
+  -- ANCHOR: serverTests
+  , Test.io "the whole server" morning (TodoApp.main { port = 8080 })
+      (\r ->
+        -- 「答えた頼みの、状態コードの並び」
+        [ Test.equal "statuses" (map .status r.served)
+            [201, 201, 200, 404, 200]
+        -- 「最後の一覧」
+        , Test.equal "the last list" (map .body (drop 4 r.served))
+            [ "[{\"done\":true,\"id\":1,\"title\":\"write the notes\"},"
+                ++ "{\"done\":false,\"id\":2,\"title\":\"draw\"}]" ]
+        -- 「止まったら、残りを言う」
+        , Test.equal "stderr" r.stderr "stopped. TODOs left: 2\n" ]) ]
+  -- ANCHOR_END: serverTests
+-- ANCHOR_END: all

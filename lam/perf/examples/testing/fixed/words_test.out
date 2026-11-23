@@ -1,0 +1,7 @@
+words_test.lam
+  ✓ splitIntoWords > makes lowercase words
+  ✓ splitIntoWords > finds no words in an empty text
+  ✓ splitIntoWords > keeps don't as one word
+  ✓ countWords > counts the same word
+  ✓ topN > puts the most first, then a to z
+  ✓ topN > gives at most n

@@ -1,0 +1,13 @@
+dry-run: runs: Shell.run $"git branch --show-current"
+dry-run: runs: Shell.run $"git branch --merged main --format=%(refname:short)"
+dry-run: runs: Shell.run $"git log -1 --format=%an%x09%cs add-shell"
+dry-run: runs: Shell.run $"git log -1 --format=%an%x09%cs fix-typo"
+dry-run: runs: Shell.run $"git log -1 --format=%an%x09%cs 機能/表"
+branch     author  date
+---------  ------  ----------
+add-shell  Rust    2026-11-24
+fix-typo   Python  2026-11-20
+機能/表    Ruby    2026-11-26
+dry-run: Shell.run $"git branch -d add-shell"
+error: dry run: git was not run
+[exit 1]

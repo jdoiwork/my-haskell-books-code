@@ -1,0 +1,7 @@
+https://pokeapi.co/api/v2/pokemon-species/bulbasaur 200 web/bulbasaur.json 300
+https://pokeapi.co/api/v2/pokemon-species/charmander 200 web/charmander.json 500
+https://pokeapi.co/api/v2/pokemon-species/squirtle 200 web/squirtle.json 200
+https://pokeapi.co/api/v2/pokemon-species/pikachu 200 web/pikachu.json 400
+https://pokeapi.co/api/v2/pokemon-species/eevee 200 web/eevee.json 300
+https://pokeapi.co/api/v2/pokemon-species/snorlax 200 web/snorlax.json 600
+https://pokeapi.co/api/v2/pokemon-species/nosuchmon 404 web/not-found.json 100

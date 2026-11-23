@@ -1,0 +1,11 @@
+calls: 100,075 in all
+     100,000  mod
+          12  $default$Display$display
+           6  Map.fromList
+           6  take
+           5  Decoder
+           5  Gen
+           4  bindIO
+           4  make
+           3  $do.bind
+           2  $default$Sequence$slice

@@ -1,0 +1,10 @@
+props_test.lam
+  ✓ sort > keeps the length
+  ✓ sort > puts them in order
+  ✓ sort > sorting twice is sorting once
+  ✗ dedupe > leaves no value twice
+      failed for [-4, -2, 0, -2] (test 13 of 100)
+      smallest: [-2, 0, -2] (shrunk once)
+  ✗ splitIntoWords > gives the text back, joined with spaces
+      failed for " " (test 2 of 100)
+      smallest: " " (none smaller)

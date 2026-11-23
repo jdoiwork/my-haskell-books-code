@@ -1,0 +1,10 @@
+dry-run: Shell.run $"git 'log;' touch hacked"
+error: dry run: git was not run
+[exit 1]
+error: git 'log;' touch hacked: exit 1: git: 'log;' is not a git command. See 'git --help'.
+
+The most similar command is
+	log
+[exit 1]
+ls: hacked: No such file or directory
+[exit 1]

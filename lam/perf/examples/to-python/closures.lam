@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- 🪤 A loop that makes a function each time around: each one keeps
+--    the n of its own turn.
+-- 1周ごとに関数を1つ作るループ。どの関数も、自分の周の n を持つ
+collect fs n =
+  if n > 3 then fs else collect ((\x -> x * n) : fs) (n + 1)
+
+main = print (List.map (\f -> f 10) (collect [] 1))
+-- ANCHOR_END: all

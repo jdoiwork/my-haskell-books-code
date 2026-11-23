@@ -1,0 +1,9 @@
+{
+  "dryRun": {
+    "allow": [
+      "git branch --show-current",
+      "git branch --merged",
+      "git log"
+    ]
+  }
+}

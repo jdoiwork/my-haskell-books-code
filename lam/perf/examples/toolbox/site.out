@@ -1,0 +1,3 @@
+<- GET / 200 <!doctype html> …
+<- GET /logo.png 200 <150 bytes>
+<- GET /missing.png 404 not found

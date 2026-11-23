@@ -1,0 +1,1 @@
+-pe 'putStrLn line' examples/oneliner/notes.txt

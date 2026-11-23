@@ -1,0 +1,13 @@
+-- ANCHOR: all
+-- 🧮 Floats at the edges: 1 / 0, the root of -1, and the ways of
+--    showing a Float. Python raises an error for the first two, and
+--    writes the others in its own way; Lam does neither.
+-- 端の Float：1 / 0、-1 の平方根、Float の見せ方。Python は、はじめの
+-- 2つで例外を出し、ほかは自分の形で書く。Lam は、どちらもしない
+main = do
+  print (1 / 0)
+  print (sqrt (0 - 1))
+  print [1.0, 0.1 + 0.2, 1.0e16, 0.0000001]
+  print (-7 // 2, 2 * 10000000000 * 10000000000)
+  putStrLn (Float.fixed 2 0.125)
+-- ANCHOR_END: all

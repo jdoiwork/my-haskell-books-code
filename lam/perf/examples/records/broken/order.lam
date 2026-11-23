@@ -1,0 +1,13 @@
+-- 🐛 A part of where uses a part below it: the parts were opened into
+--    let ... in from the top, so once was not there yet. Since the
+--    chapter "Making the language sturdier", the parts are put in
+--    order first, and this works.
+-- where の部品が、下の部品を使う。部品を上から let ... in に開いていた
+-- ので、once はまだなかった。「言葉を補強する」の章からは、先に部品を
+-- 並べ直すので、これは動く
+double x = twice
+  where
+    twice = once + once
+    once = x
+
+double 21

@@ -1,0 +1,13 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🕳️ A deep recursion that fails at the bottom.
+--      lam deep.lam
+-- いちばん底で失敗する、深い再帰
+total : Int -> Int
+total n = if n == 0 then 1 // 0 else 1 + total (n - 1)
+
+main : IO ()
+main = do
+  putStrLn "counting..."
+  print (total 1000)
+-- ANCHOR_END: all

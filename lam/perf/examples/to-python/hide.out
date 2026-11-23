@@ -1,0 +1,2 @@
+hide.lam: these have no Python yet: re"...", Regex.replaceWith
+[exit 1]

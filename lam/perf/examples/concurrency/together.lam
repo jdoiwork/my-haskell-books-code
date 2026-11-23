@@ -1,0 +1,56 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 🧩 Three things that do not need each other: an ado on IO does them
+--    one by one, an ado on Par does them at once.
+--      lam together.lam
+-- おたがいを要らない3つ。IO の ado は1つずつ、Par の ado は同時に
+import Dex (Mon, fetch, line)
+import Par (Par (..))
+
+-- 📝 Two Pokémon and the party, in one line (or the first Err).
+-- 2匹とパーティーを1行に（または最初の Err）
+summary
+  : Result String Mon -> Result String Mon -> Result String String
+  -> Result String String
+summary a b party = ado
+  x <- a
+  y <- b
+  text <- party
+  pure f"{x.ja} and {y.ja}, in a party of {length (lines text)}"
+
+-- ANCHOR: inOrder
+-- 🐢 ado on IO: map and ap of IO, one after another.
+-- IO の ado：IO の map と ap で、1つずつ順に
+inOrder : IO (Result String String)
+inOrder = ado
+  a <- fetch "pikachu"
+  b <- fetch "eevee"
+  party <- readFile "party.txt"
+  pure (summary a b party)
+-- ANCHOR_END: inOrder
+
+-- ANCHOR: atOnce
+-- 🐇 The same lines on Par: only Par ( ) and Par.run are new.
+-- 同じ行を Par で。新しいのは Par ( ) と Par.run だけ
+atOnce : IO (Result String String)
+atOnce = Par.run (ado
+  a <- Par (fetch "pikachu")
+  b <- Par (fetch "eevee")
+  party <- Par (readFile "party.txt")
+  pure (summary a b party))
+-- ANCHOR_END: atOnce
+
+-- ⏱️ Run it, and say how long it took.
+-- 動かして、かかった時間を言う
+report : String -> IO (Result String String) -> IO ()
+report label io = do
+  done <- IO.timed io
+  case done.value of
+    | Ok text -> putStrLn f"{label:<9} {text} ({done.seconds:.1} s)"
+    | Err e -> ePutStrLn e
+
+main : IO ()
+main = do
+  report "in order" inOrder
+  report "at once" atOnce
+-- ANCHOR_END: all

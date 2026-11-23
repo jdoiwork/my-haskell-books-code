@@ -1,0 +1,5 @@
+-- ANCHOR: all
+-- 👋 Only to show that a bad lam.json stops lam before the script.
+-- まちがった lam.json が、スクリプトより先に lam を止めることを見せるだけ
+main = putStrLn "hello"
+-- ANCHOR_END: all

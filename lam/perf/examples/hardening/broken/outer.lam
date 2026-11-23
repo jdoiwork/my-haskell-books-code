@@ -1,0 +1,12 @@
+-- ANCHOR: all
+-- 🐛 label uses tag, an argument outside, and has no annotation: it is
+--    not made general, so it cannot take an Int and a String.
+-- label は外の引数 tag を使い、注釈がない。一般にしないので、Int と
+-- String の両方は受け取れない
+tagged : String -> Int -> String -> String
+tagged tag n name = label n ++ " " ++ label name
+  where
+    label x = tag ++ ":" ++ display x
+
+main = putStrLn (tagged "#" 3 "lam")
+-- ANCHOR_END: all

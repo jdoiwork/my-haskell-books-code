@@ -1,0 +1,100 @@
+const $rt = makeRuntime();
+$rt.start(() => {
+  const prim$Float$fixed = $rt.prim("Float.fixed");
+  const prim$IO$bindIO = $rt.prim("IO.bindIO");
+  const prim$IO$putStrLn = $rt.prim("IO.putStrLn");
+  const prim$IO$returnIO = $rt.prim("IO.returnIO");
+  const prim$List$foldr = $rt.prim("List.foldr");
+  const prim$show = $rt.prim("show");
+  const Con$Circle$1 = a1 => $rt.con("Circle", 0, [a1]);
+  const Con$Square$1 = a1 => $rt.con("Square", 1, [a1]);
+  const Con$Box$2 = a1 => a2 => $rt.con("Box", 2, [a1, a2]);
+  const shapes$area = shape => {
+    if (shape.tag === "Circle") {
+      const r = shape.args[0];
+      return $rt.mul($rt.mul(3.14, r), r);
+    }
+    if (shape.tag === "Square") {
+      const s = shape.args[0];
+      return $rt.mul(s, s);
+    }
+    if (shape.tag === "Box") {
+      const w = shape.args[0];
+      const h = shape.args[1];
+      return $rt.mul(w, h);
+    }
+    return $rt.noMatch(shape);
+  };
+  const Prelude$display = $d => $d.display;
+  const Prelude$bind = $d => $d.bind;
+  const Prelude$$default$Display$display = $Display_a => x => prim$show(x);
+  const Prelude$$Display$List = (() => {
+    const $self = {};
+    Object.assign(
+      $self,
+      { display: Prelude$$default$Display$display($self) }
+    );
+    return $self;
+  })();
+  const List$map = f => xs =>
+    prim$List$foldr(x => rest => $rt.cons(f(x), rest))(null)(xs);
+  const List$foldl = next$1 => next$2 => next$3 => {
+    for (;;) {
+      const f = next$1, z = next$2, xs = next$3;
+      if (xs === null) {
+        return z;
+      }
+      if (xs !== null) {
+        const x = xs.h;
+        const rest = xs.t;
+        [next$1, next$2, next$3] = [f, f(z)(x), rest];
+        continue;
+      }
+      return $rt.noMatch(xs);
+    }
+  };
+  const List$sum = xs => List$foldl(total => x => $rt.add(total, x))(0n)(xs);
+  const IO$print = $Display_a => x =>
+    prim$IO$putStrLn(Prelude$display($Display_a)(x));
+  const IO$$Monad$IO$bind = m => f => prim$IO$bindIO(m)(f);
+  const IO$$Functor$IO$map = f => m =>
+    prim$IO$bindIO(m)(x => prim$IO$returnIO(f(x)));
+  const IO$$Functor$IO = (() => {
+    const $self = { map: IO$$Functor$IO$map };
+    return $self;
+  })();
+  const IO$$Applicative$IO$pure = x => prim$IO$returnIO(x);
+  const IO$$Applicative$IO$ap = mf => mx =>
+    prim$IO$bindIO(mf)(f => prim$IO$bindIO(mx)(x => prim$IO$returnIO(f(x))));
+  const IO$$Applicative$IO = (() => {
+    const $self = {
+      pure: IO$$Applicative$IO$pure,
+      ap: IO$$Applicative$IO$ap,
+      $Functor: IO$$Functor$IO
+    };
+    return $self;
+  })();
+  const IO$$Monad$IO = (() => {
+    const $self = {
+      bind: IO$$Monad$IO$bind,
+      $Applicative: IO$$Applicative$IO
+    };
+    return $self;
+  })();
+  const shapes$main = (() => {
+    const shapes = $rt.list(
+      Con$Circle$1(1n),
+      Con$Square$1(2n),
+      Con$Box$2(2n)(3.5)
+    );
+    return Prelude$bind(IO$$Monad$IO)(
+      prim$IO$putStrLn(
+        $rt.append(
+          "total area: ",
+          prim$Float$fixed(2n)(List$sum(List$map(shapes$area)(shapes)))
+        )
+      )
+    )($_ => IO$print(Prelude$$Display$List)(List$map(shapes$area)(shapes)));
+  })();
+  return shapes$main;
+});

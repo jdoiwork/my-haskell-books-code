@@ -1,0 +1,11 @@
+calls: 8,903,355 in all
+   2,986,610  key
+   1,593,304  merge
+   1,493,305  before
+     915,029  take
+     915,023  drop
+     299,998  length
+     200,001  f
+     199,998  sortBy
+     100,018  range
+     100,001  foldr
