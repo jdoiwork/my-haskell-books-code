@@ -47,6 +47,10 @@ try:
         for command in (python, ts):
             got = out(command + [task] + file)
             assert got == answer, (command[-1], task, got)
+    # pyversions.py runs (its times are not checked: they change).
+    # pyversions.py が動く（時間は確かめない。変わるから）
+    timed = out([sys.executable, os.path.join(run, "pyversions.py"), f.name])
+    assert timed.startswith(sys.implementation.name + " "), timed
     assert out(awk_count + [f.name]) == expected["count"]
     assert out(awk_slow + [f.name]) == expected["slow"]
 finally:
