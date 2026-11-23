@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- ❓ A property with no type: which lists should be made?
+--      lam test ambiguous_test.lam
+-- 型のない性質：どんなリストを作ればよい？
+tests : [Test]
+tests =
+  [ Test.property "sort keeps the length"
+      (\xs -> length (sort xs) == length xs) ]
+-- ANCHOR_END: all

@@ -1,0 +1,5 @@
+<- {"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"hoverProvider": true, "textDocumentSync": 1}, "serverInfo": {"name": "lam", "version": "0.31.0.0"}}}
+<- {"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"diagnostics": [{"message": "in the definition of main: type error: the types do not fit: a number where Price is needed", "range": {"end": {"character": 37, "line": 24}, "start": {"character": 36, "line": 24}}, "severity": 1, "source": "lam"}], "uri": "Receipt.lam"}}
+<- {"id": 2, "jsonrpc": "2.0", "result": null}
+<- {"id": 3, "jsonrpc": "2.0", "result": null}
+exit code: 0

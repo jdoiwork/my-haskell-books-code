@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- 🎨 The same with Term.say: colors on a terminal, plain text in a
+--    file or a pipe (and with NO_COLOR).
+-- Term.say なら、端末では色、ファイルやパイプ（と NO_COLOR）では、
+-- 印のない文字
+main = do
+  Term.say (Term.green "merged" ++ "  fix-typo")
+  Term.say (Term.yellow "open" ++ "    try-colors")
+  Term.say (Term.red "kept" ++ "    main")
+  Term.say (Term.bold "3 branches can go")
+-- ANCHOR_END: all

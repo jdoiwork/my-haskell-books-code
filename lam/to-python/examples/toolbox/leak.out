@@ -1,0 +1,2 @@
+dry-run: runs: Shell.run $"git log -1 --oneline --output=log.txt"
+51e7f53 merge 機能/表

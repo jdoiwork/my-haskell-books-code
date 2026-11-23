@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- 🐛 The annotation says a can be any type, but go uses s as a String.
+-- 注釈は「a はどんな型でもよい」と言うが、go は s を String として使う
+bad : Int -> String
+bad n = go "x"
+  where
+    go : a -> String
+    go s = s ++ show n
+
+main = putStrLn (bad 1)
+-- ANCHOR_END: all

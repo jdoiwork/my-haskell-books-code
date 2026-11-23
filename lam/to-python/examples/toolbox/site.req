@@ -1,0 +1,3 @@
+0 GET /
+10 GET /logo.png
+20 GET /missing.png

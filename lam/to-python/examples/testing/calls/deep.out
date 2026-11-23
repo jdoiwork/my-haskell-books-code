@@ -1,0 +1,4 @@
+counting...
+examples/testing/calls/deep.lam:7:28: error: divided by zero
+  in total, called at examples/testing/calls/deep.lam:7:42 (and 999 more times)
+  in total, called at examples/testing/calls/deep.lam:12:10

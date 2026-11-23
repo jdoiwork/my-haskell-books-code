@@ -1,0 +1,5 @@
+weather_test.lam
+  ✓ waits for a quick answer > value
+  ✓ waits for a quick answer > elapsed
+  ✓ gives up on a slow answer > value
+  ✓ gives up on a slow answer > elapsed

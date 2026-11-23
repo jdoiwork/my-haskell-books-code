@@ -1,0 +1,9 @@
+Usage: prune.lam [OPTIONS]
+
+  Delete the branches merged into the base branch.
+
+Options:
+  --base STRING  The branch the others were merged into  [default: main]
+  -y, --yes      Delete them all without asking
+  --pick         Choose the one to delete
+  --help         Show this message and exit

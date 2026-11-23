@@ -1,0 +1,5 @@
+{
+  "dryrun": {
+    "allow": ["git log"]
+  }
+}

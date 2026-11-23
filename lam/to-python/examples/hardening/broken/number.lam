@@ -1,0 +1,8 @@
+-- ANCHOR: all
+-- 🐛 A number where a String is needed.
+-- String が要るところに数
+next x = x + 1
+
+main : IO ()
+main = putStrLn (next 1)
+-- ANCHOR_END: all

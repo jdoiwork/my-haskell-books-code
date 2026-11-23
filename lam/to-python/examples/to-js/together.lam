@@ -1,0 +1,22 @@
+-- ANCHOR: all
+-- ⏱️ At once: three jobs that sleep, a race, and a cleanup.
+-- 同時に：眠る3つの仕事と、競走と、後始末
+job name ms = do
+  sleep ms
+  putStrLn f"{name} is done"
+  pure (String.length name)
+
+-- 🫖 Boil the water, and the kettle breaks: an error in the middle.
+-- お湯をわかすと、やかんがこわれる：途中のエラー
+boil = do
+  putStrLn "boiling..."
+  error "the kettle broke"
+
+main = do
+  sizes <- IO.all [job "tea" 30, job "coffee" 10, job "cocoa" 20]
+  print sizes
+  winner <- IO.race [job "slow" 200 |> map (\_ -> "slow"), pure "fast"]
+  putStrLn f"the winner: {winner}"
+  tried <- IO.try (IO.finally boil (putStrLn "cleaned up"))
+  print tried
+-- ANCHOR_END: all

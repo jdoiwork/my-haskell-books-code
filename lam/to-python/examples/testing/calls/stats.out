@@ -1,0 +1,5 @@
+mon: 80
+tue: 75
+examples/testing/calls/stats.lam:12:3: error: head: the list is empty
+  in median, called at examples/testing/calls/stats.lam:17:28
+  in report, called at examples/testing/calls/stats.lam:23:40

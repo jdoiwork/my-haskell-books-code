@@ -11,6 +11,9 @@
 #   Scheme  Guile で動かす
 #   Deno    deno check で型を調べてから、deno run で動かす（権限のフラグを見せるため。
 #           フラグは付けない）
+#   Coconut coconut で Python にして、python3 で動かす（土台のイメージの Python は
+#           Debian のパッケージのまま）
+#   Hy      hy で動かす。hy2py で Python のコードにもする
 #   Octave  octave-cli で動かす（MATLAB の代わり。版は Debian のパッケージのまま）。
 #           BLAS は OpenBLAS（libopenblas0-pthread）。速さを比べる章では、参照実装の
 #           BLAS に取り替えても動かす（update-alternatives）
@@ -68,5 +71,16 @@ ARG ELM=0.19.3-0
 ENV ELM_HOME=/opt/elm/home
 RUN mkdir -p /opt/elm && cd /opt/elm && npm install --silent elm@$ELM \
  && mkdir /tmp/e && cd /tmp/e && yes | elm init >/dev/null && yes | elm install elm/json >/dev/null && rm -rf /tmp/e
+
+# Coconut and Hy: two languages that turn into Python (the chapter
+# "Turning Lam into Python"). Last, so the layers above stay cached.
+# Coconut と Hy：Python に変換する2つの言語（「Python に変換する」の章）。
+# 上の層を作り直さないよう、最後に置く
+ARG COCONUT=3.2.0
+ARG HY=1.3.1
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-dev \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -m venv /opt/py && /opt/py/bin/pip install -q coconut==$COCONUT hy==$HY
+ENV PATH=$PATH:/opt/py/bin
 
 WORKDIR /work

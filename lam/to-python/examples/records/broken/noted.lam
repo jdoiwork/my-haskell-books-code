@@ -1,0 +1,9 @@
+-- 🐛 The same mistake, with an annotation: the error comes out in the
+--    definition of add itself.
+-- 同じまちがいに、注釈を付けた。エラーは add の定義そのものに出る
+add : Int -> Int -> Int
+add x y = x ++ y
+
+total = add 1 2
+
+total

@@ -1,0 +1,6 @@
+branch     author  date
+---------  ------  ----------
+add-shell  Rust    2026-11-24
+fix-typo   Python  2026-11-20
+機能/表    Ruby    2026-11-26
+delete 3 branches? [y/N] deleted 0 of 3

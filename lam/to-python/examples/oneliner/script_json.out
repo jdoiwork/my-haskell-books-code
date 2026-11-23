@@ -1,0 +1,95 @@
+#!/usr/bin/env lam
+-- 📜 Made with lam --print-script: the same as this one-liner:
+-- --print-script で作った、このワンライナーと同じ動きのスクリプト：
+--   lam --json --path=orders -p -e 'Json.get "user" json ?: JNull'
+-- Run it:  lam this.lam [files...]   (no files: the standard input)
+-- 動かし方：lam このファイル.lam [ファイル…]（なければ標準入力）
+
+-- 🛑 An Err stops the script with its message (exit code 1).
+-- Err なら、わけを言ってスクリプトを止める（終了コード 1）
+orStop : Result String a -> IO a
+orStop result =
+  case result of
+    | Ok x -> pure x
+    | Err why -> do
+        ePutStrLn f"error: {why}"
+        exit 1
+
+-- 🧭 Walk down by keys (a number is the place in an array, from 0).
+-- キーをたどって下りる（数なら、配列の何番目か。0 から）
+down : String -> Json -> Maybe Json
+down key j =
+  case j of
+    | JObj m -> Map.lookup key m
+    | JArr xs ->
+        case (String.toInt key, drop (String.toInt key ?: 0) xs) of
+          | (Just i, x : _) -> if i < 0 then Nothing else Just x
+          | _ -> Nothing
+    | _ -> Nothing
+
+pick : [String] -> Json -> Result String Json
+pick keys j =
+  case keys of
+    | [] -> Ok j
+    | key : rest ->
+        case down key j of
+          | Just x -> pick rest x
+          | Nothing -> Err key
+
+-- 🏷️ The name of a file in a message ("-" is the standard input).
+-- 知らせの文の中の、ファイルの名前（"-" は標準入力）
+nameOf file = if file == "-" then "<stdin>" else file
+
+-- 🧩 The JSON in a text, at --path=orders. An array gives its items.
+-- 文字列の中の JSON の、--path=orders の所。配列なら、要素の1つずつ
+piecesOf : String -> String -> Result String [Json]
+piecesOf place text =
+  if String.trim text == "" then Ok []
+  else do
+    j <- Json.parse text
+           |> Result.mapError (\e -> f"{place}: not JSON: {e}")
+    v <- pick ["orders"] j
+           |> Result.mapError (\k -> f"{place}: --path=orders: no {k}")
+    pure (case v of | JArr xs -> xs | _ -> [v])
+
+-- 🔁 The program of -e, for one json.
+-- -e のプログラム。json を1つ受け取る
+step json =
+  Json.get "user" json ?: JNull
+
+-- 👣 One piece: give the acc for the next one.
+-- 1つ分をやって、次の1つ分のための acc を返す
+each acc json = do
+  putStrLn (Json.show (step json))
+  pure acc
+
+eachOf acc pieces =
+  case pieces of
+    | [] -> pure acc
+    | piece : rest -> do
+        next <- each acc piece
+        eachOf next rest
+
+-- 📥 --json: all of a file is one JSON ("-": the standard input).
+-- --json：ファイル全体で1つの JSON（"-" は標準入力）
+readOne acc file = do
+  text <- (if file == "-" then map Ok getContents
+           else readFile file) ?
+  pieces <- pure (piecesOf (nameOf file) text) ?
+  map Ok (eachOf acc pieces)
+
+-- 📂 The files, one after another ("-" is the standard input).
+-- ファイルを、順に（"-" は標準入力）
+readAll acc files =
+  case files of
+    | [] -> pure (Ok acc)
+    | file : rest -> do
+        next <- readOne acc file ?
+        readAll next rest
+
+--- Run the one-liner on each file (none: the standard input)
+-- ファイルごとに、ワンライナーを動かす（なければ標準入力）
+main : { files : [String] } -> IO (Result String ())
+main o = do
+  _ <- readAll () (if null o.files then ["-"] else o.files) ?
+  pure (Ok ())

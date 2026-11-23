@@ -1,0 +1,127 @@
+rt = make_runtime()
+
+
+def program():
+    Prim_Float_fixed = rt.prim("Float.fixed")
+    Prim_IO_bindIO = rt.prim("IO.bindIO")
+    Prim_IO_putStrLn = rt.prim("IO.putStrLn")
+    Prim_IO_returnIO = rt.prim("IO.returnIO")
+    Prim_List_foldr = rt.prim("List.foldr")
+    Prim_show = rt.prim("show")
+    Con_Circle_1 = lambda a1: Con("Circle", 0, (a1,))
+    Con_Square_1 = lambda a1: Con("Square", 1, (a1,))
+    Con_Box_2 = lambda a1: lambda a2: Con("Box", 2, (a1, a2))
+
+    def Shapes_area(shape):
+        match shape:
+            case Con("Circle", [r]):
+                return ((3.14 * r) * r)
+            case Con("Square", [s]):
+                return (s * s)
+            case Con("Box", [w, h]):
+                return (w * h)
+            case Other_1:
+                return rt.no_match(Other_1)
+
+    def Prelude_display(_d):
+        return _d["display"]
+
+    def Prelude_bind(_d):
+        return _d["bind"]
+
+    @rt.curry(2)
+    def Prelude__default_Display_display(_Display_a, x):
+        return Prim_show(x)
+
+    def Let_2():
+        _self = {}
+        _self.update({"display": Prelude__default_Display_display(_self)})
+        return _self
+    Prelude__Display_List = Let_2()
+
+    @rt.curry(2)
+    def List_map(f, xs):
+        return Prim_List_foldr(lambda x: lambda rest: Cons(f(x), rest))(None)(
+            xs
+        )
+
+    @rt.curry(3)
+    def List_foldl(f, z, xs):
+        while True:
+            match xs:
+                case None:
+                    return z
+                case Cons(x, rest):
+                    z, xs = f(z)(x), rest
+                    continue
+                case Other_3:
+                    return rt.no_match(Other_3)
+
+    def List_sum(xs):
+        return List_foldl(lambda total: lambda x: (total + x))(0)(xs)
+
+    @rt.curry(2)
+    def IO_print(_Display_a, x):
+        return Prim_IO_putStrLn(Prelude_display(_Display_a)(x))
+
+    @rt.curry(2)
+    def IO__Monad_IO_bind(m, f):
+        return Prim_IO_bindIO(m)(f)
+
+    @rt.curry(2)
+    def IO__Functor_IO_map(f, m):
+        return Prim_IO_bindIO(m)(lambda x: Prim_IO_returnIO(f(x)))
+
+    def Let_4():
+        _self = {"map": IO__Functor_IO_map}
+        return _self
+    IO__Functor_IO = Let_4()
+
+    def IO__Applicative_IO_pure(x):
+        return Prim_IO_returnIO(x)
+
+    @rt.curry(2)
+    def IO__Applicative_IO_ap(mf, mx):
+        return Prim_IO_bindIO(mf)(
+            lambda f: Prim_IO_bindIO(mx)(lambda x: Prim_IO_returnIO(f(x)))
+        )
+
+    def Let_5():
+        _self = {
+            "pure": IO__Applicative_IO_pure,
+            "ap": IO__Applicative_IO_ap,
+            "$Functor": IO__Functor_IO
+        }
+        return _self
+    IO__Applicative_IO = Let_5()
+
+    def Let_6():
+        _self = {
+            "bind": IO__Monad_IO_bind,
+            "$Applicative": IO__Applicative_IO
+        }
+        return _self
+    IO__Monad_IO = Let_6()
+
+    def Let_7():
+        shapes = rt.list(Con_Circle_1(1), Con_Square_1(2), Con_Box_2(2)(3.5))
+        return Prelude_bind(IO__Monad_IO)(
+            Prim_IO_putStrLn(
+                rt.append(
+                    "total area: ",
+                    Prim_Float_fixed(2)(
+                        List_sum(List_map(Shapes_area)(shapes))
+                    )
+                )
+            )
+        )(
+            lambda __: IO_print(Prelude__Display_List)(
+                List_map(Shapes_area)(shapes)
+            )
+        )
+    Shapes_main = Let_7()
+
+    return Shapes_main
+
+
+rt.start(program)

@@ -1,0 +1,80 @@
+-- ANCHOR: all
+-- ✅ The TODO API of the chapter on web servers, as a module: lam test
+--    can import its routes and its main.
+--      lam TodoApp.lam --port 8080
+-- Web サーバーの章の TODO の API を、モジュールにした。lam test が
+-- routes と main を import できる
+module TodoApp exposing (routes, main)
+
+import Todos (Store)
+
+-- ANCHOR: handlers
+-- 📋 GET /todos: all of them.
+-- 全部
+listAll : Store -> IO Response
+listAll store = do
+  todos <- Todos.all store
+  pure (Response.json 200 (JArr (map Todos.toJson todos)))
+
+-- ➕ POST /todos with {"title": "..."}: 201 and the new one, or 400.
+-- 201 と新しい TODO か、400
+addOne : Store -> Request -> IO Response
+addOne store req =
+  case Http.bodyAs Todos.newTitle req of
+    | Err why -> pure (Response.badRequest why)
+    | Ok title -> do
+        todo <- Todos.add store title
+        pure (Response.json 201 (Todos.toJson todo))
+
+-- 🔢 The :id of the path as an Int, or 400.
+-- 道の :id を Int に。だめなら 400
+withId : Params -> (Int -> IO Response) -> IO Response
+withId ps f =
+  case Map.lookup "id" ps |> Maybe.andThen String.toInt of
+    | Just n -> f n
+    | Nothing -> pure (Response.badRequest "the id is not a number")
+
+-- ✔️ PUT /todos/3/done, and 🗑️ DELETE /todos/3: 404 if there is none.
+-- なければ 404
+finishOne : Store -> Int -> IO Response
+finishOne store n = do
+  found <- Todos.finish store n
+  pure (case found of
+    | Just t -> Response.json 200 (Todos.toJson t)
+    | Nothing -> Response.notFound)
+
+removeOne : Store -> Int -> IO Response
+removeOne store n = do
+  gone <- Todos.remove store n
+  pure (if gone then Response.text 204 "" else Response.notFound)
+-- ANCHOR_END: handlers
+
+-- ANCHOR: routes
+-- 🚏 The routes: a method, a path (":id" is any piece), and what to do.
+-- 道の一覧：メソッド、道（":id" はどのかけらでも）、すること
+routes : Store -> [Route]
+routes store =
+  [ Route.get "/todos" (\_ _ -> listAll store)
+  , Route.post "/todos" (\_ req -> addOne store req)
+  , Route.put "/todos/:id/done" (\ps _ -> withId ps (finishOne store))
+  , Route.delete "/todos/:id" (\ps _ -> withId ps (removeOne store)) ]
+-- ANCHOR_END: routes
+
+-- ANCHOR: goodbye
+-- 👋 When the server stops (Ctrl-C, too), say how many are left.
+-- サーバーが止まったら（Ctrl-C でも）、いくつ残っているかを言う
+goodbye : Store -> IO ()
+goodbye store = do
+  todos <- Todos.all store
+  -- 「止まりました。残っている TODO：3」
+  ePutStrLn f"stopped. TODOs left: {length todos}"
+-- ANCHOR_END: goodbye
+
+-- ANCHOR: main
+main : { port : Int = 8080 } -> IO ()
+main opts = do
+  store <- Todos.start
+  defer goodbye store
+  Http.serve opts.port (Route.router (routes store))
+-- ANCHOR_END: main
+-- ANCHOR_END: all

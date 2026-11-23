@@ -1,0 +1,32 @@
+-- ANCHOR: all
+-- 🎬 The tests of Wordfreq's main, in fake worlds.
+--      lam test wordfreq_test.lam
+-- Wordfreq の main のテストを、偽物の世界で
+import Wordfreq
+
+-- ANCHOR: tests
+tests : [Test]
+tests =
+  -- 「標準入力を読む」
+  [ Test.io "reads the standard input"
+      { Test.world | stdin = ["b a b", "c a b"] }
+      (Wordfreq.main [])
+      (\r ->
+        [ Test.equal "stdout" r.stdout "b       3\na       2\nc       1\n"
+        , Test.equal "exit" r.exit 0 ])
+  -- 「引数のファイルを読む」
+  , Test.io "reads the file in the arguments"
+      { Test.world | files = {"notes.txt": "Don't panic. Don't."} }
+      (Wordfreq.main ["notes.txt"])
+      (\r -> [ Test.equal "stdout" r.stdout "don't   2\npanic   1\n" ])
+  -- 「ファイルがなければ、わけを言って 1 で終わる」
+  , Test.io "says why, when there is no file"
+      Test.world
+      (Wordfreq.main ["nothing.txt"])
+      (\r ->
+        [ Test.equal "stderr" r.stderr
+            "wordfreq: nothing.txt: no such file\n"
+        , Test.equal "exit" r.exit 1
+        , Test.equal "stdout" r.stdout "" ]) ]
+-- ANCHOR_END: tests
+-- ANCHOR_END: all

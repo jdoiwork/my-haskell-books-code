@@ -1,0 +1,5 @@
+-- 🐢 A slow check: it naps, then says ok.
+-- ゆっくりの確かめ：昼寝してから、ok と言う
+main = do
+  sleep 300
+  putStrLn "ok"

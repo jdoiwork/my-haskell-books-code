@@ -1,0 +1,8 @@
+-- ANCHOR: all
+-- 🪜 A function that is not a loop: it calls itself, then adds 1.
+--    50000 calls deep.
+-- ループでない関数：自分を呼んでから、1 を足す。5万段の深さ
+count n = if n == 0 then 0 else 1 + count (n - 1)
+
+main = print (count 50000)
+-- ANCHOR_END: all

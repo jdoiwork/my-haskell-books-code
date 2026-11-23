@@ -1,0 +1,20 @@
+{
+  "id": 1,
+  "name": "bulbasaur",
+  "names": [
+    {
+      "name": "Bulbasaur",
+      "language": {
+        "name": "en",
+        "url": "https://pokeapi.co/api/v2/language/9/"
+      }
+    },
+    {
+      "name": "フシギダネ",
+      "language": {
+        "name": "ja",
+        "url": "https://pokeapi.co/api/v2/language/11/"
+      }
+    }
+  ]
+}

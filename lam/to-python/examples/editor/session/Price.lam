@@ -1,0 +1,18 @@
+-- ANCHOR: all
+-- 💴 Price: an amount in yen, and how to add and show it.
+-- Price：円の金額と、その足し方・見せ方
+module Price exposing (Price (..), yen, addPrice, (<+>))
+
+data Price = Price Int
+
+yen : Price -> Int
+yen p = case p of | Price n -> n
+
+addPrice : Price -> Price -> Price
+addPrice a b = Price (yen a + b)
+
+infixl 7 addPrice as <+>
+
+instance Display Price where
+  display p = f"{yen p:,} yen"
+-- ANCHOR_END: all

@@ -1,0 +1,15 @@
+-- ANCHOR: all
+-- 💯 A score of a quiz, from 0 to 100, and the bonus for a good try.
+-- クイズの点数（0 から 100）と、がんばったごほうび
+module Score exposing (Score (..), bonus, points)
+
+data Score = Score Int
+
+points : Score -> Int
+points (Score n) = n
+
+-- 🎁 Ten more points. (It should never go over 100: does it?)
+-- 10 点のおまけ（100 は超えないはず。本当に？）
+bonus : Score -> Score
+bonus (Score n) = Score (n + 10)
+-- ANCHOR_END: all

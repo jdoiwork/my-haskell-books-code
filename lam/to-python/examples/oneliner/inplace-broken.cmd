@@ -1,0 +1,1 @@
+-i -pe 'toUpper' examples/oneliner/gaps.txt examples/oneliner/broken.log

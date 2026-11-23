@@ -300,6 +300,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | テストとデバッグ：lam test | [`lam/testing/`](lam/testing/)、[`lam/toolbox/`](lam/toolbox/)、[`langs/interp-testing/`](langs/interp-testing/)、[`langs/cargo/`](langs/cargo/) |
 | エディタで書く：色付けと LSP | [`lam/editor/`](lam/editor/)、[`lam/testing/`](lam/testing/)、[`langs/interp-editor/`](langs/interp-editor/) |
 | JavaScript に変換する | [`lam/to-js/`](lam/to-js/)、[`lam/editor/`](lam/editor/)、[`langs/interp-to-js/`](langs/interp-to-js/) |
+| Python に変換して、変換先を足せる形にする | [`lam/to-python/`](lam/to-python/)、[`lam/to-js/`](lam/to-js/)、[`langs/interp-to-python/`](langs/interp-to-python/) |
 
 ### 第17部 プログラマーのための数学
 

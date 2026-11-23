@@ -1,0 +1,22 @@
+-- ANCHOR: all
+-- ⛅ Ask for the weather, but wait one second at most: a slow answer
+--    is "too slow" (IO.timeout of the chapter on doing things at once).
+--      lam --allow-net=weather.example Weather.lam
+-- 天気を聞くが、待つのは1秒まで。遅い答えは「遅すぎ」
+module Weather exposing (ask, main)
+
+-- 🌐 The body of the answer, or why there is none.
+-- 答えの本文か、ないわけ
+ask : String -> IO String
+ask url = do
+  answer <- IO.timeout 1000 (Http.get url)
+  pure (case answer of
+    | Nothing -> "too slow"
+    | Just (Err why) -> f"failed: {why}"
+    | Just (Ok json) -> Json.show json)
+
+main : IO ()
+main = do
+  said <- ask "https://weather.example/tokyo"
+  putStrLn said
+-- ANCHOR_END: all

@@ -1,0 +1,16 @@
+-- ANCHOR: all
+-- 🏷️ Write the version of the newest git tag into VERSION:
+--    the tag v1.4.0 gives 1.4.0.
+--      lam --allow-run=git --allow-write=VERSION Tag.lam
+-- いちばん新しい git のタグの版を、VERSION に書く
+module Tag exposing (main)
+
+main : IO (Result String ())
+main = do
+  tag <- Shell.out $"git describe --tags --abbrev=0" ?
+  let version = tag |> String.trim |> s/^v//
+  writeFile "VERSION" f"{version}\n" ?
+  -- 「VERSION を 1.4.0 にしました」
+  putStrLn f"VERSION is now {version}"
+  pure (Ok ())
+-- ANCHOR_END: all

@@ -1,0 +1,27 @@
+# ANCHOR: coconut
+# Coconut: a function that returns a call of itself. Coconut turns it
+# into a while loop, so a million calls do not reach the limit of 1000.
+# Coconut：自分の呼び出しを return する関数。Coconut が while のループに
+# するので、百万回呼んでも、1000 の上限に届かない
+def count_down(n, total):
+    if n == 0:
+        return total
+    return count_down(n - 1, total + n)
+# ANCHOR_END: coconut
+
+# ANCHOR: ternary
+# The same call inside a ... if ... else ... is not a return of a call:
+# it stays a call.
+# 同じ呼び出しでも、... if ... else ... の中は「呼び出しの return」では
+# ないので、呼び出しのまま
+def count_down2(n, total) = (
+    total if n == 0 else count_down2(n - 1, total + n))
+# ANCHOR_END: ternary
+
+assert count_down(1_000_000, 0) == 500000500000
+try:
+    count_down2(100_000, 0)
+    assert False
+except RecursionError:
+    pass
+print("ok")

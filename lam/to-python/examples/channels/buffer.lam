@@ -1,0 +1,42 @@
+#!/usr/bin/env lam
+-- ANCHOR: all
+-- 📦 A fast sender and a slow receiver, on Chan.new 0 and Chan.new 3.
+--      lam buffer.lam
+-- 速い送り手と、ゆっくりの受け手を、Chan.new 0 と Chan.new 3 で
+import Stopwatch (since)
+
+-- ANCHOR: produce
+-- 🏭 Send 1 to 5 as fast as it can, and say when each one went in.
+-- 1 から 5 を、できるだけ速く送り、それぞれが入った時刻を言う
+produce : Time -> Chan Int -> IO ()
+produce start c = do
+  forEach (range 1 5) (\n -> do
+    Chan.send c n
+    s <- since start
+    putStrLn f"{s:.1}s  sent {n}")
+  Chan.close c
+
+-- 🐢 Take each one, and work on it for 0.2 s.
+-- 1つずつ受け取り、0.2 秒かけて使う
+consume : Time -> Chan Int -> IO ()
+consume start c =
+  Chan.forEach c (\n -> do
+    sleep 200
+    s <- since start
+    putStrLn f"{s:.1}s            used {n}")
+-- ANCHOR_END: produce
+
+-- ANCHOR: main
+run : Int -> IO ()
+run capacity = do
+  putStrLn f"-- Chan.new {capacity}"
+  start <- Time.now
+  c <- Chan.new capacity
+  _ <- IO.both (produce start c) (consume start c)
+  pure ()
+
+main = do
+  run 0
+  run 3
+-- ANCHOR_END: main
+-- ANCHOR_END: all

@@ -1,0 +1,1 @@
+--print-script=plain -ne 'when (line =~ m/ERROR/) (putStrLn line)'

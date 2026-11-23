@@ -1,0 +1,1 @@
+--allow-read -i -pe 's/colour/color/g' examples/oneliner/notes.txt

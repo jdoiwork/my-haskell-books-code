@@ -1,0 +1,8 @@
+-- ANCHOR: all
+-- 🐛 A ? in a main that gives (): where would the Err go?
+-- () を出す main の中の ?：Err は、どこへ行けばよい？
+main : IO ()
+main = do
+  text <- readFile "memos.txt" ?
+  putStrLn text
+-- ANCHOR_END: all

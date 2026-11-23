@@ -1,0 +1,18 @@
+do: 2 problems
+.orders[0].count: expected an Int, got "four"
+.orders[2]: missing field "item"
+map3: 4 problems
+.orders[0].count: expected an Int, got "four"
+.orders[0].price: expected an Int, got 300.5
+.orders[2]: missing field "item"
+.orders[2]: missing field "price"
+andMap: 4 problems
+.orders[0].count: expected an Int, got "four"
+.orders[0].price: expected an Int, got 300.5
+.orders[2]: missing field "item"
+.orders[2]: missing field "price"
+ado: 4 problems
+.orders[0].count: expected an Int, got "four"
+.orders[0].price: expected an Int, got 300.5
+.orders[2]: missing field "item"
+.orders[2]: missing field "price"

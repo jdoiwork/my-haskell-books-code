@@ -1,0 +1,1 @@
+hello.lam:8:12: in the definition of main: type error: the types do not fit: a number where String is needed

@@ -1,0 +1,53 @@
+-- ANCHOR: all
+-- 🔁 Properties: rules that must hold for any value.
+--      lam test props_test.lam
+-- 性質：どんな値でも成り立つはずの決まり
+import Words
+
+-- ANCHOR: sorted
+-- Is the list in order, from the smallest?
+-- リストは、小さい順に並んでいるか
+inOrder : Comparable a => [a] -> Bool
+inOrder xs = List.all (\p -> fst p <= snd p) (zip xs (drop 1 xs))
+-- ANCHOR_END: sorted
+
+-- ANCHOR: dedupe
+-- 🧹 Take out the values that come twice. (It only looks at the next
+--    value, like the uniq command: is that enough?)
+-- 2度出てくる値を取り除く（隣の値しか見ない。uniq コマンドと同じ。
+-- それで足りる？）
+dedupe : [Int] -> [Int]
+dedupe xs =
+  case xs of
+    | x : y : rest ->
+        if x == y then dedupe (y : rest) else x : dedupe (y : rest)
+    | _ -> xs
+-- ANCHOR_END: dedupe
+
+tests : [Test]
+tests =
+  -- ANCHOR: sortProps
+  [ Test.group "sort"
+      -- 「並べても、長さは変わらない」
+      [ Test.forAll "keeps the length" (Gen.list Gen.int)
+          (\xs -> length (sort xs) == length xs)
+      -- 「並べると、小さい順になる」
+      , Test.forAll "puts them in order" (Gen.list Gen.int)
+          (\xs -> inOrder (sort xs))
+      -- 「2度並べても、1度と同じ」
+      , Test.forAll "sorting twice is sorting once" (Gen.list Gen.int)
+          (\xs -> sort (sort xs) == sort xs) ]
+  -- ANCHOR_END: sortProps
+  -- ANCHOR: dedupeProps
+  , Test.group "dedupe"
+      -- 「同じ値は、2度出てこない」
+      [ Test.forAll "leaves no value twice" (Gen.list Gen.int)
+          (\xs -> let ys = dedupe xs in length (unique ys) == length ys) ]
+  -- ANCHOR_END: dedupeProps
+  -- ANCHOR: wordsProps
+  , Test.group "splitIntoWords"
+      -- 「単語を空白でつなぐと、もとの文字列に戻る（？）」
+      [ Test.forAll "gives the text back, joined with spaces" Gen.string
+          (\t -> join " " (Words.splitIntoWords t) == t) ] ]
+  -- ANCHOR_END: wordsProps
+-- ANCHOR_END: all

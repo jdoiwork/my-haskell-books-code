@@ -1,0 +1,1 @@
+--json --path=orders.0.price -pe 'id' examples/oneliner/shop.json

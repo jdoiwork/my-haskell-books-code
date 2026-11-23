@@ -1,0 +1,45 @@
+-- ANCHOR: all
+-- 🧱 Parts of a where, used at more than one type.
+-- where の部品を、いくつもの型で使う
+
+-- ANCHOR: toJsonClass
+-- 🧾 ToJson, with its instances for Int and String, is in the module
+--    Json now ("Making the tools sturdier"): no class of our own.
+-- ToJson と、Int・String のインスタンスは、いまはモジュール Json に
+-- ある（「道具を補強する」）。自分のクラスは書かない
+-- ANCHOR_END: toJsonClass
+
+-- ANCHOR: closed
+-- 🔒 cell uses no local name: it is closed, so it is general.
+-- cell はローカルな名前を使わない。閉じているので、一般にする
+row : Int -> String -> String
+row n name = cell n ++ " | " ++ cell name
+  where
+    cell x = f"[{x}]"
+
+record : Int -> String -> Json
+record n name = JArr [cell n, cell name]
+  where
+    cell x = toJson x
+-- ANCHOR_END: closed
+
+-- ANCHOR: annotated
+-- ✍️ label uses tag, an argument outside: with its annotation, it is
+--    general too.
+-- label は外の引数 tag を使う。注釈があるので、これも一般にする
+tagged : String -> Int -> String -> String
+tagged tag n name = label n ++ " " ++ label name
+  where
+    label : Display a => a -> String
+    label x = tag ++ ":" ++ display x
+-- ANCHOR_END: annotated
+
+main = do
+  putStrLn (row 3 "lam")
+  putStrLn (Json.show (record 3 "lam"))
+  putStrLn (tagged "#" 3 "lam")
+  -- ANCHOR: letWrap
+  let wrap x = "<" ++ display x ++ ">"
+  putStrLn (wrap 1 ++ wrap "a")
+  -- ANCHOR_END: letWrap
+-- ANCHOR_END: all

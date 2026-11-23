@@ -1,0 +1,9 @@
+-- ANCHOR: all
+-- 👋 A number where a String is needed. The mistake is the 42, not
+--    putStrLn: the line goes under the argument.
+-- String が要る所に数。まちがいは putStrLn ではなく 42。線は引数の下に
+--   lam --check hello.lam
+main = do
+  putStrLn "hello"
+  putStrLn 42
+-- ANCHOR_END: all

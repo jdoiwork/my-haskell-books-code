@@ -1,0 +1,11 @@
+-- ANCHOR: all
+-- 🛑 How a program ends: an Err from main is a message and exit code 1.
+-- プログラムの終わり方：main の Err は、知らせと終了コード 1
+main : IO (Result String ())
+main = do
+  putStrLn "checking the shelf..."
+  books <- pure ["Lam", "Haskell"]
+  if List.length books < 3
+    then pure (Err f"only {List.length books} books")
+    else pure (Ok ())
+-- ANCHOR_END: all
