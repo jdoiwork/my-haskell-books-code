@@ -204,22 +204,22 @@ showFound (Just m) = [" 0: " <> T.concatMap visible (matchText m)]
 -- ANCHOR: decode
 -- 🔓 Turn the \ escapes of a subject line into characters, the way
 --    pcre2test does: \t \n \x41 \x{263a} \o{11064} \N{U+1234} \101,
---    and \$ is $. Nothing for what MiniRegex cannot read yet: \=
---    (modifiers for this subject), \[ab]{3} (a piece written again and
---    again), a \ before any other letter or digit, and a \ at the end
---    of the line. A line read wrongly would be counted as a wrong answer
---    of the engine.
+--    and \$ is $. A \ at the end of the line is left out (a line of just
+--    \ is the empty subject). Nothing for what MiniRegex cannot read
+--    yet: \= (modifiers for this subject), \[ab]{3} (a piece written
+--    again and again), and a \ before any other letter or digit. A line
+--    read wrongly would be counted as a wrong answer of the engine.
 -- 入力の行の \ を、pcre2test と同じように文字にする：\t \n \x41
--- \x{263a} \o{11064} \N{U+1234} \101、\$ は $。MiniRegex がまだ読めない
--- ものは Nothing：\=（この入力だけの修飾子）、\[ab]{3}（くり返し）、
--- ほかの英字や数字の前の \、行の終わりの \。読みまちがえると、
--- エンジンのまちがいに数えてしまう
+-- \x{263a} \o{11064} \N{U+1234} \101、\$ は $。行の終わりの \ は捨てる
+-- （\ だけの行は、空の入力）。MiniRegex がまだ読めないものは Nothing：
+-- \=（この入力だけの修飾子）、\[ab]{3}（くり返し）、ほかの英字や数字の
+-- 前の \。読みまちがえると、エンジンのまちがいに数えてしまう
 decodeSubject :: Text -> Maybe Text
 decodeSubject = fmap T.pack . go . T.unpack
   where
     go :: String -> Maybe String
     go [] = Just []
-    go ['\\'] = Nothing
+    go ['\\'] = Just []
     go ('\\' : '=' : _) = Nothing
     go ('\\' : '[' : _) = Nothing
     go ('\\' : 'x' : '{' : cs) = braced 16 isHexDigit cs
