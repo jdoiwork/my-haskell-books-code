@@ -1,0 +1,9 @@
+💻 $ lam test answers_test.lam
+answers_test.lam (seed 618)
+  ✓ step 1: one by one > elapsed
+  ✓ step 2: back again > after 3
+  ✓ step 2: back again > after 2
+  ✓ step 3: only=down > sites
+  ✓ step 4: eight sites > elapsed
+  ✓ step 4: eight sites > all down
+6 tests: 6 passed, 0 failed

@@ -1,0 +1,45 @@
+-- ANCHOR: all
+-- 🔁 The watchman goes round a few times, and says when a site has been
+--    down 3 rounds in a row.
+--      lam rounds.lam sites.txt --rounds 4 --every 500
+-- 見回り番が何回か見回り、3回続けて止まったサイトを知らせる
+import Patrol (patrol, Check, Verdict (..))
+import Board (Board)
+
+-- ANCHOR: summary
+-- 🧮 "2 up, 1 slow, 2 down"
+summary : [Check] -> String
+summary checks = f"{ups} up, {slows} slow, {downs} down"
+  where
+    count v = length (filter (\c -> c.verdict == v) checks)
+    ups = count Up
+    slows = count Slow
+    downs = length checks - ups - slows
+-- ANCHOR_END: summary
+
+-- ANCHOR: once
+-- 🚶 One round: look, write it on the board, and tell what is new.
+-- 1回の見回り：見て、掲示板に書き、新しく起きたことを知らせる
+once : Board -> [String] -> Int -> IO ()
+once board urls n = do
+  old <- Board.streaks board
+  checks <- patrol urls
+  Board.record board checks
+  now <- Board.streaks board
+  putStrLn f"round {n}: {summary checks}"
+  forEach (Board.alerts now)
+    (\url -> putStrLn f"  alert: {url} has been down 3 rounds in a row")
+-- ANCHOR_END: once
+
+-- ANCHOR: main
+main : { file : String, rounds : Int = 3, every : Int = 1000 }
+    -> IO (Result String ())
+main o = do
+  urls <- Patrol.readSites o.file ?
+  board <- Board.start
+  forEach (range 1 o.rounds) (\n -> do
+    once board urls n
+    IO.when (n < o.rounds) (sleep o.every))
+  pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

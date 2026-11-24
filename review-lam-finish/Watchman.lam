@@ -1,0 +1,63 @@
+-- ANCHOR: all
+-- 🏠 The watchman with a web page: go round in the background, and show
+--    the board at /  and  /status.json.
+--      lam Watchman.lam sites.txt --port 18742
+-- Web のページつきの見回り番：後ろで見回り、掲示板を / と
+-- /status.json で見せる
+-- ANCHOR: head
+module Watchman exposing (routes, main)
+
+import Patrol (Check, describe, report)
+import Board (Board)
+-- ANCHOR_END: head
+
+-- ANCHOR: json
+-- 📤 One site as JSON: where, how, and how many rounds it has been down.
+-- サイト1つを JSON に：どこか、様子、何回続けて止まっているか
+siteJson : Map String Int -> Check -> Json
+siteJson counts c =
+  JObj { site: JStr c.url
+       , verdict: JStr (describe c.verdict)
+       , downRounds: JInt (Map.findWithDefault 0 c.url counts) }
+-- ANCHOR_END: json
+
+-- ANCHOR: routes
+-- 🚏 Two pages: the table for people, JSON for programs.
+-- ページは2つ：人のための表と、プログラムのための JSON
+routes : Board -> [Route]
+routes board =
+  [ Route.get "/" (\_ _ -> do
+      checks <- Board.latest board
+      pure (Response.text 200 (report checks ++ "\n")))
+  , Route.get "/status.json" (\_ _ -> do
+      checks <- Board.latest board
+      counts <- Board.streaks board
+      pure (Response.json 200 (JArr (map (siteJson counts) checks)))) ]
+-- ANCHOR_END: routes
+
+-- ANCHOR: loop
+-- 🔁 Go round for ever, every few ms, writing on the board.
+-- 何ミリ秒かごとに、ずっと見回って、掲示板に書く
+goRound : Board -> [String] -> Int -> IO ()
+goRound board urls every = do
+  sleep every
+  checks <- Patrol.patrol urls
+  Board.record board checks
+  goRound board urls every
+-- ANCHOR_END: loop
+
+-- ANCHOR: main
+main : { file : String, port : Int = 18742, every : Int = 5000 }
+    -> IO (Result String ())
+main o = do
+  urls <- Patrol.readSites o.file ?
+  board <- Board.start
+  -- The first round before the page opens: it is never empty.
+  -- ページを開く前に1回見回る。だから、ページはいつも空でない
+  first <- Patrol.patrol urls
+  Board.record board first
+  _ <- spawn (goRound board urls o.every)
+  Http.serve o.port (Route.router (routes board))
+  pure (Ok ())
+-- ANCHOR_END: main
+-- ANCHOR_END: all

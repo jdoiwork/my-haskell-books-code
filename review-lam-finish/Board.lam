@@ -1,0 +1,86 @@
+-- 📌 The board of the watchman, kept by one actor: the last round, and
+--    for each site, how many rounds in a row it has been down. The
+--    patrol writes and the web page reads at the same time, so they
+--    ask the actor one by one.
+-- 見回り番の掲示板を、アクター1人が持つ：最後の見回りと、サイトごとに
+-- 何回続けて止まっているか。見回りが書き、Web のページが読むのが同時でも、
+-- アクターに1つずつ頼むので、混ざらない
+-- ANCHOR: head
+module Board exposing
+  (Board, start, record, latest, streaks, nextStreaks, alerts, recoveries)
+
+import Patrol (Verdict (..), Check)
+-- ANCHOR_END: head
+
+-- ANCHOR: types
+-- ✉️ What the actor understands.
+-- アクターがわかる手紙
+data Msg
+  = Record [Check]
+  | Latest (Pid [Check])
+  | Streaks (Pid (Map String Int))
+
+type alias Board = Pid Msg
+-- ANCHOR_END: types
+
+-- ANCHOR: streaks
+-- 🔢 The new streaks after a round: one more for a site that is down,
+--    back to 0 for the others.
+-- 見回りのあとの、新しい「続けて止まった回数」。止まっていれば1つ足し、
+-- そうでなければ 0 に戻す
+nextStreaks : Map String Int -> [Check] -> Map String Int
+nextStreaks old checks =
+  Map.fromList (map (\c -> (c.url, streakOf old c)) checks)
+
+streakOf : Map String Int -> Check -> Int
+streakOf old c =
+  case c.verdict of
+    | Down _ -> Map.findWithDefault 0 c.url old + 1
+    | _ -> 0
+
+-- 🚨 The sites that have just been down 3 rounds in a row.
+-- ちょうど3回続けて止まったサイト
+alerts : Map String Int -> [String]
+alerts now = [url | (url, n) <- Map.toList now, n == 3]
+-- ANCHOR_END: streaks
+
+-- ANCHOR: recoveries
+-- 🌱 The sites that had been down 3 rounds or more, and are not now.
+-- 3回以上続けて止まっていて、いまは止まっていないサイト
+recoveries : Map String Int -> Map String Int -> [String]
+recoveries old now =
+  [ url | (url, n) <- Map.toList old
+        , n >= 3
+        , Map.findWithDefault 0 url now == 0 ]
+-- ANCHOR_END: recoveries
+
+-- ANCHOR: keep
+-- 🗃️ The actor: the last round and the streaks.
+-- アクター：最後の見回りと、続けて止まった回数
+keep : [Check] -> Map String Int -> Pid Msg -> IO ()
+keep last counts me =
+  receive me
+    | Record checks -> keep checks (nextStreaks counts checks) me
+    | Latest reply -> do
+        reply ! last
+        keep last counts me
+    | Streaks reply -> do
+        reply ! counts
+        keep last counts me
+-- ANCHOR_END: keep
+
+-- ANCHOR: ask
+-- 🙋 Start the actor, and ask it.
+-- アクターを始めて、頼む
+start : IO Board
+start = Actor.spawn (keep [] Map.empty)
+
+record : Board -> [Check] -> IO ()
+record board checks = board ! Record checks
+
+latest : Board -> IO [Check]
+latest board = Actor.call board Latest
+
+streaks : Board -> IO (Map String Int)
+streaks board = Actor.call board Streaks
+-- ANCHOR_END: ask

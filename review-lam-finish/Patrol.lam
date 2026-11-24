@@ -1,0 +1,83 @@
+-- ANCHOR: all
+-- 🔭 The watchman of the workshop: ask each site once, at the same
+--    time, and say how it is (up, slow, or down).
+-- 工房の見回り番：どのサイトにも1度ずつ、同時に聞いて、様子を言う
+-- （元気・遅い・止まっている）
+module Patrol exposing
+  (Verdict (..), Check, judge, describe, checkOne, patrol, report, readSites)
+
+-- ANCHOR: types
+-- 🩺 How a site is, and one look at it.
+-- サイトの様子と、1回見た結果
+data Verdict = Up | Slow | Down String
+
+type alias Check = { url : String, verdict : Verdict, ms : Int }
+-- ANCHOR_END: types
+
+-- ANCHOR: judge
+-- ⚖️ The verdict, from how long it took (ms) and what came back
+--    (Nothing: no answer in time). Pure: no clock, no web.
+-- かかった時間（ミリ秒）と、返ってきたもの（Nothing は時間切れ）から、
+-- 様子を決める。純粋：時計も Web も使わない
+judge : Int -> Maybe (Result String Response) -> Verdict
+judge ms answer =
+  case answer of
+    | Nothing -> Down "no answer in 1 s"
+    | Just (Err why) -> Down why
+    | Just (Ok r) if r.status >= 400 -> Down f"status {r.status}"
+    | Just (Ok _) if ms > 300 -> Slow
+    | Just (Ok _) -> Up
+
+-- 🏷️ A verdict in a word or two.
+-- 様子を短い言葉で
+describe : Verdict -> String
+describe v =
+  case v of
+    | Up -> "up"
+    | Slow -> "slow"
+    | Down why -> f"down ({why})"
+-- ANCHOR_END: judge
+
+-- ANCHOR: checkOne
+-- 📨 Ask one site, wait 1 second at most, and time it.
+-- 1つのサイトに聞く。待つのは1秒まで。かかった時間も測る
+checkOne : String -> IO Check
+checkOne url = do
+  start <- Time.now
+  answer <- IO.timeout 1000 (Http.send "GET" url Map.empty "")
+  end <- Time.now
+  let ms = Time.toMillis end - Time.toMillis start
+  pure { url = url, verdict = judge ms answer, ms = ms }
+-- ANCHOR_END: checkOne
+
+-- ANCHOR: patrol
+-- 🚶 One round: every site, 4 at a time.
+-- 1回の見回り：どのサイトにも、4つずつ同時に
+patrol : [String] -> IO [Check]
+patrol urls = IO.allN 4 (map checkOne urls)
+-- ANCHOR_END: patrol
+
+-- ANCHOR: report
+-- 📋 The round as a table (the path only, to keep it short).
+-- 見回りの結果を表に（短くするため、道だけ）
+report : [Check] -> String
+report checks =
+  Term.table ["site", "verdict"]
+    (map (\c -> [pathOf c.url, describe c.verdict]) checks)
+
+-- ✂️ "http://localhost:18741/health" -> ":18741/health"
+pathOf : String -> String
+pathOf url = Regex.replace re"^\w+://[^:/]+" "" url
+-- ANCHOR_END: report
+
+-- ANCHOR: readSites
+-- 📄 The sites of a file, one in a line (blank lines and # are skipped).
+-- ファイルのサイト（1行に1つ。空の行と # の行は飛ばす）
+readSites : String -> IO (Result String [String])
+readSites file = do
+  text <- readFile file ?
+  pure (Ok [ String.trim l | l <- lines text
+                           , String.trim l /= ""
+                           , not (String.startsWith "#" l) ])
+-- ANCHOR_END: readSites
+-- ANCHOR_END: all

@@ -1,0 +1,6 @@
+# The sites of the town. / 町のサイト
+http://localhost:18741/health
+http://localhost:18741/slow/500
+http://localhost:18741/slow/3000
+http://localhost:18741/broken
+http://localhost:18749/health

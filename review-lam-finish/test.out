@@ -1,0 +1,15 @@
+💻 $ lam test patrol_test.lam
+patrol_test.lam (seed 618)
+  ✓ judge > quick
+  ✓ judge > slow
+  ✓ judge > 500
+  ✓ judge > no answer
+  ✓ one round, all at once > verdicts
+  ✓ one round, all at once > ms
+  ✓ one round, all at once > elapsed
+  ✓ the streaks > 3 rounds
+  ✓ the streaks > 4 rounds
+  ✓ the whole watchman > statuses
+  ✓ the whole watchman > gone
+  ✓ 400 or more is down
+12 tests: 12 passed, 0 failed

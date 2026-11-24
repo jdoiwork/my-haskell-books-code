@@ -1,0 +1,11 @@
+💻 $ lam town.lam --port 18741 &
+listening on http://localhost:18741/
+
+💻 $ lam watch.lam sites.txt
+site              verdict
+----------------  ----------------------------------------------------
+:18741/health     up
+:18741/slow/500   slow
+:18741/slow/3000  down (no answer in 1 s)
+:18741/broken     down (status 500)
+:18749/health     down (http://localhost:18749/health: cannot connect)

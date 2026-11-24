@@ -1,0 +1,112 @@
+-- ANCHOR: all
+-- ✅ The tests of the watchman, in fake worlds: the web answers as the
+--    world says, and the clock moves only as far as the world says.
+--      lam test patrol_test.lam
+-- 見回り番のテストを、偽物の世界で。Web は世界の言うとおりに答え、
+-- 時計は世界の言うだけ進む
+-- ANCHOR: imports
+import Patrol (Verdict (..), Check, judge, checkOne, patrol)
+import Board
+import Watchman
+-- ANCHOR_END: imports
+
+-- ANCHOR: world
+-- 🌍 A town of four sites: one well, one slow, one that takes 3 s, and
+--    one that nobody answers (it is not in the web of the world).
+-- サイトが4つの町：元気、遅い、3秒かかる、だれも答えない（世界の Web にない）
+town = "http://town.example"
+
+sites : [String]
+sites =
+  [ f"{town}/health", f"{town}/slow", f"{town}/slower", f"{town}/gone" ]
+
+world =
+  { Test.world
+      | web = { [f"{town}/health"]: "ok"
+              , [f"{town}/slow"]: "ok"
+              , [f"{town}/slower"]: "ok" }
+      , delays = { [f"{town}/slow"]: 500, [f"{town}/slower"]: 3000 } }
+
+-- 🧪 An answer with a status, for judge.
+-- judge に渡す、状態コードつきの答え
+answer : Int -> Maybe (Result String Response)
+answer status = Just (Ok (Response.text status ""))
+
+-- 📋 The verdicts of a round, in order.
+-- 見回りの様子を、順に
+verdicts : Maybe [Check] -> Maybe [Verdict]
+verdicts checks = map (map .verdict) checks
+-- ANCHOR_END: world
+
+tests : [Test]
+tests =
+  -- ANCHOR: judgeTests
+  [ Test.group "judge"
+      -- 「速くて 200 なら元気、遅ければ遅い」
+      [ Test.equal "quick" (judge 20 (answer 200)) Up
+      , Test.equal "slow" (judge 500 (answer 200)) Slow
+      -- 「500 は、速くても止まっている」
+      , Test.equal "500" (judge 20 (answer 500)) (Down "status 500")
+      , Test.equal "no answer" (judge 1000 Nothing)
+          (Down "no answer in 1 s") ]
+  -- ANCHOR_END: judgeTests
+  -- ANCHOR: roundTests
+  -- 「4つを同時に聞くと、1回の見回りは、いちばん長く待つ1秒で終わる」
+  , Test.io "one round, all at once" world (patrol sites)
+      (\r ->
+        [ Test.equal "verdicts" (verdicts r.value)
+            (Just [ Up, Slow, Down "no answer in 1 s"
+                  , Down "http://town.example/gone: cannot connect" ])
+        , Test.equal "ms" (map (map .ms) r.value) (Just [0, 500, 1000, 0])
+        , Test.equal "elapsed" r.elapsed 1000 ])
+  -- ANCHOR_END: roundTests
+  -- ANCHOR: boardTests
+  -- 「3回続けて止まったら、知らせる。4回目は、もう知らせない」
+  , Test.group "the streaks"
+      [ Test.equal "3 rounds" (Board.alerts (downTimes 3)) ["gone"]
+      , Test.equal "4 rounds" (Board.alerts (downTimes 4)) [] ]
+  -- ANCHOR_END: boardTests
+  -- ANCHOR: serverTests
+  -- 「サーバーまるごと：1秒ごとに見回る見回り番に、ページを3回頼む」
+  , Test.io "the whole watchman"
+      { world | files = {"sites.txt": String.join "\n" sites}
+              , requests = [ "1500 GET /status.json"
+                           , "1500 GET /nothing"
+                           , "3500 GET /status.json" ] }
+      (Watchman.main { file = "sites.txt", port = 8080, every = 1000 })
+      (\r ->
+        [ Test.equal "statuses" (map .status r.served) [200, 404, 200]
+        -- 「gone は、1回目のページで1回、3.5 秒のページで2回止まっている」
+        , Test.equal "gone" (map (goneRounds << .body) r.served)
+            [Just 1, Nothing, Just 2] ])
+  -- ANCHOR_END: serverTests
+  -- ANCHOR: property
+  -- 「どの状態コードでも、400 以上なら、速さによらず止まっている」
+  , Test.forAll "400 or more is down"
+      (Gen.pair (Gen.range 400 599) (Gen.range 0 999))
+      (\(status, ms) -> judge ms (answer status) == Down f"status {status}")
+  -- ANCHOR_END: property
+  ]
+
+-- ANCHOR: helpers
+-- 🔎 How many rounds "gone" has been down, as the page says.
+-- ページの言う、gone が続けて止まった回数
+goneRounds : String -> Maybe Int
+goneRounds body =
+  Json.parse body
+    |> toMaybe
+    |> Maybe.andThen Json.array
+    |> Maybe.andThen (find (\j -> Json.get "site" j
+                                    == Just (JStr f"{town}/gone")))
+    |> Maybe.andThen (Json.get "downRounds")
+    |> Maybe.andThen Json.int
+
+-- 🧮 The streaks after n rounds where "gone" is down and "ok" is up.
+-- 「gone」が止まり「ok」が元気な見回りを n 回したあとの回数
+downTimes : Int -> Map String Int
+downTimes n = foldl Board.nextStreaks Map.empty (replicate n round)
+  where
+    round = [ { url = "gone", verdict = Down "x", ms = 0 }
+            , { url = "ok", verdict = Up, ms = 0 } ]
+-- ANCHOR_END: helpers
+-- ANCHOR_END: all

@@ -1,0 +1,13 @@
+-- ANCHOR: all
+-- 🔭 One round of the watchman, as a table.
+--      lam watch.lam sites.txt
+-- 見回り番の1回の見回りを、表で
+import Patrol (patrol, report, readSites)
+
+main : { file : String } -> IO (Result String ())
+main o = do
+  urls <- readSites o.file ?
+  checks <- patrol urls
+  putStrLn (report checks)
+  pure (Ok ())
+-- ANCHOR_END: all

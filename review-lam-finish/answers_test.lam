@@ -1,0 +1,96 @@
+-- ANCHOR: all
+-- ✅ The answers of the steps of the training, in fake worlds.
+--      lam test answers_test.lam
+-- トレーニングのステップの解答を、偽物の世界で
+import Patrol (Verdict (..), checkOne, patrol)
+import Board
+import WatchmanOnly
+
+town = "http://town.example"
+
+-- ANCHOR: step1
+-- 🐢 Step 1: the same four sites, one by one.
+-- ステップ1：同じ4つのサイトを、1つずつ
+sites : [String]
+sites =
+  [ f"{town}/health", f"{town}/slow", f"{town}/slower", f"{town}/gone" ]
+
+world =
+  { Test.world
+      | web = { [f"{town}/health"]: "ok"
+              , [f"{town}/slow"]: "ok"
+              , [f"{town}/slower"]: "ok" }
+      , delays = { [f"{town}/slow"]: 500, [f"{town}/slower"]: 3000 } }
+-- ANCHOR_END: step1
+
+-- ANCHOR: step4world
+-- 🏙️ Step 4: eight sites, and every one takes 3 seconds.
+-- ステップ4：サイトが8つ。どれも3秒かかる
+eight : [String]
+eight = map (\n -> f"{town}/site{n}") (range 1 8)
+
+sleepyTown =
+  { Test.world
+      | web = Map.fromList (map (\u -> (u, "ok")) eight)
+      , delays = Map.fromList (map (\u -> (u, 3000)) eight) }
+-- ANCHOR_END: step4world
+
+-- ANCHOR: step2helper
+-- 🧮 The streaks after rounds where "gone" is down (true) or up (false).
+-- 「gone」が止まる（true）か元気（false）かの見回りを重ねたあとの回数
+history : [Bool] -> Map String Int
+history downs = foldl Board.nextStreaks Map.empty (map round downs)
+  where
+    round down =
+      [ { url = "gone"
+        , verdict = if down then Down "x" else Up
+        , ms = 0 } ]
+-- ANCHOR_END: step2helper
+
+tests : [Test]
+tests =
+  -- ANCHOR: step1test
+  -- 「1つずつだと、待つ時間が足し算になる：0 + 0.5 + 1 + 0 秒」
+  [ Test.io "step 1: one by one" world (mapM checkOne sites)
+      (\r -> [ Test.equal "elapsed" r.elapsed 1500 ])
+  -- ANCHOR_END: step1test
+  -- ANCHOR: step2test
+  -- 「3回止まって戻ったら知らせる。2回止まって戻っただけなら、知らせない」
+  , Test.group "step 2: back again"
+      [ Test.equal "after 3"
+          (Board.recoveries (history [true, true, true])
+                            (history [true, true, true, false]))
+          ["gone"]
+      , Test.equal "after 2"
+          (Board.recoveries (history [true, true])
+                            (history [true, true, false]))
+          [] ]
+  -- ANCHOR_END: step2test
+  -- ANCHOR: step3test
+  -- 「?only=down なら、止まっている2つだけ」
+  , Test.io "step 3: only=down"
+      { world | files = {"sites.txt": String.join "\n" sites}
+              , requests = [ "1500 GET /status.json?only=down"
+                           , "1500 GET /status.json" ] }
+      (WatchmanOnly.main { file = "sites.txt", port = 8080, every = 1000 })
+      (\r -> [ Test.equal "sites" (map (count << .body) r.served) [2, 4] ])
+  -- ANCHOR_END: step3test
+  -- ANCHOR: step4test
+  -- 「8つを4つずつ：1秒待つ組が2つで、2秒」
+  , Test.io "step 4: eight sites" sleepyTown (patrol eight)
+      (\r ->
+        [ Test.equal "elapsed" r.elapsed 2000
+        , Test.equal "all down" (map (all WatchmanOnly.onlyDown) r.value)
+            (Just true) ]) ]
+  -- ANCHOR_END: step4test
+
+-- ANCHOR: count
+-- 🔢 How many sites a page of /status.json has.
+-- /status.json のページにあるサイトの数
+count : String -> Int
+count body =
+  case Json.parse body of
+    | Ok (JArr sites) -> length sites
+    | _ -> -1
+-- ANCHOR_END: count
+-- ANCHOR_END: all

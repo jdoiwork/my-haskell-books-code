@@ -1,0 +1,18 @@
+-- ANCHOR: all
+-- 🏘️ The town the watchman looks after: a site that is well, one
+--    that takes as long as you say, and one that is broken.
+--      lam town.lam --port 18741
+-- 見回り番が見て回る町：元気なサイト、言われただけ待つサイト、壊れたサイト
+handler : Request -> IO Response
+handler req =
+  case Http.segments req.path of
+    | ["health"] -> pure (Response.text 200 "ok")
+    | ["slow", ms] -> do
+        sleep (String.toInt ms ?: 0)
+        pure (Response.text 200 "ok, slowly")
+    | ["broken"] -> pure (Response.text 500 "the database is down")
+    | _ -> pure Response.notFound
+
+main : { port : Int = 18741 } -> IO ()
+main o = Http.serve o.port handler
+-- ANCHOR_END: all

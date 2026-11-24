@@ -1,0 +1,9 @@
+💻 $ lam WatchmanOnly.lam sites.txt --port 18743 &
+listening on http://localhost:18743/
+
+💻 $ curl -s 'localhost:18743/status.json?only=down' | jq 'map(.site)'
+[
+  "http://localhost:18741/slow/3000",
+  "http://localhost:18741/broken",
+  "http://localhost:18749/health"
+]

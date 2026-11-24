@@ -303,6 +303,7 @@ GitHub Actions（`.github/workflows/ci.yml`）で、`cabal.project` のパッケ
 | Python に変換して、変換先を足せる形にする | [`lam/to-python/`](lam/to-python/)、[`lam/to-js/`](lam/to-js/)、[`langs/interp-to-python/`](langs/interp-to-python/) |
 | Lam を速くする：インタープリターのパフォーマンス | [`lam/perf/`](lam/perf/)、[`lam/to-python/`](lam/to-python/)、[`lam/regex-mini/`](lam/regex-mini/)、[`langs/interp-performance/`](langs/interp-performance/) |
 | 毎日使う Lam：ワンライナーとスクリプトのレシピ | [`lam/perf/`](lam/perf/)、[`langs/interp-recipes/`](langs/interp-recipes/) |
+| 第16部のふりかえり | [`lam/perf/`](lam/perf/)、[`review-lam-finish/`](review-lam-finish/) |
 
 ### 第17部 プログラマーのための数学
 

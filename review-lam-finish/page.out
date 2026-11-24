@@ -1,0 +1,18 @@
+💻 $ lam Watchman.lam sites.txt --port 18742 &
+listening on http://localhost:18742/
+
+💻 $ curl -s localhost:18742/
+site              verdict
+----------------  ----------------------------------------------------
+:18741/health     up
+:18741/slow/500   slow
+:18741/slow/3000  down (no answer in 1 s)
+:18741/broken     down (status 500)
+:18749/health     down (http://localhost:18749/health: cannot connect)
+
+💻 $ curl -s localhost:18742/status.json | jq '.[2]'
+{
+  "downRounds": 1,
+  "site": "http://localhost:18741/slow/3000",
+  "verdict": "down (no answer in 1 s)"
+}

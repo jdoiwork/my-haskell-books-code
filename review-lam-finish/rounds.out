@@ -1,0 +1,8 @@
+💻 $ lam rounds.lam sites.txt --rounds 4 --every 200
+round 1: 1 up, 1 slow, 3 down
+round 2: 1 up, 1 slow, 3 down
+round 3: 1 up, 1 slow, 3 down
+  alert: http://localhost:18741/broken has been down 3 rounds in a row
+  alert: http://localhost:18741/slow/3000 has been down 3 rounds in a row
+  alert: http://localhost:18749/health has been down 3 rounds in a row
+round 4: 1 up, 1 slow, 3 down
