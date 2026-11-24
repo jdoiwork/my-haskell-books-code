@@ -243,6 +243,15 @@ main = hspec $ do
     it "finds an empty pattern everywhere" $ do
       map matchStart (findAll (surely "") "日本") `shouldBe` [0, 1, 2]
       split (surely "") "abc" `shouldBe` ["", "a", "b", "c", ""]
+    -- find gives the first one, not any one
+    -- find が返すのは、どれかではなく、最初の1つ
+    it "finds the first one" $
+      find (surely "a") "banana" `shouldBe` Just (Match "a" 1 2)
+    -- isMatch says yes and no
+    -- isMatch は「ある」も「ない」も言う
+    it "tells if it is there" $ do
+      isMatch (surely "nan") "banana" `shouldBe` True
+      isMatch (surely "nab") "banana" `shouldBe` False
     -- places are counted in characters
     -- 場所は文字で数える
     it "counts places in characters" $
@@ -306,7 +315,8 @@ main = hspec $ do
       -- まだ読めない書き方を、別の文字列と読まない
       decodeSubject "\\[a]{2}" `shouldBe` Nothing
       decodeSubject "\\d" `shouldBe` Nothing
-      decodeSubject "a\\" `shouldBe` Nothing
+      decodeSubject "a\\" `shouldBe` Just "a"
+      decodeSubject "\\" `shouldBe` Just ""
       decodeSubject "\\o{101}\\$" `shouldBe` Just "A$"
     -- answers are written like pcre2test
     -- 答えは、pcre2test と同じ形で書く
@@ -332,11 +342,11 @@ main = hspec $ do
     -- calls no right pattern wrong
     -- testoutput1 の全部：ちがう答えは1つもなく、パーサーは正しい
     -- パターンを「まちがい」と言わない
-    it "reads 804 patterns and passes 428 tests, and fails none" $ do
+    it "reads 804 patterns and passes 431 tests, and fails none" $ do
       tests <- readTestFile "testdata/testoutput1"
       tally (map readable tests) `shouldBe` Tally 804 0 1844
       verdicts <- mapM (judgeWithin 1000000) tests
-      tally verdicts `shouldBe` Tally 428 0 2220
+      tally verdicts `shouldBe` Tally 431 0 2217
     -- with groups printed, the line " 0:" decides only Fail
     -- グループの行があれば、" 0:" の行で決まるのは Fail だけ
     it "waits for the groups when PCRE2 printed them" $ do
@@ -408,14 +418,16 @@ main = hspec $ do
   -- ANCHOR: pcre2
   describe "the real PCRE2 / 本物の PCRE2" $ do
     -- when MiniRegex can run a pattern, it finds the first match that
-    -- PCRE2 finds
-    -- MiniRegex が動かせるパターンなら、PCRE2 と同じ最初の一致を見つける
+    -- PCRE2 finds, at the same place (replacing it shows where it is)
+    -- MiniRegex が動かせるパターンなら、PCRE2 と同じ最初の一致を、同じ
+    -- 場所に見つける（置き換えてみると、場所もわかる）
     prop "finds the first match PCRE2 finds" $
       forAll genPattern $ \p -> forAll genText $ \t ->
         case compile p of
           Left _   -> label "not yet" True
           Right re -> label "compared" $
             fmap matchText (find re t) === Pcre2.match p t
+              .&&. replace re "<>" t === Pcre2.sub p "<>" t
     -- and all the matches; only a and b here, as the pcre2 library
     -- steps into the middle of 日 after an empty match. Empty matches
     -- are left out: what comes after them waits for the chapter on
@@ -508,6 +520,35 @@ main = hspec $ do
       parsePattern [] "x(?=y)" `shouldBe` Left (Unsupported 1 "(?=")
       parsePattern [] "(?i)a" `shouldBe` Left (Unsupported 0 "(?flags)")
       parsePattern [Extended] "a b" `shouldBe` Left (Unsupported 0 "flag x")
+      parsePattern [] "(?<*a)b" `shouldBe` Left (Unsupported 0 "(?<*")
+    -- what looks like a POSIX class but is not one, and \ca
+    -- POSIX の名前に見えて、そうではないもの。\ca
+    it "reads look-alikes of POSIX classes, and \\ca" $ do
+      parsePattern [] "[:a:b]" `shouldBe` parsePattern [] "[\\:a:b]"
+      parsePattern [] "[^:alpha:]"
+        `shouldSatisfy` either (const False) (const True)
+      parsePattern [] "\\ca" `shouldBe` parsePattern [] "\\cA"
+    -- render puts a \ before a : at the head of a set ([\:-b:])
+    -- render は、集まりの頭の : に \ を付ける（[\:-b:]）
+    it "writes [\\:-b:], not [:-b:]" $
+      fmap render (parsePattern [] "[\\:-b:]") `shouldBe` Right "[\\:-b:]"
+    -- a comment or a lone \\E between a quantifier and its ? or +
+    -- 量指定子と ?・+ のあいだのコメントや、ひとりの \\E
+    it "reads past a comment before ? and +" $ do
+      parsePattern [] "a*(?#x)?" `shouldBe` parsePattern [] "a*?"
+      parsePattern [] "a*\\E?" `shouldBe` parsePattern [] "a*?"
+      parsePattern [] "a*\\Q\\E?" `shouldBe` parsePattern [] "a*?"
+      parsePattern [] "a*(?#x)+" `shouldBe` parsePattern [] "a*+"
+    -- the ^ is under the line of the trouble; a tab is 8 columns, and
+    -- 名 and 前 are 2 each
+    -- ^ は、つまずいた行の下。タブは8桁ごと、名と前は2桁ずつ
+    it "points under the right line and column" $ do
+      explain "a\n[z-a]" (Invalid 6 "x")
+        `shouldBe` "a\n[z-a]\n    ^\nwrong pattern at 6: x\n"
+      explain "\ta{5,2}" (Invalid 6 "x")
+        `shouldBe` "\ta{5,2}\n             ^\nwrong pattern at 6: x\n"
+      explain "名前(" (Invalid 3 "x")
+        `shouldBe` "名前(\n     ^\nwrong pattern at 3: x\n"
   -- ANCHOR_END: parser
 
   -- ANCHOR: errors
@@ -556,6 +597,32 @@ main = hspec $ do
       "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
     wrong "\\xg"     2
       "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
+    -- a number too big (or a surrogate) is told before a wrong digit
+    -- or a missing }
+    -- 番号の大きすぎ（とサロゲート）は、まちがった数字や } のなさより先
+    wrong "\\x{123456g}" 9
+      "character code point value in \\x{} or \\o{} is too large" -- 134
+    wrong "\\x{110000" 9
+      "character code point value in \\x{} or \\o{} is too large" -- 134
+    wrong "\\x{d800g}" 7
+      "disallowed Unicode code point (>= 0xd800 && <= 0xdfff)"    -- 173
+    -- the other kinds the parser says, checked with pcre2test 10.49
+    -- パーサーが言う、ほかの種類（pcre2test 10.49 で確かめた）
+    wrong "\\c"      2  "\\c at end of pattern"                    -- 102
+    wrong "[:alpha:]" 9
+      "POSIX named classes are supported only within a class"     -- 112
+    wrong "[.a.]"    5  "POSIX collating elements are not supported" -- 113
+    wrong "\\L"      2
+      "PCRE2 does not support \\F, \\L, \\l, \\N{name}, \\U, or \\u"   -- 137
+    wrong ("(?<" <> T.replicate 129 "a" <> ">x)") 132
+      "subpattern name is too long (maximum 128 code units)"      -- 148
+    wrong "\\o"      2  "missing opening brace after \\o"         -- 155
+    wrong "\\o{8}"   4
+      "non-octal character in \\o{} (closing brace missing?)"      -- 164
+    wrong "\\c\x01"  3
+      "\\c must be followed by a printable ASCII character"         -- 168
+    wrong "(?<a-b>x)" 4
+      "syntax error in subpattern name (missing terminator?)"     -- 142
   -- ANCHOR_END: errors
 
   -- ANCHOR: roundtrip
