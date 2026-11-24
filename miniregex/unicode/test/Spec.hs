@@ -2,6 +2,7 @@ module Main (main) where
 
 -- ANCHOR: imports
 import Control.Exception (SomeException, evaluate, try)
+import System.Timeout (timeout)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
@@ -128,6 +129,17 @@ unicodeClasses =
 charPattern :: Char -> Text
 charPattern c = "\\x{" <> T.pack (showHex (fromEnum c) "") <> "}"
 
+-- 🐢 The same, with PCRE2's start optimizations turned off. They can
+--    change the answer when a group refers back to itself: (bb|\1*a)
+--    finds nothing in "\na" with them, and "a" without them, as
+--    MiniRegex does.
+-- 同じものに、PCRE2 の「探し始める前の最適化」を切るオプションを足す。
+-- グループが自分自身を参照すると、最適化で答えが変わることがある：
+-- (bb|\1*a) は "\na" に、最適化ありだと何も見つけず、なしだと
+-- MiniRegex と同じく "a" を見つける
+pcre2Exact :: [Option] -> Pcre2.Option
+pcre2Exact opts = Pcre2.NoStartOptimize <> pcre2Options opts
+
 -- 🧵 a, x, b, y, c ...: one from each, in turn.
 -- 交互に1つずつ並べる
 weave :: [a] -> [a] -> [a]
@@ -153,6 +165,23 @@ genTemplate n = T.concat <$> resize 5 (listOf (elements parts))
     parts = ["x", "-", "$$", "$0"]
          ++ concat [["$" <> num i, "${" <> num i <> "}"] | i <- [1 .. n]]
     num   = T.pack . show
+
+-- ⏱️ The two answers are the same. But give up after a second, as the
+--    meter does: a random tree can be of the doubling kind, like
+--    (a+)+b. A pair that PCRE2 gave up on (its match limit) is set
+--    aside, too.
+-- 2つの答えが同じ。ただし、メーターと同じく、1秒であきらめる。でたらめな
+-- 木が、(a+)+b のような倍々の木のこともあるから。PCRE2 があきらめた組
+-- （ステップ数の上限）も、脇に置く
+agreeWithin :: (Eq a, Show a) => a -> a -> Test.QuickCheck.Property
+agreeWithin ours theirs = ioProperty $ do
+  answer <- timeout 1000000 (try (evaluate (ours == theirs)))
+  pure $ case answer of
+    Nothing -> label "set aside: slow" True
+    Just (Left (_ :: Pcre2.SomePcre2Exception)) ->
+      label "set aside: PCRE2 gave up" True
+    Just (Right same) ->
+      counterexample (show ours ++ " /= " ++ show theirs) same
 -- ANCHOR_END: gens
 
 -- ANCHOR: wild
@@ -389,11 +418,24 @@ main = hspec $ do
     it "finds an empty pattern everywhere" $ do
       map matchStart (findAll (surely "") "日本") `shouldBe` [0, 1, 2]
       split (surely "") "abc" `shouldBe` ["", "a", "b", "c", ""]
+    -- ANCHOR: matchfields
+    -- find gives the first one, not any one
+    -- find が返すのは、どれかではなく、最初の1つ
+    it "finds the first one" $
+      fmap (\m -> (matchText m, matchStart m, matchEnd m))
+        (find (surely "a") "banana")
+        `shouldBe` Just ("a", 1, 2)
+    -- isMatch says yes and no
+    -- isMatch は「ある」も「ない」も言う
+    it "tells if it is there" $ do
+      isMatch (surely "nan") "banana" `shouldBe` True
+      isMatch (surely "nab") "banana" `shouldBe` False
     -- places are counted in characters
     -- 場所は文字で数える
     it "counts places in characters" $
       fmap (\m -> (matchText m, matchStart m, matchEnd m))
         (find (surely "b") "日本b") `shouldBe` Just ("b", 2, 3)
+    -- ANCHOR_END: matchfields
     -- findAll finds the same places as the simple way
     -- findAll は、素朴なやり方と同じ場所を見つける
     prop "findAll agrees with the simple way" $
@@ -454,7 +496,8 @@ main = hspec $ do
       -- まだ読めない書き方を、別の文字列と読まない
       decodeSubject "\\[a]{2}" `shouldBe` Nothing
       decodeSubject "\\d" `shouldBe` Nothing
-      decodeSubject "a\\" `shouldBe` Nothing
+      decodeSubject "a\\" `shouldBe` Just "a"
+      decodeSubject "\\" `shouldBe` Just ""
       decodeSubject "\\o{101}\\$" `shouldBe` Just "A$"
     -- a line of only spaces ends a group (it is not a subject)
     -- 空白だけの行で、ひとまとまりが終わる（入力ではない）
@@ -504,18 +547,18 @@ main = hspec $ do
     -- calls no right pattern wrong
     -- testoutput1 の全部：ちがう答えは1つもなく、パーサーは正しい
     -- パターンを「まちがい」と言わない
-    it "reads 1443 patterns and passes 1373 tests, and fails none" $ do
+    it "reads the patterns of 1443 tests, passes 1378, and fails none" $ do
       tests <- readTestFile Latin1 "testdata/testoutput1"
       tally (map readable tests) `shouldBe` Tally 1443 0 1205
       verdicts <- mapM (judgeWithin 1000000) tests
-      tally verdicts `shouldBe` Tally 1373 0 1275
+      tally verdicts `shouldBe` Tally 1378 0 1270
     -- the second book, with UTF: no wrong answers either
     -- 2冊目（UTF あり）も、ちがう答えは1つもない
-    it "passes 1125 tests of testoutput4, and fails none" $ do
+    it "passes 1128 tests of testoutput4, and fails none" $ do
       tests <- readTestFile Utf8 "testdata/testoutput4"
       tally (map readable tests) `shouldBe` Tally 1136 0 397
       verdicts <- mapM (judgeWithin 1000000) tests
-      tally verdicts `shouldBe` Tally 1125 0 408
+      tally verdicts `shouldBe` Tally 1128 0 405
     -- every line counts now: the groups', too
     -- いまは全部の行をくらべる。グループの行も
     it "compares the groups' lines too" $ do
@@ -529,8 +572,12 @@ main = hspec $ do
   describe "the matcher / マッチャー" $ do
     -- each answer was checked with pcre2test 10.49
     -- 答えは、どれも pcre2test 10.49 で確かめた
-    let finds opts p t answer = it (show (opts, p, t)) $
-          fmap matchText (find (surelyWith opts p) t) `shouldBe` answer
+    -- both matchers: the continuations (find) and the list
+    -- 2つのマッチャーの両方：継続（find）と、候補のリスト
+    let finds opts p t answer = it (show (opts, p, t)) $ do
+          let re = surelyWith opts p
+          fmap matchText (find re t) `shouldBe` answer
+          fmap matchText (searchFromList re t 0) `shouldBe` answer
     -- the left branch first
     -- 左の枝が先
     finds [] "a|ab"      "abc"   (Just "a")
@@ -558,11 +605,18 @@ main = hspec $ do
     finds [Multiline] "^b" "a\nb" (Just "b")
     finds [] "a.c"       "a\nc"  Nothing
     finds [DotAll] "a.c" "a\nc"  (Just "a\nc")
+    -- after \1, ^ looks at the character the reference took
+    -- \1 のあとの ^ は、参照が食べた文字を見る
+    finds [Multiline] "(a)\n\\1^b" "a\nab" Nothing
     it "finds ^ and $ at each line with m" $ do
       map matchStart (findAll (surelyWith [Multiline] "^") "a\nb\n")
         `shouldBe` [0, 2]
       map matchStart (findAll (surelyWith [Multiline] "$") "a\nb\n")
         `shouldBe` [1, 3, 4]
+      -- the next search starts just after a newline: ^ looks back at it
+      -- 次の探しものが改行のすぐうしろから始まる。^ は、その改行を見る
+      map matchText (findAll (surelyWith [Multiline] "a\n|^b") "a\nb")
+        `shouldBe` ["a\n", "b"]
     -- (a+)+ lists 2^n - 1 places on n a's
     -- (a+)+ は、a が n 個なら 2^n - 1 個の場所を並べる
     it "lists 2^n - 1 ends for (a+)+" $
@@ -581,15 +635,18 @@ main = hspec $ do
         forAll (sublistOf [Multiline, DotAll]) $ \opts ->
           case compileWith opts (render tr) of
             Left e   -> counterexample (show e) False
-            Right re -> searchFromList re t 0 === find re t
+            Right re -> agreeWithin (searchFromList re t 0) (find re t)
   -- ANCHOR_END: matcher
 
   -- ANCHOR: groups
   describe "groups / グループ" $ do
     -- each answer was checked with pcre2test 10.49
     -- 答えは、どれも pcre2test 10.49 で確かめた
-    let finds p t answer = it (show (p, t)) $
+    -- both matchers: the continuations (find) and the list
+    -- 2つのマッチャーの両方：継続（find）と、候補のリスト
+    let finds p t answer = it (show (p, t)) $ do
           fmap groups (find (surely p) t) `shouldBe` answer
+          fmap groups (searchFromList (surely p) t 0) `shouldBe` answer
     -- a group that took no part is Nothing
     -- 使われなかったグループは Nothing
     finds "(a)|(b)"       "b"     (Just [Nothing, Just "b"])
@@ -606,6 +663,12 @@ main = hspec $ do
     -- 最後の空回りの1回も数に入る
     finds "(a*)*"         "aab"   (Just [Just ""])
     finds "(a|)+"         "ab"    (Just [Just ""])
+    -- with an upper end, the empty times count (both matchers)
+    -- 上の端があれば、空の回も数える（2つのマッチャーで）
+    finds "(|b){2,5}$"    "bb"    (Just [Just "b"])
+    -- a group inside a group comes after it: i is 2
+    -- 中のグループは外のあと。i は2番
+    finds "(?<o>a(?<i>b))" "ab"   (Just [Just "ab", Just "b"])
     -- with an upper end, the empty times count too, up to the end
     -- 上の端があれば、空の回も数えて、端まで回る
     it "counts the empty times of (|b){2,5}" $
@@ -622,6 +685,7 @@ main = hspec $ do
       (m >>= named "week") `shouldBe` Nothing
       (m >>= group 4) `shouldBe` Nothing
       (m >>= namedSpan "month") `shouldBe` Just (Span "11" 8 10)
+      (find (surely "(?<o>a(?<i>b))") "ab" >>= named "i") `shouldBe` Just "b"
     -- the examples of the chapter
     -- 章の例
     it "takes the dates apart and turns them round" $ do
@@ -637,8 +701,11 @@ main = hspec $ do
   describe "back references / 後方参照" $ do
     -- each answer was checked with pcre2test 10.49
     -- 答えは、どれも pcre2test 10.49 で確かめた
-    let finds p t answer = it (show (p, t)) $
+    -- both matchers: the continuations (find) and the list
+    -- 2つのマッチャーの両方：継続（find）と、候補のリスト
+    let finds p t answer = it (show (p, t)) $ do
           fmap matchText (find (surely p) t) `shouldBe` answer
+          fmap matchText (searchFromList (surely p) t 0) `shouldBe` answer
     finds "(a)\\1"             "aa"     (Just "aa")
     finds "(a)\\1"             "ab"     Nothing
     -- a group that has found nothing makes \1 fail
@@ -650,6 +717,29 @@ main = hspec $ do
     -- inside its own repeat: the time before
     -- 自分のくり返しの中なら、前の回のもの
     finds "(a|b\\1)+"          "aba"    (Just "aba")
+    -- a group can repeat itself 0 times (PCRE2 agrees with its start
+    -- optimizations turned off: pcre2/nso.txt)
+    -- 自分自身を0回くり返せる（PCRE2 も、最適化を切れば同じ：pcre2/nso.txt）
+    finds "(bb|\\1*a)"         "\na"    (Just "a")
+    -- the + of a group that refers to itself: no second round after an
+    -- empty first one (the lastOfMany of repeatAtom)
+    -- 自分を参照するグループの +：空の1回目のあとは回らない
+    -- （repeatAtom の lastOfMany）
+    finds "(?P<abn>(?P=abn)xxx|)+" "xxx"  (Just "")
+    -- \10 is a reference when 10 groups have opened before it; if not,
+    -- it is \010 (the backspace, \b)
+    -- \10 は、その前に10のグループが開いていれば後方参照。でなければ
+    -- \010（バックスペース、\b）
+    finds "(a)(b)(c)(d)(e)(f)(g)(h)(i)\\10(j)" "abcdefghi\bj"
+      (Just "abcdefghi\bj")
+    finds "\\10(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)" "\babcdefghij"
+      (Just "\babcdefghij")
+    finds "(a)(b)(c)(d)(e)(f)(g)(h)(i)(j\\10)" "abcdefghij\b" Nothing
+    -- a name inside a group, (?: that does not count, and +1
+    -- グループの中の名前、数に入らない (?:、+1
+    finds "(?<o>a(?<i>b))\\k<i>" "abb"   (Just "abb")
+    finds "(a)(?:b)\\g{-1}"     "aba"    (Just "aba")
+    finds "(?:\\g{+1}x|(a))+"   "aax"    (Just "aax")
     -- the ways of writing it
     -- 書き方いろいろ
     finds "(?<y>[0-9]+)-\\k<y>" "12-12" (Just "12-12")
@@ -691,6 +781,20 @@ main = hspec $ do
     wrong "(a)\\g{x}"   6 e115
     wrong "(a)(?P=x)"   7 e115
     wrong "(a)\\g{-0}"  5 "a relative value of zero is not allowed"  -- 126
+    wrong "(a)\\g+0"    7 "a relative value of zero is not allowed"
+    wrong "(a)\\g-0"    7 "a relative value of zero is not allowed"
+    wrong "\\g{+0"      2 "a relative value of zero is not allowed"
+    wrong "b(?P"        4 "missing closing parenthesis"              -- 114
+    wrong "(?P)"        4 "unrecognized character after (?P"         -- 141
+    wrong "(?Px)"       4 "unrecognized character after (?P"
+    wrong "(a)\\99999"  9 "subpattern number is too big"            -- 161
+    -- 65535 is the largest group number; above it, the number is told
+    -- 65535 がいちばん大きいグループの番号。超えたら、番号のことを言う
+    wrong "\\g{65535}"     9 e115
+    wrong "\\g{65536}"     2 "subpattern number is too big"          -- 161
+    wrong "\\g65536"       7 "subpattern number is too big"
+    wrong "(a)\\g{-65536}" 5 "subpattern number is too big"
+    wrong "(a)\\g-65536"  11 "subpattern number is too big"
     wrong "(a)\\k<1>"   7 "subpattern name must start with a non-digit"
     wrong "(a)\\k<>"    6 "subpattern name expected"                 -- 162
     wrong "(a)\\g{}"    6 "subpattern name expected"
@@ -755,10 +859,29 @@ main = hspec $ do
     wrong "$x"      2 "unknown substring"
     wrong "${1"     3
       "expected closing curly bracket in replacement string"      -- -58
+    -- after a digit, only digits, then }
+    -- 数字のあとは数字だけ。そのあとに }
+    wrong "${1x}"   3
+      "expected closing curly bracket in replacement string"
+    wrong "${12}"   3 "unknown substring"
     wrong "$"       1 "invalid replacement string"                -- -35
     wrong "$-"      1 "invalid replacement string"
     wrong "<${}>"   3 "invalid replacement string"
     wrong "<${ 1 }>" 3 "invalid replacement string"
+    -- replaceTemplate changes only the first one
+    -- replaceTemplate は最初の1つだけ
+    it "replaceTemplate changes only the first one" $
+      fmap (\x -> replaceTemplate (surely "(a)") x "aa")
+        (template (surely "(a)") "<$1>")
+        `shouldBe` Right "<a>a"
+    -- a Japanese name; $*MARK is not yet
+    -- 日本語の名前。$*MARK は、まだ
+    it "takes a Japanese name, and says not yet to $*MARK" $ do
+      fmap (\x -> replaceAllTemplate (surely "(?<年>a)") x "a")
+        (template (surely "(?<年>a)") "<${年}>")
+        `shouldBe` Right "<a>"
+      template (surely "(a)") "<$*MARK>"
+        `shouldBe` Left (Unsupported 1 "$*MARK")
     -- a group that found nothing puts in nothing
     -- 何も見つけなかったグループは、何も差しこまない
     it "puts nothing in for a group that found nothing" $
@@ -943,14 +1066,16 @@ main = hspec $ do
   -- ANCHOR: pcre2
   describe "the real PCRE2 / 本物の PCRE2" $ do
     -- when MiniRegex can run a pattern, it finds the first match that
-    -- PCRE2 finds
-    -- MiniRegex が動かせるパターンなら、PCRE2 と同じ最初の一致を見つける
+    -- PCRE2 finds, at the same place (replacing it shows where it is)
+    -- MiniRegex が動かせるパターンなら、PCRE2 と同じ最初の一致を、同じ
+    -- 場所に見つける（置き換えてみると、場所もわかる）
     prop "finds the first match PCRE2 finds" $
       forAll genPattern $ \p -> forAll genText $ \t ->
         case compile p of
           Left _   -> label "not yet" True
           Right re -> label "compared" $
             fmap matchText (find re t) === Pcre2.match p t
+              .&&. replace re "<>" t === Pcre2.sub p "<>" t
     -- and all the matches, through PCRE2's own global replace (the
     -- library's own way of finding them all steps into the middle of
     -- 日 after an empty match, but pcre2_substitute does it right)
@@ -981,14 +1106,9 @@ main = hspec $ do
                   -- 見つける
                   _ | wideRangeNoCase opts tr -> label "PCRE2 10.47 bug" True
                   Left e   -> counterexample (show e) False
-                  Right re -> ioProperty $ do
-                    -- PCRE2 may give up (its match limit): skip those
-                    -- PCRE2 があきらめる（ステップ数の上限）ものは飛ばす
-                    theirs <- try (evaluate
-                      (Pcre2.capturesOpt (pcre2Options opts) p t))
-                    pure $ case theirs of
-                      Left (_ :: SomeException) -> label "PCRE2 gave up" True
-                      Right ts -> fmap allGroups (find re t) === ts
+                  Right re ->
+                    agreeWithin (fmap allGroups (find re t))
+                      (Pcre2.capturesOpt (pcre2Exact opts) p t)
     -- the templates, against pcre2_substitute (with unset groups as "")
     -- テンプレートも、pcre2_substitute とくらべる（何も見つけなかった
     -- グループは ""）
@@ -999,12 +1119,12 @@ main = hspec $ do
           let p = render tr
           in  counterexample (T.unpack p) $
               case (compile p, template (surely p) tpl) of
-                (Right re, Right x) -> ioProperty $ do
-                  theirs <- try (evaluate (Pcre2.subOpt
-                    (Pcre2.SubGlobal <> Pcre2.SubUnsetEmpty) p tpl t))
-                  pure $ case theirs of
-                    Left (_ :: SomeException) -> label "PCRE2 gave up" True
-                    Right ts -> replaceAllTemplate re x t === ts
+                (Right re, Right x) ->
+                  agreeWithin (replaceAllTemplate re x t)
+                    (Pcre2.subOpt
+                      (pcre2Exact []
+                        <> Pcre2.SubGlobal <> Pcre2.SubUnsetEmpty)
+                      p tpl t)
                 other -> counterexample (show other) False
     -- often enough, it compares (not only "not yet")
     -- 「まだ」ばかりでなく、ちゃんとくらべている
@@ -1065,6 +1185,40 @@ main = hspec $ do
       parsePattern [] "(?J)a" `shouldBe` Left (Unsupported 0 "(?J)")
       parsePattern [] "\\p{Alphabetic}"
         `shouldBe` Left (Unsupported 0 "\\p{binary property}")
+      parsePattern [] "(?<*a)b" `shouldBe` Left (Unsupported 0 "(?<*")
+    -- what looks like a POSIX class but is not one, and \ca
+    -- POSIX の名前に見えて、そうではないもの。\ca
+    it "reads look-alikes of POSIX classes, and \\ca" $ do
+      parsePattern [] "[:a:b]" `shouldBe` parsePattern [] "[\\:a:b]"
+      parsePattern [] "[^:alpha:]"
+        `shouldSatisfy` either (const False) (const True)
+      parsePattern [] "\\ca" `shouldBe` parsePattern [] "\\cA"
+    -- render puts a \ before a : at the head of a set ([\:-b:])
+    -- render は、集まりの頭の : に \ を付ける（[\:-b:]）
+    it "writes [\\:-b:], not [:-b:]" $
+      fmap render (parsePattern [] "[\\:-b:]") `shouldBe` Right "[\\:-b:]"
+    -- a comment or a lone \\E between a quantifier and its ? or +
+    -- 量指定子と ?・+ のあいだのコメントや、ひとりの \\E
+    it "reads past a comment before ? and +" $ do
+      parsePattern [] "a*(?#x)?" `shouldBe` parsePattern [] "a*?"
+      -- ANCHOR: lonee
+      -- (a lone \E there is not yet: PCRE2 10.47 and 10.49 differ)
+      -- （ひとりの \E は、まだ。PCRE2 の 10.47 と 10.49 でちがう）
+      parsePattern [] "a*\\E?"
+        `shouldBe` Left (Unsupported 2 "\\E after a quantifier")
+      -- ANCHOR_END: lonee
+      parsePattern [] "a*\\Q\\E?" `shouldBe` parsePattern [] "a*?"
+      parsePattern [] "a*(?#x)+" `shouldBe` parsePattern [] "a*+"
+    -- the ^ is under the line of the trouble; a tab is 8 columns, and
+    -- 名 and 前 are 2 each
+    -- ^ は、つまずいた行の下。タブは8桁ごと、名と前は2桁ずつ
+    it "points under the right line and column" $ do
+      explain "a\n[z-a]" (Invalid 6 "x")
+        `shouldBe` "a\n[z-a]\n    ^\nwrong pattern at 6: x\n"
+      explain "\ta{5,2}" (Invalid 6 "x")
+        `shouldBe` "\ta{5,2}\n             ^\nwrong pattern at 6: x\n"
+      explain "名前(" (Invalid 3 "x")
+        `shouldBe` "名前(\n     ^\nwrong pattern at 3: x\n"
   -- ANCHOR_END: parser
 
   -- ANCHOR: errors
@@ -1113,6 +1267,32 @@ main = hspec $ do
       "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
     wrong "\\xg"     2
       "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
+    -- a number too big (or a surrogate) is told before a wrong digit
+    -- or a missing }
+    -- 番号の大きすぎ（とサロゲート）は、まちがった数字や } のなさより先
+    wrong "\\x{123456g}" 9
+      "character code point value in \\x{} or \\o{} is too large" -- 134
+    wrong "\\x{110000" 9
+      "character code point value in \\x{} or \\o{} is too large" -- 134
+    wrong "\\x{d800g}" 7
+      "disallowed Unicode code point (>= 0xd800 && <= 0xdfff)"    -- 173
+    -- the other kinds the parser says, checked with pcre2test 10.49
+    -- パーサーが言う、ほかの種類（pcre2test 10.49 で確かめた）
+    wrong "\\c"      2  "\\c at end of pattern"                    -- 102
+    wrong "[:alpha:]" 9
+      "POSIX named classes are supported only within a class"     -- 112
+    wrong "[.a.]"    5  "POSIX collating elements are not supported" -- 113
+    wrong "\\L"      2
+      "PCRE2 does not support \\F, \\L, \\l, \\N{name}, \\U, or \\u"   -- 137
+    wrong ("(?<" <> T.replicate 129 "a" <> ">x)") 132
+      "subpattern name is too long (maximum 128 code units)"      -- 148
+    wrong "\\o"      2  "missing opening brace after \\o"         -- 155
+    wrong "\\o{8}"   4
+      "non-octal character in \\o{} (closing brace missing?)"      -- 164
+    wrong "\\c\x01"  3
+      "\\c must be followed by a printable ASCII character"         -- 168
+    wrong "(?<a-b>x)" 4
+      "syntax error in subpattern name (missing terminator?)"     -- 142
   -- ANCHOR_END: errors
 
   -- ANCHOR: roundtrip

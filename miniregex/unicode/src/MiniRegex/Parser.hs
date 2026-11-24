@@ -123,10 +123,11 @@ reachOf f = do
 invalid :: Int -> Text -> Parser a
 invalid at message = customFailure (Invalid at message)
 
--- 🚧 Stop: the pattern is fine, but has something the tree cannot
---    hold yet. `at` is where that thing starts.
--- 止まる：正しいパターンだが、木にまだ入れられないものがある。
--- at は、それが始まる場所
+-- 🚧 Stop: something the tree cannot hold yet (whether the rest of the
+--    pattern is right is not looked at). `at` is where that thing
+--    starts.
+-- 止まる：木にまだ入れられないものに出会った（パターンの残りが正しいか
+-- どうかは、まだ見ていない）。at は、それが始まる場所
 unsupported :: Int -> Text -> Parser a
 unsupported at what = customFailure (Unsupported at what)
 -- ANCHOR_END: parser
@@ -239,8 +240,11 @@ piece = anchorPiece <|> settingPiece <|> quantifiedPieces
       skipIgnorable
       noQuantifier
       pure []
+    -- ((?P is Python's way of writing names, not a flag)
+    -- （(?P は Python の名前の書き方で、フラグではない）
     settingShape =
-      string "(?" *> takeWhileP Nothing isOptionChar *> char ')'
+      string "(?" *> notFollowedBy (char 'P')
+        *> takeWhileP Nothing isOptionChar *> char ')'
     quantifiedPieces = do
       atoms <- atomsP >>= traverse caseAware
       skipIgnorable
@@ -621,18 +625,27 @@ inBraces base isDigitOf wrongDigit = do
   case () of
     _ | (closed || end) && T.null ds -> invalid at
           "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
-      | closed -> codePoint at (readBase (toInteger base) (T.unpack ds))
-      -- the place just after the wrong character (or the end)
-      -- まちがった文字のすぐうしろ（か、終わり）
-      | end       -> invalid at wrongDigit
-      | otherwise -> invalid (at + 1) wrongDigit
+      | T.null ds -> wrong
+      | otherwise -> do
+          -- the number first, as PCRE2 does: \x{110000g} is 134, not 167
+          -- 先に番号を見る（PCRE2 と同じ）：\x{110000g} は 167 ではなく 134
+          c <- codePoint at (readBase (toInteger base) (T.unpack ds))
+          if closed then pure c else wrong
+  where
+    -- the place just after the wrong character (or the end)
+    -- まちがった文字のすぐうしろ（か、終わり）
+    wrong = do
+      at <- getOffset
+      end <- atEnd
+      invalid (if end then at else at + 1) wrongDigit
 
 -- ANCHOR_END: inbraces
 
--- 🔢 A number as a character. `at` is the place of the } (PCRE2 says
---    the place of the } for these two errors).
--- 番号を文字にする。at は } の場所（この2つのエラーで、PCRE2 は } の
--- 場所を言う）
+-- 🔢 A number as a character. `at` is the place just after the digits:
+--    the place of the }, or of the character where the } should be
+--    (PCRE2 says that place for these two errors).
+-- 番号を文字にする。at は数字のすぐうしろ：} の場所か、} があるべき
+-- 場所の文字（この2つのエラーで、PCRE2 はその場所を言う）
 codePoint :: Int -> Integer -> Parser Char
 codePoint at n
   | n > 0x10FFFF =
@@ -871,11 +884,19 @@ groupKind at = do
     '?' : ':' : _       -> NonCapturing <$ string "?:"
     '?' : '|' : _       -> BranchReset <$ string "?|"
     '?' : '<' : c : _
-      | c `elem` ("=!" :: String) -> notYet (T.pack ['(', '?', '<', c])
+      | c `elem` ("=!*" :: String) -> notYet (T.pack ['(', '?', '<', c])
     '?' : '<' : _       -> string "?<"  *> name '>'
     '?' : '\'' : _      -> string "?'"  *> name '\''
     '?' : 'P' : '<' : _ -> string "?P<" *> name '>'
-    '?' : 'P' : c : _   -> notYet (T.pack ['(', '?', 'P', c])
+    -- (?P and the end: the group is not closed (PCRE2 says it there)
+    -- (?P で終わり：グループが閉じていない（PCRE2 も、そこで言う）
+    ['?', 'P']          -> do
+      _ <- string "?P"
+      end <- getOffset
+      invalid end "missing closing parenthesis"  -- 114
+    '?' : 'P' : '>' : _ -> notYet "(?P>"
+    '?' : 'P' : _       ->
+      invalid (at + 4) "unrecognized character after (?P"  -- 141
     '?' : '-' : d : _ | isDigit d -> notYet "(?R"
     '?' : c : _
       | c `elem` ("=!>([" :: String) -> notYet (T.pack ['(', '?', c])
@@ -1057,23 +1078,25 @@ reference = do
     _     -> fail "not a reference"
 
 -- 🔢 \1 to \9 are always references. \10 and longer ones are, when
---    they start with 8 or 9, or when there are that many groups in the
---    whole pattern; if not, up to three octal digits (\12 is a newline).
+--    they start with 8 or 9, or when that many groups have opened
+--    before here (as PCRE2 does: a group after it does not count); if
+--    not, up to three octal digits (\12 is a newline).
 -- \1 から \9 は、いつも後方参照。\10 より長いものは、8 か 9 で
--- 始まるか、パターン全体にその数だけグループがあれば後方参照。
--- なければ、3つまでの8進の数字（\12 は改行）
+-- 始まるか、ここまでにその数だけグループが開いていれば後方参照
+-- （PCRE2 と同じ。うしろのグループは数えない）。なければ、3つまでの
+-- 8進の数字（\12 は改行）
 digitsRef :: Parser Atom
 digitsRef = do
   ds <- lookAhead (takeWhileP Nothing isDigit)
-  k <- gets known
+  o <- gets opened
   let n = readBase 10 (T.unpack ds) :: Integer
-      enough kn = n <= toInteger (knownCount kn)
       isReference = n < 10 || T.head ds `elem` ("89" :: String)
-                      || maybe True enough k
+                      || n <= toInteger o
   if isReference
     then do
       _ <- takeWhileP Nothing isDigit
       end <- getOffset
+      tooBig end n
       byNumber end n
     else do
       os <- takeWhileUpTo 3 isOctDigit
@@ -1130,6 +1153,8 @@ gRef at = do
       | isDigit next || next `elem` ("+-" :: String) -> do
           (sign, n) <- signedNumber afterG
           end <- getOffset
+          tooBig end n
+          zeroNotAllowed end sign n
           relative afterG end sign n
       | otherwise -> noNumber afterG
   where
@@ -1139,6 +1164,8 @@ gRef at = do
       if numberAhead two
         then do
           (sign, n) <- signedNumber afterG
+          tooBig afterG n
+          zeroNotAllowed afterG sign n
           blanks
           numEnd <- getOffset
           closed <- option False (True <$ char '}')
@@ -1163,6 +1190,23 @@ signedNumber afterG = do
   ds <- takeWhileP Nothing isDigit
   when (T.null ds) $ noNumber afterG
   pure (sign, readBase 10 (T.unpack ds))
+
+-- 🚫 A group number bigger than 65535 (PCRE2's largest). PCRE2 points
+--    just after \g for \g{…}, and after the digits for \g123456.
+-- 65535（PCRE2 のいちばん大きい番号）より大きいグループの番号。PCRE2 は、
+-- \g{…} なら \g のすぐうしろ、\g123456 なら数字のうしろを指す
+tooBig :: Int -> Integer -> Parser ()
+tooBig at n =
+  when (n > 65535) $ invalid at "subpattern number is too big"  -- 161
+
+-- 🚫 +0 and -0 point nowhere. PCRE2 says it when it has read the
+--    number: just after \g for \g{-0}, after the digits for \g-0.
+-- +0 と -0 は、どこも指さない。PCRE2 は数を読んだところで言う：\g{-0}
+-- なら \g のすぐうしろ、\g-0 なら数字のうしろ
+zeroNotAllowed :: Int -> Maybe Char -> Integer -> Parser ()
+zeroNotAllowed at sign n =
+  when (sign /= Nothing && n == 0) $
+    invalid at "a relative value of zero is not allowed"  -- 126
 
 noNumber :: Int -> Parser a
 noNumber afterG = invalid afterG
@@ -1216,8 +1260,10 @@ nonExistent at = invalid at "reference to non-existent subpattern"  -- 115
 
 -- ANCHOR: quantifier
 -- ANCHOR: quantifierfn
--- 🔁 A quantifier, and after it ? (Lazy) or + (Possessive).
--- 量指定子と、そのうしろの ?（控えめ）か +（所有的）
+-- 🔁 A quantifier, and after it ? (Lazy) or + (Possessive). A comment
+--    or an empty \Q\E may come between them: a*(?#c)? is a*?.
+-- 量指定子と、そのうしろの ?（控えめ）か +（所有的）。あいだに
+-- コメントや、空の \Q\E があってもよい：a*(?#c)? は a*?
 quantifier :: Parser Quantifier
 quantifier = do
   c <- quantifierBase
