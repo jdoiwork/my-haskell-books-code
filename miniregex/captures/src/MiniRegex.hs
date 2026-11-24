@@ -209,8 +209,10 @@ replaceWith re f t = rebuild f (findAll re t) t
 -- ANCHOR_END: replace
 
 -- ANCHOR: template
--- 🧾 Replace the first match with the template ($1, ${name}, $$).
--- 最初に見つかったものを、テンプレート（$1・${name}・$$）で置き換える
+-- 🧾 Replace the first match with the template ($1, ${name}, $$),
+--    made by `template` for this same regex.
+-- 最初に見つかったものを、テンプレート（$1・${name}・$$）で置き換える。
+-- テンプレートは、同じ正規表現で template が作ったもの
 replaceTemplate :: Regex -> Template -> Text -> Text
 replaceTemplate re tpl t = rebuild (expand tpl) (take 1 (findAll re t)) t
 

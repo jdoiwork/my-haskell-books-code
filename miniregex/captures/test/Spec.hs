@@ -615,6 +615,13 @@ main = hspec $ do
     wrong "(a)\\g{x}"   6 e115
     wrong "(a)(?P=x)"   7 e115
     wrong "(a)\\g{-0}"  5 "a relative value of zero is not allowed"  -- 126
+    -- 65535 is the largest group number; above it, the number is told
+    -- 65535 がいちばん大きいグループの番号。超えたら、番号のことを言う
+    wrong "\\g{65535}"     9 e115
+    wrong "\\g{65536}"     2 "subpattern number is too big"          -- 161
+    wrong "\\g65536"       7 "subpattern number is too big"
+    wrong "(a)\\g{-65536}" 5 "subpattern number is too big"
+    wrong "(a)\\g-65536"  11 "subpattern number is too big"
     wrong "(a)\\k<1>"   7 "subpattern name must start with a non-digit"
     wrong "(a)\\k<>"    6 "subpattern name expected"                 -- 162
     wrong "(a)\\g{}"    6 "subpattern name expected"
@@ -679,6 +686,11 @@ main = hspec $ do
     wrong "$x"      2 "unknown substring"
     wrong "${1"     3
       "expected closing curly bracket in replacement string"      -- -58
+    -- after a digit, only digits, then }
+    -- 数字のあとは数字だけ。そのあとに }
+    wrong "${1x}"   3
+      "expected closing curly bracket in replacement string"
+    wrong "${12}"   3 "unknown substring"
     wrong "$"       1 "invalid replacement string"                -- -35
     wrong "$-"      1 "invalid replacement string"
     wrong "<${}>"   3 "invalid replacement string"
@@ -741,12 +753,10 @@ main = hspec $ do
           let p = render tr
           in  counterexample (T.unpack p) $
               case (compile p, template (surely p) tpl) of
-                (Right re, Right x) -> ioProperty $ do
-                  theirs <- try (evaluate (Pcre2.subOpt
-                    (Pcre2.SubGlobal <> Pcre2.SubUnsetEmpty) p tpl t))
-                  pure $ case theirs of
-                    Left (_ :: SomeException) -> label "PCRE2 gave up" True
-                    Right ts -> replaceAllTemplate re x t === ts
+                (Right re, Right x) ->
+                  agreeWithin (replaceAllTemplate re x t)
+                    (Pcre2.subOpt
+                      (Pcre2.SubGlobal <> Pcre2.SubUnsetEmpty) p tpl t)
                 other -> counterexample (show other) False
     -- often enough, it compares (not only "not yet")
     -- 「まだ」ばかりでなく、ちゃんとくらべている

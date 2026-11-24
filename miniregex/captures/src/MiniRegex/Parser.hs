@@ -687,6 +687,7 @@ gRef at = do
       | isDigit next || next `elem` ("+-" :: String) -> do
           (sign, n) <- signedNumber afterG
           end <- getOffset
+          tooBig end n
           relative afterG end sign n
       | otherwise -> noNumber afterG
   where
@@ -696,6 +697,7 @@ gRef at = do
       if numberAhead two
         then do
           (sign, n) <- signedNumber afterG
+          tooBig afterG n
           blanks
           numEnd <- getOffset
           closed <- option False (True <$ char '}')
@@ -720,6 +722,14 @@ signedNumber afterG = do
   ds <- takeWhileP Nothing isDigit
   when (T.null ds) $ noNumber afterG
   pure (sign, readBase 10 (T.unpack ds))
+
+-- 🚫 A group number bigger than 65535 (PCRE2's largest). PCRE2 points
+--    just after \g for \g{…}, and after the digits for \g123456.
+-- 65535（PCRE2 のいちばん大きい番号）より大きいグループの番号。PCRE2 は、
+-- \g{…} なら \g のすぐうしろ、\g123456 なら数字のうしろを指す
+tooBig :: Int -> Integer -> Parser ()
+tooBig at n =
+  when (n > 65535) $ invalid at "subpattern number is too big"  -- 161
 
 noNumber :: Int -> Parser a
 noNumber afterG = invalid afterG

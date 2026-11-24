@@ -38,9 +38,11 @@ data Part
 
 -- ANCHOR: read
 -- 📖 Read a replacement text for this regex. The groups must be in the
---    regex. The places and messages of the errors are PCRE2's.
+--    regex. The places and messages of the errors are PCRE2's. Use the
+--    template with this regex only: a name is kept as its number here.
 -- この正規表現のための置き換えの文字列を読む。グループは、正規表現の
--- 中になければならない。エラーの場所と文は PCRE2 と同じ
+-- 中になければならない。エラーの場所と文は PCRE2 と同じ。テンプレートは、
+-- この正規表現にだけ使う（名前は、ここでの番号にして覚えるから）
 template :: Regex -> Text -> Either RegexError Template
 template re = fmap (Template . merge) . go 0 . T.unpack
   where
@@ -48,12 +50,22 @@ template re = fmap (Template . merge) . go 0 . T.unpack
     go _ [] = Right []
     go i ('$' : '$' : cs) = (Plain "$" :) <$> go (i + 2) cs
     go i ('$' : '{' : cs) = do
-      let (w, after) = span isNameChar cs
+      -- a number, or a name: PCRE2 reads only digits after a digit, so
+      -- ${1x} wants } just after the 1
+      -- 番号か名前。PCRE2 は、数字で始まれば数字だけを読むので、${1x} は
+      -- 1 のすぐうしろに } がほしい
+      let (w, after) = case cs of
+            d : _ | isDigit d -> span isDigit cs
+            _                 -> span isNameChar cs
           end        = i + 2 + length w
       case after of
         _ | null w -> wrong (i + 2)                         -- ${}
         '}' : rest -> do
-          p <- insert (end + 1) w
+          -- (a number that is not there: just after its first digit, as
+          -- for $12; a name: just after the })
+          -- （ない番号なら、$12 と同じく最初の数字のすぐうしろ。名前なら } の
+          -- うしろ）
+          p <- insert (if all isDigit w then i + 3 else end + 1) w
           (p :) <$> go (end + 1) rest
         _          -> Left (Invalid end
           "expected closing curly bracket in replacement string")  -- -58
