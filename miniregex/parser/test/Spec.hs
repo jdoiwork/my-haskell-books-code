@@ -393,6 +393,20 @@ main = hspec $ do
       parsePattern [] "x(?=y)" `shouldBe` Left (Unsupported 1 "(?=")
       parsePattern [] "(?i)a" `shouldBe` Left (Unsupported 0 "(?flags)")
       parsePattern [Extended] "a b" `shouldBe` Left (Unsupported 0 "flag x")
+    -- a comment or a lone \\E between a quantifier and its ? or +
+    -- 量指定子と ?・+ のあいだのコメントや、ひとりの \\E
+    it "reads past a comment before ? and +" $ do
+      parsePattern [] "a*(?#x)?" `shouldBe` parsePattern [] "a*?"
+      parsePattern [] "a*\\E?" `shouldBe` parsePattern [] "a*?"
+      parsePattern [] "a*\\Q\\E?" `shouldBe` parsePattern [] "a*?"
+      parsePattern [] "a*(?#x)+" `shouldBe` parsePattern [] "a*+"
+    -- the ^ is under the line of the trouble; a tab is 8 columns
+    -- ^ は、つまずいた行の下。タブは8桁ごと
+    it "points under the right line and column" $ do
+      explain "a\n[z-a]" (Invalid 6 "x")
+        `shouldBe` "a\n[z-a]\n    ^\nwrong pattern at 6: x\n"
+      explain "\ta{5,2}" (Invalid 6 "x")
+        `shouldBe` "\ta{5,2}\n             ^\nwrong pattern at 6: x\n"
   -- ANCHOR_END: parser
 
   -- ANCHOR: errors
@@ -441,6 +455,15 @@ main = hspec $ do
       "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
     wrong "\\xg"     2
       "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
+    -- a number too big (or a surrogate) is told before a wrong digit
+    -- or a missing }
+    -- 番号の大きすぎ（とサロゲート）は、まちがった数字や } のなさより先
+    wrong "\\x{123456g}" 9
+      "character code point value in \\x{} or \\o{} is too large" -- 134
+    wrong "\\x{110000" 9
+      "character code point value in \\x{} or \\o{} is too large" -- 134
+    wrong "\\x{d800g}" 7
+      "disallowed Unicode code point (>= 0xd800 && <= 0xdfff)"    -- 173
   -- ANCHOR_END: errors
 
   -- ANCHOR: roundtrip

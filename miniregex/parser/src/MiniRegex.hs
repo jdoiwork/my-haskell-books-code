@@ -74,24 +74,33 @@ compileWith opts src = do
 -- パターンと、つまずいた場所を指す ^ と、そのわけ。場所は PCRE2 が言う
 -- 場所（まちがった文字の、すぐうしろのことが多い）
 explain :: Text -> RegexError -> Text
-explain src err = T.unlines [src, caret, why]
+explain src err = T.unlines (upTo ++ [caret] ++ after ++ [why])
   where
-    caret = T.replicate (width (T.take (errorOffset err) src)) " " <> "^"
+    -- the ^ goes under the line of the trouble (a pattern may have
+    -- newlines), counting from the start of that line
+    -- ^ は、つまずいた行の下に置く（パターンに改行があることもある）。
+    -- その行の頭から数える
+    before        = T.take (errorOffset err) src
+    (upTo, after) = splitAt (T.count "\n" before + 1) (T.splitOn "\n" src)
+    lineHead      = T.takeWhileEnd (/= '\n') before
+    caret         = T.replicate (width lineHead) " " <> "^"
     why = case err of
       Invalid at m     -> "wrong pattern at " <> place at <> ": " <> m
       Unsupported at w -> "not yet at " <> place at <> ": " <> w
     place = T.pack . show
 
 -- 📐 How many columns the text takes on a terminal. A Japanese or
---    Chinese character takes two (a rough rule, good enough here).
+--    Chinese character takes two (a rough rule, good enough here), and
+--    a tab goes on to the next multiple of 8.
 -- 文字列が端末で何桁を占めるか。日本語や中国語の文字は2桁
--- （おおまかな決まりだが、ここでは十分）
+-- （おおまかな決まりだが、ここでは十分）。タブは、次の8の倍数まで進む
 width :: Text -> Int
-width = sum . map columns . T.unpack
+width = T.foldl' step 0
   where
-    columns c
-      | wide (ord c) = 2
-      | otherwise    = 1
+    step col c
+      | c == '\t'    = (col `div` 8 + 1) * 8
+      | wide (ord c) = col + 2
+      | otherwise    = col + 1
     wide n = any (\(lo, hi) -> lo <= n && n <= hi)
       [ (0x1100, 0x115F), (0x2E80, 0xA4CF), (0xAC00, 0xD7A3)
       , (0xF900, 0xFAFF), (0xFF00, 0xFF60), (0xFFE0, 0xFFE6)

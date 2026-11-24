@@ -305,16 +305,25 @@ inBraces base isDigitOf wrongDigit = do
   case () of
     _ | (closed || end) && T.null ds -> invalid at
           "digits missing after \\x or in \\x{} or \\o{} or \\N{U+}"  -- 178
-      | closed -> codePoint at (readBase (toInteger base) (T.unpack ds))
-      -- the place just after the wrong character (or the end)
-      -- まちがった文字のすぐうしろ（か、終わり）
-      | end       -> invalid at wrongDigit
-      | otherwise -> invalid (at + 1) wrongDigit
+      | T.null ds -> wrong
+      | otherwise -> do
+          -- the number first, as PCRE2 does: \x{110000g} is 134, not 167
+          -- 先に番号を見る（PCRE2 と同じ）：\x{110000g} は 167 ではなく 134
+          c <- codePoint at (readBase (toInteger base) (T.unpack ds))
+          if closed then pure c else wrong
+  where
+    -- the place just after the wrong character (or the end)
+    -- まちがった文字のすぐうしろ（か、終わり）
+    wrong = do
+      at <- getOffset
+      end <- atEnd
+      invalid (if end then at else at + 1) wrongDigit
 
--- 🔢 A number as a character. `at` is the place of the } (PCRE2 says
---    the place of the } for these two errors).
--- 番号を文字にする。at は } の場所（この2つのエラーで、PCRE2 は } の
--- 場所を言う）
+-- 🔢 A number as a character. `at` is the place just after the digits:
+--    the place of the }, or of the character where the } should be
+--    (PCRE2 says that place for these two errors).
+-- 番号を文字にする。at は数字のすぐうしろ：} の場所か、} があるべき
+-- 場所の文字（この2つのエラーで、PCRE2 はその場所を言う）
 codePoint :: Int -> Integer -> Parser Char
 codePoint at n
   | n > 0x10FFFF =
@@ -527,11 +536,14 @@ name close = do
 -- ANCHOR_END: group
 
 -- ANCHOR: quantifier
--- 🔁 A quantifier, and after it ? (Lazy) or + (Possessive).
--- 量指定子と、そのうしろの ?（控えめ）か +（所有的）
+-- 🔁 A quantifier, and after it ? (Lazy) or + (Possessive). A comment
+--    or a lone \E may come between them: a*(?#c)? is a*?.
+-- 量指定子と、そのうしろの ?（控えめ）か +（所有的）。あいだに
+-- コメントや、ひとりの \E があってもよい：a*(?#c)? は a*?
 quantifier :: Parser Quantifier
 quantifier = do
   c <- quantifierBase
+  skipIgnorable
   g <- option Greedy ((Lazy <$ char '?') <|> (Possessive <$ char '+'))
   pure (Quantifier c g)
 
