@@ -190,8 +190,14 @@ patternOf mods t
 oneByteCase :: Modifiers -> Text -> Text -> Bool
 oneByteCase mods pat subj =
   not (modUtf mods)
-    && (Caseless `elem` modOptions mods || "i" `T.isInfixOf` pat)
+    && (Caseless `elem` modOptions mods || inlineCaseless)
     && T.any (>= '\x80') (pat <> subj)
+  where
+    -- (?i), (?mi-s:...) and the like: an i among the letters of a (?...
+    -- (?i)・(?mi-s:...) など：(? のうしろのフラグの文字に i がある
+    inlineCaseless = any (T.elem 'i' . T.takeWhile flagLetter . T.drop 2)
+                         (map snd (T.breakOnAll "(?" pat))
+    flagLetter c = c `elem` ("imnsxUaDSWPTJr^-" :: String)
 
 -- ⏱️ Judge a test, but give up after this many microseconds: a
 --    backtracking matcher can take for ever on some patterns. That

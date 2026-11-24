@@ -566,6 +566,13 @@ main = hspec $ do
       judge (TestCase 1 "(a)b" "" "ab" [" 0: ab", " 1: b"]) `shouldBe` Fail
       judge (TestCase 1 "a*" "g" "ab" [" 0: a", " 0: ", " 0: "])
         `shouldBe` Pass
+    -- a plain i in the pattern is not the flag i (only (?i) is)
+    -- パターンの中の、ただの文字の i は、フラグの i ではない（(?i) だけ）
+    it "takes only (?i) as caseless, not a letter i" $ do
+      judge (TestCase 1 "i" "" "\\xe9i" [" 0: i"]) `shouldBe` Pass
+      judge (TestCase 1 "i" "" "\\xe9i" ["No match"]) `shouldBe` Fail
+      judge (TestCase 1 "(?i)e" "" "\\xe9" ["No match"])
+        `shouldBe` NotYet "caseless without UTF"
   -- ANCHOR_END: meter
 
   -- ANCHOR: matcher
@@ -1212,6 +1219,19 @@ main = hspec $ do
     -- the ^ is under the line of the trouble; a tab is 8 columns, and
     -- 名 and 前 are 2 each
     -- ^ は、つまずいた行の下。タブは8桁ごと、名と前は2桁ずつ
+    -- under (?xx), spaces before the ^ of a class do not hide it
+    -- (?xx) のもとでは、文字の集まりの ^ の前の空白が ^ を隠さない
+    it "reads [ ^a] under (?xx) as [^a]" $ do
+      isMatch (surely "(?xx)[ ^a]") "a" `shouldBe` False
+      isMatch (surely "(?xx)[ ^a]") "b" `shouldBe` True
+      isMatch (surely "(?xx)[\t^a]") "a" `shouldBe` False
+    -- render puts back aT after (?-aP) when it is still needed
+    -- render は、(?-aP) のあと、まだ要る aT を付け直す
+    it "keeps aT when render takes aP away" $ do
+      let p = "(?aP)[[:alpha:]](?-aP)(?aT)[[:alpha:][:digit:]]"
+      fmap render (parsePattern [] p) `shouldBe` Right p
+      isMatch (surely p) "a\xff11" `shouldBe` False
+      isMatch (surely p) "a1" `shouldBe` True
     it "points under the right line and column" $ do
       explain "a\n[z-a]" (Invalid 6 "x")
         `shouldBe` "a\n[z-a]\n    ^\nwrong pattern at 6: x\n"

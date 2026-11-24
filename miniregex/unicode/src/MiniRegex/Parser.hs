@@ -693,6 +693,9 @@ charClass :: Parser CharClass
 charClass = do
   _ <- char '['
   noPosixHere
+  -- under (?xx), [ ^a] is [^a]: the spaces first, then the ^
+  -- (?xx) のもとでは、[ ^a] は [^a]：空白を先に読み飛ばしてから ^ を見る
+  classSpace
   neg <- option False (True <$ char '^')
   classSpace
   firstItem <- classItem (char ']' <|> classChar)
