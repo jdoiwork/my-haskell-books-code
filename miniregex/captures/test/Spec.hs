@@ -320,6 +320,7 @@ main = hspec $ do
     it "finds an empty pattern everywhere" $ do
       map matchStart (findAll (surely "") "日本") `shouldBe` [0, 1, 2]
       split (surely "") "abc" `shouldBe` ["", "a", "b", "c", ""]
+    -- ANCHOR: matchfields
     -- find gives the first one, not any one
     -- find が返すのは、どれかではなく、最初の1つ
     it "finds the first one" $
@@ -336,6 +337,7 @@ main = hspec $ do
     it "counts places in characters" $
       fmap (\m -> (matchText m, matchStart m, matchEnd m))
         (find (surely "b") "日本b") `shouldBe` Just ("b", 2, 3)
+    -- ANCHOR_END: matchfields
     -- findAll finds the same places as the simple way
     -- findAll は、素朴なやり方と同じ場所を見つける
     prop "findAll agrees with the simple way" $
@@ -438,7 +440,7 @@ main = hspec $ do
     -- calls no right pattern wrong
     -- testoutput1 の全部：ちがう答えは1つもなく、パーサーは正しい
     -- パターンを「まちがい」と言わない
-    it "reads 939 patterns and passes 750 tests, and fails none" $ do
+    it "reads the patterns of 939 tests, passes 750, and fails none" $ do
       tests <- readTestFile "testdata/testoutput1"
       tally (map readable tests) `shouldBe` Tally 939 0 1709
       verdicts <- mapM (judgeWithin 1000000) tests
@@ -489,6 +491,9 @@ main = hspec $ do
     finds [Multiline] "^b" "a\nb" (Just "b")
     finds [] "a.c"       "a\nc"  Nothing
     finds [DotAll] "a.c" "a\nc"  (Just "a\nc")
+    -- after \1, ^ looks at the character the reference took
+    -- \1 のあとの ^ は、参照が食べた文字を見る
+    finds [Multiline] "(a)\n\\1^b" "a\nab" Nothing
     it "finds ^ and $ at each line with m" $ do
       map matchStart (findAll (surelyWith [Multiline] "^") "a\nb\n")
         `shouldBe` [0, 2]
@@ -523,8 +528,11 @@ main = hspec $ do
   describe "groups / グループ" $ do
     -- each answer was checked with pcre2test 10.49
     -- 答えは、どれも pcre2test 10.49 で確かめた
-    let finds p t answer = it (show (p, t)) $
+    -- both matchers: the continuations (find) and the list
+    -- 2つのマッチャーの両方：継続（find）と、候補のリスト
+    let finds p t answer = it (show (p, t)) $ do
           fmap groups (find (surely p) t) `shouldBe` answer
+          fmap groups (searchFromList (surely p) t 0) `shouldBe` answer
     -- a group that took no part is Nothing
     -- 使われなかったグループは Nothing
     finds "(a)|(b)"       "b"     (Just [Nothing, Just "b"])
@@ -541,6 +549,12 @@ main = hspec $ do
     -- 最後の空回りの1回も数に入る
     finds "(a*)*"         "aab"   (Just [Just ""])
     finds "(a|)+"         "ab"    (Just [Just ""])
+    -- with an upper end, the empty times count (both matchers)
+    -- 上の端があれば、空の回も数える（2つのマッチャーで）
+    finds "(|b){2,5}$"    "bb"    (Just [Just "b"])
+    -- a group inside a group comes after it: i is 2
+    -- 中のグループは外のあと。i は2番
+    finds "(?<o>a(?<i>b))" "ab"   (Just [Just "ab", Just "b"])
     -- with an upper end, the empty times count too, up to the end
     -- 上の端があれば、空の回も数えて、端まで回る
     it "counts the empty times of (|b){2,5}" $
@@ -557,6 +571,7 @@ main = hspec $ do
       (m >>= named "week") `shouldBe` Nothing
       (m >>= group 4) `shouldBe` Nothing
       (m >>= namedSpan "month") `shouldBe` Just (Span "11" 8 10)
+      (find (surely "(?<o>a(?<i>b))") "ab" >>= named "i") `shouldBe` Just "b"
     -- the examples of the chapter
     -- 章の例
     it "takes the dates apart and turns them round" $ do
@@ -572,8 +587,11 @@ main = hspec $ do
   describe "back references / 後方参照" $ do
     -- each answer was checked with pcre2test 10.49
     -- 答えは、どれも pcre2test 10.49 で確かめた
-    let finds p t answer = it (show (p, t)) $
+    -- both matchers: the continuations (find) and the list
+    -- 2つのマッチャーの両方：継続（find）と、候補のリスト
+    let finds p t answer = it (show (p, t)) $ do
           fmap matchText (find (surely p) t) `shouldBe` answer
+          fmap matchText (searchFromList (surely p) t 0) `shouldBe` answer
     finds "(a)\\1"             "aa"     (Just "aa")
     finds "(a)\\1"             "ab"     Nothing
     -- a group that has found nothing makes \1 fail
@@ -589,6 +607,25 @@ main = hspec $ do
     -- optimizations turned off: pcre2/nso.txt)
     -- 自分自身を0回くり返せる（PCRE2 も、最適化を切れば同じ：pcre2/nso.txt）
     finds "(bb|\\1*a)"         "\na"    (Just "a")
+    -- the + of a group that refers to itself: no second round after an
+    -- empty first one (the lastOfMany of repeatAtom)
+    -- 自分を参照するグループの +：空の1回目のあとは回らない
+    -- （repeatAtom の lastOfMany）
+    finds "(?P<abn>(?P=abn)xxx|)+" "xxx"  (Just "")
+    -- \10 is a reference when 10 groups have opened before it; if not,
+    -- it is \010 (the backspace, \b)
+    -- \10 は、その前に10のグループが開いていれば後方参照。でなければ
+    -- \010（バックスペース、\b）
+    finds "(a)(b)(c)(d)(e)(f)(g)(h)(i)\\10(j)" "abcdefghi\bj"
+      (Just "abcdefghi\bj")
+    finds "\\10(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)" "\babcdefghij"
+      (Just "\babcdefghij")
+    finds "(a)(b)(c)(d)(e)(f)(g)(h)(i)(j\\10)" "abcdefghij\b" Nothing
+    -- a name inside a group, (?: that does not count, and +1
+    -- グループの中の名前、数に入らない (?:、+1
+    finds "(?<o>a(?<i>b))\\k<i>" "abb"   (Just "abb")
+    finds "(a)(?:b)\\g{-1}"     "aba"    (Just "aba")
+    finds "(?:\\g{+1}x|(a))+"   "aax"    (Just "aax")
     -- the ways of writing it
     -- 書き方いろいろ
     finds "(?<y>[0-9]+)-\\k<y>" "12-12" (Just "12-12")
@@ -630,6 +667,10 @@ main = hspec $ do
     wrong "(a)\\g{x}"   6 e115
     wrong "(a)(?P=x)"   7 e115
     wrong "(a)\\g{-0}"  5 "a relative value of zero is not allowed"  -- 126
+    wrong "(a)\\g+0"    7 "a relative value of zero is not allowed"
+    wrong "(a)\\g-0"    7 "a relative value of zero is not allowed"
+    wrong "\\g{+0"      2 "a relative value of zero is not allowed"
+    wrong "(a)\\99999"  9 "subpattern number is too big"            -- 161
     -- 65535 is the largest group number; above it, the number is told
     -- 65535 がいちばん大きいグループの番号。超えたら、番号のことを言う
     wrong "\\g{65535}"     9 e115
@@ -710,6 +751,20 @@ main = hspec $ do
     wrong "$-"      1 "invalid replacement string"
     wrong "<${}>"   3 "invalid replacement string"
     wrong "<${ 1 }>" 3 "invalid replacement string"
+    -- replaceTemplate changes only the first one
+    -- replaceTemplate は最初の1つだけ
+    it "replaceTemplate changes only the first one" $
+      fmap (\x -> replaceTemplate (surely "(a)") x "aa")
+        (template (surely "(a)") "<$1>")
+        `shouldBe` Right "<a>a"
+    -- a Japanese name; $*MARK is not yet
+    -- 日本語の名前。$*MARK は、まだ
+    it "takes a Japanese name, and says not yet to $*MARK" $ do
+      fmap (\x -> replaceAllTemplate (surely "(?<年>a)") x "a")
+        (template (surely "(?<年>a)") "<${年}>")
+        `shouldBe` Right "<a>"
+      template (surely "(a)") "<$*MARK>"
+        `shouldBe` Left (Unsupported 1 "$*MARK")
     -- a group that found nothing puts in nothing
     -- 何も見つけなかったグループは、何も差しこまない
     it "puts nothing in for a group that found nothing" $
@@ -771,7 +826,8 @@ main = hspec $ do
                 (Right re, Right x) ->
                   agreeWithin (replaceAllTemplate re x t)
                     (Pcre2.subOpt
-                      (pcre2Exact [] <> Pcre2.SubGlobal <> Pcre2.SubUnsetEmpty)
+                      (pcre2Exact []
+                        <> Pcre2.SubGlobal <> Pcre2.SubUnsetEmpty)
                       p tpl t)
                 other -> counterexample (show other) False
     -- often enough, it compares (not only "not yet")
@@ -848,10 +904,12 @@ main = hspec $ do
     -- 量指定子と ?・+ のあいだのコメントや、ひとりの \\E
     it "reads past a comment before ? and +" $ do
       parsePattern [] "a*(?#x)?" `shouldBe` parsePattern [] "a*?"
-      -- (a lone \\E there is not yet: PCRE2 10.47 and 10.49 differ)
-      -- （ひとりの \\E は、まだ。PCRE2 の 10.47 と 10.49 でちがう）
+      -- ANCHOR: lonee
+      -- (a lone \E there is not yet: PCRE2 10.47 and 10.49 differ)
+      -- （ひとりの \E は、まだ。PCRE2 の 10.47 と 10.49 でちがう）
       parsePattern [] "a*\\E?"
         `shouldBe` Left (Unsupported 2 "\\E after a quantifier")
+      -- ANCHOR_END: lonee
       parsePattern [] "a*\\Q\\E?" `shouldBe` parsePattern [] "a*?"
       parsePattern [] "a*(?#x)+" `shouldBe` parsePattern [] "a*+"
     -- the ^ is under the line of the trouble; a tab is 8 columns, and

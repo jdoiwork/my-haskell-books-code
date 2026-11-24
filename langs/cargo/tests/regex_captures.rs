@@ -47,13 +47,13 @@ fn finds_all_after_an_empty_match() {
 
 #[test]
 fn reads_a_long_name() {
+    // ANCHOR: replace
+    // Rust: groups named y, m and d. $y_ is the group named "y_" (there
+    //   is none: ""); ${y} ends the name
+    // Rust：y・m・d という名前のグループ。$y_ は "y_" という名前の
+    //   グループ（ないので ""）。${y} なら、名前はそこで終わる
     let date =
         Regex::new(r"(?<y>\d{4})-(?<m>\d{2})-(?<d>\d{2})").unwrap();
-    // ANCHOR: replace
-    // Rust: $y_ is the group named "y_" (there is none: ""); ${y} ends
-    //   the name
-    // Rust：$y_ は "y_" という名前のグループ（ないので ""）。${y} なら、
-    //   名前はそこで終わる
     println!("{}", date.replace_all("On 2026-11-19", "$d/$m/$y"));
     println!("{}", date.replace_all("On 2026-11-19", "$y_$m"));
     println!("{}", date.replace_all("On 2026-11-19", "${y}_$m"));

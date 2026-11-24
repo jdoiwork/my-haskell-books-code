@@ -72,13 +72,15 @@ escape = T.concatMap one
 -- split と同じ。ただし、切れ端のあいだに、グループが見つけたものも
 -- はさむ（Python の re.split と同じ。何も見つけなかったグループは ""）
 splitKeeping :: Regex -> Text -> [Text]
-splitKeeping re t = go 0 (findAll re t)
+splitKeeping re t = go 0 t (findAll re t)
   where
-    go from []       = [T.drop from t]
-    go from (m : ms) =
-      T.take (matchStart m - from) (T.drop from t)
-        : map (fromMaybe "") (groups m)
-        ++ go (matchEnd m) ms
+    -- cut from what is left of the text, as split does
+    -- split と同じく、文字列の残りから切る
+    go _    rest []       = [rest]
+    go from rest (m : ms) =
+      let (before, atMatch) = T.splitAt (matchStart m - from) rest
+          after             = T.drop (matchEnd m - matchStart m) atMatch
+      in  before : map (fromMaybe "") (groups m) ++ go (matchEnd m) after ms
 -- ANCHOR_END: keeping
 
 -- ANCHOR: named

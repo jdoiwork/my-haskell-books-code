@@ -49,6 +49,9 @@ template re = fmap (Template . merge) . go 0 . T.unpack
     go :: Int -> String -> Either RegexError [Part]
     go _ [] = Right []
     go i ('$' : '$' : cs) = (Plain "$" :) <$> go (i + 2) cs
+    -- $*MARK (the name of a mark) is for later: not yet, not wrong
+    -- $*MARK（印の名前）は、あとで。まちがいではなく「まだ」
+    go i ('$' : '*' : _) = Left (Unsupported i "$*MARK")
     go i ('$' : '{' : cs) = do
       -- a number, or a name: PCRE2 reads only digits after a digit, so
       -- ${1x} wants } just after the 1
@@ -94,7 +97,9 @@ template re = fmap (Template . merge) . go 0 . T.unpack
         unknown = Left (Invalid at "unknown substring")     -- -49
 
     wrong at = Left (Invalid at "invalid replacement string")  -- -35
-    isNameChar c = c == '_' || (isAlphaNum c && c < '\x80')
+    -- the same letters as the names of groups (日本語 too)
+    -- グループの名前と同じ文字（日本語も）
+    isNameChar c = c == '_' || isAlphaNum c
 
 -- 🧹 Join the plain parts next to each other.
 -- となりあう、そのままの文字をつなぐ

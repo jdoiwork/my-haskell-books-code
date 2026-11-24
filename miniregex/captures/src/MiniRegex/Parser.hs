@@ -614,23 +614,25 @@ reference = do
     _     -> fail "not a reference"
 
 -- 🔢 \1 to \9 are always references. \10 and longer ones are, when
---    they start with 8 or 9, or when there are that many groups in the
---    whole pattern; if not, up to three octal digits (\12 is a newline).
+--    they start with 8 or 9, or when that many groups have opened
+--    before here (as PCRE2 does: a group after it does not count); if
+--    not, up to three octal digits (\12 is a newline).
 -- \1 から \9 は、いつも後方参照。\10 より長いものは、8 か 9 で
--- 始まるか、パターン全体にその数だけグループがあれば後方参照。
--- なければ、3つまでの8進の数字（\12 は改行）
+-- 始まるか、ここまでにその数だけグループが開いていれば後方参照
+-- （PCRE2 と同じ。うしろのグループは数えない）。なければ、3つまでの
+-- 8進の数字（\12 は改行）
 digitsRef :: Parser Atom
 digitsRef = do
   ds <- lookAhead (takeWhileP Nothing isDigit)
-  k <- gets known
+  o <- gets opened
   let n = readBase 10 (T.unpack ds) :: Integer
-      enough kn = n <= toInteger (knownCount kn)
       isReference = n < 10 || T.head ds `elem` ("89" :: String)
-                      || maybe True enough k
+                      || n <= toInteger o
   if isReference
     then do
       _ <- takeWhileP Nothing isDigit
       end <- getOffset
+      tooBig end n
       byNumber end n
     else do
       os <- takeWhileUpTo 3 isOctDigit
@@ -688,6 +690,7 @@ gRef at = do
           (sign, n) <- signedNumber afterG
           end <- getOffset
           tooBig end n
+          zeroNotAllowed end sign n
           relative afterG end sign n
       | otherwise -> noNumber afterG
   where
@@ -698,6 +701,7 @@ gRef at = do
         then do
           (sign, n) <- signedNumber afterG
           tooBig afterG n
+          zeroNotAllowed afterG sign n
           blanks
           numEnd <- getOffset
           closed <- option False (True <$ char '}')
@@ -730,6 +734,15 @@ signedNumber afterG = do
 tooBig :: Int -> Integer -> Parser ()
 tooBig at n =
   when (n > 65535) $ invalid at "subpattern number is too big"  -- 161
+
+-- 🚫 +0 and -0 point nowhere. PCRE2 says it when it has read the
+--    number: just after \g for \g{-0}, after the digits for \g-0.
+-- +0 と -0 は、どこも指さない。PCRE2 は数を読んだところで言う：\g{-0}
+-- なら \g のすぐうしろ、\g-0 なら数字のうしろ
+zeroNotAllowed :: Int -> Maybe Char -> Integer -> Parser ()
+zeroNotAllowed at sign n =
+  when (sign /= Nothing && n == 0) $
+    invalid at "a relative value of zero is not allowed"  -- 126
 
 noNumber :: Int -> Parser a
 noNumber afterG = invalid afterG
