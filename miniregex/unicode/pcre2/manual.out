@@ -6,3 +6,11 @@
     \x{85}
  0: \x{85}
 
+/[[:graph:]]/utf,ucp
+    \x{180e}
+No match
+
+/[[:print:]]/utf,ucp
+    \x{180e}
+ 0: \x{180e}
+

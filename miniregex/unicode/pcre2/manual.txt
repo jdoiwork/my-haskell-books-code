@@ -4,3 +4,9 @@
 /\p{Xps}/utf
     \x{85}
 
+/[[:graph:]]/utf,ucp
+    \x{180e}
+
+/[[:print:]]/utf,ucp
+    \x{180e}
+

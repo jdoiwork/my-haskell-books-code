@@ -939,6 +939,12 @@ main = hspec $ do
           , ("\\p{ sc = greek }+", [], "abΩμc", (Just "Ωμ"))
           , ("[\\p{Han}\\p{Hira}]+", [], "ノート記録のx", (Just "ー"))
           , ("\\p{Any}", [DotAll], "\n", (Just "\n"))
+          , ("\\p{Common}", [], "〉", (Just "〉"))
+          , ("\\p{Xuc}+", [], "a$@`\xa0\&b", (Just "$@`\xa0\&"))
+          , ("\\p{Qaai}\\p{qaac}", [], "a\x301\&\x2C80\&",
+             (Just "\x301\&\x2C80\&"))
+          , ("[[:graph:]]", [], "\x61C\&\x180E\&\x2066\&", Nothing)
+          , ("[[:print:]]", [], "\x61C\&\x180E\&\x2066\&", (Just "\x180E\&"))
           , ("dragon", [Caseless], "a DRAGON", (Just "DRAGON"))
           , ("é", [Caseless], "CAFÉ", (Just "É"))
           , ("k", [Caseless], "K", (Just "K"))
@@ -954,6 +960,8 @@ main = hspec $ do
           , ("[k-m]+", [Caseless], "KLM", (Just "KLM"))
           , ("\\p{Lu}+", [Caseless], "abC", (Just "abC"))
           , ("[[:upper:]]+", [Caseless], "abC", (Just "C"))
+          , ("[[:upper:]]+", [Caseless, Ascii], "abC", (Just "abC"))
+          , ("(?i)(é\n)\\1^b", [Multiline], "é\nÉ\nb", (Just "é\nÉ\nb"))
           , ("(a)\\1", [Caseless], "aA", (Just "aA"))
           , ("(\\w+) \\1", [Caseless], "Lam LAM", (Just "Lam LAM"))
           , ("(?i)lam", [], "LAM", (Just "LAM"))
@@ -964,6 +972,8 @@ main = hspec $ do
           , ("(?i:a)b", [], "Ab", (Just "Ab"))
           , ("(?i)a(?-i)b", [], "AB", Nothing)
           , ("(?i)a(?^)b", [], "Ab", (Just "Ab"))
+          , ("(?a)(?^)\\d+", [], "２2", (Just "2"))
+          , ("(?U)(?^)a+", [], "aaa", (Just "a"))
           , ("(?m)^b", [], "a\nb", (Just "b"))
           , ("^b", [], "a\nb", Nothing)
           , ("(?s).+", [], "a\nb", (Just "a\nb"))
@@ -985,10 +995,31 @@ main = hspec $ do
           , ("ab$", [], "ab\n", (Just "ab"))
           , ("[\\w-]+", [], "a-b c", (Just "a-b"))
           ]
+    -- both matchers: the continuations (find) and the list
+    -- 2つのマッチャーの両方：継続（find）と、候補のリスト
     mapM_ (\(p, opts, t, answer) ->
-             it (show (p, opts, t)) $
-               fmap matchText (find (surelyWith opts p) t) `shouldBe` answer)
+             it (show (p, opts, t)) $ do
+               let re = surelyWith opts p
+               fmap matchText (find re t) `shouldBe` answer
+               fmap matchText (searchFromList re t 0) `shouldBe` answer)
       cases
+    -- (?| ... ): the branches share numbers, and the group after it
+    -- is numbered after the branch with the most groups
+    -- (?| ... )：枝どうしで番号を分け合い、うしろのグループは、
+    -- グループのいちばん多い枝の次の番号
+    let resets p t answer = it (show (p, t)) $ do
+          fmap groups (find (surely p) t) `shouldBe` answer
+          fmap groups (searchFromList (surely p) t 0) `shouldBe` answer
+    resets "(?|(a)|(b)(c))(d)" "bcd"
+      (Just [Just "b", Just "c", Just "d"])
+    resets "(?|(a)|(b)(c))(d)" "ad" (Just [Just "a", Nothing, Just "d"])
+    resets "(?|(a)|(b)(c))\\g{-1}" "bcc" (Just [Just "b", Just "c"])
+    resets "(?|(a)|(b)(c))\\g{-1}" "aa" Nothing
+    it "counts the groups of (?| ... ) by its largest branch" $
+      fmap groupCount (parsePattern [] "(?|(a)|(b)(c))(d)") `shouldBe` Right 3
+    it "takes the month in three ways" $
+      map monthOf ["11月19日", "2026-11-19", "11/19"]
+        `shouldBe` [Just "11", Just "11", Just "11"]
     -- the few characters whose fold is not lower(upper(c))
     -- 代表が「大文字の小文字」でない、いくつかの文字
     it "folds like CaseFolding.txt" $ do
@@ -1004,12 +1035,21 @@ main = hspec $ do
       (matchStart m, matchEnd m) `shouldBe` (4, 7)
       byteSpan t (matchSpan m) `shouldBe` (8, 11)
       byteOffset t 2 `shouldBe` 6
+      -- the end in bytes, too: 前 is three bytes
+      -- 終わりもバイトで：前は3バイト
+      let spanOf p = fmap (byteSpan t . matchSpan) (find (surely p) t)
+      spanOf "名前" `shouldBe` Just (0, 6)
+      spanOf "前: L" `shouldBe` Just (3, 9)
     -- names of groups, and in templates, may be Unicode letters
     -- グループの名前とテンプレートの名前に、Unicode の文字を使える
     it "takes ${年} in a template" $ do
       let re = surely "(?<年>\\d+)年"
       fmap (\x -> replaceAllTemplate re x "2026年") (template re "<${年}>")
         `shouldBe` Right "<2026>"
+      -- Ⅻ is a number, but not a decimal digit: not in a name
+      -- Ⅻ は数字の仲間だが、10進の数字ではない：名前に入らない
+      fmap (const ()) (template (surely "(a)") "<${Ⅻ}>")
+        `shouldBe` Left (Invalid 3 "invalid replacement string")
     -- the flags are in the tree: (?i) changes the atoms after it
     -- フラグは木の中にある。(?i) は、うしろのアトムを変える
     it "writes the flags into the tree" $
@@ -1056,6 +1096,12 @@ main = hspec $ do
     wrong "\\p{L"         4 "malformed \\P or \\p sequence"  -- 146
     wrong "\\p"           2 "malformed \\P or \\p sequence"  -- 146
     wrong "\\px"          3 "unknown property after \\P or \\p"  -- 147
+    -- PCRE2 stops at a character that cannot be in a name
+    -- 名前に使えない文字のところで、PCRE2 は止まる
+    wrong "\\p{|}"        4 "malformed \\P or \\p sequence"  -- 146
+    wrong "^\\p{P|}"      6 "malformed \\P or \\p sequence"  -- 146
+    wrong "\\P{#a"        4 "malformed \\P or \\p sequence"  -- 146
+    wrong "\\N{5,2}"      2 "numbers out of order in {} quantifier"  -- 104
     wrong "[[:foo:]]"     8 "unknown POSIX class name"  -- 130
     wrong "[\\d-z]"       4 "invalid range in character class"  -- 150
     wrong "[a-\\d]"       5 "invalid range in character class"  -- 150

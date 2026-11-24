@@ -467,10 +467,22 @@ typeEscape = do
   case two of
     -- \N{2,3} is \N, repeated; \N{U+263a} is a character
     -- \N{2,3} は \N のくり返し。\N{U+263a} は文字
+    -- (a wrong count, like \N{5,2}, is wrong just after \N)
+    -- （\N{5,2} のような、まちがった数は、\N のすぐうしろでまちがい）
     ['\\', 'N', '{'] -> do
-      repeated <- option False
-        (True <$ try (lookAhead (string "\\N" *> braces)))
-      if repeated then AnyChar <$ string "\\N" else fail "a character"
+      shape <- option Nothing
+        (Just <$> try (lookAhead (string "\\N" *> braceShape)))
+      case shape of
+        Nothing -> fail "a character"
+        Just (lo, _, hi) -> do
+          at <- string "\\N" *> getOffset
+          let numbers = [n | Just (n, _) <- [lo, hi]]
+          when (any (> 65535) numbers) $
+            invalid at "number too big in {} quantifier"  -- 105
+          case numbers of
+            [n, m] | n > m ->
+              invalid at "numbers out of order in {} quantifier"  -- 104
+            _ -> pure AnyChar
     '\\' : 'N' : _   -> AnyChar <$ string "\\N"
     '\\' : c : _ | c `elem` typeLetters -> do
       item <- typeItem
@@ -515,10 +527,14 @@ property at opposite = do
   next <- option Nothing (Just <$> anySingle)
   case next of
     Nothing  -> malformed
+    -- PCRE2 reads only the ASCII from & to z, and the spaces, as a
+    -- name. At any other character, } too, it stops, just after it.
+    -- PCRE2 が名前として読むのは、& から z までの ASCII と空白だけ。
+    -- ほかの文字に出会ったら、} でもそうでなくても、そのすぐうしろで止まる
     Just '{' -> do
-      body <- takeWhileP Nothing (/= '}')
-      closed <- option False (True <$ char '}')
-      unless closed malformed
+      body <- takeWhileP Nothing nameChar
+      after <- option Nothing (Just <$> anySingle)
+      unless (after == Just '}') malformed
       let trimmed = T.dropWhile (`elem` (" \t\n\v\f\r" :: String)) body
           (hat, written) = case T.stripPrefix "^" trimmed of
             Just rest -> (True, rest)
@@ -530,6 +546,7 @@ property at opposite = do
       | isAscii c && isLetter c -> named opposite (T.singleton c)
       | otherwise               -> malformed
   where
+    nameChar c = (c >= '&' && c <= 'z') || c `elem` (" \t\n\v\f\r" :: String)
     malformed = do
       end <- getOffset
       invalid end "malformed \\P or \\p sequence"  -- 146
@@ -1308,7 +1325,7 @@ quantifierBase =
 -- 数は 65535 まで
 braces :: Parser Count
 braces = do
-  (lo, comma, hi) <- try shape
+  (lo, comma, hi) <- try braceShape
   lo' <- traverse checked lo
   hi' <- traverse checked hi
   case (lo', hi') of
@@ -1321,31 +1338,38 @@ braces = do
       Nothing -> invalid at "numbers out of order in {} quantifier"  -- 104
     (Nothing, Nothing) -> fail "not a quantifier"  -- shape stops this
   where
-    shape = do
-      _ <- char '{'
-      blanks
-      lo <- option Nothing (Just <$> number)
-      blanks
-      comma <- option False (True <$ char ',')
-      hi <- if comma
-              then blanks *> option Nothing (Just <$> number) <* blanks
-              else pure Nothing
-      _ <- char '}'
-      -- {} {,} { } are not quantifiers
-      -- {} {,} { } は量指定子ではない
-      case (lo, hi) of
-        (Nothing, Nothing) -> fail "not a quantifier"
-        _                  -> pure (lo, comma, hi)
+    -- read as an Integer, so that a long number does not wrap round
+    -- Integer で読むので、長い数でも、ひと回りしない
+    checked (n, at)
+      | n > 65535 = invalid at "number too big in {} quantifier"  -- 105
+      | otherwise = pure (fromInteger n, at)
+
+-- 📐 The shape of {n} {n,} {n,m} {,m}: the numbers, each with the
+--    place just after it, and whether there is a comma
+-- {n} {n,} {n,m} {,m} の形：数（それぞれ、すぐうしろの場所つき）と、
+-- コンマがあるか
+braceShape :: Parser (Maybe (Integer, Int), Bool, Maybe (Integer, Int))
+braceShape = do
+  _ <- char '{'
+  blanks
+  lo <- option Nothing (Just <$> number)
+  blanks
+  comma <- option False (True <$ char ',')
+  hi <- if comma
+          then blanks *> option Nothing (Just <$> number) <* blanks
+          else pure Nothing
+  _ <- char '}'
+  -- {} {,} { } are not quantifiers
+  -- {} {,} { } は量指定子ではない
+  case (lo, hi) of
+    (Nothing, Nothing) -> fail "not a quantifier"
+    _                  -> pure (lo, comma, hi)
+  where
     -- the digits, and the place just after them
     -- 数字と、そのすぐうしろの場所
     number = do
       ds <- some (satisfy isDigit)
       at <- getOffset
       pure (readBase 10 ds :: Integer, at)
-    -- read as an Integer, so that a long number does not wrap round
-    -- Integer で読むので、長い数でも、ひと回りしない
-    checked (n, at)
-      | n > 65535 = invalid at "number too big in {} quantifier"  -- 105
-      | otherwise = pure (fromInteger n, at)
 -- ANCHOR_END: quantifier
 -- ANCHOR_END: all
