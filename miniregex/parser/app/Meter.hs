@@ -1,9 +1,9 @@
 -- ANCHOR: all
--- | Read PCRE2's tests, run them all, and show how many patterns the
---   parser read, how many tests passed, and what the parser is
---   missing most.
--- PCRE2 のテストを読んで全部動かし、パーサーが読めたパターンの数、
--- 通ったテストの数、パーサーに足りないもの（多い順）を見せる
+-- | Read PCRE2's tests, run them all, and show how many tests have a
+--   pattern the parser could read, how many tests passed, and what the
+--   parser is missing most.
+-- PCRE2 のテストを読んで全部動かし、パーサーがパターンを読めた問題の
+-- 数、通った問題の数、パーサーに足りないもの（多い順）を見せる
 module Main (main) where
 
 -- ANCHOR: imports

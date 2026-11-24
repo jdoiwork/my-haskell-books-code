@@ -2,7 +2,7 @@ module Main (main) where
 
 -- ANCHOR: imports
 import Control.Exception (SomeException, evaluate, try)
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
@@ -393,6 +393,17 @@ main = hspec $ do
       parsePattern [] "x(?=y)" `shouldBe` Left (Unsupported 1 "(?=")
       parsePattern [] "(?i)a" `shouldBe` Left (Unsupported 0 "(?flags)")
       parsePattern [Extended] "a b" `shouldBe` Left (Unsupported 0 "flag x")
+      parsePattern [] "(?<*a)b" `shouldBe` Left (Unsupported 0 "(?<*")
+    -- what looks like a POSIX class but is not one, and \ca
+    -- POSIX の名前に見えて、そうではないもの。\ca
+    it "reads look-alikes of POSIX classes, and \\ca" $ do
+      parsePattern [] "[:a:b]" `shouldBe` parsePattern [] "[\\:a:b]"
+      parsePattern [] "[^:alpha:]" `shouldSatisfy` isRight
+      parsePattern [] "\\ca" `shouldBe` parsePattern [] "\\cA"
+    -- render puts a \ before a : at the head of a set ([\:-b:])
+    -- render は、集まりの頭の : に \ を付ける（[\:-b:]）
+    it "writes [\\:-b:], not [:-b:]" $
+      fmap render (parsePattern [] "[\\:-b:]") `shouldBe` Right "[\\:-b:]"
     -- a comment or a lone \\E between a quantifier and its ? or +
     -- 量指定子と ?・+ のあいだのコメントや、ひとりの \\E
     it "reads past a comment before ? and +" $ do
@@ -400,13 +411,16 @@ main = hspec $ do
       parsePattern [] "a*\\E?" `shouldBe` parsePattern [] "a*?"
       parsePattern [] "a*\\Q\\E?" `shouldBe` parsePattern [] "a*?"
       parsePattern [] "a*(?#x)+" `shouldBe` parsePattern [] "a*+"
-    -- the ^ is under the line of the trouble; a tab is 8 columns
-    -- ^ は、つまずいた行の下。タブは8桁ごと
+    -- the ^ is under the line of the trouble; a tab is 8 columns, and
+    -- 名 and 前 are 2 each
+    -- ^ は、つまずいた行の下。タブは8桁ごと、名と前は2桁ずつ
     it "points under the right line and column" $ do
       explain "a\n[z-a]" (Invalid 6 "x")
         `shouldBe` "a\n[z-a]\n    ^\nwrong pattern at 6: x\n"
       explain "\ta{5,2}" (Invalid 6 "x")
         `shouldBe` "\ta{5,2}\n             ^\nwrong pattern at 6: x\n"
+      explain "名前(" (Invalid 3 "x")
+        `shouldBe` "名前(\n     ^\nwrong pattern at 3: x\n"
   -- ANCHOR_END: parser
 
   -- ANCHOR: errors
@@ -464,6 +478,23 @@ main = hspec $ do
       "character code point value in \\x{} or \\o{} is too large" -- 134
     wrong "\\x{d800g}" 7
       "disallowed Unicode code point (>= 0xd800 && <= 0xdfff)"    -- 173
+    -- the other kinds the parser says, checked with pcre2test 10.49
+    -- パーサーが言う、ほかの種類（pcre2test 10.49 で確かめた）
+    wrong "\\c"      2  "\\c at end of pattern"                    -- 102
+    wrong "[:alpha:]" 9
+      "POSIX named classes are supported only within a class"     -- 112
+    wrong "[.a.]"    5  "POSIX collating elements are not supported" -- 113
+    wrong "\\L"      2
+      "PCRE2 does not support \\F, \\L, \\l, \\N{name}, \\U, or \\u"   -- 137
+    wrong ("(?<" <> T.replicate 129 "a" <> ">x)") 132
+      "subpattern name is too long (maximum 128 code units)"      -- 148
+    wrong "\\o"      2  "missing opening brace after \\o"         -- 155
+    wrong "\\o{8}"   4
+      "non-octal character in \\o{} (closing brace missing?)"      -- 164
+    wrong "\\c\x01"  3
+      "\\c must be followed by a printable ASCII character"         -- 168
+    wrong "(?<a-b>x)" 4
+      "syntax error in subpattern name (missing terminator?)"     -- 142
   -- ANCHOR_END: errors
 
   -- ANCHOR: roundtrip

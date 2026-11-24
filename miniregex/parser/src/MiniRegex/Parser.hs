@@ -53,10 +53,11 @@ type Parser = ParsecT RegexError Text (State (Set Text))
 invalid :: Int -> Text -> Parser a
 invalid at message = customFailure (Invalid at message)
 
--- 🚧 Stop: the pattern is fine, but has something the tree cannot
---    hold yet. `at` is where that thing starts.
--- 止まる：正しいパターンだが、木にまだ入れられないものがある。
--- at は、それが始まる場所
+-- 🚧 Stop: something the tree cannot hold yet (whether the rest of the
+--    pattern is right is not looked at). `at` is where that thing
+--    starts.
+-- 止まる：木にまだ入れられないものに出会った（パターンの残りが正しいか
+-- どうかは、まだ見ていない）。at は、それが始まる場所
 unsupported :: Int -> Text -> Parser a
 unsupported at what = customFailure (Unsupported at what)
 -- ANCHOR_END: parser
@@ -485,7 +486,7 @@ groupKind at = do
   case rest of
     '?' : ':' : _       -> NonCapturing <$ string "?:"
     '?' : '<' : c : _
-      | c `elem` ("=!" :: String) -> notYet (T.pack ['(', '?', '<', c])
+      | c `elem` ("=!*" :: String) -> notYet (T.pack ['(', '?', '<', c])
     '?' : '<' : _       -> string "?<"  *> name '>'
     '?' : '\'' : _      -> string "?'"  *> name '\''
     '?' : 'P' : '<' : _ -> string "?P<" *> name '>'
