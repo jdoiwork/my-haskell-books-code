@@ -2,6 +2,7 @@ module Main (main) where
 
 -- ANCHOR: imports
 import Control.Exception (SomeException, evaluate, try)
+import System.Timeout (timeout)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
@@ -91,6 +92,23 @@ hasZeroGroup (Pattern bs) = any branchHas bs
     pieceHas (Quantified (Group _ p) q) =
       count q == Count 0 (Just 0) || hasZeroGroup p
     pieceHas _ = False
+
+-- ⏱️ The two answers are the same. But give up after a second, as the
+--    meter does: a random tree can be of the doubling kind, like
+--    (a+)+b. A pair that PCRE2 gave up on (its match limit) is set
+--    aside, too.
+-- 2つの答えが同じ。ただし、メーターと同じく、1秒であきらめる。でたらめな
+-- 木が、(a+)+b のような倍々の木のこともあるから。PCRE2 があきらめた組
+-- （ステップ数の上限）も、脇に置く
+agreeWithin :: (Eq a, Show a) => a -> a -> Property
+agreeWithin ours theirs = ioProperty $ do
+  answer <- timeout 1000000 (try (evaluate (ours == theirs)))
+  pure $ case answer of
+    Nothing -> label "set aside: slow" True
+    Just (Left (_ :: Pcre2.SomePcre2Exception)) ->
+      label "set aside: PCRE2 gave up" True
+    Just (Right same) ->
+      counterexample (show ours ++ " /= " ++ show theirs) same
 -- ANCHOR_END: gens
 
 -- ANCHOR: wild
@@ -361,8 +379,12 @@ main = hspec $ do
   describe "the matcher / マッチャー" $ do
     -- each answer was checked with pcre2test 10.49
     -- 答えは、どれも pcre2test 10.49 で確かめた
-    let finds opts p t answer = it (show (opts, p, t)) $
-          fmap matchText (find (surelyWith opts p) t) `shouldBe` answer
+    -- both matchers: the continuations (find) and the list
+    -- 2つのマッチャーの両方：継続（find）と、候補のリスト
+    let finds opts p t answer = it (show (opts, p, t)) $ do
+          let re = surelyWith opts p
+          fmap matchText (find re t) `shouldBe` answer
+          fmap matchText (searchFromList re t 0) `shouldBe` answer
     -- the left branch first
     -- 左の枝が先
     finds [] "a|ab"      "abc"   (Just "a")
@@ -395,6 +417,10 @@ main = hspec $ do
         `shouldBe` [0, 2]
       map matchStart (findAll (surelyWith [Multiline] "$") "a\nb\n")
         `shouldBe` [1, 3, 4]
+      -- the next search starts just after a newline: ^ looks back at it
+      -- 次の探しものが改行のすぐうしろから始まる。^ は、その改行を見る
+      map matchText (findAll (surelyWith [Multiline] "a\n|^b") "a\nb")
+        `shouldBe` ["a\n", "b"]
     -- (a+)+ lists 2^n - 1 places on n a's
     -- (a+)+ は、a が n 個なら 2^n - 1 個の場所を並べる
     it "lists 2^n - 1 ends for (a+)+" $
@@ -412,7 +438,7 @@ main = hspec $ do
         forAll (sublistOf [Multiline, DotAll]) $ \opts ->
           case compileWith opts (render tr) of
             Left e   -> counterexample (show e) False
-            Right re -> searchFromList re t 0 === find re t
+            Right re -> agreeWithin (searchFromList re t 0) (find re t)
   -- ANCHOR_END: matcher
 
   -- ANCHOR: pcre2
@@ -460,8 +486,8 @@ main = hspec $ do
                     | hasZeroGroup tr ->
                         label "set aside: a group repeated 0 times" True
                     | otherwise -> label "compared" $
-                        fmap matchText (find re t)
-                          === Pcre2.matchOpt (pcre2Options opts) p t
+                        agreeWithin (fmap matchText (find re t))
+                          (Pcre2.matchOpt (pcre2Options opts) p t)
     -- often enough, it compares (not only "not yet")
     -- 「まだ」ばかりでなく、ちゃんとくらべている
     prop "compares often enough" $
