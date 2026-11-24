@@ -76,6 +76,17 @@ pcre2Options = foldMap one
     one DotAll    = Pcre2.DotAll
     one _         = mempty
 
+-- 🐢 The same, with PCRE2's start optimizations turned off. They can
+--    change the answer when a group refers back to itself: (bb|\1*a)
+--    finds nothing in "\na" with them, and "a" without them, as
+--    MiniRegex does.
+-- 同じものに、PCRE2 の「探し始める前の最適化」を切るオプションを足す。
+-- グループが自分自身を参照すると、最適化で答えが変わることがある：
+-- (bb|\1*a) は "\na" に、最適化ありだと何も見つけず、なしだと
+-- MiniRegex と同じく "a" を見つける
+pcre2Exact :: [Option] -> Pcre2.Option
+pcre2Exact opts = Pcre2.NoStartOptimize <> pcre2Options opts
+
 -- 🧵 a, x, b, y, c ...: one from each, in turn.
 -- 交互に1つずつ並べる
 weave :: [a] -> [a] -> [a]
@@ -574,6 +585,10 @@ main = hspec $ do
     -- inside its own repeat: the time before
     -- 自分のくり返しの中なら、前の回のもの
     finds "(a|b\\1)+"          "aba"    (Just "aba")
+    -- a group can repeat itself 0 times (PCRE2 agrees with its start
+    -- optimizations turned off: pcre2/nso.txt)
+    -- 自分自身を0回くり返せる（PCRE2 も、最適化を切れば同じ：pcre2/nso.txt）
+    finds "(bb|\\1*a)"         "\na"    (Just "a")
     -- the ways of writing it
     -- 書き方いろいろ
     finds "(?<y>[0-9]+)-\\k<y>" "12-12" (Just "12-12")
@@ -742,7 +757,7 @@ main = hspec $ do
                   Left e   -> counterexample (show e) False
                   Right re ->
                     agreeWithin (fmap allGroups (find re t))
-                      (Pcre2.capturesOpt (pcre2Options opts) p t)
+                      (Pcre2.capturesOpt (pcre2Exact opts) p t)
     -- the templates, against pcre2_substitute (with unset groups as "")
     -- テンプレートも、pcre2_substitute とくらべる（何も見つけなかった
     -- グループは ""）
@@ -756,7 +771,8 @@ main = hspec $ do
                 (Right re, Right x) ->
                   agreeWithin (replaceAllTemplate re x t)
                     (Pcre2.subOpt
-                      (Pcre2.SubGlobal <> Pcre2.SubUnsetEmpty) p tpl t)
+                      (pcre2Exact [] <> Pcre2.SubGlobal <> Pcre2.SubUnsetEmpty)
+                      p tpl t)
                 other -> counterexample (show other) False
     -- often enough, it compares (not only "not yet")
     -- 「まだ」ばかりでなく、ちゃんとくらべている

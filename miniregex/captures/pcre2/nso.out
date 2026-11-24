@@ -1,0 +1,8 @@
+/(bb|\1*a)/
+    \na
+No match
+
+/(bb|\1*a)/no_start_optimize
+    \na
+ 0: a
+ 1: a
