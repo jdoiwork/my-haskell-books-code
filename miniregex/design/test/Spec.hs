@@ -90,6 +90,10 @@ main = hspec $ do
     -- 意味を持つ記号は「まだ」。場所も言う
     it "says where it stopped" $
       fmap source (compile "ab*c") `shouldBe` Left (Unsupported 2 "*")
+    -- the place after a \ counts both characters
+    -- \ のあとの場所は、2文字ぶん進めて数える
+    it "says where it stopped, after a \\" $
+      fmap source (compile "\\.*") `shouldBe` Left (Unsupported 2 "*")
     -- a \ at the end is wrong, at the same place as PCRE2
     -- 最後の \ はまちがい。場所は PCRE2 と同じ
     it "refuses a \\ at the end, like PCRE2" $
@@ -125,6 +129,15 @@ main = hspec $ do
     it "finds an empty pattern everywhere" $ do
       map matchStart (findAll (surely "") "日本") `shouldBe` [0, 1, 2]
       split (surely "") "abc" `shouldBe` ["", "a", "b", "c", ""]
+    -- find gives the first one, not any one
+    -- find が返すのは、どれかではなく、最初の1つ
+    it "finds the first one" $
+      find (surely "a") "banana" `shouldBe` Just (Match "a" 1 2)
+    -- isMatch says yes and no
+    -- isMatch は「ある」も「ない」も言う
+    it "tells if it is there" $ do
+      isMatch (surely "nan") "banana" `shouldBe` True
+      isMatch (surely "nab") "banana" `shouldBe` False
     -- places are counted in characters
     -- 場所は文字で数える
     it "counts places in characters" $
@@ -221,14 +234,16 @@ main = hspec $ do
   -- ANCHOR: pcre2
   describe "the real PCRE2 / 本物の PCRE2" $ do
     -- when MiniRegex can run a pattern, it finds the first match that
-    -- PCRE2 finds
-    -- MiniRegex が動かせるパターンなら、PCRE2 と同じ最初の一致を見つける
+    -- PCRE2 finds, at the same place (replacing it shows where it is)
+    -- MiniRegex が動かせるパターンなら、PCRE2 と同じ最初の一致を、同じ
+    -- 場所に見つける（置き換えてみると、場所もわかる）
     prop "finds the first match PCRE2 finds" $
       forAll genPattern $ \p -> forAll genText $ \t ->
         case compile p of
           Left _   -> label "not yet" True
           Right re -> label "compared" $
             fmap matchText (find re t) === Pcre2.match p t
+              .&&. replace re "<>" t === Pcre2.sub p "<>" t
     -- and all the matches; only a and b here, as the pcre2 library
     -- steps into the middle of 日 after an empty match
     -- 全部の一致も。ここでは a と b だけ（pcre2 のライブラリは、空の

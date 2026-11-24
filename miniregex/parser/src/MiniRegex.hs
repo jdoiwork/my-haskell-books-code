@@ -142,27 +142,34 @@ replaceAll re new = replaceWith re (const new)
 replaceWith :: Regex -> (Match -> Text) -> Text -> Text
 replaceWith re f t = rebuild f (findAll re t) t
 
--- 🧵 Put the text back together, with each match made anew by f.
--- 見つかったものを f で作り直しながら、文字列を組み立て直す
+-- 🧵 Put the text back together, with each match made anew by f. Each
+--    piece is cut from what is left of the text (rest, which starts at
+--    the character `at`), not from the start again, so a long text is
+--    walked only once.
+-- 見つかったものを f で作り直しながら、文字列を組み立て直す。切れ端は、
+-- 文字列の残り（at 文字目から始まる rest）から切る。頭から数え直さない
+-- ので、長い文字列も1回歩くだけ
 rebuild :: (Match -> Text) -> [Match] -> Text -> Text
-rebuild f matches t = T.concat (go 0 matches)
+rebuild f matches t = T.concat (go 0 t matches)
   where
-    go at []       = [T.drop at t]
-    go at (m : ms) = slice at (matchStart m) t : f m : go (matchEnd m) ms
+    go _  rest []       = [rest]
+    go at rest (m : ms) =
+      let (before, atMatch) = T.splitAt (matchStart m - at) rest
+          after             = T.drop (matchEnd m - matchStart m) atMatch
+      in  before : f m : go (matchEnd m) after ms
 -- ANCHOR_END: replace
 
 -- ANCHOR: split
--- ✂️ The pieces between the matches.
--- 見つかったもののあいだの切れ端
+-- ✂️ The pieces between the matches, cut from what is left of the text,
+--    as rebuild does.
+-- 見つかったもののあいだの切れ端。rebuild と同じく、文字列の残りから切る
 split :: Regex -> Text -> [Text]
-split re t = go 0 (findAll re t)
+split re t = go 0 t (findAll re t)
   where
-    go at []       = [T.drop at t]
-    go at (m : ms) = slice at (matchStart m) t : go (matchEnd m) ms
-
--- 🍰 The characters from `from` up to `to` (not including `to`).
--- from 文字目から、to 文字目の手前まで
-slice :: Int -> Int -> Text -> Text
-slice from to = T.take (to - from) . T.drop from
+    go _  rest []       = [rest]
+    go at rest (m : ms) =
+      let (before, atMatch) = T.splitAt (matchStart m - at) rest
+          after             = T.drop (matchEnd m - matchStart m) atMatch
+      in  before : go (matchEnd m) after ms
 -- ANCHOR_END: split
 -- ANCHOR_END: all

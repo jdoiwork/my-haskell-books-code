@@ -20,6 +20,7 @@ fn uses_the_regex_crate() -> Result<(), regex::Error> {
     let date = Regex::new(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")?;
     let dragon = Regex::new(r"dragon")?;
     let comma = Regex::new(r", ")?;
+    let found = date.is_match(RECORDS); // bool
     let first = dragon.find(RECORDS); // Option<Match>
     let dates: Vec<&str> = date
         .find_iter(RECORDS)
@@ -28,7 +29,7 @@ fn uses_the_regex_crate() -> Result<(), regex::Error> {
     let renamed = dragon.replace_all(RECORDS, "wyvern");
     let loot: Vec<&str> = comma.split("herb, sword, shield").collect();
     // ANCHOR_END: api
-    assert!(date.is_match(RECORDS));
+    assert!(found);
     let m = first.unwrap();
     assert_eq!((m.as_str(), m.start(), m.end()), ("dragon", 23, 29));
     assert_eq!(

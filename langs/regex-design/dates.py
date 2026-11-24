@@ -16,11 +16,17 @@ want = ["2026-11-19", "2026-11-20", "2026-11-21", "1234-56-78"]
 # ANCHOR: procedural
 # Python (procedural style): look at 10 characters from each place
 # Python（手続き型スタイル）：1文字ずつずらしながら、10文字を見る
+def digits(s):
+    # 0-9 only: isdigit() would take "２" (full width) and "²" too
+    # 0〜9 だけ：isdigit() だと、全角の「２」や「²」も数字になる
+    return all("0" <= c <= "9" for c in s)
+
+
 def looks_like_date(d):
     return (len(d) == 10
-            and d[0:4].isdigit() and d[4] == "-"
-            and d[5:7].isdigit() and d[7] == "-"
-            and d[8:10].isdigit())
+            and digits(d[0:4]) and d[4] == "-"
+            and digits(d[5:7]) and d[7] == "-"
+            and digits(d[8:10]))
 
 
 def dates_by_hand(text):
@@ -37,6 +43,10 @@ def dates_by_hand(text):
 
 
 assert dates_by_hand(records) == want
+# a date in full-width digits is not a date here, as in re and Haskell
+# 全角の数字の日付は、re や Haskell と同じく、日付にしない
+assert dates_by_hand("２０２６-１１-１９") == []
+assert "２".isdigit()
 
 # ANCHOR: functional
 # Python (functional style): the re module

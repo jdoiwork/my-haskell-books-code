@@ -186,14 +186,16 @@ grepText view re text
     colored code t
       | viewColor view = "\ESC[" <> code <> "m" <> t <> "\ESC[m"
       | otherwise      = t
-    -- the line, with each match painted
-    -- 一致を1つずつ塗った行
-    rebuild ms line = T.concat (go 0 ms)
+    -- the line, with each match painted (cut from what is left of the
+    -- line, as MiniRegex's rebuild does)
+    -- 一致を1つずつ塗った行（MiniRegex の rebuild と同じく、行の残りから
+    -- 切る）
+    rebuild ms line = T.concat (go 0 line ms)
       where
-        go at [] = [T.drop at line]
-        go at (m : rest) =
-          slice at (matchStart m) : paint (matchText m)
-            : go (matchEnd m) rest
-        slice from to = T.take (to - from) (T.drop from line)
+        go _  rest []       = [rest]
+        go at rest (m : ms') =
+          let (before, atMatch) = T.splitAt (matchStart m - at) rest
+              after             = T.drop (matchEnd m - matchStart m) atMatch
+          in  before : paint (matchText m) : go (matchEnd m) after ms'
     -- ANCHOR_END: paint
 -- ANCHOR_END: all

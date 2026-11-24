@@ -64,11 +64,18 @@ cutAt re subject = case M.findAllWithin M.defaultLimit re subject of
   Left gaveUp   -> Left (giveUp gaveUp)
   Right matches -> Right (Cut (pieces matches) (map found matches))
   where
-    pieces matches = go 0 matches
+    -- each piece is cut from what is left of the subject, not from its
+    -- start again
+    -- 切れ端は、文字列の頭からではなく、残りから切る
+    pieces matches = go 0 subject matches
       where
-        go at []       = [T.drop at subject]
-        go at (m : ms) = slice at (M.matchStart m) : go (M.matchEnd m) ms
-    slice from to = T.take (to - from) (T.drop from subject)
+        go _  rest []       = [rest]
+        go at rest (m : ms) =
+          let start             = M.matchStart m
+              end               = M.matchEnd m
+              (before, atMatch) = T.splitAt (start - at) rest
+              after             = T.drop (end - start) atMatch
+          in  before : go end after ms
 
     -- every group, a group that took no part as ""
     -- すべてのグループ。使われなかったものは ""
