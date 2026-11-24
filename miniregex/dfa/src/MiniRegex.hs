@@ -70,8 +70,20 @@ import MiniRegex.Engine
 import MiniRegex.LazyDFA (dfaFind, dfaFindAll)
 import MiniRegex.Prefilter (prefilterOf)
 import MiniRegex.Template (Template, expand, template)
-import MiniRegex.Types
+import MiniRegex.Types hiding (source)
+import MiniRegex.Types qualified as Types
 -- ANCHOR_END: imports
+
+-- ANCHOR: source
+-- 📜 The pattern as it was written. A plain function, not the field of
+--    the record: a field could also be used to change a Regex from
+--    outside (re { source = "[" }), and its tree would not follow.
+-- 書いたときのパターン。レコードのフィールドではなく、ふつうの関数に
+-- する。フィールドだと、外から Regex を書き換える（re { source = "[" }）
+-- のにも使えてしまい、木はついてこない
+source :: Regex -> Text
+source = Types.source
+-- ANCHOR_END: source
 
 -- ANCHOR: compile
 -- 🏗️ Make a regex from a pattern. A wrong pattern is told here, not

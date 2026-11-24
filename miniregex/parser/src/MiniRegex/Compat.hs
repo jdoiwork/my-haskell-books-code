@@ -18,7 +18,7 @@ module MiniRegex.Compat
   ) where
 
 -- ANCHOR: imports
-import Data.Char (chr, digitToInt, isHexDigit, isOctDigit, ord)
+import Data.Char (chr, digitToInt, isAlphaNum, isHexDigit, isOctDigit, ord)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Numeric (showHex)
@@ -203,22 +203,28 @@ showFound (Just m) = [" 0: " <> T.concatMap visible (matchText m)]
 
 -- ANCHOR: decode
 -- 🔓 Turn the \ escapes of a subject line into characters, the way
---    pcre2test does: \t \n \x41 \x{263a} \101 ... Nothing when the line
---    has \= (modifiers for this subject), which MiniRegex cannot follow
---    yet.
+--    pcre2test does: \t \n \x41 \x{263a} \o{11064} \N{U+1234} \101,
+--    and \$ is $. Nothing for what MiniRegex cannot read yet: \=
+--    (modifiers for this subject), \[ab]{3} (a piece written again and
+--    again), a \ before any other letter or digit, and a \ at the end
+--    of the line. A line read wrongly would be counted as a wrong answer
+--    of the engine.
 -- 入力の行の \ を、pcre2test と同じように文字にする：\t \n \x41
--- \x{263a} \101 など。\=（この入力だけの修飾子）があれば Nothing
--- （MiniRegex には、まだ従えない）
+-- \x{263a} \o{11064} \N{U+1234} \101、\$ は $。MiniRegex がまだ読めない
+-- ものは Nothing：\=（この入力だけの修飾子）、\[ab]{3}（くり返し）、
+-- ほかの英字や数字の前の \、行の終わりの \。読みまちがえると、
+-- エンジンのまちがいに数えてしまう
 decodeSubject :: Text -> Maybe Text
 decodeSubject = fmap T.pack . go . T.unpack
   where
     go :: String -> Maybe String
     go [] = Just []
-    go ('\\' : '=' : _) = Nothing
     go ['\\'] = Nothing
-    go ('\\' : 'x' : '{' : cs) = case span isHexDigit cs of
-      (h@(_ : _), '}' : rest) -> (number 16 h :) <$> go rest
-      _                       -> Nothing
+    go ('\\' : '=' : _) = Nothing
+    go ('\\' : '[' : _) = Nothing
+    go ('\\' : 'x' : '{' : cs) = braced 16 isHexDigit cs
+    go ('\\' : 'o' : '{' : cs) = braced 8 isOctDigit cs
+    go ('\\' : 'N' : '{' : 'U' : '+' : cs) = braced 16 isHexDigit cs
     go ('\\' : 'x' : cs) =
       let (h, rest) = spanUpTo 2 isHexDigit cs
       in  (number 16 h :) <$> go rest
@@ -227,8 +233,15 @@ decodeSubject = fmap T.pack . go . T.unpack
           let (o, rest) = spanUpTo 2 isOctDigit cs
           in  (number 8 (c : o) :) <$> go rest
       | Just e <- lookup c escapes = (e :) <$> go cs
+      | isAlphaNum c               = Nothing
       | otherwise                  = (c :) <$> go cs
     go (c : cs) = (c :) <$> go cs
+
+    -- the digits up to }, as one character
+    -- } までの数字を、1文字に
+    braced base isDigitOf cs = case span isDigitOf cs of
+      (h@(_ : _), '}' : rest) -> (number base h :) <$> go rest
+      _                       -> Nothing
 
     escapes = [ ('a', '\a'), ('b', '\b'), ('e', '\ESC'), ('f', '\f')
               , ('n', '\n'), ('r', '\r'), ('t', '\t'), ('v', '\v') ]

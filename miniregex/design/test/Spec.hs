@@ -55,8 +55,10 @@ placesOf needle = go 0
     n = T.length needle
 -- ANCHOR_END: gens
 
+-- ANCHOR: main
 main :: IO ()
 main = hspec $ do
+-- ANCHOR_END: main
   -- ANCHOR: syntax
   describe "the tree / パターンの木" $ do
     -- {2,5} is at least 2, then up to 3 more
@@ -182,6 +184,13 @@ main = hspec $ do
       decodeSubject "a\\tb\\x41\\x{263a}\\101\\0" `shouldBe`
         Just "a\tbA\x263a\&A\0"
       decodeSubject "abc\\=notbol" `shouldBe` Nothing
+      -- what MiniRegex cannot read yet is not read as something else
+      -- まだ読めない書き方を、別の文字列と読まない
+      decodeSubject "\\[a]{2}" `shouldBe` Nothing
+      decodeSubject "\\d" `shouldBe` Nothing
+      decodeSubject "a\\" `shouldBe` Just "a"
+      decodeSubject "\\" `shouldBe` Just ""
+      decodeSubject "\\o{101}\\$" `shouldBe` Just "A$"
     -- answers are written like pcre2test
     -- 答えは、pcre2test と同じ形で書く
     it "shows an answer like pcre2test" $

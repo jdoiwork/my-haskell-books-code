@@ -497,6 +497,12 @@ main = hspec $ do
         Just "a\tbA\x263a\&A\0"
       decodeSubject "\\o{11064}\\N{U+1234}" `shouldBe` Just "\x1234\x1234"
       decodeSubject "abc\\=notbol" `shouldBe` Nothing
+      -- what MiniRegex cannot read yet is not read as something else
+      -- まだ読めない書き方を、別の文字列と読まない
+      decodeSubject "\\[a]{2}" `shouldBe` Nothing
+      decodeSubject "\\d" `shouldBe` Nothing
+      decodeSubject "a\\" `shouldBe` Nothing
+      decodeSubject "\\o{101}\\$" `shouldBe` Just "A$"
     -- a line of only spaces ends a group (it is not a subject)
     -- 空白だけの行で、ひとまとまりが終わる（入力ではない）
     it "ends a group at a line of spaces" $
