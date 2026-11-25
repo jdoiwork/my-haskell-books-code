@@ -17,7 +17,8 @@ import Text.Regex.Pcre2 qualified as Pcre2
 
 import MiniRegex
 import MiniRegex.Compat
-import MiniRegex.Compile (listing)
+import MiniRegex.Compile (compileTree, listing, programSize)
+import MiniRegex.Program (instructions)
 import MiniRegex.Engine
   (nonEmptyAt, searchCounting, searchFromCont, searchFromList)
 import MiniRegex.Examples
@@ -768,6 +769,20 @@ main = hspec $ do
     -- ANCHOR_END: limits
     -- a long text: no stack of Haskell's grows with it
     -- 長い文字列：Haskell のスタックが、それにつれて伸びることはない
+    -- a program too big to make is "not yet", before it is made (PCRE2
+    -- says error 120 to this one); a big one that fits is made
+    -- 作るには大きすぎるプログラムは、作る前に「まだ」（これには PCRE2 も
+    -- エラー 120）。収まる大きなものは作る
+    it "says not yet to a program too big to make" $ do
+      fmap source (compile "(?:a{65535}){65535}")
+        `shouldBe` Left (Unsupported 0 "pattern too large for the VM")
+      fmap (`isMatch` "b") (compile "(?:a{100}){1000}") `shouldBe` Right False
+    -- the count before making is never less than the real one
+    -- 作る前の見積もりは、本物より少なくならない
+    prop "counts no fewer instructions than the program has" $
+      forAll (genTreeRefs [Greedy, Lazy, Possessive] 2) $ \tr ->
+        programSize tr
+          >= fromIntegral (length (instructions (compileTree tr)))
     it "goes through 100000 characters" $ do
       let t = T.replicate 50000 "ab" <> "c"
       fmap matchEnd (find (surely "(?:a|b)*c") t) `shouldBe` Just 100001
