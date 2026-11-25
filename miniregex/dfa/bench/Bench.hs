@@ -24,6 +24,9 @@ import MiniRegex.Engine
 import MiniRegex.Cursor (headOf)
 import MiniRegex.Examples
   (scanSwitchingAgain, scanSwitchingEach, surely, tallyOf)
+-- (engine is read only in MiniRegex: to set it, the field of Types)
+-- （MiniRegex の engine は読むだけ。書き換えるのは Types のフィールド）
+import MiniRegex.Types qualified as Types
 import MiniRegex.Bounded (scanBoundedAtTheDoor)
 import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.STVM (scanVMST)
@@ -68,7 +71,7 @@ walking = bgroup "findAll"
     -- 空にならない）
     boundedAll s = go (headOf s)
       where
-        re = digits { engine = Bounded }
+        re = digits { Types.engine = Bounded }
         go c = case fst (searchAtBy scanShortFirst defaultLimit re c) of
           Right (Just (m, end)) -> m : go end
           Right Nothing         -> []

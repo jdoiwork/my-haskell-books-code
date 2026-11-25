@@ -141,12 +141,16 @@ need wants = do
       both f = if f == AP then [AP, AT] else [f]
       now' = (now `Set.union` Set.fromList (concatMap both ons))
                `Set.difference` Set.fromList (concatMap both offs)
-  put now'
-  pure $ if null changes
+      -- (?-aP) took aT away, too: put back what is still wanted
+      -- (?-aP) は aT も外す：まだ要るものは、付け直す
+      again = [ f | (f, True) <- wants, not (Set.member f now') ]
+  put (now' `Set.union` Set.fromList again)
+  pure $ (if null changes
     then ""
     else "(?" <> T.concat (map letter ons)
            <> (if null offs then "" else "-" <> T.concat (map letter offs))
-           <> ")"
+           <> ")")
+    <> (if null again then "" else "(?" <> T.concat (map letter again) <> ")")
   where
     letter f = case f of
       I  -> "i"
