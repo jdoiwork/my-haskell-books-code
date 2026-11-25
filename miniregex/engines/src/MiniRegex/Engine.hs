@@ -107,16 +107,17 @@ runnerFor re = case engine re of
 
 -- ANCHOR: switching
 -- 🔀 Backtracking first, the Pike VM if it takes too long. The
---    backtracking VM gets as many steps as the Pike VM could take at
---    worst (budgetFor); if they run out, the Pike VM starts again from
---    the first place, with the steps that are left. Most searches end
---    within the budget, at the backtracking VM's speed; the others cost
---    at most twice the Pike VM's worst, so still linear time.
+--    backtracking VM gets a budget of steps (budgetFor); if they run
+--    out, the Pike VM starts again from the first place, with the steps
+--    that are left. Most searches end within the budget, at the
+--    backtracking VM's speed; the others cost the budget and then the
+--    Pike VM's steps, and both grow with the text only in proportion:
+--    still linear time.
 -- まずバックトラック、時間がかかりすぎたら Pike VM。バックトラックの VM
--- には、Pike VM が最悪でもかかるステップ数（budgetFor）だけ渡す。尽きたら、
--- Pike VM が最初の場所から、残りのステップ数でやり直す。たいていの探しものは
--- 予算のうちに、バックトラックの VM の速さで終わる。そうでないものも、
--- Pike VM の最悪の2倍ほどで済むので、やはり線形時間
+-- には、予算のステップ数（budgetFor）だけ渡す。尽きたら、Pike VM が最初の
+-- 場所から、残りのステップ数でやり直す。たいていの探しものは予算のうちに、
+-- バックトラックの VM の速さで終わる。そうでないものも、予算と Pike VM の
+-- ステップ数の和で、どちらも文字列の長さに比例するだけなので、やはり線形時間
 scanSwitching :: Runner
 scanSwitching prog limit accept tries = case tries of
   [] -> (Nothing, NotFound, limit)
@@ -129,12 +130,17 @@ scanSwitching prog limit accept tries = case tries of
     where
       budget = budgetFor prog first
 
--- 💰 The steps the Pike VM could take at worst from this place: each
---    instruction once at each place, twice over (once to follow, once
---    to move on). Bytes are counted, not characters: no need to count
+-- 💰 The budget from this place: each instruction once at each place,
+--    twice over (once to follow, once to move on). That is the Pike
+--    VM's worst only with no marks: with marks just here, a state is an
+--    instruction and its marks, and there can be more states than
+--    instructions. As a budget it is fine: it grows with the text in
+--    proportion. Bytes are counted, not characters: no need to count
 --    from the head, and there are never fewer bytes than characters.
--- この場所から、Pike VM が最悪でもかかるステップ数：どの命令も、場所ごとに
--- 1度ずつ、それを2回分（たどるのと、進めるのと）。数えるのは文字では
+-- この場所からの予算：どの命令も、場所ごとに1度ずつ、それを2回分（たどる
+-- のと、進めるのと）。Pike VM の最悪になるのは、印がないときだけ。ちょうど
+-- ここに印があると、状態は「命令と印」で、命令より多くなりうる。予算として
+-- は、これでよい：文字列の長さに比例して増えるだけ。数えるのは文字では
 -- なくバイト：頭から数えずに済み、バイトが文字より少ないことはない
 budgetFor :: Program -> Cursor -> Int
 budgetFor prog c =

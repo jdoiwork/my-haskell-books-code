@@ -1325,6 +1325,23 @@ main = hspec $ do
     it "takes as many steps as the Pike VM on the name field" $
       [ stepsWith PikeVM "^(\\w+\\s?)+$" (fieldOf n) | n <- [2 .. 7] ]
         `shouldBe` [82, 115, 148, 190, 232, 274]
+    -- repeats inside repeats that can take nothing: a state is an
+    -- instruction with the marks just here, so there are more states
+    -- than instructions, and the stack of things to do must grow (with
+    -- a stack of four for each instruction, 24 deep wrote past its end)
+    -- 何も食べずに済むくり返しの入れ子：状態は「命令と、ちょうどここにある
+    -- 印」なので、命令より多い。やることのスタックは伸びなければならない
+    -- （命令1つに4つぶんのままだと、24 段で配列の端を越えて書いた）
+    it "goes deep into repeats that can take nothing" $ do
+      let nested n = T.replicate n "(?:" <> "a?" <> T.replicate n ")*"
+                       <> "b"
+          byST n  = fst (searchCountingBy scanPikeST 1000000
+                           (surely (nested n)) "aacb" 0)
+          byOld n = fst (searchCountingBy scanPike 1000000
+                           (surely (nested n)) "aacb" 0)
+      map byST [4, 17, 24, 32] `shouldBe` map byOld [4, 17, 24, 32]
+      fmap (fmap matchText) (findWithin 100000 (surely (nested 24)) "aacb")
+        `shouldBe` Right (Just "b")
   -- ANCHOR_END: pikesttests
 
   -- ANCHOR: switchtests

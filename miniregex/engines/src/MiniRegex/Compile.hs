@@ -101,6 +101,7 @@ assemble ls = programOf [fmap addressOf i | Do i <- ls]
 -- コードをもう一度、サブルーチンとして書く：グループの中身（グループ
 -- 自身の Open と Close は書かない。呼び出しは、そのグループを書き換え
 -- ない）と、Return
+-- ANCHOR: entry
 compileTree :: Pattern -> Program
 compileTree p = assemble (possess (writeOut p))
 
@@ -113,6 +114,7 @@ compilePlain p = assemble (writeOut p)
 -- プログラムの行。ラベルは名前のまま
 writeOut :: Pattern -> [Line]
 writeOut p = evalState whole start
+-- ANCHOR_END: entry
   where
     called = calls p
     start = Counters (length called) 0

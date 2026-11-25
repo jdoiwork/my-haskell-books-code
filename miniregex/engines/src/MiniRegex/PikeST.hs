@@ -143,12 +143,16 @@ firstVisit gen i = do
 -- 🧰 What every part of a run shares: the program, the layout of the
 --    slots, the scratch row, and the stack of things to do. A thing to
 --    do is two numbers: (-1, pc) is "go to pc", and (i, v) is "put v
---    back into slot i". Each instruction is reached once at a place,
---    and pushes four things at most, so the stack never grows.
+--    back into slot i". An instruction is reached once at a place for
+--    each set of marks just here, so the states, not the instructions,
+--    say how deep the stack goes: it starts at four things for each
+--    instruction and grows (twice as long) when it is full.
 -- 動かすあいだ、どこでも使うもの：プログラム、スロットの並び方、作業用の
 -- 行、やることのスタック。やること1つは2つの数：(-1, pc) は「pc へ
--- 行く」、(i, v) は「スロット i に v を書き戻す」。どの命令も、ある場所で
--- 着くのは1度だけで、積むのは多くても4つなので、スタックは伸びない
+-- 行く」、(i, v) は「スロット i に v を書き戻す」。命令に着くのは、ある
+-- 場所で、ちょうどここにある印の組ごとに1度。だから、スタックの深さを
+-- 決めるのは、命令の数ではなく状態の数。命令1つに4つぶんで始め、
+-- いっぱいになったら2倍に伸ばす
 data Env s = Env
   { prog     :: !Program
   , lay      :: !Layout
@@ -156,7 +160,7 @@ data Env s = Env
   , loops    :: !Loops  -- the repeat of each mark / 印ごとのくり返し
   , accept   :: Cursor -> Bool
   , scratch  :: !(MU.MVector s Int)
-  , todo     :: !(MU.MVector s Int)
+  , todo     :: !(STRef s (MU.MVector s Int))
   }
 -- ANCHOR_END: env
 
@@ -177,7 +181,7 @@ scanPikeST program limit ok places@(first : _) = runST $ do
   env <- Env program layout (any isMark (instructions program))
              (loopsOf program) ok
            <$> MU.replicate (width layout) (-1)
-           <*> MU.replicate (2 * (4 * size + 1)) 0
+           <*> (MU.replicate (2 * (4 * size + 1)) 0 >>= newSTRef)
   run env first places now later limit Nothing
   where
     isMark i = case i of
@@ -287,8 +291,9 @@ follow env gen c pc0 left0 = explore 0 pc0 left0
     loop !sp !left
       | sp == 0   = pure left
       | otherwise = do
-          i <- MU.unsafeRead (todo env) (2 * sp - 2)
-          v <- MU.unsafeRead (todo env) (2 * sp - 1)
+          stack <- readSTRef (todo env)
+          i <- MU.unsafeRead stack (2 * sp - 2)
+          v <- MU.unsafeRead stack (2 * sp - 1)
           if i < 0
             then explore (sp - 1) v left
             else MU.unsafeWrite sc i v >> loop (sp - 1) left
@@ -388,9 +393,19 @@ follow env gen c pc0 left0 = explore 0 pc0 left0
       MU.unsafeWrite sc i v
       push sp i old
     setPlace i sp = set i (at c) sp >>= set (i + 1) (byte c)
+    -- (a full stack grows to twice its length first: the marks can make
+    -- more states than there are instructions)
+    -- （いっぱいなら、先に2倍に伸ばす：印で、状態は命令より多くなりうる）
     push sp i v = do
-      MU.unsafeWrite (todo env) (2 * sp) i
-      MU.unsafeWrite (todo env) (2 * sp + 1) v
+      stack0 <- readSTRef (todo env)
+      stack <- if 2 * sp + 1 < MU.length stack0
+        then pure stack0
+        else do
+          grown <- MU.grow stack0 (MU.length stack0)
+          writeSTRef (todo env) grown
+          pure grown
+      MU.unsafeWrite stack (2 * sp) i
+      MU.unsafeWrite stack (2 * sp + 1) v
       pure (sp + 1)
 -- ANCHOR_END: follow
 
