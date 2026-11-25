@@ -849,6 +849,32 @@ main = hspec $ do
       , n <- [2, 3]
       , let field = T.unwords (take n ["Mira", "Ruby", "Lam"]) <> "!" ]
         `shouldBe` [1969, 8757, 1969, 8757]
+    -- the chapter's examples, through all three VMs: going back must
+    -- put back what a branch, a group or a look wrote (each answer was
+    -- checked with pcre2test 10.49)
+    -- 章の例を、3つの VM に通す：戻るときは、枝・グループ・「見る」ものが
+    -- 書いたものを書き戻す（答えは、どれも pcre2test 10.49 で確かめた）
+    let undone p t answer = it (show (p, t)) $
+          [ fmap (fmap groups)
+              (fst (searchCountingBy vm maxBound (surely p) t 0))
+          | vm <- [scanVM, scanVMST, scanVMSTFresh] ]
+            `shouldBe` replicate 3 (Right answer)
+    undone "(a|ab)c" "abc" (Just [Just "ab"])
+    undone "(a|ab)(c|bcd)(d*)" "abcd" (Just [Just "a", Just "bcd", Just ""])
+    undone "(?>(a+))b|(a+)c" "aac" (Just [Nothing, Just "aa"])
+    undone "(?=(\\w+))\\w" "Mira" (Just [Just "Mira"])
+    undone "(?!(a)b)\\w" "ac" (Just [Nothing])
+    undone "b|(a)c" "ac" (Just [Just "a"])
+    undone "(a){2}b|aa." "aac" (Just [Nothing])
+    -- what a place that failed wrote is put back before the next place,
+    -- and \K's start, too
+    -- 失敗した場所が書いたものは、次の場所の前に書き戻す。\K の始まりも
+    undone "b|(a)c" "ab" (Just [Nothing])
+    it "puts back \\K's start when a branch fails" $
+      [ fmap (fmap matchText)
+          (fst (searchCountingBy vm maxBound (surely "a\\Kb|ac") "ac" 0))
+      | vm <- [scanVM, scanVMST, scanVMSTFresh] ]
+        `shouldBe` replicate 3 (Right (Just "ac"))
   -- ANCHOR_END: twovms
 
   -- ANCHOR: groups

@@ -7,5 +7,5 @@ ST の VM の章（`book/regex-vm-st.md`）が見せる、本物の PCRE2 の答
 pcre2test frames.txt | tail -n +2 | diff - frames.out
 ```
 
-`frames.txt` は、修飾子 `heapframes_size` で、`pcre2_match()` がバックトラックのフレームに使ったヒープの大きさを聞きます。
+`frames.txt` は、修飾子 `framesize` で、フレーム1つの大きさを、修飾子 `heapframes_size` で、`pcre2_match()` がバックトラックのフレームに使ったヒープの大きさを聞きます。`heapframes_size` の数は、同じファイルの前のパターンから持ちこされます（pcre2test がヒープを次のパターンでも使い回すため）。くらべるときは、小さいほうを先に置きます。
 入力の `\[ab]{5000}` は、`ab` を 5000 回くり返したもの（pcre2test の書き方）です。

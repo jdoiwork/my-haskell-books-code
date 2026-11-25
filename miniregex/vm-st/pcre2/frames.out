@@ -1,9 +1,11 @@
-/^(?:a|b)*c/heapframes_size
+/^(?:a|b)*c/framesize,heapframes_size
+Frame size for pcre2_match(): 120
     \[ab]{5000}!
 No match
 Heapframes size in match_data: 2621440
 
-/^(?:a|b)*c()()()()()()()()()()/heapframes_size
+/^(?:a|b)*c()()()()()()()()()()/framesize,heapframes_size
+Frame size for pcre2_match(): 280
     \[ab]{5000}!
 No match
 Heapframes size in match_data: 5242880
