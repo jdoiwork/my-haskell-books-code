@@ -67,13 +67,14 @@ done c caps = Just (c, caps)
 run :: Pattern -> Rest -> Rest
 run whole = matcher [] 1 whole
   where
-    -- 🧭 The matcher, knowing the calls it is in: (group, place),
-    --    the latest first. A call runs the same matcher again, with
-    --    one more call on the list (the chapter on recursion).
-    -- 呼び出しの中にいることを知っているマッチャー：（グループ, 場所）、
-    -- 新しいものが先頭。呼び出しは、リストに1つ積んで、同じマッチャーを
-    -- もう一度動かす（再帰の章）
-    matcher :: [(Int, Int)] -> Int -> Pattern -> Rest -> Rest
+    -- 🧭 The matcher, knowing the calls it is in: (group, place, the
+    --    groups then), the latest first. A call runs the same matcher
+    --    again, with one more call on the list (the chapter on
+    --    recursion).
+    -- 呼び出しの中にいることを知っているマッチャー：（グループ, 場所,
+    -- そのときのグループの値）、新しいものが先頭。呼び出しは、リストに
+    -- 1つ積んで、同じマッチャーをもう一度動かす（再帰の章）
+    matcher :: [(Int, Int, Caps)] -> Int -> Pattern -> Rest -> Rest
     matcher inside = pattern
       where
 -- ANCHOR_END: run
@@ -105,10 +106,14 @@ run whole = matcher [] 1 whole
         piece _ KeepOut k c caps = k c (keepOut c caps)
         -- a*+ is (?>a*): repeat greedily, once, and never again
         -- a*+ は (?>a*)：欲ばってくり返すのを1回だけ。やり直さない
-        piece n (Quantified a q) k c caps
+        piece n (Quantified a written) k c caps
           | greed q == Possessive =
               atomically (repeatAtom q (atom n a)) k c caps
           | otherwise = repeatAtom q (atom n a) k c caps
+          where
+            -- (?=…)+ goes round once more at most: lookCount in Rules
+            -- (?=…)+ は、多くても、もう1回だけ回る（Rules の lookCount）
+            q = lookCount a written
 
         -- ANCHOR: atom
         -- A group runs its pattern; one that keeps what it found writes it
@@ -158,23 +163,27 @@ run whole = matcher [] 1 whole
         -- ANCHOR: call
         -- (?1): run group 1's pattern from here, inside one more call;
         -- coming back, the groups are as they were before the call.
-        -- The same group at the same place again would go round for
-        -- ever: give up, as PCRE2 does.
+        -- The same group at the same place, with the same groups, again
+        -- would go round for ever: give up (PCRE2 gives up, too).
         -- (?1)：1番のグループのパターンを、ここから、呼び出しを1つ
         -- 積んで動かす。戻ってきたら、グループは呼ぶ前の値に。同じ
-        -- グループを同じ場所でまた呼ぶと、いつまでも回るので、PCRE2 と
-        -- 同じく、あきらめる
+        -- グループを、同じ場所で、同じグループの値のまま、また呼ぶと、
+        -- いつまでも回るので、あきらめる（PCRE2 も、あきらめる）
         atom _ (Call g) k c caps
           | looping   = throw (Looping g (at c))
           | otherwise = case groupBody g whole of
               Just inner ->
-                matcher ((g, at c) : inside) (g + 1) inner
+                matcher ((g, at c, caps) : inside) (g + 1) inner
                   (\c' caps' -> k c' (returning caps caps')) c caps
               Nothing -> Nothing  -- (not reached / 来ない)
           where
-            looping = case [p | (h, p) <- inside, h == g] of
-              p : _ -> p == at c
-              []    -> False
+            -- the same group, place and groups as a call before
+            -- 前の呼び出しと、同じグループ・場所・グループの値
+            -- (only the calls at this same place, at the list's head)
+            -- （見るのは、リストの頭の、同じ場所の呼び出しだけ）
+            looping = (g, caps) `elem`
+              [ (h, cs)
+              | (h, _, cs) <- takeWhile (\(_, p, _) -> p == at c) inside ]
         -- ANCHOR_END: call
         atom _ a k c caps = case step c of
           Just (x, c') | fitsChar a x -> k c' caps
