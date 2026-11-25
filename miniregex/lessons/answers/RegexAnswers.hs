@@ -105,12 +105,20 @@ innerOfOverAsserts prog = leads (skip 0) []
 -- その始まりがあれば、それにした正規表現
 withAsserts :: Regex -> Regex
 withAsserts re = case innerOfOverAsserts (program re) of
-  Just (ls, t) | isFirstChar (start (prefilter re)) ->
+  -- with a run, an assert makes a later start in the run worth trying
+  -- (\b[.a]+@ does not match .a@ from the dot, but does from a): only
+  -- leads of one character each are safe
+  -- Run があると、assert のせいで、Run の中の右の始まりにも試す値打ちが
+  -- 出る（\b[.a]+@ は .a@ に、. からは合わないが、a からは合う）。
+  -- 安全なのは、前置きが1文字ずつのものだけ
+  Just (ls, t) | isFirstChar (start (prefilter re)), all isOne ls ->
     re { prefilter = (prefilter re) { start = Inner ls t } }
   _ -> re
   where
     isFirstChar (FirstChar _) = True
     isFirstChar _             = False
+    isOne (One _) = True
+    isOne _       = False
 -- ANCHOR_END: asserts
 
 -- ANCHOR: groups
@@ -122,7 +130,9 @@ withAsserts re = case innerOfOverAsserts (program re) of
 literalsThroughGroups :: Pattern -> Maybe [Text]
 literalsThroughGroups pat = do
   ws <- choices pat
-  guard (length ws <= 64 && not (any T.null ws))
+  -- count up to 65 only (28 groups of (?:a|b) would be 2^28 texts)
+  -- 数えるのは 65 個まで（(?:a|b) が 28 個なら 2 の 28 乗個）
+  guard (length (take 65 ws) <= 64 && not (any T.null ws))
   pure ws
   where
     choices (Pattern bs) = concat <$> traverse branch (NE.toList bs)

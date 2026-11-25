@@ -68,7 +68,7 @@ import MiniRegex.Engine
   ( budgetFor, chooseEngine, compilePattern, compileTree, nonEmptyAtCursor
   , nonEmptySharing, nonEmptyWithinAt, searchAt, searchFrom, searchSharing
   , searchWithin, searchWithinAt )
-import MiniRegex.Prefilter (prefilterOf)
+import MiniRegex.Prefilter (Prefilter (..), Start (..), prefilterOf)
 import MiniRegex.Template (Template, expand, template)
 import MiniRegex.Types hiding (engine, source)
 import MiniRegex.Types qualified as Types
@@ -178,7 +178,7 @@ findAll :: Regex -> Text -> [Match]
 findAll re t
   -- switching: one budget for the whole walk (see searchSharing)
   -- 乗り換え：歩きの全体で予算を1つ（searchSharing を見てほしい）
-  | engine re' == Switching =
+  | sharesBudget re' =
       evalState (walk (sharing (searchSharing defaultLimit))
                       (sharing (nonEmptySharing defaultLimit)) (headOf t))
                 (budgetFor (program re') (headOf t))
@@ -189,6 +189,19 @@ findAll re t
     re' = walking re
     sharing f c = state (\left -> let (r, left') = f left re' c
                                    in  (either throw id r, left'))
+
+-- 👛 The walks that share one budget: switching, but not a pattern of
+--    plain texts only (it has its own runner, with no VM: the shared
+--    budget would go round it).
+-- 予算を1つ分け合う歩き：乗り換えのとき。ただし、ただの文字列だけの
+-- パターンは除く（VM を使わない自分の走り方がある。分け合う予算の道を
+-- 通すと、そこを迂回してしまう）
+sharesBudget :: Regex -> Bool
+sharesBudget re =
+  engine re == Switching && not (literals (start (prefilter re)))
+  where
+    literals (Literals _) = True
+    literals _            = False
 
 -- 🚶 For the walk, Bounded switches instead: a table for the rest of
 --    the text at each match would cost more than it saves (from the
@@ -253,7 +266,7 @@ findAllWithin limit re t
   -- is still for each search)
   -- 乗り換え：findAll と同じく、歩きの全体で予算を1つ（上限は、いまも
   -- 1つを探すごと）
-  | engine re' == Switching =
+  | sharesBudget re' =
       evalStateT (walk (sharing (searchSharing limit))
                        (sharing (nonEmptySharing limit)) (headOf t))
                  (budgetFor (program re') (headOf t))

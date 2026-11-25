@@ -29,12 +29,13 @@ import MiniRegex.Program (instructions)
 import MiniRegex.Race (findRacing, findRacingWithin)
 -- ANCHOR: prefilterimport
 import MiniRegex.Prefilter
-  (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
+  (Prefilter (..), Start (..), kmpPlaces, kmpTable, literalsOf, textPlaces)
 -- ANCHOR_END: prefilterimport
 import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Cursor
   (Cursor, at, back, before, byte, cursorAt, rest, stepOver, taken)
 import Data.Foldable (toList)
+import Data.Maybe (isJust)
 import MiniRegex.Examples
 import MiniRegex.Groups (calls, groupCount)
 import MiniRegex.Parser
@@ -72,7 +73,7 @@ lessonPatterns =
   [ "\\d{4}-\\d{2}", "\\d{2}-\\d", "[\\w.+-]+@[\\w-]+\\.[\\w.-]+"
   , "(\\w+) sold (\\d+)", "\\w+ s", "a\\w-", "(\\w+)@", "\\w+@\\w"
   , "(?i)\\w+@", "[a@]+@b", "Go|Gold", "Gold|Go", "ab|b|abc", "a|aa"
-  , "(?i)ok", "(?i)sold|so", "日|日本" ]
+  , "(?i)ok", "(?i)sold|so", "日|日本", "(\\w+)@\\1", "(\\w+)@(?=\\1)" ]
 
 lessonChars :: [Char]
 lessonChars = "12a-@.b s+é日本soldGOgOKkK\x212A"
@@ -2812,6 +2813,31 @@ main = hspec $ do
         | p <- ["Mira|Ruby|Lam|GHC|Perl|Rust|Python|Go", "(?i)perl"]
         , let re = surely p ]
         `shouldBe` [True, True]
+    -- the left end of the run is not the only start worth trying when
+    -- a back reference reads what the run took
+    -- Run が食べたものを後方参照が読むと、Run の左の端だけでは足りない
+    it "tries every start with a back reference after the run" $ do
+      fmap matchText (find (surely "(\\w+)@\\1") "ab@b")
+        `shouldBe` Just "b@b"
+      fmap matchText (find (surely "(\\w+)@(?=\\1)") "ab@b")
+        `shouldBe` Just "b@"
+    -- counting the texts stops at 65: (?i) with 24 a's is 2^24 texts
+    -- 文字列を数えるのは 65 個まで：a が 24 個の (?i) は 2 の 24 乗個
+    it "gives up on more than 64 texts at once" $ do
+      fmap length (literalsOf (tree (surely ("(?i)" <> T.replicate 6 "a"))))
+        `shouldBe` Just 64
+      literalsOf (tree (surely ("(?i)" <> T.replicate 7 "a")))
+        `shouldBe` Nothing
+      done <- timeout 2000000 (evaluate (isJust (literalsOf
+                (tree (surely ("(?i)" <> T.replicate 24 "a"))))))
+      done `shouldBe` Just False
+    -- findAll and findAllWithin take the runner of texts too, not the
+    -- shared budget (one candidate, one step)
+    -- findAll と findAllWithin も、文字列の走り方を使う（分け合う予算の道では
+    -- なく。1つの候補に1ステップ）
+    it "walks a pattern of texts with no VM" $
+      fmap (map matchText) (findAllWithin 1 (surely "abcdef") "abcdef")
+        `shouldBe` Right ["abcdef"]
   -- ANCHOR_END: lessons
   -- ANCHOR: answers
   describe "the training / トレーニング" $ do
@@ -2831,6 +2857,15 @@ main = hspec $ do
           let re = surely p
               t  = T.pack cs
           in  findAll (withAsserts re) t === findAll (everywhere re) t
+    -- with a run, an assert makes a later start worth trying: no start
+    -- from the inner text then
+    -- Run があると、assert のせいで右の始まりにも値打ちが出る：そのときは、
+    -- 内側の文字列からの始まりにしない
+    it "keeps the starts inside a run after an assertion" $ do
+      fmap matchText (find (withAsserts (surely "\\b[.a]+@")) ".a@")
+        `shouldBe` Just "a@"
+      fmap matchText (find (withAsserts (surely "\\B\\w+@")) "ab@")
+        `shouldBe` Just "b@"
     -- step 2: texts through a group that keeps nothing
     -- ステップ2：何も覚えないグループの中の文字列
     it "looks into groups that keep nothing" $ do
@@ -2838,6 +2873,9 @@ main = hspec $ do
         `shouldBe` Just ["Mira sold", "Ruby sold"]
       literalsThroughGroups (tree (surely "(Mira|Ruby) sold"))
         `shouldBe` Nothing
+      done <- timeout 2000000 (evaluate (isJust (literalsThroughGroups
+                (tree (surely (T.replicate 28 "(?:a|b)"))))))
+      done `shouldBe` Just False
     prop "finds the same through groups" $
       forAll (elements [ "(?:a|ab)(?:c|bcd)", "(?:Go|Gold) s"
                        , "x(?:(?i)ok|so)" ]) $ \p ->

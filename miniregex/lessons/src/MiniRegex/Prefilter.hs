@@ -130,10 +130,20 @@ noPrefilter = Prefilter Anywhere [] ByText
 startOf :: Program -> Start
 startOf prog
   | T.length prefix >= 2         = Prefix prefix
-  | Just (ls, t) <- innerOf prog = Inner ls t
+  | not (any isRef (instructions prog))
+  , Just (ls, t) <- innerOf prog = Inner ls t
   | otherwise                    = firstAtoms prog
   where
     prefix = literalPrefix prog
+    -- a back reference makes a later start in the run worth trying:
+    -- (\w+)@\1 does not match ab@b from a, but does from b, so only the
+    -- left end of the run is not enough
+    -- 後方参照があると、Run の中の右の始まりにも試す値打ちが出る：(\w+)@\1 は
+    -- ab@b に、a からは合わないが、b からは合う。Run の左の端だけでは足りない
+    isRef i = case i of
+      Ref _       -> True
+      RefNoCase _ -> True
+      _           -> False
 
 -- 🔤 The characters every match starts with: follow the program from
 --    0 while it takes plain characters (the instructions that take no
@@ -200,7 +210,10 @@ innerOf prog = leads (skip 0) []
 literalsOf :: Pattern -> Maybe [Text]
 literalsOf (Pattern bs) = do
   ws <- concat <$> traverse texts (NE.toList bs)
-  if length ws <= 64 && not (any T.null ws) then Just ws else Nothing
+  -- count up to 65 only: (?i) with 24 a's would be 2^24 texts
+  -- 数えるのは 65 個まで：a が 24 個の (?i) は 2 の 24 乗個になる
+  if length (take 65 ws) <= 64 && not (any T.null ws) then Just ws
+                                                      else Nothing
   where
     texts (Branch ps) = map T.pack . sequence <$> traverse piece ps
     piece (Quantified a q) | q == once = case a of
