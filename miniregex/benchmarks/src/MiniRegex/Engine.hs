@@ -184,14 +184,15 @@ scanSwitchingWith shared prog limit accept tries =
   where
     budget = min shared (limit `div` 4)
 
--- 🔎 The first match from a place, and what is left of the shared
---    budget.
--- その場所からの最初の一致と、分け合う予算の残り
+-- 🔎 The first match from a place, within this many steps, and what
+--    is left of the shared budget.
+-- その場所からの最初の一致（このステップ数まで）と、分け合う予算の残り
 searchSharing
-  :: Int -> Regex -> Cursor -> (Either GaveUp (Maybe (Match, Cursor)), Int)
-searchSharing shared re start = (fst (searchAtBy runner limit re start), left)
+  :: Int -> Int -> Regex -> Cursor
+  -> (Either GaveUp (Maybe (Match, Cursor)), Int)
+searchSharing limit shared re start =
+  (fst (searchAtBy runner limit re start), left)
   where
-    limit = defaultLimit
     (answer, left) = scanSwitchingWith shared (program re) limit (const True)
                        (places (prefilter re) start)
     runner _ _ _ _ = answer
@@ -199,10 +200,11 @@ searchSharing shared re start = (fst (searchAtBy runner limit re start), left)
 -- 🚫 A match just at this place that is not empty, the same way.
 -- ちょうどこの場所の、空でない一致を、同じやり方で
 nonEmptySharing
-  :: Int -> Regex -> Cursor -> (Either GaveUp (Maybe (Match, Cursor)), Int)
-nonEmptySharing shared re start = (nonEmptyAtBy runner limit re start, left)
+  :: Int -> Int -> Regex -> Cursor
+  -> (Either GaveUp (Maybe (Match, Cursor)), Int)
+nonEmptySharing limit shared re start =
+  (nonEmptyAtBy runner limit re start, left)
   where
-    limit = defaultLimit
     (answer, left) = scanSwitchingWith shared (program re) limit
                        (\c -> at c /= at start) [start]
     runner _ _ _ _ = answer

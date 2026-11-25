@@ -54,7 +54,7 @@ module MiniRegex
 
 -- ANCHOR: imports
 import Control.Exception (throw)
-import Control.Monad.State.Lazy (evalState, state)
+import Control.Monad.State.Lazy (StateT (..), evalState, evalStateT, state)
 import Data.Char (ord)
 import Data.Functor.Identity (Identity (..))
 import Data.Map.Strict qualified as Map
@@ -179,8 +179,8 @@ findAll re t
   -- switching: one budget for the whole walk (see searchSharing)
   -- 乗り換え：歩きの全体で予算を1つ（searchSharing を見てほしい）
   | engine re' == Switching =
-      evalState (walk (sharing searchSharing) (sharing nonEmptySharing)
-                      (headOf t))
+      evalState (walk (sharing (searchSharing defaultLimit))
+                      (sharing (nonEmptySharing defaultLimit)) (headOf t))
                 (budgetFor (program re') (headOf t))
   | otherwise = runIdentity (walk (Identity . searchAt re')
                                   (Identity . nonEmptyAtCursor re')
@@ -248,10 +248,21 @@ findWithin limit re t = searchWithin limit re t 0
 -- ⏱️ All the matches; each search for one may take this many steps.
 -- 見つかったもの全部。1つを探すごとに、このステップ数まで使ってよい
 findAllWithin :: Int -> Regex -> Text -> Either GaveUp [Match]
-findAllWithin limit re t =
-  walk (searchWithinAt limit re') (nonEmptyWithinAt limit re') (headOf t)
+findAllWithin limit re t
+  -- switching: one budget for the whole walk, as in findAll (the limit
+  -- is still for each search)
+  -- 乗り換え：findAll と同じく、歩きの全体で予算を1つ（上限は、いまも
+  -- 1つを探すごと）
+  | engine re' == Switching =
+      evalStateT (walk (sharing (searchSharing limit))
+                       (sharing (nonEmptySharing limit)) (headOf t))
+                 (budgetFor (program re') (headOf t))
+  | otherwise =
+      walk (searchWithinAt limit re') (nonEmptyWithinAt limit re') (headOf t)
   where
     re' = walking re
+    sharing f c = StateT (\left -> let (r, left') = f left re' c
+                                    in  fmap (\x -> (x, left')) r)
 -- ANCHOR_END: within
 
 -- ANCHOR: groups

@@ -664,14 +664,12 @@ tallyOf n = T.concat [T.pack (show i) <> " Mira\n" | i <- [1 .. n]]
 scanSwitchingAgain :: Runner
 scanSwitchingAgain prog limit accept tries = case tries of
   [] -> (Nothing, NotFound, limit)
-  first : _
-    | budget >= limit -> scanVMST prog limit accept tries
-    | otherwise -> case scanVMST prog budget accept tries of
-        (_, OutOfSteps, _) ->
-          scanPikeST prog (limit - budget) accept tries
-        (o, answer, left) -> (o, answer, limit - budget + left)
+  first : _ -> case scanVMST prog budget accept tries of
+    (_, OutOfSteps, _) ->
+      scanPikeST prog (limit - budget) accept tries
+    (o, answer, left) -> (o, answer, limit - budget + left)
     where
-      budget = budgetFor prog first
+      budget = min (budgetFor prog first) (limit `div` 4)
 -- ANCHOR_END: again
 
 -- ANCHOR: eachplace

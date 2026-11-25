@@ -1432,6 +1432,12 @@ main = hspec $ do
       done <- timeout 5000000
                 (evaluate (length (findAll (surely "(?m)^(\\w+ ?)+;$") t)))
       done `shouldBe` Just 800
+      -- findAllWithin too: the limit is for each search, the budget is
+      -- for the walk
+      -- findAllWithin も：上限は1つを探すごと、予算は歩きの全体で
+      bounded <- timeout 5000000 (evaluate (fmap length
+                  (findAllWithin defaultLimit (surely "(?m)^(\\w+ ?)+;$") t)))
+      bounded `shouldBe` Just (Right 800)
   -- ANCHOR_END: switchtests
 
   -- ANCHOR: boundedtests
