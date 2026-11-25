@@ -1170,10 +1170,15 @@ main = hspec $ do
     -- each answer was checked with pcre2test 10.49 (pcre2/*.txt, and
     -- more)
     -- 答えは、どれも pcre2test 10.49 で確かめた（pcre2/*.txt など）
+    -- first: both matchers, the continuations (find) and the list
+    -- first：2つのマッチャーの両方。継続（find）と、候補のリスト
     let all' p t answer = it (show (p, t)) $
           map matchText (findAll (surely p) t) `shouldBe` answer
-        first p t answer = it (show (p, t)) $
+        first p t answer = it (show (p, t)) $ do
           fmap allGroups (find (surely p) t) `shouldBe` answer
+          fmap allGroups (searchFromList (surely p) t 0) `shouldBe` answer
+        places p t = map (\m -> (matchStart m, matchEnd m))
+                         (findAll (surely p) t)
     -- \b and \B
     -- \b と \B
     all' "\\b[0-9]{4}-[0-9]{2}-[0-9]{2}\\b" "Room 1234-56-789 is closed" []
@@ -1200,6 +1205,20 @@ main = hspec $ do
     both "^(?=(\\1b|a))+\\1$" "ab" (Just ("ab" :| ["ab"]))
     both "(?=(\\1b|a)){2,}" "abb" (Just ("" :| ["abb"]))
     both "(?=(a))+b" "ab" Nothing
+    -- what the chapter tells, kept as examples (each answer checked
+    -- with pcre2test 10.49)
+    -- 章が話すことを、例として固めておく（答えは pcre2test 10.49 で確かめた）
+    first "(?<=ab?)c" "axc" Nothing                -- ends just here
+    first "(?<=(a|aa))b" "aab" (Just ("b" :| ["aa"]))  -- farthest first
+    first "a(?!b)" "ab" Nothing
+    it "puts a\\K| where PCRE2 does (the night's counterexample)" $
+      places "a\\K|" "aaba" `shouldBe` [(1, 1), (2, 2), (4, 4)]
+    it "finds every newline with \\R" $
+      length (findAll (surely "\\R") "a\vb\fc\x2028\&d\x2029\&e\x85\&f")
+        `shouldBe` 5
+    it "reads \\B with (?aW) as ASCII" $ do
+      map fst (places "(?aW)\\B" "é") `shouldBe` [0, 1]
+      places "\\B" "é" `shouldBe` []
     it "checks a word for the vault" $
       map goodPassword ["Lambda2026", "lambda2026", "Lambda-dragon-7", "L2a"]
         `shouldBe` [True, False, False, False]
@@ -1277,6 +1296,11 @@ main = hspec $ do
     -- up to 255
     -- 長さが変わる枝があれば、決まった長さの枝も 255 文字まで
     wrong "(?<=a{256}|b?)c"        0 tooLong
+    -- (?:)* has no upper end, even taking nothing; a look's * is {0,1}
+    -- (?:)* は、何も食べなくても上の端がない。「見る」ものの * は {0,1}
+    wrong "(?<=(?:)*b)c"           0 unlimited
+    wrong "(?<=()*b)c"             0 unlimited
+    wrong "(?=(?>a\\K))"           11 bsk
     wrong "xy(?<=a{65535}b)b"      2
       "lookbehind assertion is too long"  -- 187
     wrong "xyz(?<=\\Ka)bcdefg"    17 bsk
@@ -1291,12 +1315,24 @@ main = hspec $ do
     -- PCRE2 は、後読みの中の後方参照を受け取ることがある。MiniRegex は、まだ
     -- all fixed: up to 65535, even when the lengths differ
     -- 全部が決まった長さなら 65535 文字まで（長さがちがっても）
+    it "takes (?=a)* in a lookbehind (a look's * is {0,1})" $
+      fmap matchText (find (surely "(?<=(?=a)*b)c") "bc") `shouldBe` Just "c"
     it "takes long fixed branches when no branch changes" $ do
       fmap matchText (find (surely "(?<=a{256}|b)c") "bc") `shouldBe` Just "c"
       isMatch (surely "(?<=a{256})c") "c" `shouldBe` False
-    it "says not yet to a back reference in a lookbehind" $
+    it "says not yet to a back reference in a lookbehind" $ do
       parsePattern [] "(?<=(a)\\1)b"
         `shouldBe` Left (Unsupported 0 "back reference in lookbehind")
+      -- with (?i), and inside a look inside the lookbehind, too
+      -- (?i) のもとでも、後読みの中の「見る」ものの中でも
+      parsePattern [] "(?<=(a)(?i)\\1)b"
+        `shouldBe` Left (Unsupported 0 "back reference in lookbehind")
+      parsePattern [] "(?<=(?=(a)\\1)aa)b"
+        `shouldBe` Left (Unsupported 0 "back reference in lookbehind")
+    -- an atomic group is as long as its inside
+    -- アトミックグループの長さは、中の長さ
+    it "measures an atomic group in a lookbehind" $
+      fmap matchText (find (surely "(?<=(?>ab))c") "abc") `shouldBe` Just "c"
   -- ANCHOR_END: lookerrors
 
   -- ANCHOR: pcre2

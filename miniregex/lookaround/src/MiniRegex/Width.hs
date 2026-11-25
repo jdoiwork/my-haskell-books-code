@@ -15,6 +15,7 @@ module MiniRegex.Width
 import Data.List.NonEmpty qualified as NE
 import Numeric.Natural (Natural)
 
+import MiniRegex.Rules (lookCount)
 import MiniRegex.Syntax
 -- ANCHOR_END: imports
 
@@ -46,18 +47,21 @@ branchWidth (Branch ps) = foldr andThen (Width 0 (Just 0)) (map pieceWidth ps)
     andThen (Width s1 l1) (Width s2 l2) = Width (s1 + s2) ((+) <$> l1 <*> l2)
 
 -- 🧩 An anchor and \K take nothing. A quantified atom takes the atom's
---    width, times the count.
+--    width, times the count. A look's count is read as PCRE2 reads it
+--    ((?=a)* is {0,1}: lookCount), so it has an upper end; (?:)* has
+--    none, and PCRE2 does not take it in a lookbehind.
 -- アンカーと \K は何も食べない。量指定子の付いたアトムは、アトムの幅に
--- 回数をかけたもの
+-- 回数をかけたもの。「見る」ものの回数は PCRE2 と同じに読む（(?=a)* は
+-- {0,1}。lookCount）ので上の端がある。(?:)* にはなく、PCRE2 も後読みに
+-- 入れない
 pieceWidth :: Piece -> Width
 pieceWidth (Anchor _)       = Width 0 (Just 0)
 pieceWidth KeepOut          = Width 0 (Just 0)
-pieceWidth (Quantified a (Quantifier (Count n more) _)) =
-  Width (s * n) longest'
+pieceWidth (Quantified a q) = Width (s * n) longest'
   where
+    Quantifier (Count n more) _ = lookCount a q
     Width s l = atomWidth a
     longest' = case (l, more) of
-      (Just 0, _)      -> Just 0          -- (?=a)* still takes nothing
       (Just w, Just e) -> Just (w * (n + e))
       _                -> Nothing
 

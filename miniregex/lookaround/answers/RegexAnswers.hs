@@ -66,7 +66,7 @@ escape = T.concatMap one
 -- 🐫 parseHttpRequest into its words: cut where a small letter is just
 --    behind and a capital just ahead. The cut takes no character, so
 --    no letter is lost.
--- parseHttpRequest を言葉に切る：すぐ後ろが小文字で、すぐ前が大文字の
+-- parseHttpRequest を言葉に切る：すぐ手前が小文字で、すぐ先が大文字の
 -- 所で切る。切り目は文字を食べないので、どの文字もなくならない
 camelWords :: Text -> [Text]
 camelWords = split cut
