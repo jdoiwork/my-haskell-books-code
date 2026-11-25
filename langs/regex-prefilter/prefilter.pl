@@ -6,9 +6,9 @@
 # どこかに）
 use strict;
 use warnings;
+# ANCHOR: regmust
 use re qw(regmust);
 
-# ANCHOR: regmust
 # Perl: the text each pattern surely needs
 # Perl：パターンごとに、必ず要る文字列
 for my $p (qr/Room (\d+)/, qr/(a+)*b/, qr/(\w+)@(\w+)\.com/,

@@ -25,7 +25,8 @@ import MiniRegex.Engine
   , searchWithin
   , searchFromCont, searchFromList )
 import MiniRegex.Pike (scanPike)
-import MiniRegex.Prefilter (kmpPlaces, kmpTable, textPlaces)
+import MiniRegex.Prefilter
+  (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
 import MiniRegex.Cursor (Cursor (..), cursorAt, onwards)
 import MiniRegex.Unicode (sameCase)
 import Data.Foldable (toList)
@@ -34,7 +35,7 @@ import MiniRegex.Groups (calls, groupCount)
 import MiniRegex.Parser
 import MiniRegex.Pretty
 import MiniRegex.Syntax
-import MiniRegex.Types (program, tree)
+import MiniRegex.Types (prefilter, program, tree)
 import MiniRegex.STVM (scanVMST, scanVMSTFresh)
 import MiniRegex.Unicode (caseVariants, fold)
 import MiniRegex.VM (scanVM)
@@ -727,7 +728,8 @@ main = hspec $ do
     let finds opts p t answer = it (show (opts, p, t)) $ do
           let re = surelyWith opts p
           fmap matchText (find re t) `shouldBe` answer
-          fmap matchText (find (backtracking re) t) `shouldBe` answer
+          fmap matchText (find (backtracking (everywhere re)) t)
+            `shouldBe` answer
           fmap matchText (searchFromList re t 0) `shouldBe` answer
     -- the left branch first
     -- 左の枝が先
@@ -962,9 +964,14 @@ main = hspec $ do
     -- checked with pcre2test 10.49)
     -- 章の例を、3つの VM に通す：戻るときは、枝・グループ・「見る」ものが
     -- 書いたものを書き戻す（答えは、どれも pcre2test 10.49 で確かめた）
+    -- (every place: looking first would skip the VMs when the text
+    -- lacks a needed character, and then nothing is undone at all)
+    -- （全部の場所で。先に見ると、要る文字のない文字列では VM が動かず、
+    -- 何も取り消さない）
     let undone p t answer = it (show (p, t)) $
           [ fmap (fmap groups)
-              (fst (searchCountingBy vm maxBound (surely p) t 0))
+              (fst (searchCountingBy vm maxBound
+                      (everywhere (surely p)) t 0))
           | vm <- [scanVM, scanVMST, scanVMSTFresh] ]
             `shouldBe` replicate 3 (Right answer)
     undone "(a|ab)c" "abc" (Just [Just "ab"])
@@ -986,7 +993,8 @@ main = hspec $ do
     undone "(a|)*b" "aab" (Just [Just ""])
     it "puts back \\K's start when a branch fails" $
       [ fmap (fmap matchText)
-          (fst (searchCountingBy vm maxBound (surely "a\\Kb|ac") "ac" 0))
+          (fst (searchCountingBy vm maxBound
+                  (everywhere (surely "a\\Kb|ac")) "ac" 0))
       | vm <- [scanVM, scanVMST, scanVMSTFresh] ]
         `shouldBe` replicate 3 (Right (Just "ac"))
   -- ANCHOR_END: twovms
@@ -1112,6 +1120,15 @@ main = hspec $ do
       triedPlaces "^a" "aaa" `shouldBe` [0]
       stepsOf "(a+)+b" (T.replicate 30 "a" <> "c") `shouldBe` 0
       stepsOf "(\\w+)@(\\w+)\\.com" (archive 1000) `shouldBe` 0
+    -- what is inside a negative look is not needed; ^a|b may start
+    -- anywhere (only one branch is anchored)
+    -- 否定の「見る」ものの中は、要らない。^a|b は、どこでも始まりうる
+    -- （頭に固定されているのは、片方の枝だけ）
+    it "says fewer, not more" $ do
+      needed (prefilter (surely "x(?!yz)")) `shouldBe` "x"
+      start (prefilter (surely "^a|b")) `shouldBe` Anywhere
+      fmap matchText (find (surely "^a|b") "ab") `shouldBe` Just "a"
+      map matchText (findAll (surely "^a|b") "bab") `shouldBe` ["b", "b"]
     -- the same answers as trying every place; only a search that gave
     -- up, or went round, may now find its answer
     -- 全部の場所を試したときと同じ答え。あきらめた探しものと、回った
@@ -1130,7 +1147,13 @@ main = hspec $ do
       forAll (genTreeRefs [Greedy, Lazy] 2) $ \tr ->
         forAll (resize 12 genLines) $ \t ->
           let re = surely (render tr)
-          in  findAll re t === findAll (everywhere re) t
+          -- with a limit, as the first one: a pattern that doubles
+          -- would throw GaveUp, not show a counterexample
+          -- 1つ目と同じく上限つきで。倍々に遅いパターンだと、反例ではなく
+          -- GaveUp を投げてしまう
+          in  case findAllWithin 20000 (everywhere re) t of
+                Right ms -> findAllWithin 20000 re t === Right ms
+                Left _   -> label "gave up" (property True)
     -- KMP finds the same places as Text's search
     -- KMP は、Text の検索と同じ場所を見つける
     prop "finds the same places with KMP and with Text's search" $
@@ -1440,7 +1463,8 @@ main = hspec $ do
     -- 両方で：機械（find）と、候補のリスト
     let finds p t answer = it (show (p, t)) $ do
           fmap groups (find (surely p) t) `shouldBe` answer
-          fmap groups (find (backtracking (surely p)) t) `shouldBe` answer
+          fmap groups (find (backtracking (everywhere (surely p))) t)
+            `shouldBe` answer
           fmap groups (searchFromList (surely p) t 0) `shouldBe` answer
     -- a group that took no part is Nothing
     -- 使われなかったグループは Nothing
