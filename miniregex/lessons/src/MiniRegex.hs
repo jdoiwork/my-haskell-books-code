@@ -53,6 +53,8 @@ module MiniRegex
 -- ANCHOR_END: header
 
 -- ANCHOR: imports
+import Control.Exception (throw)
+import Control.Monad.State.Lazy (StateT (..), evalState, evalStateT, state)
 import Data.Char (ord)
 import Data.Functor.Identity (Identity (..))
 import Data.Map.Strict qualified as Map
@@ -63,11 +65,12 @@ import Data.Text.Foreign (lengthWord8)
 
 import MiniRegex.Cursor (Cursor, headOf, step)
 import MiniRegex.Engine
-  ( chooseEngine, compilePattern, compileTree, nonEmptyAtCursor
-  , nonEmptyWithinAt, searchAt, searchFrom, searchWithin, searchWithinAt )
+  ( budgetFor, chooseEngine, compilePattern, compileTree, nonEmptyAtCursor
+  , nonEmptySharing, nonEmptyWithinAt, searchAt, searchFrom, searchSharing
+  , searchWithin, searchWithinAt )
 import MiniRegex.Prefilter (prefilterOf)
 import MiniRegex.Template (Template, expand, template)
-import MiniRegex.Types hiding (source)
+import MiniRegex.Types hiding (engine, source)
 import MiniRegex.Types qualified as Types
 -- ANCHOR_END: imports
 
@@ -80,6 +83,13 @@ import MiniRegex.Types qualified as Types
 -- のにも使えてしまい、木はついてこない
 source :: Regex -> Text
 source = Types.source
+
+-- 🚂 The engine compile chose. A plain function too: with the field,
+--    re { engine = PikeVM } would run a program the Pike VM cannot run.
+-- compile が選んだエンジン。これも、ふつうの関数にする。フィールドだと、
+-- re { engine = PikeVM } で、Pike VM が動かせないプログラムを動かせてしまう
+engine :: Regex -> Engine
+engine = Types.engine
 -- ANCHOR_END: source
 
 -- ANCHOR: compile
@@ -107,9 +117,16 @@ compileWith opts src = do
 -- パターンと、つまずいた場所を指す ^ と、そのわけ。場所は PCRE2 が言う
 -- 場所（まちがった文字の、すぐうしろのことが多い）
 explain :: Text -> RegexError -> Text
-explain src err = T.unlines [src, caret, why]
+explain src err = T.unlines (upTo ++ [caret] ++ after ++ [why])
   where
-    caret = T.replicate (width (T.take (errorOffset err) src)) " " <> "^"
+    -- the ^ goes under the line of the trouble (a pattern may have
+    -- newlines), counting from the start of that line
+    -- ^ は、つまずいた行の下に置く（パターンに改行があることもある）。
+    -- その行の頭から数える
+    before        = T.take (errorOffset err) src
+    (upTo, after) = splitAt (T.count "\n" before + 1) (T.splitOn "\n" src)
+    lineHead      = T.takeWhileEnd (/= '\n') before
+    caret         = T.replicate (width lineHead) " " <> "^"
     why = case err of
       Invalid at m     -> "wrong pattern at " <> place at <> ": " <> m
       Unsupported at w -> "not yet at " <> place at <> ": " <> w
@@ -117,15 +134,17 @@ explain src err = T.unlines [src, caret, why]
     place = T.pack . show
 
 -- 📐 How many columns the text takes on a terminal. A Japanese or
---    Chinese character takes two (a rough rule, good enough here).
+--    Chinese character takes two (a rough rule, good enough here), and
+--    a tab goes on to the next multiple of 8.
 -- 文字列が端末で何桁を占めるか。日本語や中国語の文字は2桁
--- （おおまかな決まりだが、ここでは十分）
+-- （おおまかな決まりだが、ここでは十分）。タブは、次の8の倍数まで進む
 width :: Text -> Int
-width = sum . map columns . T.unpack
+width = T.foldl' column 0
   where
-    columns c
-      | wide (ord c) = 2
-      | otherwise    = 1
+    column col c
+      | c == '\t'    = (col `div` 8 + 1) * 8
+      | wide (ord c) = col + 2
+      | otherwise    = col + 1
     wide n = any (\(lo, hi) -> lo <= n && n <= hi)
       [ (0x1100, 0x115F), (0x2E80, 0xA4CF), (0xAC00, 0xD7A3)
       , (0xF900, 0xFAFF), (0xFF00, 0xFF60), (0xFFE0, 0xFFE6)
@@ -156,11 +175,20 @@ find re t = searchFrom re t 0
 -- まず同じ場所で、空でない一致を探す。それがなければ、1文字先へ進む
 -- （PCRE2 の決まり。pcre2test の /g、Perl、Python と同じ）
 findAll :: Regex -> Text -> [Match]
-findAll re t = runIdentity (walk (Identity . searchAt re')
-                                 (Identity . nonEmptyAtCursor re')
-                                 (headOf t))
+findAll re t
+  -- switching: one budget for the whole walk (see searchSharing)
+  -- 乗り換え：歩きの全体で予算を1つ（searchSharing を見てほしい）
+  | engine re' == Switching =
+      evalState (walk (sharing (searchSharing defaultLimit))
+                      (sharing (nonEmptySharing defaultLimit)) (headOf t))
+                (budgetFor (program re') (headOf t))
+  | otherwise = runIdentity (walk (Identity . searchAt re')
+                                  (Identity . nonEmptyAtCursor re')
+                                  (headOf t))
   where
     re' = walking re
+    sharing f c = state (\left -> let (r, left') = f left re' c
+                                   in  (either throw id r, left'))
 
 -- 🚶 For the walk, Bounded switches instead: a table for the rest of
 --    the text at each match would cost more than it saves (from the
@@ -169,7 +197,7 @@ findAll re t = runIdentity (walk (Identity . searchAt re')
 -- 表を作ると、得より損のほうが大きい（測って比べる章から）
 walking :: Regex -> Regex
 walking re
-  | engine re == Bounded = re { engine = Switching }
+  | engine re == Bounded = re { Types.engine = Switching }
   | otherwise            = re
 
 -- 🚶 The walk, for any way of searching: `search` finds the first
@@ -198,11 +226,15 @@ walk search nonEmpty = go
     next (m, end)
       | matchStart m == matchEnd m = (m :) <$> afterEmpty end
       | otherwise                  = (m :) <$> go end
-    afterEmpty here = nonEmpty here >>= \case
-      Just found -> next found
-      Nothing    -> case step here of
-        Just (_, here') -> go here'
-        Nothing         -> pure []
+    -- (at the end there is no match that is not empty: PCRE2 does not
+    -- look, and a recursion there could only go round)
+    -- （終わりには、空でない一致はない：PCRE2 も探さない。探すと、
+    -- 再帰がそこで回るだけ）
+    afterEmpty here = case step here of
+      Nothing         -> pure []
+      Just (_, here') -> nonEmpty here >>= \case
+        Just found -> next found
+        Nothing    -> go here'
 -- ANCHOR_END: findall
 
 -- ANCHOR: within
@@ -216,10 +248,21 @@ findWithin limit re t = searchWithin limit re t 0
 -- ⏱️ All the matches; each search for one may take this many steps.
 -- 見つかったもの全部。1つを探すごとに、このステップ数まで使ってよい
 findAllWithin :: Int -> Regex -> Text -> Either GaveUp [Match]
-findAllWithin limit re t =
-  walk (searchWithinAt limit re') (nonEmptyWithinAt limit re') (headOf t)
+findAllWithin limit re t
+  -- switching: one budget for the whole walk, as in findAll (the limit
+  -- is still for each search)
+  -- 乗り換え：findAll と同じく、歩きの全体で予算を1つ（上限は、いまも
+  -- 1つを探すごと）
+  | engine re' == Switching =
+      evalStateT (walk (sharing (searchSharing limit))
+                       (sharing (nonEmptySharing limit)) (headOf t))
+                 (budgetFor (program re') (headOf t))
+  | otherwise =
+      walk (searchWithinAt limit re') (nonEmptyWithinAt limit re') (headOf t)
   where
     re' = walking re
+    sharing f c = StateT (\left -> let (r, left') = f left re' c
+                                    in  fmap (\x -> (x, left')) r)
 -- ANCHOR_END: within
 
 -- ANCHOR: groups
@@ -274,8 +317,10 @@ replaceWith re f t = rebuild f (findAll re t) t
 -- ANCHOR_END: replace
 
 -- ANCHOR: template
--- 🧾 Replace the first match with the template ($1, ${name}, $$).
--- 最初に見つかったものを、テンプレート（$1・${name}・$$）で置き換える
+-- 🧾 Replace the first match with the template ($1, ${name}, $$),
+--    made by `template` for this same regex.
+-- 最初に見つかったものを、テンプレート（$1・${name}・$$）で置き換える。
+-- テンプレートは、同じ正規表現で template が作ったもの
 replaceTemplate :: Regex -> Template -> Text -> Text
 replaceTemplate re tpl t = rebuild (expand tpl) (take 1 (findAll re t)) t
 
