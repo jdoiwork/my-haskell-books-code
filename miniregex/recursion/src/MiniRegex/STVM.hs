@@ -20,9 +20,11 @@ module MiniRegex.STVM
   ) where
 
 -- ANCHOR: imports
+import Control.Monad (foldM)
 import Control.Monad.ST (ST, runST)
 import Data.Array ((!))
 import Data.IntMap.Strict qualified as IntMap
+import Data.Set qualified as Set
 import Data.Vector.Mutable qualified as MV
 import Data.Vector.Unboxed.Mutable qualified as MU
 
@@ -60,6 +62,7 @@ data Called = Called
   , calledGroup  :: !Int
   , calledPlace  :: !Int
   , calledHeight :: !Int
+  , calledCaps   :: [Maybe Span]  -- the groups then / そのときのグループ
   }
 
 -- 📝 What was there before a write: a group's span, the start of an
@@ -225,10 +228,11 @@ scanVMST prog limit accept places = runST $ do
             if still then next tp else failed n sp tp
           -- ANCHOR_END: execbehind
           -- ANCHOR: execcall
-          Gosub g a
-            | looping g -> pure (Looped g (at cur), n, tp)
-            | otherwise ->
-                go n a cur sp tp (Called (pc + 1) g (at cur) tp : cs)
+          Gosub g a -> do
+            now <- MV.foldr' (:) [] (capsOf m)
+            if looping g now
+              then pure (Looped g (at cur), n, tp)
+              else go n a cur sp tp (Called (pc + 1) g (at cur) tp now : cs)
           Return -> case cs of
             f : outer -> do
               tp' <- rewind tp (calledHeight f)
@@ -244,11 +248,13 @@ scanVMST prog limit accept places = runST $ do
               case s >>= \sp_ -> over (spanText sp_) cur of
                 Just c  -> go n (pc + 1) c sp tp cs
                 Nothing -> failed n sp tp
-            -- the latest call of the same group: at the same place?
-            -- 同じグループのいちばん新しい呼び出しは、同じ場所だったか
-            looping g = case [f | f <- cs, calledGroup f == g] of
-              f : _ -> calledPlace f == at cur
-              []    -> False
+            -- a call of the same group, at the same place, with the
+            -- same groups (as the pure VM's looping)
+            -- 同じグループ・同じ場所・同じグループの値の呼び出し
+            -- （純粋な VM の looping と同じ）
+            looping g now =
+              any (\f -> calledGroup f == g && calledPlace f == at cur
+                           && calledCaps f == now) cs
             withFence k = do
               found <- fenceBelow sp
               case found of
@@ -329,28 +335,42 @@ scanVMST prog limit accept places = runST $ do
         -- ANCHOR: rewind
         -- ↩️ Back from a call: the groups, the open groups and the
         --    marks as they were at the call. The trail has the old
-        --    values since then: write them again, from the top down to
-        --    h, but as new writes, put on the trail too. So, going back
+        --    values since then; for each drawer, the lowest one (from h
+        --    up) is the value at the call. Write each drawer once with
+        --    it, as a new write, put on the trail too. So, going back
         --    into the call later, undoTo still finds the call's own
-        --    values. \K (drawer 0) stays as it is.
+        --    values. Only once for each drawer: writing every old value
+        --    again would copy the writes of the calls inside it again at
+        --    each return, and the trail would double for each call
+        --    inside a call. \K (drawer 0) stays as it is.
         -- 呼び出しから戻ったとき：グループ・開いたグループ・印を、呼んだ
-        -- ときの値に。記録には、それからの前の値がある。それを、上から
-        -- 高さ h まで、もう一度書く。ただし、新しい書き換えとして記録にも
-        -- 積む。こうすれば、あとで呼び出しの中へ戻るときも、undoTo が
-        -- 中の値を見つけられる。\K（0番の引き出し）は、そのまま
+        -- ときの値に。記録には、それからの前の値がある。引き出しごとに、
+        -- 高さ h から見ていちばん下のものが、呼んだときの値。それを引き出し
+        -- ごとに1度だけ、新しい書き換えとして記録にも積んで書く。こうすれば、
+        -- あとで呼び出しの中へ戻るときも、undoTo が中の値を見つけられる。
+        -- 1度だけなのは、前の値を全部書き直すと、戻るたびに内側の呼び出しの
+        -- 書き換えをまた写し、記録が呼び出しの深さごとに倍になるから。
+        -- \K（0番の引き出し）は、そのまま
         rewind :: Int -> Int -> ST s Int
-        rewind tp h = again (tp - 1) tp
+        rewind tp h = do
+          olds <- mapM (peek (trail m)) [h .. tp - 1]
+          foldM restore tp (lowestOfEach Set.empty olds)
           where
-            again i top
-              | i < h     = pure top
-              | otherwise = do
-                  u <- peek (trail m) i
-                  top' <- case u of
-                    UndoCap 0 _    -> pure top
-                    UndoCap g old  -> setCap g old top
-                    UndoOpen g old -> setOpen g old top
-                    UndoMark k old -> setMark k old top
-                  again (i - 1) top'
+            restore top u = case u of
+              UndoCap g old  -> setCap g old top
+              UndoOpen g old -> setOpen g old top
+              UndoMark k old -> setMark k old top
+            -- the lowest record of each drawer (not \K's drawer 0)
+            -- 引き出しごとに、いちばん下の記録（\K の0番は外す）
+            lowestOfEach _ [] = []
+            lowestOfEach seen (u : us)
+              | skip || key `Set.member` seen = lowestOfEach seen us
+              | otherwise = u : lowestOfEach (Set.insert key seen) us
+              where
+                (key, skip) = case u of
+                  UndoCap g _  -> ((0 :: Int, g), g == 0)
+                  UndoOpen g _ -> ((1, g), False)
+                  UndoMark k _ -> ((2, k), False)
         -- ANCHOR_END: rewind
 
         -- ANCHOR: frozen

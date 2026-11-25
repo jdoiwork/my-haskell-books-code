@@ -67,13 +67,14 @@ done c caps = Just (c, caps)
 run :: Pattern -> Rest -> Rest
 run whole = matcher [] 1 whole
   where
-    -- 🧭 The matcher, knowing the calls it is in: (group, place),
-    --    the latest first. A call runs the same matcher again, with
-    --    one more call on the list (the chapter on recursion).
-    -- 呼び出しの中にいることを知っているマッチャー：（グループ, 場所）、
-    -- 新しいものが先頭。呼び出しは、リストに1つ積んで、同じマッチャーを
-    -- もう一度動かす（再帰の章）
-    matcher :: [(Int, Int)] -> Int -> Pattern -> Rest -> Rest
+    -- 🧭 The matcher, knowing the calls it is in: (group, place, the
+    --    groups then), the latest first. A call runs the same matcher
+    --    again, with one more call on the list (the chapter on
+    --    recursion).
+    -- 呼び出しの中にいることを知っているマッチャー：（グループ, 場所,
+    -- そのときのグループの値）、新しいものが先頭。呼び出しは、リストに
+    -- 1つ積んで、同じマッチャーをもう一度動かす（再帰の章）
+    matcher :: [(Int, Int, Caps)] -> Int -> Pattern -> Rest -> Rest
     matcher inside = pattern
       where
 -- ANCHOR_END: run
@@ -172,13 +173,13 @@ run whole = matcher [] 1 whole
           | looping   = throw (Looping g (at c))
           | otherwise = case groupBody g whole of
               Just inner ->
-                matcher ((g, at c) : inside) (g + 1) inner
+                matcher ((g, at c, caps) : inside) (g + 1) inner
                   (\c' caps' -> k c' (returning caps caps')) c caps
               Nothing -> Nothing  -- (not reached / 来ない)
           where
-            looping = case [p | (h, p) <- inside, h == g] of
-              p : _ -> p == at c
-              []    -> False
+            -- the same group, place and groups as a call before
+            -- 前の呼び出しと、同じグループ・場所・グループの値
+            looping = (g, at c, caps) `elem` inside
         -- ANCHOR_END: call
         atom _ a k c caps = case step c of
           Just (x, c') | fitsChar a x -> k c' caps

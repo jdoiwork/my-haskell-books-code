@@ -171,11 +171,16 @@ runVM prog limit accept start =
           Just (w, below) -> k w below
           Nothing         -> failed n stack  -- (not reached / 来ない)
         -- ANCHOR: looping
-        -- the latest call of the same group: at the same place?
-        -- 同じグループのいちばん新しい呼び出しは、同じ場所だったか
-        looping g fs = case [f | f <- fs, calledAs f == g] of
-          f : _ -> calledAt f == here
-          []    -> False
+        -- a call of the same group, at the same place, with the same
+        -- groups: everything from here would be the same again, for
+        -- ever. (Only the place is not enough: a look can make the
+        -- groups grow, and then the calls end.)
+        -- 同じグループの呼び出しが、同じ場所で、同じグループの値で、前にも
+        -- あった：ここから先は、いつまでも同じになる（場所だけでは足りない。
+        -- 「見る」ものがグループを伸ばしていれば、呼び出しは終わる）
+        looping g fs =
+          any (\f -> calledAs f == g && calledAt f == here
+                       && oldCaps f == caps t) fs
         -- ANCHOR_END: looping
       -- ANCHOR_END: where
 

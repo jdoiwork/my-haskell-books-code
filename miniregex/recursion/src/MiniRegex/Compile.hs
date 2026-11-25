@@ -240,7 +240,17 @@ lookBehind n m (Pattern bs) = alternatives
 -- 下がる距離ごとに書き出すので、入れ子の回数はかけ算になる：
 -- (?:a{65535}){65535} は約 43 億。本物より少し多めに数え、少なくはしない
 programSize :: Pattern -> Integer
-programSize (Pattern bs) =
+programSize whole =
+  -- the pattern, and each called group's body once more, with Return
+  -- (compileTree writes them after Match)
+  -- パターンと、呼ばれるグループの中身をもう1度ずつ、Return と一緒に
+  -- （compileTree が Match のうしろに書く）
+  patternSize whole
+    + sum [ patternSize body + 2
+          | g <- calls whole, Just body <- [groupBody g whole] ]
+
+patternSize :: Pattern -> Integer
+patternSize (Pattern bs) =
   sum (map branchSize (NE.toList bs)) + 3 * fromIntegral (length bs)
   where
     branchSize (Branch ps) = sum (map pieceSize ps)
@@ -253,12 +263,12 @@ programSize (Pattern bs) =
       in  (atomSize a + 2) * max 1 copies + 2 + fence
     pieceSize _ = 1
     atomSize a = case a of
-      Group _ p          -> programSize p + 2
-      Atomic p           -> programSize p + 3
+      Group _ p          -> patternSize p + 2
+      Atomic p           -> patternSize p + 3
       NoCase x           -> atomSize x
-      Look Ahead _ p     -> programSize p + 4
+      Look Ahead _ p     -> patternSize p + 4
       Look Behind _ p    ->
-        sum [ (programSize (Pattern (b NE.:| [])) + 3) * distances b
+        sum [ (patternSize (Pattern (b NE.:| [])) + 3) * distances b
             | b <- let Pattern xs = p in NE.toList xs ] + 4
       _                  -> 1
     distances b = fromIntegral (length (farthestFirst (branchWidth b)))

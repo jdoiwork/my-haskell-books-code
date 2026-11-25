@@ -1454,6 +1454,10 @@ callGroup = do
     numbered = do
       (sign, n) <- signedNumber 0
       end <- getOffset
+      -- a number too big is told first, before the ) (as PCRE2 does)
+      -- 大きすぎる数は、) より先に言う（PCRE2 と同じ）
+      when (n > 65535) $
+        invalid end "subpattern number is too big"  -- 161
       returning end "(?n("
       closed <- option False (True <$ char ')')
       when (not closed) $
@@ -1498,6 +1502,10 @@ gCall afterG open = do
     number close = do
       (sign, n) <- signedNumber afterG
       numEnd <- getOffset
+      -- a number too big is told first, just after \g (as PCRE2 does)
+      -- 大きすぎる数は、先に、\g のすぐうしろで言う（PCRE2 と同じ）
+      when (n > 65535) $
+        invalid afterG "subpattern number is too big"  -- 161
       closed <- option False (True <$ char close)
       when (not closed) $
         invalid numEnd

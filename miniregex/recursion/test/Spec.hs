@@ -834,9 +834,19 @@ main = hspec $ do
     -- the count before making is never less than the real one
     -- 作る前の見積もりは、本物より少なくならない
     prop "counts no fewer instructions than the program has" $
-      forAll (genTreeRefs [Greedy, Lazy, Possessive] 2) $ \tr ->
+      -- calls too: each called group's body is written once more
+      -- 呼び出しも：呼ばれるグループの中身は、もう1度書かれる
+      forAll (oneof [genTreeRefs [Greedy, Lazy, Possessive] 2, genTreeCalls])
+        $ \tr ->
         programSize tr
           >= fromIntegral (length (instructions (compileTree tr)))
+    -- the bodies of called groups are written once more, after Match
+    -- 呼ばれるグループの中身は、Match のうしろに、もう1度書かれる
+    it "counts the bodies of called groups" $ do
+      let Right tr = parsePattern [] "(((((a{100})))))(?1)(?2)(?3)(?4)(?5)"
+      programSize tr
+        >= fromIntegral (length (instructions (compileTree tr)))
+        `shouldBe` True
     -- a*+ is fenced: the count has room for the fences, too
     -- a*+ は区切りの中：見積もりは、区切りの命令も数える
     it "counts the fences of possessive repeats" $ do
@@ -972,6 +982,19 @@ main = hspec $ do
     same "^(a|b(?1)c)$" "bbacc" [" 0: bbacc", " 1: bbacc"]
     same "(?|(a)|(b))(?1)" "ba" [" 0: ba", " 1: b"]
     same "x(?R)?y" "xxyy" [" 0: xxyy"]
+    -- 22 calls deep, each one going back: the trail must not double at
+    -- each return (it did, and ran out of memory)
+    -- 22 段の呼び出しから、1段ずつ戻る：戻るたびに記録が倍になってはいけない
+    -- （倍になって、メモリーを使い切っていた）
+    same "^((a)(?1)?b)$" (T.replicate 22 "a" <> T.replicate 22 "b")
+      [ " 0: " <> T.replicate 22 "a" <> T.replicate 22 "b"
+      , " 1: " <> T.replicate 22 "a" <> T.replicate 22 "b", " 2: a" ]
+    -- the same group at the same place, but the look made group 2 grow
+    -- (a, aa, aaa): not a loop, and PCRE2 finds it
+    -- 同じグループを同じ場所で呼ぶが、「見る」ものがグループ2を伸ばす
+    -- （a・aa・aaa）：回り続けるのではないので、PCRE2 も見つける
+    same "^(?<r>(?=(\\2a|a))(?:\\2$|(?&r)))$" "aaa"
+      [" 0: aaa", " 1: aaa", " 2: a"]
     -- the program: the whole pattern, Match, then the subroutine
     -- プログラム：パターン全体、Match、そのあとにサブルーチン
     it "compiles a(?1)(b)" $
@@ -1068,6 +1091,11 @@ main = hspec $ do
     wrong "\\g<65536>"     2 e161
     wrong "(?+65536)"      8 e161
     wrong "(a)(?-65536)"   11 e161
+    -- too big is told before the missing ) or >
+    -- 大きすぎることは、) や > がないことより先に言う
+    wrong "(?65536"        7 e161
+    wrong "(?+65536"       8 e161
+    wrong "\\g<65536"      2 e161
     wrong "(?+0)"          4 "a relative value of zero is not allowed"
     wrong "\\g<-0>"        2 "a relative value of zero is not allowed"
     wrong "(?R"            3
