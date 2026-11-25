@@ -51,8 +51,8 @@ import MiniRegex.Unicode (caseVariants, fold)
 import MiniRegex.VM (scanVM)
 -- ANCHOR: dfaimports
 import MiniRegex.LazyDFA
-  (canDfa, dfaFind, dfaFor, othersLimit, reversePattern)
-import Data.Maybe (fromMaybe, isJust)
+  (canDfa, dfaFind, dfaFindAll, dfaFor, othersLimit, reversePattern)
+import Data.Maybe (fromMaybe)
 -- ANCHOR_END: dfaimports
 import RegexAnswers
 -- ANCHOR_END: imports
@@ -430,6 +430,25 @@ genTreeLinear = goP <$> genTree [Greedy, Lazy] 2
 -- ANCHOR_END: genlinear
 
 -- ANCHOR: gentreedfa
+-- 🔁 The DFA's answer when it has one, else the VM's: what find and
+--    findAll do on a long text, on a text of any length.
+-- DFA が答えればそれ、でなければ VM。長い文字列での find・findAll と
+-- 同じことを、どんな長さの文字列でも
+viaDfa :: Regex -> Text -> [Match]
+viaDfa re t = fromMaybe (findAllVM re t) (dfaFindAll re t)
+
+firstViaDfa :: Regex -> Text -> Maybe Match
+firstViaDfa re t = fromMaybe (findVM re t) (dfaFind re t 0)
+
+-- 🎲 a and b, n of them, with no pattern that repeats soon (a simple
+--    LCG from 618)
+-- a と b を n 個、すぐにはくり返さないように（618 から始める簡単な LCG）
+abText :: Int -> Text
+abText n = T.pack (take n (map ab (drop 1 (iterate next 618))))
+  where
+    next x = (x * 1103515245 + 12345) `mod` 2147483648 :: Int
+    ab x = if x `div` 65536 `mod` 2 == 0 then 'a' else 'b'
+
 -- 🎲 For the chapter on the lazy DFA: the same, without anchors and \K
 --    (the DFA does not run them), so that more patterns go by the DFA.
 -- lazy DFA の章のため：同じ木から、アンカーと \K を抜いたもの（DFA は
@@ -2909,7 +2928,7 @@ main = hspec $ do
             Left _   -> property True
             Right re -> counterexample (T.unpack (render tr)) $
               classify (isJust (dfaFor re)) "by the DFA" $
-                findAll re t === findAllVM re t
+                viaDfa re t === findAllVM re t
     prop "finds the first that the VM finds" $
       forAll genTreeDfa $ \tr ->
         forAll genLines $ \t ->
@@ -2924,27 +2943,16 @@ main = hspec $ do
         forAll (listOf (elements lessonChars)) $ \cs ->
           let re = surely p
               t  = T.pack cs
-          in  counterexample (T.unpack p) (findAll re t === findAllVM re t)
+          in  counterexample (T.unpack p) (viaDfa re t === findAllVM re t)
     -- the groups, with the engine the regex chose, within its limit
     -- グループは、正規表現が選んだエンジンで、上限のうちに求める
-    -- many different characters past ASCII: the moves are thrown away
-    -- and found again, and the DFA still answers (with two states)
-    -- ASCII の外の、ちがう文字がたくさん：移り先を捨てて求め直し、DFA は
-    -- 答え続ける（状態は2つのまま）
-    it "keeps going past the moves it may keep" $ do
-      let re    = surely ".+"
-          t     = T.pack (take (othersLimit + 10) ['\x10000' ..])
-          spanOf m = (matchStart m, matchEnd m)
-      fmap (fmap spanOf) (dfaFind re t 0)
-        `shouldBe` Just (Just (0, othersLimit + 10))
-      fmap spanOf (find re t) `shouldBe` fmap spanOf (findVM re t)
     it "finds the groups with the engine the regex chose" $ do
       let re = surely "(a+)+c|a+b"
           t  = T.replicate 12 "a" <> "b"
-          groupsOf r u = fmap matchGroups (find r u)
+          groupsOf r u = fmap matchGroups (firstViaDfa r u)
       canDfa (program re) `shouldBe` True
       groupsOf re t `shouldBe` fmap matchGroups (findVM re t)
-      map matchGroups (findAll re t)
+      map matchGroups (viaDfa re t)
         `shouldBe` map matchGroups (findAllVM re t)
       -- with the backtracking VM, the steps run out: GaveUp
       -- バックトラックの VM なら、ステップ数が尽きて GaveUp
@@ -2952,6 +2960,34 @@ main = hspec $ do
           long = T.replicate 30 "a" <> "b"
       r <- try (evaluate (length (show (groupsOf slow long))))
       r `shouldBe` Left (GaveUp defaultLimit)
+    -- past stateLimit states the DFA gives up, and the VM answers
+    -- 状態が stateLimit を超えたら、DFA はあきらめ、VM が答える
+    it "gives up past the states it may make" $ do
+      let re = surely "(?:a|b)*a(?:a|b){12}"
+          t  = abText 20000
+      T.length t >= dfaMinBytes `shouldBe` True
+      isJust (dfaFindAll re t) `shouldBe` False
+      findAll re t `shouldBe` findAllVM re t
+      find re t `shouldBe` findVM re t
+    -- many different characters past ASCII: the moves are thrown away
+    -- and found again (twice over the same characters), and the DFA
+    -- still answers (with two states)
+    -- ASCII の外の、ちがう文字がたくさん：移り先を捨てて求め直し（同じ
+    -- 文字を2度）、DFA は答え続ける（状態は2つのまま）
+    it "keeps going past the moves it may keep" $ do
+      let re    = surely ".+"
+          once' = T.pack (take (othersLimit + 10) ['\x10000' ..])
+          t     = once' <> once'
+          n     = 2 * (othersLimit + 10)
+          spanOf m = (matchStart m, matchEnd m)
+      fmap (fmap spanOf) (dfaFind re t 0) `shouldBe` Just (Just (0, n))
+      fmap spanOf (find re t) `shouldBe` fmap spanOf (findVM re t)
+    -- a short text: the VM, as the chapters before (the same answers)
+    -- 短い文字列は、前の章までと同じく VM で（答えは同じ）
+    it "takes the VM for a short text" $ do
+      let re = surely "\\d{4}-\\d{2}"
+      find re "on 2026-11-26" `shouldBe` findVM re "on 2026-11-26"
+      dfaMinBytes `shouldBe` 4096
   -- ANCHOR_END: dfa
   -- ANCHOR: answers
   describe "the training / トレーニング" $ do

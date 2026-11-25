@@ -26,6 +26,7 @@ module MiniRegex
   , findAll
   , findVM
   , findAllVM
+  , dfaMinBytes
     -- * With a limit on the steps / ステップ数の上限つきで
   , GaveUp (..)
   , defaultLimit
@@ -169,7 +170,20 @@ isMatch re t = isJust (find re t)
 -- GaveUp を投げる。lazy DFA の章から：DFA で動かせるなら、まず DFA で。
 -- DFA は、ステップ数を数えない。グループは、選んだエンジンで上限つき
 find :: Regex -> Text -> Maybe Match
-find re t = fromMaybe (findVM re t) (dfaFind re t 0)
+find re t
+  | dfaWorth t = fromMaybe (findVM re t) (dfaFind re t 0)
+  | otherwise  = findVM re t
+
+-- 📐 Is the text long enough for the DFA? Each search makes its states
+--    again from nothing, so on a short text (a line of a log) the VM is
+--    faster: they came out even at about 2 to 4 KB.
+-- DFA を使うほど長い文字列か。探すたびに状態を1から作り直すので、短い
+-- 文字列（ログの1行）では VM のほうが速い。釣り合ったのは 2〜4 KB ほど
+dfaWorth :: Text -> Bool
+dfaWorth t = lengthWord8 t >= dfaMinBytes
+
+dfaMinBytes :: Int
+dfaMinBytes = 4096
 
 -- 🔍 The same, with the VM only (the chapters before).
 -- 同じものを、VM だけで（前の章まで）
@@ -188,7 +202,9 @@ findVM re t = searchFrom re t 0
 -- （PCRE2 の決まり。pcre2test の /g、Perl、Python と同じ）
 -- ANCHOR: findalldfa
 findAll :: Regex -> Text -> [Match]
-findAll re t = fromMaybe (findAllVM re t) (dfaFindAll re t)
+findAll re t
+  | dfaWorth t = fromMaybe (findAllVM re t) (dfaFindAll re t)
+  | otherwise  = findAllVM re t
 
 -- 🔎 The same, with the VM only (the chapters before).
 -- 同じものを、VM だけで（前の章まで）

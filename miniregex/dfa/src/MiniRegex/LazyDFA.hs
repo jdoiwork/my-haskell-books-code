@@ -95,11 +95,12 @@ othersLimit = 100000
 -- ANCHOR: can
 -- ✅ The DFA runs only programs of take, takeall, split, jmp, open,
 --    close and match, that never match the empty text. (No \b, ^, $:
---    they look at the character before; no \1, no looks, no fences.)
+--    they look at the character before or after; no \1, no looks, no
+--    fences.)
 --    A takeall is the greedy repeat: the compiler makes one only where
 --    that is the same (from the chapter on switching engines).
 -- DFA が動かすのは、take・takeall・split・jmp・open・close・match だけで、
--- 空の文字列に一致しないプログラム。（\b・^・$ は前の文字を見るので
+-- 空の文字列に一致しないプログラム。（\b・^・$ は前や次の文字を見るので
 -- 断る。\1・「見る」もの・区切りも断る。）takeall は欲ばりのくり返し：
 -- コンパイラーは、それと同じになるときにだけ takeall を作る（エンジンを
 -- 乗り換える章から）
