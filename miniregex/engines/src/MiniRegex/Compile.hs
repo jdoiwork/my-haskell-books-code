@@ -8,6 +8,8 @@
 -- はじめは名前で、assemble が番地に変える
 module MiniRegex.Compile
   ( compileTree
+  , programSize
+  , programLimit
   , compilePlain
   , possess
   , apart
@@ -37,6 +39,7 @@ import MiniRegex.Pretty (render)
 import MiniRegex.Rules (fitsChar)
 import MiniRegex.Unicode (caseVariants)
 import MiniRegex.Program
+import MiniRegex.Rules (lookCount)
 import MiniRegex.Syntax
 import MiniRegex.Width (Width (..), atomWidth, branchWidth)
 -- ANCHOR_END: imports
@@ -170,12 +173,15 @@ alternatives parts = do
 piece :: Int -> Piece -> Asm [Line]
 piece _ (Anchor a) = pure [Do (Assert a)]
 piece _ KeepOut    = pure [Do Keep]
-piece n (Quantified a q)
+piece n (Quantified a written)
   | greed q == Possessive =
       atomic (repeatAtom eats q { greed = Greedy } (atom n a))
   | otherwise = repeatAtom eats q (atom n a)
   where
     eats = shortest (atomWidth a) >= 1
+    -- (?=…)+ goes round once more at most: lookCount in Rules
+    -- (?=…)+ は、多くても、もう1回だけ回る（Rules の lookCount）
+    q = lookCount a written
 -- ANCHOR_END: piece
 
 -- ANCHOR: atom
@@ -244,6 +250,63 @@ lookBehind n m (Pattern bs) = alternatives
   | (k, b) <- numbered n branchGroups (NE.toList bs)
   , d <- farthestFirst (branchWidth b) ]
 -- ANCHOR_END: behind
+
+-- ANCHOR: size
+-- 📐 About how many instructions the program will have, counted from
+--    the tree before it is made. A repeat writes its atom out once for
+--    each time (a{100} is 100 copies), and a lookbehind once for each
+--    distance, so nested counts multiply: (?:a{65535}){65535} would be
+--    about 4.3 billion. The count is a little more than the real one,
+--    never less.
+-- プログラムの命令が、だいたいいくつになるか。作る前に、木から数える。
+-- くり返しはアトムを回数ぶん書き出し（a{100} は 100 個の写し）、後読みは
+-- 下がる距離ごとに書き出すので、入れ子の回数はかけ算になる：
+-- (?:a{65535}){65535} は約 43 億。本物より少し多めに数え、少なくはしない
+programSize :: Pattern -> Integer
+programSize whole =
+  -- the pattern, and each called group's body once more, with Return
+  -- (compileTree writes them after Match)
+  -- パターンと、呼ばれるグループの中身をもう1度ずつ、Return と一緒に
+  -- （compileTree が Match のうしろに書く）
+  patternSize whole
+    + sum [ patternSize body + 2
+          | g <- calls whole, Just body <- [groupBody g whole] ]
+
+patternSize :: Pattern -> Integer
+patternSize (Pattern bs) =
+  sum (map branchSize (NE.toList bs)) + 3 * fromIntegral (length bs)
+  where
+    branchSize (Branch ps) = sum (map pieceSize ps)
+    pieceSize (Quantified a written) =
+      let Quantifier (Count least more) g = lookCount a written
+          copies = fromIntegral least + maybe 1 fromIntegral more
+          -- a*+ is fenced: two more (the fence and the cut)
+          -- a*+ は区切りの中：2つ多い（区切りと、切り捨て）
+          fence = if g == Possessive then 2 else 0
+      in  (atomSize a + 2) * max 1 copies + 2 + fence
+    pieceSize _ = 1
+    atomSize a = case a of
+      Group _ p          -> patternSize p + 2
+      Atomic p           -> patternSize p + 3
+      NoCase x           -> atomSize x
+      Look Ahead _ p     -> patternSize p + 4
+      Look Behind _ p    ->
+        sum [ (patternSize (Pattern (b NE.:| [])) + 3) * distances b
+            | b <- let Pattern xs = p in NE.toList xs ] + 4
+      _                  -> 1
+    distances b = fromIntegral (length (farthestFirst (branchWidth b)))
+
+-- 🧱 The most instructions MiniRegex makes a program of. A pattern
+--    that needs more is "not yet" (PCRE2 says error 120, "regular
+--    expression is too large", to the biggest of them; its program is
+--    made another way, so the line is not in the same place).
+-- MiniRegex がプログラムにする命令の数の上限。これより多く要るパターンは
+-- 「まだ」（いちばん大きなものには、PCRE2 もエラー 120「regular
+-- expression is too large」を言う。プログラムの作り方がちがうので、
+-- 線の位置は同じではない）
+programLimit :: Integer
+programLimit = 1000000
+-- ANCHOR_END: size
 
 -- ANCHOR: repeat
 -- 🔁 A repeat, the way the continuation matcher does it. The copies

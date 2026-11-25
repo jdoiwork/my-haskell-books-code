@@ -160,14 +160,21 @@ firstAtoms prog = case walk [0] IntSet.empty [] False of
 --    the order they are taken. For each instruction, what every way
 --    from it takes: at a split, only what both ways take. The loops
 --    make it go round, so start from "anything" (Nothing: no way to a
---    match is known yet) and narrow down until nothing changes.
+--    match is known yet) and narrow down until nothing changes. Each
+--    round makes every answer again, so a long program takes many
+--    rounds of long lists: above neededLimit instructions, say
+--    nothing (fewer is safe).
 -- 0 番から match までの、どの道でも食べる、ただの文字。食べる順に。
 -- 命令ごとに「そこからのどの道でも食べるもの」を求める。split では、
 -- 両方の道が食べるものだけ。輪があるので、「何でも」（Nothing：match
 -- へ行く道が、まだ見つかっていない）から始めて、変わらなくなるまで
--- 絞る
+-- 絞る。回るたびに全部の答えを作り直すので、長いプログラムでは、長い
+-- リストを何回も作る。neededLimit を超える命令の数なら、何も言わない
+-- （少なめに言うのは安全）
 neededChars :: Program -> [Char]
-neededChars prog = fromMaybe [] (settle start0 ! 0)
+neededChars prog
+  | hi - lo + 1 > neededLimit = []
+  | otherwise                 = fromMaybe [] (settle start0 ! 0)
   where
     (lo, hi) = bounds prog
     start0   = listArray (lo, hi) (replicate (hi - lo + 1) Nothing)
@@ -205,6 +212,13 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
       | x `elem` ys = x : common xs (delete x ys)
       | otherwise   = common xs ys
     -- ANCHOR_END: common
+
+-- 📏 Up to how many instructions to look for the needed characters
+--    ((?:a|b){1000}c, 3,000 instructions, took 11 seconds).
+-- 必ず要る文字を、命令がいくつまでのプログラムで調べるか
+-- （3,000 命令の (?:a|b){1000}c は 11 秒かかった）
+neededLimit :: Int
+neededLimit = 1000
 -- ANCHOR_END: needed
 
 -- ANCHOR: places
@@ -234,6 +248,9 @@ places pf c
 -- t が始まる場所を、Text の検索（breakOn）で。次の検索は、1文字先から。
 -- t は、自分と重なることがあるから
 textPlaces :: Text -> Cursor -> [Cursor]
+textPlaces t c
+  -- the empty t starts everywhere / 空の t は、どこでも始まる
+  | T.null t = onwards c
 textPlaces t c = case T.breakOn t (rest c) of
   (_, found) | T.null found -> []
   (skipped, _) ->
@@ -266,8 +283,10 @@ kmpTable t = table
 -- 合っているかを持ち回る。t が始まるしおりは、終わるしおりより
 -- m − 1 文字前なので、しおりと状態を m − 1 ずらして並べて歩く
 kmpPlaces :: Text -> Cursor -> [Cursor]
-kmpPlaces t c =
-  [ d | (d, k) <- zip cursors (drop (m - 1) states), k == m ]
+kmpPlaces t c
+  -- the empty t starts everywhere / 空の t は、どこでも始まる
+  | T.null t  = onwards c
+  | otherwise = [ d | (d, k) <- zip cursors (drop (m - 1) states), k == m ]
   where
     m       = T.length t
     p       = listArray (0, m - 1) (T.unpack t) :: Array Int Char

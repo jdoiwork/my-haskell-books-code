@@ -9,7 +9,10 @@
 -- UTF-8 のバイトの配列で持っているので、バイトの場所があれば、すぐ先の
 -- 文字も、すぐ前の文字も、ここから先も、頭から数えずに、すぐ読める
 module MiniRegex.Cursor
-  ( Cursor (at, byte, whole)
+  ( Cursor
+  , at
+  , byte
+  , whole
   , cursorAt
   , headOf
   , before
@@ -31,13 +34,25 @@ import Data.Text.Unsafe (Iter (..), dropWord8, iter, lengthWord8,
 -- ANCHOR_END: imports
 
 -- ANCHOR: cursor
--- 🔖 A place in the text.
--- 文字列の中の、ある場所
-data Cursor = Cursor
-  { at    :: !Int   -- how many characters are behind / 何文字目か
-  , byte  :: !Int   -- how many bytes are behind / 何バイト目か
-  , whole :: !Text  -- all of it / 文字列の全体
-  }
+-- 🔖 A place in the text: how many characters are behind, how many
+--    bytes, and all of the text. Not a record with fields, and its
+--    constructor stays in this module: a field could be used outside to
+--    change one number and not the other (c { byte = 1 }), and the
+--    cursor would no longer be at a character's edge.
+-- 文字列の中の、ある場所：うしろに何文字あるか、何バイトあるか、文字列の
+-- 全体。フィールドのあるレコードにはせず、構成子もこのモジュールの中だけ。
+-- フィールドだと、外で片方の数だけを書き換えて（c { byte = 1 }）、文字の
+-- 境目でないしおりを作れてしまう
+data Cursor = Cursor !Int !Int !Text
+
+-- 📏 What a cursor holds, read only.
+-- しおりの持ち物。読むだけ
+at, byte :: Cursor -> Int
+at   (Cursor n _ _) = n
+byte (Cursor _ b _) = b
+
+whole :: Cursor -> Text
+whole (Cursor _ _ t) = t
 
 -- 🪞 Two cursors are the same when they are at the same place.
 -- 2つのしおりは、同じ場所にあれば同じ
@@ -102,12 +117,20 @@ onwards c = c : maybe [] (onwards . snd) (step c)
 -- ✂️ The characters from one cursor up to a later one: a slice, too.
 -- しおりから、あとのしおりまでの文字。これも切れ端
 taken :: Cursor -> Cursor -> Text
-taken from to = takeWord8 (byte to - byte from) (rest from)
+-- (a later cursor first gives the empty text, as T.take did: no Text of
+-- a length below 0 gets out)
+-- （うしろのしおりを先に渡したら空。T.take と同じ。長さが負の Text は
+-- 出さない）
+taken from to = takeWord8 (max 0 (byte to - byte from)) (rest from)
 
 -- 🦘 A later place in the same text, n characters and k bytes ahead.
--- 同じ文字列の、n 文字・k バイト先の場所
+--    The caller makes the promise: the k bytes ahead are n whole
+--    characters (stepOver and textPlaces count them from a Text).
+-- 同じ文字列の、n 文字・k バイト先の場所。呼ぶ側が約束する：この先の
+-- k バイトは、ちょうど n 文字（stepOver と textPlaces は、Text から
+-- 数えた数を渡す）
 jumpTo :: Int -> Int -> Cursor -> Cursor
-jumpTo n k c = c { at = at c + n, byte = byte c + k }
+jumpTo n k (Cursor a b t) = Cursor (a + n) (b + k) t
 -- ANCHOR_END: walk
 
 -- ANCHOR: over

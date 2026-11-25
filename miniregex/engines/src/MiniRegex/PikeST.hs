@@ -35,6 +35,7 @@ import Data.Vector.Unboxed.Mutable qualified as MU
 
 import MiniRegex.Caps (Caps)
 import MiniRegex.Cursor hiding (before, rest)
+import MiniRegex.Pike (Loops, loopsOf)
 import MiniRegex.Program
 import MiniRegex.Rules (fitsChar, holds)
 import MiniRegex.STVM (slotsOf)
@@ -152,6 +153,7 @@ data Env s = Env
   { prog     :: !Program
   , lay      :: !Layout
   , hasMarks :: !Bool
+  , loops    :: !Loops  -- the repeat of each mark / 印ごとのくり返し
   , accept   :: Cursor -> Bool
   , scratch  :: !(MU.MVector s Int)
   , todo     :: !(MU.MVector s Int)
@@ -172,7 +174,8 @@ scanPikeST program limit ok places@(first : _) = runST $ do
       size   = length (instructions program)
   now   <- newGen size layout
   later <- newGen size layout
-  env <- Env program layout (any isMark (instructions program)) ok
+  env <- Env program layout (any isMark (instructions program))
+             (loopsOf program) ok
            <$> MU.replicate (width layout) (-1)
            <*> MU.replicate (2 * (4 * size + 1)) 0
   run env first places now later limit Nothing
@@ -342,7 +345,7 @@ follow env gen c pc0 left0 = explore 0 pc0 left0
     -- ちょうどここに印があるものは、Set へ
     fresh pc
       | hasMarks env && not (waits (unsafeAt (prog env) pc)) = do
-          here <- marksHere
+          here <- marksHere pc
           if null here then firstVisit gen pc else do
             s <- readSTRef (marked gen)
             if Set.member (pc, here) s
@@ -351,9 +354,18 @@ follow env gen c pc0 left0 = explore 0 pc0 left0
                 modifySTRef' (marked gen) (Set.insert (pc, here))
                 pure True
       | otherwise = firstVisit gen pc
-    marksHere = do
+    -- only the marks of the repeats this thread is inside, as in the
+    -- Pike VM's stateAt (with every mark, k repeats in a row that can
+    -- take nothing would make 2^k states)
+    -- このスレッドがいま中にいるくり返しの印だけ。Pike VM の stateAt と同じ
+    -- （全部の印だと、何も食べずに済むくり返しを k 個並べただけで 2 の k 乗）
+    marksHere pc = do
       ms <- mapM (MU.unsafeRead sc . markSlot lo) [0 .. marksIn lo - 1]
-      pure [k | (k, p) <- zip [0 ..] ms, p == at c]
+      pure [k | (k, p) <- zip [0 ..] ms, p == at c, inside k]
+      where
+        inside k = case IntMap.lookup k (loops env) of
+          Just (from, to) -> from < pc && pc <= to
+          Nothing         -> True
     waits i = case i of
       Take _    -> True
       TakeAll _ -> True
