@@ -26,6 +26,7 @@ import MiniRegex.Continuation (farthestFirst, numbered)
 import MiniRegex.Groups (branchGroups, pieceGroups)
 import MiniRegex.Pretty (render)
 import MiniRegex.Program
+import MiniRegex.Rules (lookCount)
 import MiniRegex.Syntax
 import MiniRegex.Width (branchWidth)
 -- ANCHOR_END: imports
@@ -128,10 +129,14 @@ alternatives parts = do
 piece :: Int -> Piece -> Asm [Line]
 piece _ (Anchor a) = pure [Do (Assert a)]
 piece _ KeepOut    = pure [Do Keep]
-piece n (Quantified a q)
+piece n (Quantified a written)
   | greed q == Possessive =
       atomic (repeatAtom q { greed = Greedy } (atom n a))
   | otherwise = repeatAtom q (atom n a)
+  where
+    -- (?=…)+ goes round once more at most: lookCount in Rules
+    -- (?=…)+ は、多くても、もう1回だけ回る（Rules の lookCount）
+    q = lookCount a written
 -- ANCHOR_END: piece
 
 -- ANCHOR: atom

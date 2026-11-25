@@ -98,11 +98,12 @@ data Option
 
 -- ANCHOR: error
 -- 🚧 A pattern that cannot be compiled, and where (the character
---    position in the pattern). A wrong pattern, and a pattern that is
---    fine but that MiniRegex cannot run yet, are told apart.
+--    position in the pattern). A wrong pattern, and a pattern with
+--    something MiniRegex cannot run yet, are told apart (the second
+--    does not say the pattern is right).
 -- コンパイルできなかったパターンと、その場所（パターンの何文字目か）。
--- まちがったパターンと、正しいけれど MiniRegex がまだ扱えないパターンを
--- 分けておく
+-- まちがったパターンと、MiniRegex がまだ扱えないものを含むパターンを
+-- 分けておく（あとのほうは、パターンが正しいとは言っていない）
 data RegexError
   = Invalid     Int Text
   | Unsupported Int Text
