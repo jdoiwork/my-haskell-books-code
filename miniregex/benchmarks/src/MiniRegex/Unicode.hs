@@ -21,8 +21,8 @@ module MiniRegex.Unicode
 import Data.Char
   ( GeneralCategory (..), generalCategory, isAsciiLower, isAsciiUpper
   , chr, isAscii, isDigit, isHexDigit, ord, toLower, toUpper )
-import Unicode.Char.General.Scripts (Script, script, scriptExtensions,
-  scriptShortName)
+import Unicode.Char.General.Scripts (Script (Coptic, Inherited), script,
+  scriptExtensions, scriptShortName)
 
 -- Tables
 -- 表
@@ -192,10 +192,13 @@ posix AllUnicode name c = case name of
   "upper"  -> category "Lu"
   "word"   -> property "Xwd"
   -- letters, marks, numbers, punctuation, symbols, and the format
-  -- characters, but for four kinds of invisible marks
+  -- characters, but for some invisible marks. (The manual says that
+  -- print is graph and Zs, but PCRE2 10.49 leaves U+180E out of graph
+  -- only.)
   -- 文字・結合文字・数字・句読点・記号・書式の文字。ただし、目に見えない
-  -- 4種類の印は外す
-  "graph"  -> graphic
+  -- 印のいくつかは外す（説明書は「print は graph と Zs」と言うが、
+  -- PCRE2 10.49 が U+180E を外すのは graph だけ）
+  "graph"  -> graphic && c /= '\x180E'
   "print"  -> graphic || generalCategory c == Space
   -- (the manual says "S below 256", but PCRE2 10.49 takes S below 128)
   -- （説明書は「256 より下の S」と言うが、PCRE2 10.49 は 128 より下）
@@ -206,7 +209,7 @@ posix AllUnicode name c = case name of
     category n = hasProperty (Category n) c
     property n = hasProperty (Special n) c
     graphic = any category ["L", "M", "N", "P", "S", "Cf"]
-                && c `notElem` ("\x61C\x180E" ++ ['\x2066' .. '\x2069'])
+                && c `notElem` ('\x61C' : ['\x2066' .. '\x2069'])
     fullWidthHex = c `elem` (['\xFF10' .. '\xFF19'] ++ ['\xFF21' .. '\xFF26']
                                ++ ['\xFF41' .. '\xFF46'])
 -- ANCHOR_END: posix
@@ -230,6 +233,11 @@ hasProperty p c = case p of
   Special "Xwd"   -> letter || number
                        || hasProperty (Category "Mn") c
                        || hasProperty (Category "Pc") c
+  -- the characters a universal character name (\u00E9 in C) can
+  -- stand for: $ @ ` and from U+00A0 on (Char has no surrogates)
+  -- 「ユニバーサル文字名」（C の \u00E9）で書ける文字：$ @ ` と、U+00A0
+  -- から先（Char にサロゲートはない）
+  Special "Xuc"   -> c `elem` ("$@`" :: String) || c >= '\xA0'
   Special _       -> False
   where
     letter    = hasProperty (Category "L") c
@@ -282,7 +290,8 @@ propertyNamed written = case T.breakOn ":" loose of
     categories = [ (T.toLower n, n)
                  | n <- map fst categoryNames
                           ++ ["C", "L", "M", "N", "P", "S", "Z"] ]
-    specials = [(T.toLower n, n) | n <- ["Xan", "Xps", "Xsp", "Xwd"]]
+    specials = [ (T.toLower n, n)
+               | n <- ["Xan", "Xps", "Xsp", "Xuc", "Xwd"] ]
 
 -- 📜 A script, by its long name (Hiragana) or its four letters (Hira).
 -- 文字体系を、長い名前（Hiragana）か4文字の名前（Hira）で
@@ -293,7 +302,10 @@ scriptsByName :: Map Text Script
 scriptsByName = Map.fromList
   (concat [ [(T.toLower (T.pack (show s)), s)
             , (T.toLower (T.pack (scriptShortName s)), s)]
-          | s <- [minBound .. maxBound] ])
+          | s <- [minBound .. maxBound] ]
+     -- two more short names that Unicode keeps for old times
+     -- Unicode が昔のために残している、もう2つの短い名前
+     ++ [("qaai", Inherited), ("qaac", Coptic)])
 -- ANCHOR_END: property
 
 -- ANCHOR: space

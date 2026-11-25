@@ -51,7 +51,7 @@ import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Bounded (boundedFits, canBound, scanBounded)
 import MiniRegex.Candidates (ends)
 import MiniRegex.Caps
-import MiniRegex.Compile (compileTree, showInst)
+import MiniRegex.Compile (compileTree, programLimit, programSize, showInst)
 import MiniRegex.Continuation (matchAt)
 import MiniRegex.Cursor hiding (before, rest)
 import MiniRegex.Groups (groupCount, groupNames)
@@ -68,11 +68,18 @@ import MiniRegex.VM
 
 -- ANCHOR: compile
 -- 🏗️ Read a pattern into a tree, with the parser (the flags go into
---    the tree). The program is made from the tree, by compileTree.
+--    the tree). The program is made from the tree, by compileTree. A
+--    tree whose program would be too big is "not yet": the limit on
+--    the steps cannot stop a program that is still being made.
 -- パーサーでパターンを読んで木にする（フラグも木に入る）。プログラムは、
--- その木から compileTree が作る
+-- その木から compileTree が作る。プログラムが大きくなりすぎる木は「まだ」：
+-- ステップ数の上限では、作っている途中のプログラムは止められない
 compilePattern :: [Option] -> Text -> Either RegexError Pattern
-compilePattern = parsePattern
+compilePattern opts src = do
+  tree <- parsePattern opts src
+  if programSize tree > programLimit
+    then Left (Unsupported 0 "pattern too large for the VM")
+    else Right tree
 -- ANCHOR_END: compile
 
 -- ANCHOR: choose
@@ -118,35 +125,43 @@ scanShortFirst prog limit accept tries = case tries of
 
 -- ANCHOR: switching
 -- 🔀 Backtracking first, the Pike VM if it takes too long. The
---    backtracking VM gets as many steps as the Pike VM could take at
---    worst (budgetFor); if they run out, the Pike VM goes on from the
---    place where they ran out (no match starts before it), with the
---    steps that are left. Most searches end within the budget, at the
---    backtracking VM's speed; the others cost at most about twice the
---    Pike VM's worst, so still linear time.
+--    backtracking VM gets a budget of steps (budgetFor); if they run
+--    out, the Pike VM goes on from the place where they ran out (no
+--    match starts before it), with the steps that are left. Most
+--    searches end within the budget, at the backtracking VM's speed;
+--    the others cost the budget and then the Pike VM's steps, and both
+--    grow with the text only in proportion: still linear time.
 -- まずバックトラック、時間がかかりすぎたら Pike VM。バックトラックの VM
--- には、Pike VM が最悪でもかかるステップ数（budgetFor）だけ渡す。尽きたら、
--- 尽きた場所から（そこより前に始まる一致はない）Pike VM が残りのステップ数で
--- 続ける。たいていの探しものは予算のうちに、バックトラックの VM の速さで
--- 終わる。そうでないものも、Pike VM の最悪の2倍ほどで済むので、やはり
--- 線形時間
+-- には、予算のステップ数（budgetFor）だけ渡す。尽きたら、尽きた場所から
+-- （そこより前に始まる一致はない）Pike VM が残りのステップ数で続ける。
+-- たいていの探しものは予算のうちに、バックトラックの VM の速さで終わる。
+-- そうでないものも、予算と Pike VM のステップ数の和で、どちらも文字列の
+-- 長さに比例するだけなので、やはり線形時間
 scanSwitching :: Runner
 scanSwitching prog limit accept tries = case tries of
   [] -> (Nothing, NotFound, limit)
-  first : _
-    | budget >= limit -> scanVMST prog limit accept tries
-    | otherwise -> case scanVMSTUntil prog budget accept tries of
-        Left rest -> scanPikeST prog (limit - budget) accept rest
-        Right (o, answer, left) -> (o, answer, limit - budget + left)
+  first : _ -> case scanVMSTUntil prog budget accept tries of
+    Left rest -> scanPikeST prog (limit - budget) accept rest
+    Right (o, answer, left) -> (o, answer, limit - budget + left)
     where
-      budget = budgetFor prog first
+      -- the budget is paid out of the limit: at most a quarter of it,
+      -- so that the Pike VM always has three quarters left (on a long
+      -- text, the whole budget would leave it almost nothing)
+      -- 予算は上限の中から払う：多くても4分の1。Pike VM には、いつも
+      -- 4分の3が残る（長い文字列で予算をまるごと払うと、ほとんど残らない）
+      budget = min (budgetFor prog first) (limit `div` 4)
 
--- 💰 The steps the Pike VM could take at worst from this place: each
---    instruction once at each place, twice over (once to follow, once
---    to move on). Bytes are counted, not characters: no need to count
+-- 💰 The budget from this place: each instruction once at each place,
+--    twice over (once to follow, once to move on). That is the Pike
+--    VM's worst only with no marks: with marks just here, a state is an
+--    instruction and its marks, and there can be more states than
+--    instructions. As a budget it is fine: it grows with the text in
+--    proportion. Bytes are counted, not characters: no need to count
 --    from the head, and there are never fewer bytes than characters.
--- この場所から、Pike VM が最悪でもかかるステップ数：どの命令も、場所ごとに
--- 1度ずつ、それを2回分（たどるのと、進めるのと）。数えるのは文字では
+-- この場所からの予算：どの命令も、場所ごとに1度ずつ、それを2回分（たどる
+-- のと、進めるのと）。Pike VM の最悪になるのは、印がないときだけ。ちょうど
+-- ここに印があると、状態は「命令と印」で、命令より多くなりうる。予算として
+-- は、これでよい：文字列の長さに比例して増えるだけ。数えるのは文字では
 -- なくバイト：頭から数えずに済み、バイトが文字より少ないことはない
 budgetFor :: Program -> Cursor -> Int
 budgetFor prog c =
@@ -169,11 +184,12 @@ type Runner
 
 -- ANCHOR: counting
 -- 🔦 The first match that starts at `from` or later, with a VM. All the
---    places share one limit on the steps, as PCRE2's match limit does.
---    Gives back the steps used, too.
+--    places share one limit on the steps (PCRE2 starts its count again
+--    at each place: MiniRegex's limit is for the whole search). Gives
+--    back the steps used, too.
 -- from の位置か、それより後ろで始まる、最初の一致を VM で。どの場所も、
--- 1つの上限を分け合う（PCRE2 の上限と同じ）。使ったステップ数も
--- 返す
+-- 1つの上限を分け合う（PCRE2 は場所ごとに数え直す。MiniRegex の上限は、
+-- 探し全体のもの）。使ったステップ数も返す
 searchCountingBy
   :: Runner -> Int -> Regex -> Text -> Int
   -> (Either GaveUp (Maybe Match), Int)

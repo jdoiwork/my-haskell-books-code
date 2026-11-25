@@ -2,14 +2,16 @@
 -- | The Pike VM. It runs the same program as the backtracking VM, but
 --   it never goes back: it keeps every place in the program it could be
 --   at, as threads, and moves them all on by one character together.
---   Two threads at the same state are one, so the threads are never
---   more than the instructions, and the time grows in proportion to
---   the length of the text. Programs with back references, calls,
---   fences or lookbehinds cannot run on it.
+--   Two threads at the same state (the instruction, and the marks that
+--   are just here) are one, so the threads are never more than the
+--   states, a number that the program fixes, and the time grows in
+--   proportion to the length of the text. Programs with back
+--   references, calls, fences or lookbehinds cannot run on it.
 -- Pike VM。バックトラックの VM と同じプログラムを動かすが、決して戻らない。
 -- プログラムの中で、いま居られる場所を全部スレッドとして持ち、全員を
--- いっしょに1文字ずつ進める。同じ状態のスレッドは1つにまとめるので、
--- スレッドの数は命令の数を超えず、時間は文字列の長さに比例して伸びる。
+-- いっしょに1文字ずつ進める。同じ状態（命令と、ちょうどここにある印）の
+-- スレッドは1つにまとめるので、スレッドの数は、プログラムで決まる状態の
+-- 数を超えず、時間は文字列の長さに比例して伸びる。
 -- 後方参照・呼び出し・区切り・後読みのあるプログラムは、動かせない
 module MiniRegex.Pike
   ( Thread (..)
@@ -17,6 +19,8 @@ module MiniRegex.Pike
   , scanPike
   , blocker
   , runnable
+  , Loops
+  , loopsOf
   ) where
 
 -- ANCHOR: imports
@@ -96,11 +100,37 @@ data Crowd = Crowd
 -- 🔑 The state of a thread at a place: the instruction, and which
 --    marks are just here. Nothing else can change what it does next
 --    (the groups are only written, never read: there is no ref).
+--    Only the marks of the repeats the thread is inside count: a mark
+--    is read by its ifstill at the end of its repeat, and a thread
+--    that comes into the repeat again goes through its mark first,
+--    which writes it again. (With every mark, k repeats in a row that
+--    can take nothing would make 2^k states.)
 -- ある場所でのスレッドの状態：命令と、どの印がちょうどここにあるか。
 -- これからの動きを変えるものは、ほかにない（グループは書くだけで、
--- 読まれない。ref がないから）
-stateAt :: Cursor -> Thread -> (Int, [Mark])
-stateAt c t = (pc t, [m | (m, p) <- IntMap.toList (marks t), p == at c])
+-- 読まれない。ref がないから）。数えるのは、スレッドがいま中にいる
+-- くり返しの印だけ。印を読むのは、くり返しの終わりの ifstill で、
+-- くり返しに入り直すスレッドは、先に mark を通って、印を書き直すから
+-- （全部の印を数えると、何も食べずに済むくり返しを k 個並べただけで、
+-- 状態が 2 の k 乗になる）
+stateAt :: Loops -> Cursor -> Thread -> (Int, [Mark])
+stateAt loops c t =
+  (pc t, [m | (m, p) <- IntMap.toList (marks t), p == at c, inside m])
+  where
+    inside m = case IntMap.lookup m loops of
+      Just (from, to) -> from < pc t && pc t <= to
+      Nothing         -> True
+
+-- 🔁 The repeat of each mark: where its mark is (mark m), and where
+--    its ifstill is (ifstill m). The inside is between them.
+-- 印ごとのくり返し：mark m の番地と、ifstill m の番地。そのあいだが中
+type Loops = IntMap (Int, Int)
+
+loopsOf :: Program -> Loops
+loopsOf prog = IntMap.intersectionWith (,) marked checked
+  where
+    numbered = zip [0 ..] (instructions prog)
+    marked   = IntMap.fromList [(m, i) | (i, SetMark m)   <- numbered]
+    checked  = IntMap.fromList [(m, i) | (i, IfStill m _) <- numbered]
 -- ANCHOR_END: state
 
 -- ANCHOR: follow
@@ -112,8 +142,8 @@ stateAt c t = (pc t, [m | (m, p) <- IntMap.toList (marks t), p == at c])
 -- 場所 c にスレッドを足し、文字を食べない命令を、よい道から順にたどる。
 -- take か match で待つまで。c でもう使われた状態には、もう入らない。
 -- 先に来たスレッドのほうがよいから。たどった命令1つが1ステップ
-follow :: Program -> Cursor -> Thread -> Crowd -> Crowd
-follow prog c t crowd
+follow :: Program -> Loops -> Cursor -> Thread -> Crowd -> Crowd
+follow prog loops c t crowd
   | left crowd < 0                  = crowd
   | Set.member state (visited crowd)    = crowd
   | otherwise = case prog ! pc t of
@@ -124,8 +154,10 @@ follow prog c t crowd
         | otherwise -> spent
       -- the first way, then the second: the order is the priority
       -- 1つ目の道、それから2つ目。この順番が、優先の順番
-      Split a b -> follow prog c t { pc = b } (follow prog c t { pc = a } spent)
-      Jmp a     -> follow prog c t { pc = a } spent
+      Split a b ->
+        follow prog loops c t { pc = b }
+          (follow prog loops c t { pc = a } spent)
+      Jmp a     -> follow prog loops c t { pc = a } spent
       Open g    -> next t { opens = IntMap.insert g c (opens t) } marked
       Close g   -> case IntMap.lookup g (opens t) of
         Just from -> next t { caps = remember g from c (caps t) } marked
@@ -134,7 +166,7 @@ follow prog c t crowd
       SetMark m -> next t { marks = IntMap.insert m (at c) (marks t) } marked
       IfStill m a
         | IntMap.lookup m (marks t) == Just (at c) ->
-            follow prog c t { pc = a } spent
+            follow prog loops c t { pc = a } spent
         | otherwise -> next t marked
       -- Wait here to take one more, and (worse) go on without.
       -- ここで、もう1文字食べるのを待つ。それより悪い道として、
@@ -142,13 +174,13 @@ follow prog c t crowd
       TakeAll _ -> next t (wait)
       other -> error ("the Pike VM cannot run " ++ show (() <$ other))
   where
-    state  = stateAt c t
+    state  = stateAt loops c t
     marked = crowd { visited = Set.insert state (visited crowd) }
     -- wait here for the next character (the step is counted then)
     -- ここで次の文字を待つ（ステップ数は、そのときに数える）
     wait   = marked { waiting = t : waiting marked }
     spent  = spend marked
-    next t' cr = follow prog c t' { pc = pc t + 1 } (spend cr)
+    next t' cr = follow prog loops c t' { pc = pc t + 1 } (spend cr)
 
 -- 👣 One step. With none left, the crowd has run out.
 -- 1ステップ使う。もう残っていなければ、尽きた印を付ける
@@ -192,7 +224,9 @@ scanPike prog limit accept places@(first : _) =
         -- ここで始まる一致のスレッドを、いちばん最後に
         (crowd', todo') = case (best, todo) of
           (Nothing, p : ps) | at p == at c ->
-            (follow prog c (Thread 0 c noCaps IntMap.empty IntMap.empty) crowd, ps)
+            ( follow prog loops c
+                (Thread 0 c noCaps IntMap.empty IntMap.empty) crowd
+            , ps )
           _ -> (crowd, todo)
         -- move every thread on by the character here
         -- 全員を、ここの文字で進める
@@ -203,6 +237,7 @@ scanPike prog limit accept places@(first : _) =
           Nothing           -> (Nothing, NotFound, left after)
 
     fresh = Crowd [] Set.empty
+    loops = loopsOf prog
 
     -- 🏃 Run the waiting threads at c, best first. A take that fits
     --    goes on to the next place; a match is kept, and the threads
@@ -221,13 +256,14 @@ scanPike prog limit accept places@(first : _) =
             | otherwise -> advance c ts counted best
           Take a -> case step c of
             Just (x, c') | fitsChar a x ->
-              advance c ts (follow prog c' t { pc = pc t + 1 } counted) best
+              advance c ts
+                (follow prog loops c' t { pc = pc t + 1 } counted) best
             _ -> advance c ts counted best
           -- one more: the thread stays at the takeall
           -- もう1文字：スレッドは takeall にとどまる
           TakeAll a -> case step c of
             Just (x, c') | fitsChar a x ->
-              advance c ts (follow prog c' t counted) best
+              advance c ts (follow prog loops c' t counted) best
             _ -> advance c ts counted best
           _ -> advance c ts counted best  -- (not reached / 来ない)
       where
