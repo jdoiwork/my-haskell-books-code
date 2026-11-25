@@ -1216,6 +1216,17 @@ main = hspec $ do
     it "finds every newline with \\R" $
       length (findAll (surely "\\R") "a\vb\fc\x2028\&d\x2029\&e\x85\&f")
         `shouldBe` 5
+    -- the chapter's other GHCi examples, kept as examples
+    -- 章のほかの GHCi の例も、例として固めておく
+    all' "\\Bx\\B" "axb x" ["x"]
+    all' "(?<!price:)\\b\\d+" "price:12 34" ["34"]
+    all' "(?<=-)\\d+" "1-2-3" ["2", "3"]          -- a lookbehind can look back
+    all' "\\d+-\\K\\d+" "1-2-3" ["2"]           -- \\K's front is eaten
+    all' "\\d+(?!\\d| gold)" "300 gold 5" ["5"]
+    all' "(?<=a)b|a(?=b)" "ab" ["a", "b"]
+    all' "x\\K\\d" "x1 x2 3" ["1", "2"]
+    it "does not give back what (?>a*) took" $
+      isMatch (surely "(?>a*)a") "aaa" `shouldBe` False
     it "reads \\B with (?aW) as ASCII" $ do
       map fst (places "(?aW)\\B" "é") `shouldBe` [0, 1]
       places "\\B" "é" `shouldBe` []
