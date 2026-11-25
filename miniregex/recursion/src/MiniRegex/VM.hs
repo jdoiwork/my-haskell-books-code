@@ -178,9 +178,13 @@ runVM prog limit accept start =
         -- 同じグループの呼び出しが、同じ場所で、同じグループの値で、前にも
         -- あった：ここから先は、いつまでも同じになる（場所だけでは足りない。
         -- 「見る」ものがグループを伸ばしていれば、呼び出しは終わる）
+        -- (the places only go down, deeper into the list: only the calls
+        -- at this same place, at its head, need looking at)
+        -- （場所は、リストの奥へ向かって小さくなるだけ：見るのは、頭の、
+        -- 同じ場所の呼び出しだけ）
         looping g fs =
-          any (\f -> calledAs f == g && calledAt f == here
-                       && oldCaps f == caps t) fs
+          any (\f -> calledAs f == g && oldCaps f == caps t)
+              (takeWhile ((== here) . calledAt) fs)
         -- ANCHOR_END: looping
       -- ANCHOR_END: where
 

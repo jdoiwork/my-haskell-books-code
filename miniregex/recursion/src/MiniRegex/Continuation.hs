@@ -163,12 +163,12 @@ run whole = matcher [] 1 whole
         -- ANCHOR: call
         -- (?1): run group 1's pattern from here, inside one more call;
         -- coming back, the groups are as they were before the call.
-        -- The same group at the same place again would go round for
-        -- ever: give up, as PCRE2 does.
+        -- The same group at the same place, with the same groups, again
+        -- would go round for ever: give up (PCRE2 gives up, too).
         -- (?1)：1番のグループのパターンを、ここから、呼び出しを1つ
         -- 積んで動かす。戻ってきたら、グループは呼ぶ前の値に。同じ
-        -- グループを同じ場所でまた呼ぶと、いつまでも回るので、PCRE2 と
-        -- 同じく、あきらめる
+        -- グループを、同じ場所で、同じグループの値のまま、また呼ぶと、
+        -- いつまでも回るので、あきらめる（PCRE2 も、あきらめる）
         atom _ (Call g) k c caps
           | looping   = throw (Looping g (at c))
           | otherwise = case groupBody g whole of
@@ -179,7 +179,11 @@ run whole = matcher [] 1 whole
           where
             -- the same group, place and groups as a call before
             -- 前の呼び出しと、同じグループ・場所・グループの値
-            looping = (g, at c, caps) `elem` inside
+            -- (only the calls at this same place, at the list's head)
+            -- （見るのは、リストの頭の、同じ場所の呼び出しだけ）
+            looping = (g, caps) `elem`
+              [ (h, cs)
+              | (h, _, cs) <- takeWhile (\(_, p, _) -> p == at c) inside ]
         -- ANCHOR_END: call
         atom _ a k c caps = case step c of
           Just (x, c') | fitsChar a x -> k c' caps

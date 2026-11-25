@@ -30,3 +30,22 @@
 
 /\((?:[^()]++|(?R))*\)/
     (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa()
+
+# The same place, but a look makes group 2 grow: the calls end
+# 同じ場所だが、「見る」ものがグループ2を伸ばす：呼び出しは終わる
+/^(?<r>(?=(\2a|a))(?:\2$|(?&r)))$/
+    aaa
+
+# \K in a called group counts
+# 呼んだグループの中の \K も効く
+/(a\Kb)?c(?1)/
+    cab
+
+# A DEFINE group has one branch only
+# DEFINE のグループの枝は1本だけ
+/(?(DEFINE)a|b)/
+
+# The answer of step 1
+# ステップ1の解答
+/(a|(?1)b)/
+    b

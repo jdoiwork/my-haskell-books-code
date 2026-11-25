@@ -119,12 +119,14 @@ errorOffset (Unsupported at _) = at
 -- ANCHOR: gaveup
 -- 🏳️ The VM gave up. GaveUp n: it took n steps and had not finished
 --    (PCRE2's error -47, "match limit exceeded"). Looping g p: in a call
---    of group g at place p, it called g at p again, and would go round
---    for ever (PCRE2's error -52, "nested recursion at the same subject
---    position"). From the chapter on recursion.
+--    of group g at place p, it called g at p again, with the same
+--    groups, and would go round for ever (PCRE2's error -52, "nested
+--    recursion at the same subject position"). From the chapter on
+--    recursion.
 -- VM があきらめた。GaveUp n：n ステップを使っても、終わらなかった（PCRE2 の
 -- error -47「match limit exceeded」）。Looping g p：場所 p で g を
--- 呼んだ中で、また p で g を呼んだ。いつまでも回り続ける（PCRE2 の
+-- 呼んだ中で、また p で、同じグループの値のまま g を呼んだ。いつまでも
+-- 回り続ける（PCRE2 の
 -- error -52「nested recursion at the same subject position」）。
 -- 再帰の章から
 data GaveUp

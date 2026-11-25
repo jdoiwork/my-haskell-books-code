@@ -1385,6 +1385,11 @@ relative afterG end sign n = do
     Nothing           -> byNumber end n
     Just _ | n == 0   ->
       invalid afterG "a relative value of zero is not allowed"  -- 126
+    -- back past the first group: no group there, told at once (PCRE2
+    -- does not wait for the second reading)
+    -- 最初のグループより前を指す：そこにグループはないので、すぐに言う
+    -- （PCRE2 は、2回目の読みを待たない）
+    Just '-' | o + 1 - n < 1 -> nonExistent end
     Just '-'          -> byNumber end (o + 1 - n)
     Just _            -> byNumber end (o + n)
 
@@ -1458,6 +1463,7 @@ callGroup = do
       -- 大きすぎる数は、) より先に言う（PCRE2 と同じ）
       when (n > 65535) $
         invalid end "subpattern number is too big"  -- 161
+      backPastFirst sign n end
       returning end "(?n("
       closed <- option False (True <$ char ')')
       when (not closed) $
@@ -1470,6 +1476,15 @@ callGroup = do
         returning nameEnd "(?&name("
         invalid nameEnd "missing closing parenthesis"  -- 114
       callByName start n
+
+-- ⏮️ (?-n) and \g<-n> back past the first group: no group there, told
+--    at once, before the closing ) or > (as PCRE2 does).
+-- (?-n) と \g<-n> が、最初のグループより前を指す：そこにグループはないので、
+-- 閉じる ) や > より先に、すぐに言う（PCRE2 と同じ）
+backPastFirst :: Maybe Char -> Integer -> Int -> Parser ()
+backPastFirst sign n at = do
+  o <- toInteger <$> gets opened
+  when (sign == Just '-' && o + 1 - n < 1) $ nonExistent at
 
 -- 🎁 (?1(2,<name>)): a call that gives back some groups (PCRE2 10.47).
 --    Not yet.
@@ -1506,6 +1521,7 @@ gCall afterG open = do
       -- 大きすぎる数は、先に、\g のすぐうしろで言う（PCRE2 と同じ）
       when (n > 65535) $
         invalid afterG "subpattern number is too big"  -- 161
+      backPastFirst sign n afterG
       closed <- option False (True <$ char close)
       when (not closed) $
         invalid numEnd

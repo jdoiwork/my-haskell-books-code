@@ -181,11 +181,15 @@ walk search nonEmpty len = go 0
     next m
       | matchStart m == matchEnd m = (m :) <$> afterEmpty (matchEnd m)
       | otherwise                  = (m :) <$> go (matchEnd m)
-    afterEmpty here = nonEmpty here >>= \case
-      Just m                -> next m
-      Nothing
-        | here < len        -> go (here + 1)
-        | otherwise         -> pure []
+    -- (at the end there is no match that is not empty: PCRE2 does not
+    -- look, and a recursion there could only go round)
+    -- （終わりには、空でない一致はない：PCRE2 も探さない。探すと、
+    -- 再帰がそこで回るだけ）
+    afterEmpty here
+      | here >= len = pure []
+      | otherwise   = nonEmpty here >>= \case
+          Just m  -> next m
+          Nothing -> go (here + 1)
 -- ANCHOR_END: findall
 
 -- ANCHOR: within

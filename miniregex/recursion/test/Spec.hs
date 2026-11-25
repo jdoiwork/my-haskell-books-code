@@ -942,8 +942,18 @@ main = hspec $ do
   describe "calls and recursion / 呼び出しと再帰" $ do
     -- each answer is pcre2test 10.49's, as the meter writes it
     -- 答えは、どれも pcre2test 10.49 のもの。メーターと同じ形で書く
-    let same p t answer = it (show (p, t)) $
+    -- the answer of pcre2test, by the engine (the VM with ST); and the
+    -- pure VM and the continuations give the same
+    -- pcre2test の答えを、エンジン（ST の VM）で。純粋な VM と継続も同じ答え
+    let same p t answer = it (show (p, t)) $ do
           judge (TestCase 0 p "" t answer) `shouldBe` Pass
+          let re = surely p
+              byVM vm = fmap (fmap allGroups)
+                             (fst (searchCountingBy vm maxBound re t 0))
+          byVM scanVM `shouldBe` byVM scanVMST
+          cont <- try (evaluate (fmap allGroups (searchFromCont re t 0)))
+          either (\(e :: GaveUp) -> Left e) Right cont
+            `shouldBe` byVM scanVMST
         loops = "Failed: error -52: nested recursion at the same subject\
                 \ position"
     same "\\((?:[^()]++|(?R))*\\)" "x(a(b)c)y" [" 0: (a(b)c)"]
@@ -982,6 +992,16 @@ main = hspec $ do
     same "^(a|b(?1)c)$" "bbacc" [" 0: bbacc", " 1: bbacc"]
     same "(?|(a)|(b))(?1)" "ba" [" 0: ba", " 1: b"]
     same "x(?R)?y" "xxyy" [" 0: xxyy"]
+    -- going back into a call: the call's own groups come back
+    -- 呼び出しの中へ戻る：呼び出しの中のグループの値が戻ってくる
+    same "(?(DEFINE)((.).*\\2))^(?1)x" "bxbxb" [" 0: bxbx"]
+    -- an open group, and a call of 2 inside a call of 1
+    -- 開いたグループと、1の呼び出しの中の2の呼び出し
+    same ".((?R)?)" "aab" [" 0: aab", " 1: ab"]
+    same "((?2))((?1))" "a" [loops]
+    -- the flags of (?(DEFINE) ...) stay inside
+    -- (?(DEFINE) ...) のフラグは、中だけ
+    same "(?(DEFINE)(?i))a" "A" ["No match"]
     -- 22 calls deep, each one going back: the trail must not double at
     -- each return (it did, and ran out of memory)
     -- 22 段の呼び出しから、1段ずつ戻る：戻るたびに記録が倍になってはいけない
@@ -1007,6 +1027,14 @@ main = hspec $ do
       stepsOf "^(\\w+\\s?)+$" "Mira Ruby Lam!" `shouldBe` 8757
     -- going round at one place: the error, by find, findAll, findWithin
     -- 同じ場所で回る：find・findAll・findWithin のエラー
+    -- findAll: an empty match, then going round at the same place; and
+    -- at the end, nothing more is tried
+    -- findAll：空の一致のあと、同じ場所で回る。終わりでは、それ以上探さない
+    it "goes round after an empty match, but not at the end" $ do
+      fmap (map matchText) (findAllWithin defaultLimit (surely "|(?R)b") "x")
+        `shouldBe` Left (Looping 0 0)
+      fmap (map matchText) (findAllWithin defaultLimit (surely "|(?R)b") "b")
+        `shouldBe` Right ["", "b", ""]
     it "gives up on a recursion that goes round" $ do
       findWithin defaultLimit (surely "a|(?R)b") "xb"
         `shouldBe` Left (Looping 0 0)
@@ -1040,23 +1068,25 @@ main = hspec $ do
       forAll (withCalls genTreeForPcre2 `suchThat` hasCalls) $ \tr ->
         forAll (resize 10 genLines) $ \t ->
           let p = render tr
+              exact = Pcre2.Ucp <> Pcre2.NoStartOptimize
+                        <> Pcre2.NoAutoPossess
           in  counterexample (T.unpack p) $
               case findWithin 20000 (surely p) t of
                 Left (GaveUp _) -> label "MiniRegex gave up" True
-                -- PCRE2 looks first at what a match needs (how long, which
-                -- character first), and may say "no match" without ever
-                -- running round; when it runs, it gives up, too
-                -- PCRE2 は、一致に要るもの（長さ、最初の文字）を先に見て、
-                -- 回る前に「ない」と言うことがある。動かせば、PCRE2 も
-                -- あきらめる
+                -- PCRE2 with its optimizations off: they look first at what
+                -- a match needs, and may skip the places where it would
+                -- run round, or change what a repeat gives back
+                -- 最適化を止めた PCRE2 と：最適化は、一致に要るものを先に
+                -- 見て、回るはずの場所を飛ばしたり、くり返しの返し方を変え
+                -- たりする
                 Left (Looping _ _) -> ioProperty $ do
-                  theirs <- try (evaluate (Pcre2.capturesOpt Pcre2.Ucp p t))
+                  theirs <- try (evaluate (Pcre2.capturesOpt exact p t))
                   pure $ case theirs of
                     Left (_ :: SomeException) -> label "both looped" True
-                    Right ts -> label "PCRE2 saw no need to run"
+                    Right ts -> counterexample "PCRE2 did not loop"
                                   (ts === Nothing)
                 Right m -> ioProperty $ do
-                  theirs <- try (evaluate (Pcre2.capturesOpt Pcre2.Ucp p t))
+                  theirs <- try (evaluate (Pcre2.capturesOpt exact p t))
                   pure $ case theirs of
                     Left (_ :: SomeException) -> label "PCRE2 gave up" True
                     Right ts -> label "compared" (fmap allGroups m === ts)
@@ -1096,6 +1126,15 @@ main = hspec $ do
     wrong "(?65536"        7 e161
     wrong "(?+65536"       8 e161
     wrong "\\g<65536"      2 e161
+    -- back past the first group: told at once, before what follows
+    -- 最初のグループより前を指す：うしろより先に、すぐに言う
+    wrong "(?-1)("         4 e115
+    wrong "(?-1"           4 e115
+    wrong "\\g<-1"         2 e115
+    wrong "(?1)b(?-1)"     9 e115
+    wrong "(a)(?-2)("      7 e115
+    wrong "\\g{-1}("        2 e115
+    wrong "\\g-1("          4 e115
     wrong "(?+0)"          4 "a relative value of zero is not allowed"
     wrong "\\g<-0>"        2 "a relative value of zero is not allowed"
     wrong "(?R"            3
