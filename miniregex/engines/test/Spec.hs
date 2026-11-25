@@ -26,7 +26,7 @@ import MiniRegex.Engine
 import MiniRegex.Pike (scanPike)
 import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (instructions)
-import MiniRegex.Race (findRacing)
+import MiniRegex.Race (findRacing, findRacingWithin)
 import MiniRegex.Prefilter
   (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
 import Data.Text.Unsafe (lengthWord8)
@@ -1283,8 +1283,12 @@ main = hspec $ do
     it "makes a loop possessive only where giving back cannot help" $
       [ "takeall" `T.isInfixOf` listing (program (surely p))
       | p <- [ "a*b", "\\d+ gold", "[^\"]*\"", "(?i)a+B"
-             , "a*a", "\\w+\\s?$", "(a+)+b", "a*\\b", "a*?b", "(?i)a+A" ] ]
-        `shouldBe` [True, True, True, True, False, False, False, False, False, False]
+             , "a*a", "\\w+\\s?$", "(a+)+b", "a*\\b", "a*?b", "(?i)a+A"
+             -- only the loop minds no case: A fits it; \w fits a
+             -- 輪だけが大文字・小文字を見ない：A が合う。\w は a に合う
+             , "(?i:a+)A", "\\w+a" ] ]
+        `shouldBe` [ True, True, True, True, False, False, False, False, False
+                   , False, False, False ]
     -- a takeall is one step for each character, and one for itself
     -- takeall は、1文字に1ステップと、自分の1ステップ
     it "takes fewer steps" $ do
@@ -1325,6 +1329,26 @@ main = hspec $ do
     it "takes as many steps as the Pike VM on the name field" $
       [ stepsWith PikeVM "^(\\w+\\s?)+$" (fieldOf n) | n <- [2 .. 7] ]
         `shouldBe` [82, 115, 148, 190, 232, 274]
+    -- the chapter's examples, through the four VMs by name (find would
+    -- end within the budget on the backtracking VM): a takeall stays
+    -- where it is while it eats, groups and \K
+    -- 章の例を、4つの VM に名指しで通す（find だと、予算のうちに
+    -- バックトラックの VM で終わる）：takeall は食べるあいだ、そこに
+    -- とどまる。グループと \K も
+    -- (the whole Match: the places of the groups too, not only their
+    -- text)
+    -- （Match まるごと：グループの文字列だけでなく、場所も）
+    let byAll p t answer = it (show (p, t)) $ do
+          let byVM vm = fst (searchCountingBy vm maxBound (surely p) t 0)
+              found = map byVM [scanVM, scanVMST, scanPike, scanPikeST]
+          map (fmap (fmap (\m -> (matchText m, groups m)))) found
+            `shouldBe` replicate 4 (Right answer)
+          found `shouldBe` replicate 4 (byVM scanVM)
+    byAll "a*b" "aaab" (Just ("aaab", []))
+    byAll "\\d+ gold" "12 345 gold" (Just ("345 gold", []))
+    byAll "(\\w+)@(\\w+)" "to lam@ghc"
+      (Just ("lam@ghc", [Just "lam", Just "ghc"]))
+    byAll "a\\Kb+c" "xabbc" (Just ("bbc", []))
     -- repeats inside repeats that can take nothing: a state is an
     -- instruction with the marks just here, so there are more states
     -- than instructions, and the stack of things to do must grow (with
@@ -1366,6 +1390,18 @@ main = hspec $ do
         forAll (resize 12 genLines) $ \t ->
           let re = surely (render tr)
           in  ioProperty ((=== find re t) <$> findRacing re t)
+    -- the budget is at most a quarter of the limit: on a long text the
+    -- Pike VM still has the steps to answer (it was GaveUp from 377,000
+    -- bytes on, with the budget paid out of the whole limit)
+    -- 予算は多くても上限の4分の1：長い文字列でも、Pike VM が答えるだけの
+    -- ステップ数が残る（上限からまるごと払うと、37.7 万バイトから GaveUp）
+    it "answers a long text, as the Pike VM alone does" $
+      find wordsOnly (fieldOf 100000) `shouldBe` Nothing
+    -- the backtracking VM runs out and steps aside; the Pike VM finds !
+    -- バックトラックの VM は尽きて脇によけ、Pike VM が ! を見つける
+    it "lets the Pike VM win when the backtracking VM runs out" $ do
+      found <- findRacingWithin 100000 (surely "^(\\w+\\s?)+$|!") (fieldOf 8)
+      fmap matchText found `shouldBe` Just "!"
   -- ANCHOR_END: switchtests
 
   -- ANCHOR: walktests

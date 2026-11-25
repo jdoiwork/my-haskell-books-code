@@ -11,6 +11,7 @@
 -- 2つは本当に並んで動く
 module MiniRegex.Race
   ( findRacing
+  , findRacingWithin
   ) where
 
 -- ANCHOR: imports
@@ -36,7 +37,12 @@ import MiniRegex.Types
 -- 尽きたら、脇によけて待つ。Pike VM は続ける。Pike VM で動かせない
 -- パターンは、バックトラックの VM だけ
 findRacing :: Regex -> Text -> IO (Maybe Match)
-findRacing re t = case blocker (program re) of
+findRacing = findRacingWithin defaultLimit
+
+-- 🏁 The same, with this many steps for each engine.
+-- 同じもの。どちらのエンジンにも、このステップ数
+findRacingWithin :: Int -> Regex -> Text -> IO (Maybe Match)
+findRacingWithin limit re t = case blocker (program re) of
   Just _  -> attempt scanVMST >>= either throwIO pure
   Nothing -> either id id <$> race backtrack pike
   where
@@ -47,6 +53,6 @@ findRacing re t = case blocker (program re) of
     -- run one engine to the end (evaluate forces the whole search)
     -- エンジンを1つ、最後まで動かす（evaluate が、探しもの全体を動かす）
     attempt :: Runner -> IO (Either GaveUp (Maybe Match))
-    attempt vm = evaluate (fst (searchCountingBy vm defaultLimit re t 0))
+    attempt vm = evaluate (fst (searchCountingBy vm limit re t 0))
 -- ANCHOR_END: race
 -- ANCHOR_END: all

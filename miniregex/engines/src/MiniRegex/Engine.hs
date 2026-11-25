@@ -121,14 +121,17 @@ runnerFor re = case engine re of
 scanSwitching :: Runner
 scanSwitching prog limit accept tries = case tries of
   [] -> (Nothing, NotFound, limit)
-  first : _
-    | budget >= limit -> scanVMST prog limit accept tries
-    | otherwise -> case scanVMST prog budget accept tries of
-        (_, OutOfSteps, _) ->
-          scanPikeST prog (limit - budget) accept tries
-        (o, answer, left) -> (o, answer, limit - budget + left)
+  first : _ -> case scanVMST prog budget accept tries of
+    (_, OutOfSteps, _) ->
+      scanPikeST prog (limit - budget) accept tries
+    (o, answer, left) -> (o, answer, limit - budget + left)
     where
-      budget = budgetFor prog first
+      -- the budget is paid out of the limit: at most a quarter of it,
+      -- so that the Pike VM always has three quarters left (on a long
+      -- text, the whole budget would leave it almost nothing)
+      -- 予算は上限の中から払う：多くても4分の1。Pike VM には、いつも
+      -- 4分の3が残る（長い文字列で予算をまるごと払うと、ほとんど残らない）
+      budget = min (budgetFor prog first) (limit `div` 4)
 
 -- 💰 The budget from this place: each instruction once at each place,
 --    twice over (once to follow, once to move on). That is the Pike
