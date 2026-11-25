@@ -37,7 +37,7 @@ import Data.Text qualified as T
 
 import MiniRegex.Candidates (ends)
 import MiniRegex.Caps
-import MiniRegex.Compile (compileTree, showInst)
+import MiniRegex.Compile (compileTree, programLimit, programSize, showInst)
 import MiniRegex.Continuation (matchAt)
 import MiniRegex.Cursor
 import MiniRegex.Groups (groupCount, groupNames)
@@ -52,11 +52,18 @@ import MiniRegex.VM
 
 -- ANCHOR: compile
 -- 🏗️ Read a pattern into a tree, with the parser (the flags go into
---    the tree). The program is made from the tree, by compileTree.
+--    the tree). The program is made from the tree, by compileTree. A
+--    tree whose program would be too big is "not yet": the limit on
+--    the steps cannot stop a program that is still being made.
 -- パーサーでパターンを読んで木にする（フラグも木に入る）。プログラムは、
--- その木から compileTree が作る
+-- その木から compileTree が作る。プログラムが大きくなりすぎる木は「まだ」：
+-- ステップ数の上限では、作っている途中のプログラムは止められない
 compilePattern :: [Option] -> Text -> Either RegexError Pattern
-compilePattern = parsePattern
+compilePattern opts src = do
+  tree <- parsePattern opts src
+  if programSize tree > programLimit
+    then Left (Unsupported 0 "pattern too large for the VM")
+    else Right tree
 -- ANCHOR_END: compile
 
 -- ANCHOR: choose
@@ -92,11 +99,12 @@ type Runner
   -> (Maybe Cursor, Answer, Int)
 
 -- 🔦 The first match that starts at `from` or later, with a VM. All the
---    places share one limit on the steps, as PCRE2's match limit does.
---    Gives back the steps used, too.
+--    places share one limit on the steps (PCRE2 starts its count again
+--    at each place: MiniRegex's limit is for the whole search). Gives
+--    back the steps used, too.
 -- from の位置か、それより後ろで始まる、最初の一致を VM で。どの場所も、
--- 1つの上限を分け合う（PCRE2 の上限と同じ）。使ったステップ数も
--- 返す
+-- 1つの上限を分け合う（PCRE2 は場所ごとに数え直す。MiniRegex の上限は、
+-- 探し全体のもの）。使ったステップ数も返す
 searchCountingBy
   :: Runner -> Int -> Regex -> Text -> Int
   -> (Either GaveUp (Maybe Match), Int)

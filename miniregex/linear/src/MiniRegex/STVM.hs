@@ -20,6 +20,7 @@ module MiniRegex.STVM
   ) where
 
 -- ANCHOR: imports
+import Control.Monad (foldM)
 import Control.Monad.ST (ST, runST)
 import Data.Array ((!))
 import Data.IntMap.Strict qualified as IntMap
@@ -60,6 +61,9 @@ data Called = Called
   , calledGroup  :: !Int
   , calledPlace  :: !Int
   , calledHeight :: !Int
+  , calledCaps   :: [Maybe Span]    -- the groups then / そのときのグループ
+  , calledOpens  :: [Maybe Cursor]  -- the open groups / 開いたグループ
+  , calledMarks  :: [Int]           -- the marks / 印
   }
 
 -- 📝 What was there before a write: a group's span, the start of an
@@ -225,13 +229,18 @@ scanVMST prog limit accept places = runST $ do
             if still then next tp else failed n sp tp
           -- ANCHOR_END: execbehind
           -- ANCHOR: execcall
-          Gosub g a
-            | looping g -> pure (Looped g (at cur), n, tp)
-            | otherwise ->
-                go n a cur sp tp (Called (pc + 1) g (at cur) tp : cs)
+          Gosub g a -> do
+            now   <- MV.foldr' (:) [] (capsOf m)
+            opens <- MV.foldr' (:) [] (opensOf m)
+            marks <- mapM (MU.read (marksOf m))
+                          [0 .. MU.length (marksOf m) - 1]
+            if looping g now
+              then pure (Looped g (at cur), n, tp)
+              else go n a cur sp tp
+                     (Called (pc + 1) g (at cur) tp now opens marks : cs)
           Return -> case cs of
             f : outer -> do
-              tp' <- rewind tp (calledHeight f)
+              tp' <- rewind tp f
               go n (backTo f) cur sp tp' outer
             [] -> failed n sp tp  -- (not reached / 来ない)
           -- ANCHOR_END: execcall
@@ -244,11 +253,17 @@ scanVMST prog limit accept places = runST $ do
               case s >>= \sp_ -> over (spanText sp_) cur of
                 Just c  -> go n (pc + 1) c sp tp cs
                 Nothing -> failed n sp tp
-            -- the latest call of the same group: at the same place?
-            -- 同じグループのいちばん新しい呼び出しは、同じ場所だったか
-            looping g = case [f | f <- cs, calledGroup f == g] of
-              f : _ -> calledPlace f == at cur
-              []    -> False
+            -- a call of the same group, at the same place, with the
+            -- same groups (as the pure VM's looping)
+            -- 同じグループ・同じ場所・同じグループの値の呼び出し
+            -- （純粋な VM の looping と同じ）
+            -- (the places only go down, deeper into the list: only the
+            -- calls at this same place, at its head, need looking at)
+            -- （場所は、リストの奥へ向かって小さくなるだけ：見るのは、頭の、
+            -- 同じ場所の呼び出しだけ）
+            looping g now =
+              any (\f -> calledGroup f == g && calledCaps f == now)
+                  (takeWhile ((== at cur) . calledPlace) cs)
             withFence k = do
               found <- fenceBelow sp
               case found of
@@ -328,29 +343,34 @@ scanVMST prog limit accept places = runST $ do
 
         -- ANCHOR: rewind
         -- ↩️ Back from a call: the groups, the open groups and the
-        --    marks as they were at the call. The trail has the old
-        --    values since then: write them again, from the top down to
-        --    h, but as new writes, put on the trail too. So, going back
-        --    into the call later, undoTo still finds the call's own
-        --    values. \K (drawer 0) stays as it is.
+        --    marks as they were at the call (the call kept a copy of
+        --    them). Write each drawer that is not as it was, as a new
+        --    write, put on the trail too. So, going back into the call
+        --    later, undoTo still finds the call's own values. Only the
+        --    drawers that changed, and nothing read from the trail: a
+        --    return costs as much as the drawers, however deep the calls
+        --    inside it went. \K (drawer 0) stays as it is.
         -- 呼び出しから戻ったとき：グループ・開いたグループ・印を、呼んだ
-        -- ときの値に。記録には、それからの前の値がある。それを、上から
-        -- 高さ h まで、もう一度書く。ただし、新しい書き換えとして記録にも
-        -- 積む。こうすれば、あとで呼び出しの中へ戻るときも、undoTo が
-        -- 中の値を見つけられる。\K（0番の引き出し）は、そのまま
-        rewind :: Int -> Int -> ST s Int
-        rewind tp h = again (tp - 1) tp
-          where
-            again i top
-              | i < h     = pure top
-              | otherwise = do
-                  u <- peek (trail m) i
-                  top' <- case u of
-                    UndoCap 0 _    -> pure top
-                    UndoCap g old  -> setCap g old top
-                    UndoOpen g old -> setOpen g old top
-                    UndoMark k old -> setMark k old top
-                  again (i - 1) top'
+        -- ときの値に（呼び出しが写しを持っている）。そのときとちがう引き出し
+        -- だけを、新しい書き換えとして記録にも積んで書く。こうすれば、あとで
+        -- 呼び出しの中へ戻るときも、undoTo が中の値を見つけられる。記録は
+        -- 読まないので、戻る手間は引き出しの数だけで、中の呼び出しが
+        -- どれだけ深くても変わらない。\K（0番の引き出し）は、そのまま
+        rewind :: Int -> Called -> ST s Int
+        rewind tp f = do
+          caps  <- MV.foldr' (:) [] (capsOf m)
+          opens <- MV.foldr' (:) [] (opensOf m)
+          marks <- mapM (MU.read (marksOf m)) [0 .. MU.length (marksOf m) - 1]
+          tp1 <- foldM (\top (g, old, new) ->
+                          if g == 0 || old == new then pure top
+                          else setCap g old top)
+                       tp (zip3 [0 ..] (calledCaps f) caps)
+          tp2 <- foldM (\top (g, old, new) ->
+                          if old == new then pure top else setOpen g old top)
+                       tp1 (zip3 [0 ..] (calledOpens f) opens)
+          foldM (\top (k, old, new) ->
+                   if old == new then pure top else setMark k old top)
+                tp2 (zip3 [0 ..] (calledMarks f) marks)
         -- ANCHOR_END: rewind
 
         -- ANCHOR: frozen
