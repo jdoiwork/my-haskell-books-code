@@ -53,6 +53,8 @@ module MiniRegex
 -- ANCHOR_END: header
 
 -- ANCHOR: imports
+import Control.Exception (throw)
+import Control.Monad.State.Lazy (evalState, state)
 import Data.Char (ord)
 import Data.Functor.Identity (Identity (..))
 import Data.Map.Strict qualified as Map
@@ -63,8 +65,9 @@ import Data.Text.Foreign (lengthWord8)
 
 import MiniRegex.Cursor (Cursor, headOf, step)
 import MiniRegex.Engine
-  ( chooseEngine, compilePattern, compileTree, nonEmptyAtCursor
-  , nonEmptyWithinAt, searchAt, searchFrom, searchWithin, searchWithinAt )
+  ( budgetFor, chooseEngine, compilePattern, compileTree, nonEmptyAtCursor
+  , nonEmptySharing, nonEmptyWithinAt, searchAt, searchFrom, searchSharing
+  , searchWithin, searchWithinAt )
 import MiniRegex.Prefilter (prefilterOf)
 import MiniRegex.Template (Template, expand, template)
 import MiniRegex.Types hiding (engine, source)
@@ -172,11 +175,20 @@ find re t = searchFrom re t 0
 -- まず同じ場所で、空でない一致を探す。それがなければ、1文字先へ進む
 -- （PCRE2 の決まり。pcre2test の /g、Perl、Python と同じ）
 findAll :: Regex -> Text -> [Match]
-findAll re t = runIdentity (walk (Identity . searchAt re')
-                                 (Identity . nonEmptyAtCursor re')
-                                 (headOf t))
+findAll re t
+  -- switching: one budget for the whole walk (see searchSharing)
+  -- 乗り換え：歩きの全体で予算を1つ（searchSharing を見てほしい）
+  | engine re' == Switching =
+      evalState (walk (sharing searchSharing) (sharing nonEmptySharing)
+                      (headOf t))
+                (budgetFor (program re') (headOf t))
+  | otherwise = runIdentity (walk (Identity . searchAt re')
+                                  (Identity . nonEmptyAtCursor re')
+                                  (headOf t))
   where
     re' = walking re
+    sharing f c = state (\left -> let (r, left') = f left re' c
+                                   in  (either throw id r, left'))
 
 -- 🚶 For the walk, Bounded switches instead: a table for the rest of
 --    the text at each match would cost more than it saves (from the

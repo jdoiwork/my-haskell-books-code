@@ -1414,6 +1414,24 @@ main = hspec $ do
     it "lets the Pike VM win when the backtracking VM runs out" $ do
       found <- findRacingWithin 100000 (surely "^(\\w+\\s?)+$|!") (fieldOf 8)
       fmap matchText found `shouldBe` Just "!"
+    -- findAll shares one budget among all its searches: the same
+    -- matches as the backtracking VM alone, and a walk over many short
+    -- lines that lose their way stays linear (with a new budget for
+    -- each match it took 10 seconds for 52.8 KB)
+    -- findAll は、全部の探しもので予算を1つ分け合う：バックトラックの VM
+    -- だけと同じ一致で、迷う短い行が多くても、歩きは線形のまま（一致の
+    -- たびに新しい予算だと、52.8 KB に 10 秒かかった）
+    prop "finds all with one budget, as the backtracking VM does" $
+      forAll genTreeLinear $ \tr ->
+        forAll (resize 12 genLines) $ \t ->
+          let re = surely (render tr)
+          in  findAll re t === findAll (backtracking re) t
+    it "walks many lines that lose their way in linear time" $ do
+      let line = T.unwords (replicate 12 "Mira") <> " !\nRuby;\n"
+          t = T.replicate 800 line
+      done <- timeout 5000000
+                (evaluate (length (findAll (surely "(?m)^(\\w+ ?)+;$") t)))
+      done `shouldBe` Just 800
   -- ANCHOR_END: switchtests
 
   -- ANCHOR: boundedtests

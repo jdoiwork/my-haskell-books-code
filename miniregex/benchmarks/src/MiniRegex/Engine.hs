@@ -38,6 +38,8 @@ module MiniRegex.Engine
   , scanSwitching
   , scanShortFirst
   , budgetFor
+  , searchSharing
+  , nonEmptySharing
   ) where
 
 -- ANCHOR: imports
@@ -150,6 +152,58 @@ scanSwitching prog limit accept tries = case tries of
       -- 予算は上限の中から払う：多くても4分の1。Pike VM には、いつも
       -- 4分の3が残る（長い文字列で予算をまるごと払うと、ほとんど残らない）
       budget = min (budgetFor prog first) (limit `div` 4)
+
+-- ANCHOR: sharing
+-- 👛 Switching with a budget shared by every search of one walk
+--    (findAll): the backtracking VM gets what is left of it (a quarter
+--    of the limit at most, as above), and gives back what is left
+--    after it. Once it is spent, every search goes straight to the
+--    Pike VM. So the backtracking VM takes, in all the searches of the
+--    walk, no more than one budget, and the walk stays linear: with a
+--    new budget for each match, a pattern that loses its way on each
+--    short line would cost the rest of the text, at each match (from
+--    the chapter on switching engines, Fable #35).
+-- 1つの歩き（findAll）の、どの探しものにも同じ予算を分けて使う乗り換え。
+-- バックトラックの VM は、その残りを受け取り（上と同じく、多くても上限の
+-- 4分の1）、使ったあとの残りを返す。使い切ったら、どの探しものも、すぐ
+-- Pike VM へ。だからバックトラックの VM が使うのは、歩きの全部の探しもので、
+-- 予算1つぶんまで。歩きは線形のまま：一致のたびに新しい予算を渡すと、短い行
+-- ごとに迷うパターンで、一致のたびに残りの文字列ぶんを使ってしまう
+scanSwitchingWith
+  :: Int -> Program -> Int -> (Cursor -> Bool) -> [Cursor]
+  -> ((Maybe Cursor, Answer, Int), Int)
+scanSwitchingWith shared prog limit accept tries =
+  case scanVMSTUntil prog budget accept tries of
+    Left rest ->
+      (scanPikeST prog (limit - budget) accept rest, shared - budget)
+    Right (o, answer, left) ->
+      ((o, answer, limit - budget + left), shared - budget + left)
+  where
+    budget = min shared (limit `div` 4)
+
+-- 🔎 The first match from a place, and what is left of the shared
+--    budget.
+-- その場所からの最初の一致と、分け合う予算の残り
+searchSharing
+  :: Int -> Regex -> Cursor -> (Either GaveUp (Maybe (Match, Cursor)), Int)
+searchSharing shared re start = (fst (searchAtBy runner limit re start), left)
+  where
+    limit = defaultLimit
+    (answer, left) = scanSwitchingWith shared (program re) limit (const True)
+                       (places (prefilter re) start)
+    runner _ _ _ _ = answer
+
+-- 🚫 A match just at this place that is not empty, the same way.
+-- ちょうどこの場所の、空でない一致を、同じやり方で
+nonEmptySharing
+  :: Int -> Regex -> Cursor -> (Either GaveUp (Maybe (Match, Cursor)), Int)
+nonEmptySharing shared re start = (nonEmptyAtBy runner limit re start, left)
+  where
+    limit = defaultLimit
+    (answer, left) = scanSwitchingWith shared (program re) limit
+                       (\c -> at c /= at start) [start]
+    runner _ _ _ _ = answer
+-- ANCHOR_END: sharing
 
 -- 💰 The budget from this place: each instruction once at each place,
 --    twice over (once to follow, once to move on). That is the Pike
