@@ -2744,4 +2744,18 @@ main = hspec $ do
              , "(?i)perl", "(\\w+) sold (\\d+) (\\w+)", "(?m)^\\d+"
              , "(?m)gold$" ] ]
         `shouldBe` replicate 6 True
+    -- the edges of the contract: a newline at the end is fine for a
+    -- pattern within it; a look at the newline, or an empty match, is
+    -- outside it, and the answers differ
+    -- 約束の端：約束の中のパターンなら、終わりの改行があっても同じ。改行を
+    -- 見る「見る」ものと、空の一致は約束の外で、答えが変わる
+    it "keeps to its contract, and says where it ends" $ do
+      let places p t f =
+            map (\m -> (matchStart m, matchEnd m)) (f (surely p) t)
+      places "(?m)gold$" "1 gold\n2 gold\n" findAllLines
+        `shouldBe` places "(?m)gold$" "1 gold\n2 gold\n" findAll
+      places "a(?=\\n)" "a\nb" findAll `shouldBe` [(0, 1)]
+      places "a(?=\\n)" "a\nb" findAllLines `shouldBe` []
+      places "(?m)^" "a\n" findAll `shouldBe` [(0, 0)]
+      places "(?m)^" "a\n" findAllLines `shouldBe` [(0, 0), (2, 2)]
   -- ANCHOR_END: answers

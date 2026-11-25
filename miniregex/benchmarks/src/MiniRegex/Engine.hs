@@ -159,16 +159,19 @@ scanSwitching prog limit accept tries = case tries of
 --    of the limit at most, as above), and gives back what is left
 --    after it. Once it is spent, every search goes straight to the
 --    Pike VM. So the backtracking VM takes, in all the searches of the
---    walk, no more than one budget, and the walk stays linear: with a
---    new budget for each match, a pattern that loses its way on each
---    short line would cost the rest of the text, at each match (from
---    the chapter on switching engines, Fable #35).
+--    walk, no more than one budget: with a new budget for each match, a
+--    pattern that loses its way on each short line would cost the rest
+--    of the text, at each match (from the chapter on switching engines,
+--    Fable #35). (A pattern that makes the Pike VM read to the end at
+--    each match, such as a.*b|a, is still twice as slow for twice the
+--    text, and twice again.)
 -- 1つの歩き（findAll）の、どの探しものにも同じ予算を分けて使う乗り換え。
 -- バックトラックの VM は、その残りを受け取り（上と同じく、多くても上限の
 -- 4分の1）、使ったあとの残りを返す。使い切ったら、どの探しものも、すぐ
 -- Pike VM へ。だからバックトラックの VM が使うのは、歩きの全部の探しもので、
--- 予算1つぶんまで。歩きは線形のまま：一致のたびに新しい予算を渡すと、短い行
--- ごとに迷うパターンで、一致のたびに残りの文字列ぶんを使ってしまう
+-- 予算1つぶんまで。一致のたびに新しい予算を渡すと、短い行ごとに迷うパターン
+-- で、一致のたびに残りの文字列ぶんを使ってしまう（a.*b|a のように、Pike VM
+-- が一致のたびに終わりまで読むパターンは、それでも長さの2乗）
 scanSwitchingWith
   :: Int -> Program -> Int -> (Cursor -> Bool) -> [Cursor]
   -> ((Maybe Cursor, Answer, Int), Int)

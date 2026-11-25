@@ -80,9 +80,13 @@ maxBoundedBytes re = visitedCapacity `div` size - 1
 
 -- ANCHOR: lines
 -- 📃 findAll, one line at a time, with the places moved back to the
---    whole text. Only for a pattern that never takes a newline.
--- findAll を1行ずつ。場所は、文字列全体の場所に直す。改行を食べない
--- パターンだけ
+--    whole text. Only for a pattern that never takes a newline, nor
+--    looks at one (in a look, or with \A and \z), and gives no empty
+--    match: a(?=\n) would be lost, and (?m)^ would match once more
+--    after a newline at the end.
+-- findAll を1行ずつ。場所は、文字列全体の場所に直す。改行を食べず、
+-- 見もしない（「見る」もの、\A・\z で）、空の一致を返さないパターンだけ：
+-- a(?=\n) は見つからなくなり、(?m)^ は終わりの改行のうしろで1つ多く合う
 findAllLines :: Regex -> Text -> [Match]
 findAllLines re t = concat (zipWith inLine starts ls)
   where
