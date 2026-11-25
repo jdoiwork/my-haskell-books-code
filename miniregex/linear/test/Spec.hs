@@ -701,9 +701,16 @@ main = hspec $ do
     -- 答えは、どれも pcre2test 10.49 で確かめた
     -- both matchers: the continuations (find) and the list
     -- 2つのマッチャーの両方：継続（find）と、候補のリスト
+    -- the engine compile chose, the backtracking VM too (for a pattern
+    -- the Pike VM runs, the backtracking VM would not be tried at all),
+    -- and the list of candidates
+    -- compile が選んだエンジン、バックトラックの VM も（Pike VM が動かす
+    -- パターンだと、バックトラックの VM は一度も試されないから）、候補の
+    -- リスト
     let finds opts p t answer = it (show (opts, p, t)) $ do
           let re = surelyWith opts p
           fmap matchText (find re t) `shouldBe` answer
+          fmap matchText (find (backtracking re) t) `shouldBe` answer
           fmap matchText (searchFromList re t 0) `shouldBe` answer
     -- the left branch first
     -- 左の枝が先
@@ -952,6 +959,12 @@ main = hspec $ do
     -- and \K's start, too
     -- 失敗した場所が書いたものは、次の場所の前に書き戻す。\K の始まりも
     undone "b|(a)c" "ab" (Just [Nothing])
+    -- the mark of a repeat, written and then undone (the Pike VM runs
+    -- this pattern, so only this table tries it on the backtracking VMs)
+    -- くり返しの印を書いて、取り消す（このパターンは Pike VM が動かすので、
+    -- バックトラックの VM で試すのは、この表だけ）
+    undone "(?:a*)*b" "aaac" Nothing
+    undone "(a|)*b" "aab" (Just [Just ""])
     it "puts back \\K's start when a branch fails" $
       [ fmap (fmap matchText)
           (fst (searchCountingBy vm maxBound (surely "a\\Kb|ac") "ac" 0))
@@ -1031,6 +1044,26 @@ main = hspec $ do
         `shouldBe` Just [Just "b"]
       fmap groups (find (surely "(?:(a)|b)*") "ab")
         `shouldBe` Just [Just "a"]
+    -- once a match is kept, no new thread starts: the b on the right
+    -- does not take the place of the a, while bbbc is still tried
+    -- 一致を覚えたら、新しいスレッドは始めない：bbbc を試しているあいだに、
+    -- 右の b が a と入れ替わることはない
+    it "starts no new match once it has one" $ do
+      fmap matchText (find (surely "a(?:bbbc)?|b") "abbx")
+        `shouldBe` Just "a"
+      map matchText (findAll (surely "a(?:bbbc)?|b") "abbx")
+        `shouldBe` ["a", "b", "b"]
+    -- repeats in a row that can take nothing: only the marks of the
+    -- repeat a thread is in are in its state, so the steps grow with
+    -- the repeats, not twice for each (they were 152, 2552, 655352)
+    -- 何も食べずに済むくり返しを並べる：状態に入る印は、スレッドがいる
+    -- くり返しのものだけなので、ステップ数はくり返しの数に比例する。1つごとに
+    -- 倍にはならない（前は 152・2552・655352 だった）
+    it "takes steps in proportion to the repeats in a row" $ do
+      let row k = T.concat [ "(?:" <> T.singleton c <> "?)*"
+                           | c <- take k ['a' ..] ] <> "!"
+      [ stepsWith PikeVM (row k) "!" | k <- [4, 8, 16] ]
+        `shouldBe` [38, 74, 146]
   -- ANCHOR_END: pike
 
   -- ANCHOR: recursion
@@ -1307,11 +1340,18 @@ main = hspec $ do
     -- 両方で：機械（find）と、候補のリスト
     let finds p t answer = it (show (p, t)) $ do
           fmap groups (find (surely p) t) `shouldBe` answer
+          fmap groups (find (backtracking (surely p)) t) `shouldBe` answer
           fmap groups (searchFromList (surely p) t 0) `shouldBe` answer
     -- a group that took no part is Nothing
     -- 使われなかったグループは Nothing
     finds "(a)|(b)"       "b"     (Just [Nothing, Just "b"])
     finds "(a)(b)?(c)"    "ac"    (Just [Just "a", Nothing, Just "c"])
+    -- the start of a group opened again, undone when that way fails
+    -- (two problems of testoutput1; the ST VM must put it back)
+    -- 開き直したグループの始まりを、その道が失敗したら取り消す
+    -- （testoutput1 の2問。ST の VM が書き戻さなければならない）
+    finds "^(a\\1?){4}$" "aaaaaa" (Just [Just "aa"])
+    finds "^((\\1+)|\\d)+133X$" "111133X" (Just [Just "11", Just "11"])
     -- in a repeat, the last time
     -- くり返しの中なら、最後の回
     finds "(a|b)*c"       "abac"  (Just [Just "a"])
