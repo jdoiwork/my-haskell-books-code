@@ -54,6 +54,33 @@ Failed: error -47: match limit exceeded
  1: aaa
  2: a
 
+# PCRE2 stops when the place and how far it has read are the same
+# PCRE2 は「場所と、どこまで読んだか」が同じなら止める
+/(?1)(?!)|(|(?>(?1))y)/no_start_optimize,no_auto_possess
+    a
+Failed: error -52: nested recursion at the same subject position
+
+/(?1)x|(|(?1)y)/no_start_optimize,no_auto_possess
+    a
+Failed: error -52: nested recursion at the same subject position
+
+# x has read the a: PCRE2 goes on (MiniRegex stops: Looping 1 0)
+# x が a を読んだ：PCRE2 は進む（MiniRegex は止める：Looping 1 0）
+/(?1)x|(|(?>(?1))y)/no_start_optimize,no_auto_possess
+    a
+ 0: 
+ 1: 
+
+# .* has read to the end first: PCRE2 stops (MiniRegex finds aaa)
+# 先に .* が終わりまで読んだ：PCRE2 は止める（MiniRegex は aaa を見つける）
+/^(?<r>(?=.*)(?=(\2a|a))(?:\2$|(?&r)))$/
+    aaa
+Failed: error -52: nested recursion at the same subject position
+    aaa\=disable_recurseloop_check
+ 0: aaa
+ 1: aaa
+ 2: a
+
 # \K in a called group counts
 # 呼んだグループの中の \K も効く
 /(a\Kb)?c(?1)/

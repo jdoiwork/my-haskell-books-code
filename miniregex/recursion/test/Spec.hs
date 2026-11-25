@@ -1043,6 +1043,37 @@ main = hspec $ do
         `shouldThrow` (== Looping 1 0)
       findWithin defaultLimit (surely "a|(?R)b") "ab"
         `shouldBe` Right (Just (Match "a" 0 1 [] mempty))
+    -- PCRE2 stops when the place and how far it has read the text are
+    -- the same; MiniRegex, when the place and the groups are. They
+    -- agree here: (?!) reads nothing, and the call is not atomic
+    -- PCRE2 は「場所と、文字列をどこまで読んだか」、MiniRegex は「場所と、
+    -- グループの値」で止める。ここでは同じ：(?!) は何も読まない。呼び出しは
+    -- アトミックでない
+    it "stops where PCRE2 stops (pcre2test 10.49: error -52)" $ do
+      findWithin defaultLimit (surely "(?1)(?!)|(|(?>(?1))y)") "a"
+        `shouldBe` Left (Looping 1 0)
+      findWithin defaultLimit (surely "(?1)x|(|(?1)y)") "a"
+        `shouldBe` Left (Looping 1 0)
+    -- ...and here they do not (see "Q. PCRE2 と MiniRegex は、同じ再帰を
+    -- 止めますか？" in the chapter). x read the a, so PCRE2 goes on, and
+    -- finds the empty match; MiniRegex stops
+    -- ……ここではちがう（章の「Q. PCRE2 と MiniRegex は、同じ再帰を
+    -- 止めますか？」）。x が a を読んだので、PCRE2 は進んで、空の一致を
+    -- 見つける。MiniRegex は止める
+    it "stops where PCRE2 finds the empty match (pcre2test: 0: and 1:)" $
+      findWithin defaultLimit (surely "(?1)x|(|(?>(?1))y)") "a"
+        `shouldBe` Left (Looping 1 0)
+    -- .* has read the text to the end before the calls, so PCRE2 sees
+    -- nothing new and stops (error -52; with disable_recurseloop_check
+    -- it finds aaa); the groups grow, so MiniRegex goes on and finds it
+    -- 呼ぶ前に .* が終わりまで読んだので、PCRE2 は何も変わらないと見て止める
+    -- （error -52。disable_recurseloop_check を付けると aaa）。グループは
+    -- 伸びるので、MiniRegex は進んで見つける
+    it "finds aaa where PCRE2 stops (pcre2test: error -52)" $
+      fmap (fmap allGroups)
+           (findWithin defaultLimit
+              (surely "^(?<r>(?=.*)(?=(\\2a|a))(?:\\2$|(?&r)))$") "aaa")
+        `shouldBe` Right (Just ("aaa" :| ["aaa", "a"]))
     -- ANCHOR: agree
     -- the two VMs and the continuations agree, calls and all; the
     -- continuations throw what the VMs give back
@@ -1079,16 +1110,23 @@ main = hspec $ do
                 -- 最適化を止めた PCRE2 と：最適化は、一致に要るものを先に
                 -- 見て、回るはずの場所を飛ばしたり、くり返しの返し方を変え
                 -- たりする
+                -- the two stop in different places (PCRE2 looks at how
+                -- far it has read, MiniRegex at the groups): when only one
+                -- stops, it is counted, not called a difference
+                -- 2つは止める所がちがう（PCRE2 はどこまで読んだか、MiniRegex
+                -- はグループの値を見る）。片方だけが止めたら、数えるだけで、
+                -- ちがいとはしない
                 Left (Looping _ _) -> ioProperty $ do
                   theirs <- try (evaluate (Pcre2.capturesOpt exact p t))
                   pure $ case theirs of
                     Left (_ :: SomeException) -> label "both looped" True
-                    Right ts -> counterexample "PCRE2 did not loop"
-                                  (ts === Nothing)
+                    Right Nothing -> label "both found nothing" True
+                    Right (Just _) -> label "only MiniRegex stopped" True
                 Right m -> ioProperty $ do
                   theirs <- try (evaluate (Pcre2.capturesOpt exact p t))
                   pure $ case theirs of
-                    Left (_ :: SomeException) -> label "PCRE2 gave up" True
+                    Left (_ :: SomeException) ->
+                      label "PCRE2 stopped or gave up" True
                     Right ts -> label "compared" (fmap allGroups m === ts)
     -- calls are written back, and read again
     -- 呼び出しも書き戻して、読み直せる
