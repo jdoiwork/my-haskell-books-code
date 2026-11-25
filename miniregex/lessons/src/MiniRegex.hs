@@ -190,6 +190,7 @@ findAll re t
     sharing f c = state (\left -> let (r, left') = f left re' c
                                    in  (either throw id r, left'))
 
+-- ANCHOR: sharesbudget
 -- 👛 The walks that share one budget: switching, but not a pattern of
 --    plain texts only (it has its own runner, with no VM: the shared
 --    budget would go round it).
@@ -202,6 +203,7 @@ sharesBudget re =
   where
     literals (Literals _) = True
     literals _            = False
+-- ANCHOR_END: sharesbudget
 
 -- 🚶 For the walk, Bounded switches instead: a table for the rest of
 --    the text at each match would cost more than it saves (from the

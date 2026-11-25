@@ -366,6 +366,9 @@ places pf c
         | Just cs <- plainChars as' -> charPlaces cs c
         | otherwise -> filter (startsWithOneOf as') (onwards c)
       Inner ls t    -> stepBackFrom c ls (textPlaces t c)
+      -- one text: Text's own search, as for a Prefix
+      -- 文字列が1つなら、Prefix と同じく Text の検索で
+      Literals [w]  -> textPlaces w c
       Literals ws
         | finder pf == EachText -> eachTextPlaces (nub ws) c
         | otherwise -> charPlaces (nub (mapMaybe firstChar ws)) c

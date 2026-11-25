@@ -73,12 +73,12 @@ escape = T.concatMap one
 -- よその国に学ぶ章
 
 -- ANCHOR: asserts
--- 🧱 innerOf, but an assertion (\b, ^, a look ...) is passed over, as
---    an instruction that takes no character. The VM still checks it at
---    the place we step back to.
--- innerOf。ただし、たしかめるだけの命令（\b、^、「見る」もの……）も、
--- 文字を食べない命令として、とばす。たしかめるのは、戻った場所で VM が
--- する
+-- 🧱 innerOf, but an assertion (\b, \B, ^, $ ...; not a look, which
+--    begins with a fence) is passed over, as an instruction that takes
+--    no character. The VM still checks it at the place we step back to.
+-- innerOf。ただし、たしかめるだけの命令（\b・\B・^・$ など。先読みは
+-- fence で始まるので、ちがう）も、文字を食べない命令として、とばす。
+-- たしかめるのは、戻った場所で VM がする
 innerOfOverAsserts :: Program -> Maybe ([Lead], Text)
 innerOfOverAsserts prog = leads (skip 0) []
   where

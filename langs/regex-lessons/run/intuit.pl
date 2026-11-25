@@ -11,9 +11,9 @@
 # Perl 5.44 で動かし、その行だけを残す
 use strict;
 use warnings;
+# ANCHOR: intuit
 use re qw(Debug COMPILE);
 
-# ANCHOR: intuit
 my @jobs = (
     [ dates    => '\d{4}-\d{2}-\d{2}' ],
     [ mail     => '[\w.+-]+@[\w-]+\.[\w.-]+' ],

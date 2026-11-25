@@ -120,18 +120,22 @@ runnerFor re
 -- ANCHOR: literalrunner
 -- 📜 No VM at all, as Rust's regex does for a pattern that is only
 --    texts: at each place, the first of the texts (in the order of the
---    branches) that is there. Each place costs one step.
+--    branches) that is there. A match costs one step; a place where
+--    no text is costs none (no VM runs there, so there is nothing for
+--    the limit to guard).
 -- VM を使わない。文字列だけのパターンに、Rust の regex がするのと同じ。
--- 場所ごとに、そこにある最初の文字列（枝の順）。1つの場所で1ステップ
+-- 場所ごとに、そこにある最初の文字列（枝の順）。一致1つで1ステップ。
+-- 文字列のなかった場所は数えない（VM が動かないので、上限で守るものが
+-- ない）
 literalRunner :: [Text] -> Runner
-literalRunner ws _ limit accept = go limit
+literalRunner ws _ limit accept = go
   where
-    go left []         = (Nothing, NotFound, left)
-    go left _ | left <= 0 = (Nothing, OutOfSteps, 0)
-    go left (c : cs)   =
+    go []       = (Nothing, NotFound, limit)
+    go (c : cs) =
       case [e | w <- ws, Just e <- [stepOver w c], accept e] of
-        e : _ -> (Just c, Found e noCaps, left - 1)
-        []    -> go (left - 1) cs
+        e : _ | limit > 0 -> (Just c, Found e noCaps, limit - 1)
+              | otherwise -> (Nothing, OutOfSteps, 0)
+        []                -> go cs
 -- ANCHOR_END: literalrunner
 
 -- ANCHOR: shortfirst

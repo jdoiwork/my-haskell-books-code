@@ -26,10 +26,12 @@ import MiniRegex.Engine
 import MiniRegex.Pike (scanPike)
 import MiniRegex.PikeST (scanPikeST)
 import MiniRegex.Program (instructions)
+import MiniRegex.Program qualified as Prog
 import MiniRegex.Race (findRacing, findRacingWithin)
 -- ANCHOR: prefilterimport
 import MiniRegex.Prefilter
-  (Prefilter (..), Start (..), kmpPlaces, kmpTable, literalsOf, textPlaces)
+  ( Lead (..), Prefilter (..), Start (..), innerOf, kmpPlaces, kmpTable
+  , literalsOf, textPlaces )
 -- ANCHOR_END: prefilterimport
 import Data.Text.Unsafe (lengthWord8)
 import MiniRegex.Cursor
@@ -73,10 +75,18 @@ lessonPatterns =
   [ "\\d{4}-\\d{2}", "\\d{2}-\\d", "[\\w.+-]+@[\\w-]+\\.[\\w.-]+"
   , "(\\w+) sold (\\d+)", "\\w+ s", "a\\w-", "(\\w+)@", "\\w+@\\w"
   , "(?i)\\w+@", "[a@]+@b", "Go|Gold", "Gold|Go", "ab|b|abc", "a|aa"
-  , "(?i)ok", "(?i)sold|so", "日|日本", "(\\w+)@\\1", "(\\w+)@(?=\\1)" ]
+  , "(?i)ok", "(?i)sold|so", "日|日本", "(\\w+)@\\1", "(\\w+)@(?=\\1)"
+  , "\\d\\w+@", "a\\w+@" ]
 
 lessonChars :: [Char]
 lessonChars = "12a-@.b s+é日本soldGOgOKkK\x212A"
+
+-- 🧱 For the training: patterns with an assertion before the text.
+-- トレーニングのため：文字列の前に、たしかめるだけの命令のあるパターン
+assertPatterns :: [Text]
+assertPatterns =
+  [ "\\b\\w+@", "\\b\\d{2}-", "(?m)^\\d-", "\\d\\b-", "\\B\\d-"
+  , "(?=\\d)\\w+ s" ]
 
 -- 📍 Is it a start with a text inside?
 -- 内側の文字列の始まりか？
@@ -2775,6 +2785,21 @@ main = hspec $ do
           , ("only \"Mira\" \"Ruby\" \"Lam\" \"Go\"", "\"\"")
           , ("only 16 texts: \"PERL\" ... \"perl\"", "\"\"")
           , ("one of [a@]", "\"@b\"") ]
+    -- texts only: the places are only where a text starts
+    -- 文字列だけ：試す場所は、文字列の始まる所だけ
+    it "tries only where a text starts" $
+      triedPlaces "Mira|Ruby" "Mira and Ruby" `shouldBe` [0, 9]
+    -- a run that could take the first character of the text: no start
+    -- from the text (the possessive loops never make one today, so a
+    -- program made by hand)
+    -- 文字列の最初の文字を食べられる Run なら、内側の文字列からの始まりに
+    -- しない（いまの自動の所有化は、そういう Run を作らないので、手で作る）
+    it "does not step back over a run that takes the text" $ do
+      let made c = Prog.programOf
+            [ Prog.Take (Lit 'a'), Prog.TakeAll (Lit 'a')
+            , Prog.Take (Lit c), Prog.Match ]
+      innerOf (made '@') `shouldBe` Just ([Run (Lit 'a')], "@")
+      innerOf (made 'a') `shouldBe` Nothing
     -- stepping back stops where the search began
     -- 戻るのは、探し始めた場所まで
     it "steps back no further than where the search began" $ do
@@ -2832,12 +2857,25 @@ main = hspec $ do
                 (tree (surely ("(?i)" <> T.replicate 24 "a"))))))
       done `shouldBe` Just False
     -- findAll and findAllWithin take the runner of texts too, not the
-    -- shared budget (one candidate, one step)
+    -- shared budget (one match, one step)
     -- findAll と findAllWithin も、文字列の走り方を使う（分け合う予算の道では
-    -- なく。1つの候補に1ステップ）
+    -- なく。一致1つで1ステップ）
     it "walks a pattern of texts with no VM" $
       fmap (map matchText) (findAllWithin 1 (surely "abcdef") "abcdef")
         `shouldBe` Right ["abcdef"]
+    -- a place with no text there costs no step: as many places as you
+    -- like before the match, as with Prefix in the chapter before
+    -- 文字列のない場所は、ステップに数えない。一致の前に場所がいくつあっても
+    -- よい。前の章の Prefix と同じ
+    it "counts the matches, not the places it looked at" $ do
+      let es = T.replicate 10 "E " <> "Error"
+      fmap (fmap matchStart) (findWithin 2 (surely "Error|Exception") es)
+        `shouldBe` Right (Just 20)
+      fmap (fmap matchStart) (findWithin 2 (surely "Error") es)
+        `shouldBe` Right (Just 20)
+      fmap (fmap matchStart)
+        (findWithin 1 (surely "ab") ("b" <> T.replicate 10 "a"))
+        `shouldBe` Right Nothing
   -- ANCHOR_END: lessons
   -- ANCHOR: answers
   describe "the training / トレーニング" $ do
@@ -2851,12 +2889,18 @@ main = hspec $ do
       start (prefilter (withAsserts re)) `shouldSatisfy` isInner
       findAll (withAsserts re) book `shouldBe` findAll re book
     prop "steps over assertions and finds the same" $
-      forAll (elements [ "\\b\\w+@", "\\b\\d{2}-", "^\\d-", "\\d\\b-"
-                       , "(?=\\d)\\w+ s" ]) $ \p ->
+      forAll (elements assertPatterns) $ \p ->
         forAll (listOf (elements lessonChars)) $ \cs ->
           let re = surely p
               t  = T.pack cs
           in  findAll (withAsserts re) t === findAll (everywhere re) t
+    -- which of them start from the inner text: a run (\b\w+@) and a
+    -- look (it begins with a fence, not an assert) do not
+    -- そのうち、内側の文字列から始めるもの。Run（\b\w+@）と先読み（assert
+    -- ではなく fence で始まる）は、始めない
+    it "starts from the inner text only where it may" $
+      map (isInner . start . prefilter . withAsserts . surely) assertPatterns
+        `shouldBe` [False, True, True, True, True, False]
     -- with a run, an assert makes a later start worth trying: no start
     -- from the inner text then
     -- Run があると、assert のせいで右の始まりにも値打ちが出る：そのときは、
