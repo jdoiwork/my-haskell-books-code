@@ -103,8 +103,11 @@ minLength (Pattern bs) = minimum (fmap branch bs)
 -- くらべるので、これはできない。KMP は「同じ」の決め方さえあればよい
 -- （同値関係なら）
 kmpPlacesBy :: (Char -> Char -> Bool) -> Text -> Cursor -> [Cursor]
-kmpPlacesBy same t c =
-  [ d | (d, k) <- zip (onwards c) (drop (m - 1) states), k == m ]
+kmpPlacesBy same t c
+  -- the empty t starts everywhere / 空の t は、どこでも始まる
+  | T.null t  = onwards c
+  | otherwise =
+      [ d | (d, k) <- zip (onwards c) (drop (m - 1) states), k == m ]
   where
     m     = T.length t
     p     = listArray (0, m - 1) (T.unpack t) :: Array Int Char

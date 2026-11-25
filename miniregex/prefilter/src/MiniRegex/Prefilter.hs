@@ -238,6 +238,9 @@ places pf c
 -- t が始まる場所を、Text の検索（breakOn）で。次の検索は、1文字先から。
 -- t は、自分と重なることがあるから
 textPlaces :: Text -> Cursor -> [Cursor]
+textPlaces t c
+  -- the empty t starts everywhere / 空の t は、どこでも始まる
+  | T.null t = onwards c
 textPlaces t c = case T.breakOn t (rest c) of
   (_, found) | T.null found -> []
   (skipped, found) ->
@@ -276,8 +279,10 @@ kmpTable t = table
 -- 合っているかを持ち回る。t が始まるしおりは、終わるしおりより
 -- m − 1 文字前なので、しおりと状態を m − 1 ずらして並べて歩く
 kmpPlaces :: Text -> Cursor -> [Cursor]
-kmpPlaces t c =
-  [ d | (d, k) <- zip cursors (drop (m - 1) states), k == m ]
+kmpPlaces t c
+  -- the empty t starts everywhere / 空の t は、どこでも始まる
+  | T.null t  = onwards c
+  | otherwise = [ d | (d, k) <- zip cursors (drop (m - 1) states), k == m ]
   where
     m       = T.length t
     p       = listArray (0, m - 1) (T.unpack t) :: Array Int Char

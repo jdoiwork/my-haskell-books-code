@@ -4,11 +4,14 @@
 # 先に探す章の Python のコード：re.DEBUG がプログラムの頭（INFO）に
 # 見せるもの。先頭の文字列と、その overlap の表（KMP の表）か、最初の
 # 文字の集合
+# ANCHOR: helper
 import contextlib
 import io
 import re
 
 
+# re.DEBUG prints the program; keep only the INFO at its head
+# re.DEBUG はプログラムを書き出す。その頭の INFO だけを取り出す
 def info(pattern):
     shown = io.StringIO()
     with contextlib.redirect_stdout(shown):
@@ -24,6 +27,7 @@ def info(pattern):
             break
         head.append(line.strip())
     return program[0], head
+# ANCHOR_END: helper
 
 
 # ANCHOR: info

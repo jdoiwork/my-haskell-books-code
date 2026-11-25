@@ -59,6 +59,11 @@ genLines = T.pack <$> listOf (frequency [(3, elements "ab"), (1, pure '\n')])
 genAscii :: Gen Text
 genAscii = T.pack <$> listOf (elements "ab")
 
+-- 🎲 The same, big and small: a and A are the same only for sameCase.
+-- 同じものを、大文字と小文字で。a と A が同じなのは、sameCase のときだけ
+genCased :: Gen Text
+genCased = T.pack <$> listOf (elements "abAB")
+
 -- 🎲 Patterns of a and b, now and then with a sign that has a meaning.
 -- a と b のパターン。ときどき、意味を持つ記号がまざる
 genPattern :: Gen Text
@@ -83,10 +88,12 @@ placesOf needle = go 0
       | otherwise                = go (at + 1) (T.drop 1 t)
     n = T.length needle
 
+-- ANCHOR: cursorstart
 -- 📍 A cursor at the start of a text.
 -- 文字列の頭に置いたしおり
 cursorAtStart :: Text -> Cursor
 cursorAtStart t = maybe (error "no cursor") id (cursorAt t 0)
+-- ANCHOR_END: cursorstart
 
 -- 🚩 Our flags, as the pcre2 library's options. MiniRegex's \d and \w
 --    are Unicode: that is PCRE2's Ucp.
@@ -827,7 +834,8 @@ main = hspec $ do
         `shouldBe` Right (Just 137)
     it "gives up on (a+)+b, but not on (?>a+)+b" $ do
       let as = T.replicate 30 "a" <> "c"
-      isLeft (findWithin 100000 (backtracking (everywhere (surely "(a+)+b"))) as)
+      isLeft (findWithin 100000
+                (backtracking (everywhere (surely "(a+)+b"))) as)
         `shouldBe` True
       findWithin 100000 (surely "(?>a+)+b") as `shouldBe` Right Nothing
       findAllWithin 100000 (backtracking (everywhere (surely "(a+)+b"))) as
@@ -1127,7 +1135,7 @@ main = hspec $ do
     -- KMP は、Text の検索と同じ場所を見つける
     prop "finds the same places with KMP and with Text's search" $
       forAll genText $ \t ->
-        forAll (genText `suchThat` (not . T.null)) $ \needle ->
+        forAll genText $ \needle ->
           let c = cursorAtStart t
           in  map at (kmpPlaces needle c) === map at (textPlaces needle c)
     prop "finds the same with KMP" $
@@ -1142,6 +1150,14 @@ main = hspec $ do
       map at (kmpPlaces "aa" (cursorAtStart "aaaa")) `shouldBe` [0, 1, 2]
       map at (kmpPlaces "abab" (cursorAtStart "xababab"))
         `shouldBe` [1, 3]
+    -- the empty word starts at every place, the end too (as T.breakOn
+    -- would not tell: it does not take an empty word)
+    -- 空の語は、どの場所でも始まる。終わりでも（T.breakOn は空の語を
+    -- 受け取らない）
+    it "finds the empty word everywhere" $ do
+      map at (textPlaces "" (cursorAtStart "ab")) `shouldBe` [0, 1, 2]
+      map at (kmpPlaces "" (cursorAtStart "ab")) `shouldBe` [0, 1, 2]
+      map at (kmpPlaces "" (cursorAtStart "")) `shouldBe` [0]
     it "makes KMP's table as the chapter on strings did" $
       toList (kmpTable "abcabd") `shouldBe` [0, 0, 0, 1, 2, 0]
   -- ANCHOR_END: prefilter
@@ -2384,8 +2400,8 @@ main = hspec $ do
     -- step 3: KMP that does not mind the case
     -- ステップ3：大文字と小文字を区別しない KMP
     prop "finds a word in any case, as the simple way does" $
-      forAll genAscii $ \t ->
-        forAll (genAscii `suchThat` (not . T.null)) $ \needle ->
+      forAll genCased $ \t ->
+        forAll genCased $ \needle ->
           let c = cursorAtStart t
               simple = [ at d | d <- onwards c
                        , T.length (rest d) >= T.length needle
@@ -2393,6 +2409,16 @@ main = hspec $ do
                                          (T.unpack (rest d))) ]
           in  map at (kmpPlacesBy sameCase needle c) === simple
     it "finds the dragons, big or small" $
-      map at (kmpPlacesBy sameCase "dragon" (cursorAtStart "a DRAGON, a Dragon"))
+      map at (kmpPlacesBy sameCase "dragon"
+                (cursorAtStart "a DRAGON, a Dragon"))
         `shouldBe` [2, 12]
+    -- the table needs sameCase too: Aa has the border a only when a and A
+    -- are the same, and then it is found at 0 and 1
+    -- 表にも sameCase が要る：Aa に a という境界があるのは、a と A が同じとき
+    -- だけ。それで 0 と 1 の両方で見つかる
+    it "uses the same sameness for the table" $ do
+      map at (kmpPlacesBy sameCase "Aa" (cursorAtStart "aaa"))
+        `shouldBe` [0, 1]
+      map at (kmpPlacesBy sameCase "" (cursorAtStart "ab"))
+        `shouldBe` [0, 1, 2]
   -- ANCHOR_END: answers
