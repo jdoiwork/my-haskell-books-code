@@ -50,7 +50,8 @@ import MiniRegex.STVM (scanVMST, scanVMSTFresh)
 import MiniRegex.Unicode (caseVariants, fold)
 import MiniRegex.VM (scanVM)
 -- ANCHOR: dfaimports
-import MiniRegex.LazyDFA (canDfa, dfaFind, dfaFor, reversePattern)
+import MiniRegex.LazyDFA
+  (canDfa, dfaFind, dfaFor, othersLimit, reversePattern)
 import Data.Maybe (fromMaybe, isJust)
 -- ANCHOR_END: dfaimports
 import RegexAnswers
@@ -2926,6 +2927,17 @@ main = hspec $ do
           in  counterexample (T.unpack p) (findAll re t === findAllVM re t)
     -- the groups, with the engine the regex chose, within its limit
     -- グループは、正規表現が選んだエンジンで、上限のうちに求める
+    -- many different characters past ASCII: the moves are thrown away
+    -- and found again, and the DFA still answers (with two states)
+    -- ASCII の外の、ちがう文字がたくさん：移り先を捨てて求め直し、DFA は
+    -- 答え続ける（状態は2つのまま）
+    it "keeps going past the moves it may keep" $ do
+      let re    = surely ".+"
+          t     = T.pack (take (othersLimit + 10) ['\x10000' ..])
+          spanOf m = (matchStart m, matchEnd m)
+      fmap (fmap spanOf) (dfaFind re t 0)
+        `shouldBe` Just (Just (0, othersLimit + 10))
+      fmap spanOf (find re t) `shouldBe` fmap spanOf (findVM re t)
     it "finds the groups with the engine the regex chose" $ do
       let re = surely "(a+)+c|a+b"
           t  = T.replicate 12 "a" <> "b"
@@ -2951,6 +2963,10 @@ main = hspec $ do
         , "Mira|Ruby|Lam|GHC|Perl|Rust|Python|Go", "x*" ]
         `shouldBe` [10, 5, 2, 0]
       findAllLong (surely "\\d{4}-\\d{2}-\\d{2}") "2026-11" `shouldBe` []
+      -- it counts what a match takes, not what it reports (\K)
+      -- 数えるのは、一致が食べる文字。報告する範囲ではない（\K）
+      minLength (surely "a\\K") `shouldBe` 1
+      map matchText (findAllLong (surely "a\\K") "abc") `shouldBe` [""]
     prop "finds the same as findAll" $
       forAll (elements lessonPatterns) $ \p ->
         forAll (listOf (elements lessonChars)) $ \cs ->

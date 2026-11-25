@@ -65,10 +65,12 @@ escape = T.concatMap one
 -- lazy DFA の章
 
 -- ANCHOR: minlength
--- 📏 PCRE2's MINLENGTH: every match is at least this many characters
---    long (the short end of the pattern's width).
--- PCRE2 の MINLENGTH：どの一致も、少なくともこれだけの文字の長さ
--- （パターンの幅の、短いほうの端）
+-- 📏 PCRE2's MINLENGTH: every match takes at least this many
+--    characters (the short end of the pattern's width). What it reports
+--    may be shorter, with \K: a\K takes a and reports nothing.
+-- PCRE2 の MINLENGTH：どの一致も、少なくともこれだけの文字を食べる
+-- （パターンの幅の、短いほうの端）。報告する範囲は、\K があると、
+-- もっと短いことがある：a\K は a を食べて、空を報告する
 minLength :: Regex -> Int
 minLength re = fromIntegral (shortest (patternWidth (tree re)))
 
