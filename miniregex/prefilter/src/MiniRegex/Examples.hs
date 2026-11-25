@@ -74,7 +74,7 @@ import Data.Text qualified as T
 
 import Data.Text.IO qualified as TIO
 
-import MiniRegex
+import MiniRegex hiding (engine)
 import MiniRegex.Candidates (ends)
 import MiniRegex.Compile (listing, showInst)
 import MiniRegex.Cursor (Cursor (..), cursorAt)

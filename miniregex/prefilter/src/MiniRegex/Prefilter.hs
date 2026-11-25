@@ -155,11 +155,18 @@ firstAtoms prog = case walk [0] IntSet.empty [] False of
 --    from it takes: at a split, only what both ways take. The loops
 --    make it go round, so start from "anything" (Nothing: no way to a
 --    match is known yet) and narrow down until nothing changes.
+--    An instruction looks ahead at the answers made in this same
+--    round (they are made from the end), so a program with no loop is
+--    settled in one round; and only the first few characters are kept
+--    (a pattern with a{100} a thousand times would make the rounds
+--    and the lists 100,000 long).
 -- 0 番から match までの、どの道でも食べる、ただの文字。食べる順に。
 -- 命令ごとに「そこからのどの道でも食べるもの」を求める。split では、
 -- 両方の道が食べるものだけ。輪があるので、「何でも」（Nothing：match
 -- へ行く道が、まだ見つかっていない）から始めて、変わらなくなるまで
--- 絞る
+-- 絞る。うしろの命令の答えは、同じ回に作ったものを使う（うしろから
+-- 作る）ので、輪のないプログラムは1回で決まる。文字は、頭の数個だけを
+-- 持つ（a{100} を千回並べたパターンだと、回る回数もリストも10万になる）
 neededChars :: Program -> [Char]
 neededChars prog = fromMaybe [] (settle start0 ! 0)
   where
@@ -171,25 +178,37 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
       | otherwise    = settle next
       where
         next = listArray (lo, hi) [rule pc | pc <- [lo .. hi]]
+        -- an answer ahead is this round's; one behind, the last round's
+        -- うしろの命令の答えは、この回のもの。前の命令の答えは、前の回のもの
+        look pc a
+          | a > pc    = next ! a
+          | otherwise = need ! a
         rule pc = case prog ! pc of
-          Take (Lit c) -> (c :) <$> after
+          Take (Lit c) -> (take neededMost . (c :)) <$> after
           Match        -> Just []
-          Split a b    -> both (need ! a) (need ! b)
-          Jmp a        -> need ! a
-          IfStill _ a  -> both (need ! a) after
-          FenceNot a   -> need ! a
+          Split a b    -> both (look pc a) (look pc b)
+          Jmp a        -> look pc a
+          IfStill _ a  -> both (look pc a) after
+          FenceNot a   -> look pc a
           CutFail      -> Nothing          -- no way on / 先がない
           Back _       -> Just []          -- may be before / 前かも
           Return       -> Just []          -- comes back anywhere
                                            -- どこへ戻るかわからない
           _            -> after
           where
-            after = need ! (pc + 1)
+            after = look pc (pc + 1)
     -- what both ways take (Nothing: that way never gets to a match)
     -- 両方の道が食べるもの（Nothing：その道は match に着かない）
     both Nothing ys         = ys
     both xs Nothing         = xs
     both (Just xs) (Just ys) = Just [x | x <- xs, x `elem` ys]
+
+-- ✂️ How many needed characters to keep: a few are enough to tell
+--    that one is not ahead.
+-- 必ず要る文字を、いくつまで持つか。この先にない文字を見つけるには、
+-- 数個で足りる
+neededMost :: Int
+neededMost = 16
 -- ANCHOR_END: needed
 
 -- ANCHOR: places
