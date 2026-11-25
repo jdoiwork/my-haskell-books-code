@@ -796,7 +796,8 @@ main = hspec $ do
     -- a*+ is fenced: the count has room for the fences, too
     -- a*+ は区切りの中：見積もりは、区切りの命令も数える
     it "counts the fences of possessive repeats" $ do
-      let Right tr = parsePattern [] "a*+b*+c*+"
+      tr <- either (fail . show) pure
+              (parsePattern [] "a*+b*+c*+")
       programSize tr
         >= fromIntegral (length (instructions (compileTree tr)))
         `shouldBe` True

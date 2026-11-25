@@ -9,6 +9,7 @@ module RegexAnswers
   , choiceTree
   , escape
   , searchBox
+  , searchBoxWithin
   , matchesBySet
   ) where
 
@@ -73,12 +74,24 @@ escape = T.concatMap one
 -- ANCHOR: box
 -- 🔎 The search box of the records room: a pattern from someone else
 --    runs only if it runs in linear time. If not, the box says why.
+--    The Pike VM has a limit on the steps, too: when the search gives
+--    up, the box says so (findAll would throw it, while the list is
+--    read, after the box has answered Right).
 -- 記録室の検索の欄：ほかの人のパターンは、線形時間で動くときだけ
--- 動かす。だめなら、欄がわけを言う
+-- 動かす。だめなら、欄がわけを言う。Pike VM にもステップ数の上限がある。
+-- あきらめたら、欄がそう言う（findAll だと、欄が Right と答えたあと、
+-- リストを読むところで、例外として投げてしまう）
 searchBox :: Text -> Text -> Either Text [Text]
-searchBox p t = case compileWith [Linear] p of
+searchBox = searchBoxWithin defaultLimit
+
+searchBoxWithin :: Int -> Text -> Text -> Either Text [Text]
+searchBoxWithin limit p t = case compileWith [Linear] p of
   Left err -> Left (explain p err)
-  Right re -> Right (map matchText (findAll re t))
+  Right re -> case findAllWithin limit re t of
+    Left (GaveUp n) ->
+      Left ("gave up after " <> T.pack (show n) <> " steps\n")
+    Left other      -> Left (T.pack (show other) <> "\n")
+    Right ms        -> Right (map matchText ms)
 -- ANCHOR_END: box
 
 -- ANCHOR: byset

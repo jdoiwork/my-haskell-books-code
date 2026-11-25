@@ -843,14 +843,16 @@ main = hspec $ do
     -- the bodies of called groups are written once more, after Match
     -- 呼ばれるグループの中身は、Match のうしろに、もう1度書かれる
     it "counts the bodies of called groups" $ do
-      let Right tr = parsePattern [] "(((((a{100})))))(?1)(?2)(?3)(?4)(?5)"
+      tr <- either (fail . show) pure
+              (parsePattern [] "(((((a{100})))))(?1)(?2)(?3)(?4)(?5)")
       programSize tr
         >= fromIntegral (length (instructions (compileTree tr)))
         `shouldBe` True
     -- a*+ is fenced: the count has room for the fences, too
     -- a*+ は区切りの中：見積もりは、区切りの命令も数える
     it "counts the fences of possessive repeats" $ do
-      let Right tr = parsePattern [] "a*+b*+c*+"
+      tr <- either (fail . show) pure
+              (parsePattern [] "a*+b*+c*+")
       programSize tr
         >= fromIntegral (length (instructions (compileTree tr)))
         `shouldBe` True

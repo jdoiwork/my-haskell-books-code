@@ -857,14 +857,16 @@ main = hspec $ do
     -- the bodies of called groups are written once more, after Match
     -- 呼ばれるグループの中身は、Match のうしろに、もう1度書かれる
     it "counts the bodies of called groups" $ do
-      let Right tr = parsePattern [] "(((((a{100})))))(?1)(?2)(?3)(?4)(?5)"
+      tr <- either (fail . show) pure
+              (parsePattern [] "(((((a{100})))))(?1)(?2)(?3)(?4)(?5)")
       programSize tr
         >= fromIntegral (length (instructions (compileTree tr)))
         `shouldBe` True
     -- a*+ is fenced: the count has room for the fences, too
     -- a*+ は区切りの中：見積もりは、区切りの命令も数える
     it "counts the fences of possessive repeats" $ do
-      let Right tr = parsePattern [] "a*+b*+c*+"
+      tr <- either (fail . show) pure
+              (parsePattern [] "a*+b*+c*+")
       programSize tr
         >= fromIntegral (length (instructions (compileTree tr)))
         `shouldBe` True
@@ -2244,6 +2246,13 @@ main = hspec $ do
       searchBox "(\\w+) \\1" "a a"
         `shouldBe` Left "(\\w+) \\1\n^\nnot linear: the program has ref 1\n"
       searchBox "(a" "a" `shouldSatisfy` isLeft
+    -- the Pike VM has a limit too: the box says it gave up, in Left
+    -- (not as an exception, while the list is read)
+    -- Pike VM にも上限がある：欄は、あきらめたことを Left で言う（リストを
+    -- 読むところの例外ではなく）
+    it "says when the search gives up" $ do
+      searchBoxWithin 1 "a" "a" `shouldBe` Left "gave up after 1 steps\n"
+      searchBoxWithin 100 "a" "a" `shouldBe` Right ["a"]
     -- step 3: with a set of places, the same as isMatch
     -- ステップ3：場所の集合でも、isMatch と同じ
     prop "matches by a set, as isMatch does" $

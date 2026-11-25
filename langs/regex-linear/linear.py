@@ -3,6 +3,7 @@
 # of a repeat sets the group.
 # Python の re も、PCRE2 と同じ決まりで一致を選ぶ（だから MiniRegex の
 # Pike VM とも同じ）：左の枝が先、くり返しの空の回もグループを書く
+# ANCHOR: cases
 import re
 
 cases = [
@@ -10,6 +11,7 @@ cases = [
     (r"(a|)*b", "aab"),
     (r"(a|b|)+?c", "abc"),
 ]
+# ANCHOR_END: cases
 
 # ANCHOR: procedural
 # Python (procedural style): what re finds, and its groups

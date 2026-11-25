@@ -65,7 +65,7 @@ import MiniRegex.Engine
   ( chooseEngine, compilePattern, compileTree, nonEmptyAt, nonEmptyWithin
   , searchFrom, searchWithin )
 import MiniRegex.Template (Template, expand, template)
-import MiniRegex.Types hiding (source)
+import MiniRegex.Types hiding (engine, source)
 import MiniRegex.Types qualified as Types
 -- ANCHOR_END: imports
 
@@ -78,6 +78,13 @@ import MiniRegex.Types qualified as Types
 -- のにも使えてしまい、木はついてこない
 source :: Regex -> Text
 source = Types.source
+
+-- 🚂 The engine compile chose. A plain function too: with the field,
+--    re { engine = PikeVM } would run a program the Pike VM cannot run.
+-- compile が選んだエンジン。これも、ふつうの関数にする。フィールドだと、
+-- re { engine = PikeVM } で、Pike VM が動かせないプログラムを動かせてしまう
+engine :: Regex -> Engine
+engine = Types.engine
 -- ANCHOR_END: source
 
 -- ANCHOR: compile

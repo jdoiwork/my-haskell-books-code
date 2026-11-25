@@ -2,14 +2,16 @@
 -- | The Pike VM. It runs the same program as the backtracking VM, but
 --   it never goes back: it keeps every place in the program it could be
 --   at, as threads, and moves them all on by one character together.
---   Two threads at the same state are one, so the threads are never
---   more than the instructions, and the time grows in proportion to
---   the length of the text. Programs with back references, calls,
---   fences or lookbehinds cannot run on it.
+--   Two threads at the same state (the instruction, and the marks that
+--   are just here) are one, so the threads are never more than the
+--   states, a number that the program fixes, and the time grows in
+--   proportion to the length of the text. Programs with back
+--   references, calls, fences or lookbehinds cannot run on it.
 -- Pike VM。バックトラックの VM と同じプログラムを動かすが、決して戻らない。
 -- プログラムの中で、いま居られる場所を全部スレッドとして持ち、全員を
--- いっしょに1文字ずつ進める。同じ状態のスレッドは1つにまとめるので、
--- スレッドの数は命令の数を超えず、時間は文字列の長さに比例して伸びる。
+-- いっしょに1文字ずつ進める。同じ状態（命令と、ちょうどここにある印）の
+-- スレッドは1つにまとめるので、スレッドの数は、プログラムで決まる状態の
+-- 数を超えず、時間は文字列の長さに比例して伸びる。
 -- 後方参照・呼び出し・区切り・後読みのあるプログラムは、動かせない
 module MiniRegex.Pike
   ( Thread (..)
