@@ -965,12 +965,15 @@ main = hspec $ do
     -- 章の例を、3つの VM に通す：戻るときは、枝・グループ・「見る」ものが
     -- 書いたものを書き戻す（答えは、どれも pcre2test 10.49 で確かめた）
     -- (every place: looking first would skip the VMs when the text
-    -- lacks a needed character, and then nothing is undone at all)
+    -- lacks a needed character, and then nothing is undone at all; and
+    -- a limit, so that a VM that forgets to undo gives a wrong answer
+    -- instead of going on for ever)
     -- （全部の場所で。先に見ると、要る文字のない文字列では VM が動かず、
-    -- 何も取り消さない）
+    -- 何も取り消さない。上限も付ける。取り消し忘れた VM が、いつまでも
+    -- 回らずに、まちがった答えを出すように）
     let undone p t answer = it (show (p, t)) $
           [ fmap (fmap groups)
-              (fst (searchCountingBy vm maxBound
+              (fst (searchCountingBy vm 1000000
                       (everywhere (surely p)) t 0))
           | vm <- [scanVM, scanVMST, scanVMSTFresh] ]
             `shouldBe` replicate 3 (Right answer)
@@ -993,7 +996,7 @@ main = hspec $ do
     undone "(a|)*b" "aab" (Just [Just ""])
     it "puts back \\K's start when a branch fails" $
       [ fmap (fmap matchText)
-          (fst (searchCountingBy vm maxBound
+          (fst (searchCountingBy vm 1000000
                   (everywhere (surely "a\\Kb|ac")) "ac" 0))
       | vm <- [scanVM, scanVMST, scanVMSTFresh] ]
         `shouldBe` replicate 3 (Right (Just "ac"))
