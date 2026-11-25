@@ -1220,7 +1220,7 @@ main = hspec $ do
     -- 章のほかの GHCi の例も、例として固めておく
     all' "\\Bx\\B" "axb x" ["x"]
     all' "(?<!price:)\\b\\d+" "price:12 34" ["34"]
-    all' "(?<=-)\\d+" "1-2-3" ["2", "3"]          -- a lookbehind can look back
+    all' "(?<=-)\\d+" "1-2-3" ["2", "3"]  -- a lookbehind can look back
     all' "\\d+-\\K\\d+" "1-2-3" ["2"]           -- \\K's front is eaten
     all' "\\d+(?!\\d| gold)" "300 gold 5" ["5"]
     all' "(?<=a)b|a(?=b)" "ab" ["a", "b"]

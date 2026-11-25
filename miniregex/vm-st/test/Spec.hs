@@ -1,7 +1,8 @@
 module Main (main) where
 
 -- ANCHOR: imports
-import Control.Exception (SomeException, evaluate, try)
+import Control.Exception
+  (SomeException, evaluate, fromException, throwIO, try)
 import System.Timeout (timeout)
 import Control.Monad.ST (runST)
 import Data.Either (isLeft)
@@ -186,12 +187,18 @@ genTemplate n = T.concat <$> resize 5 (listOf (elements parts))
 agreeWithin :: (Eq a, Show a) => a -> a -> Test.QuickCheck.Property
 agreeWithin ours theirs = ioProperty $ do
   answer <- timeout 1000000 (try (evaluate (ours == theirs)))
-  pure $ case answer of
-    Nothing -> label "set aside: slow" True
-    Just (Left (_ :: Pcre2.SomePcre2Exception)) ->
-      label "set aside: PCRE2 gave up" True
+  case answer of
+    Nothing -> pure (label "set aside: slow" True)
+    Just (Left e)
+      | Just (_ :: Pcre2.SomePcre2Exception) <- fromException e ->
+          pure (label "set aside: PCRE2 gave up" True)
+      -- the VM's own limit on the steps (GaveUp), from this chapter on
+      -- VM 自身のステップ数の上限（GaveUp）。命令の列の章から
+      | Just (GaveUp _) <- fromException e ->
+          pure (label "set aside: MiniRegex gave up" True)
+      | otherwise -> throwIO e
     Just (Right same) ->
-      counterexample (show ours ++ " /= " ++ show theirs) same
+      pure (counterexample (show ours ++ " /= " ++ show theirs) same)
 -- ANCHOR_END: gens
 
 -- ANCHOR: wild
