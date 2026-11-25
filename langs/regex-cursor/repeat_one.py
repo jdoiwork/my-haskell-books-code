@@ -4,11 +4,14 @@
 # しおりと命令を磨く章の Python のコード：くり返しに re.DEBUG が見せる
 # もの。1文字のくり返しは REPEAT_ONE に、もっと長い中身は
 # REPEAT … MAX_UNTIL になる
+# ANCHOR: helper
 import contextlib
 import io
 import re
 
 
+# re.DEBUG prints the parsed tree and then the program; keep the program
+# re.DEBUG は、読んだ木とプログラムを書き出す。プログラムだけを取り出す
 def program(pattern):
     shown = io.StringIO()
     with contextlib.redirect_stdout(shown):
@@ -17,6 +20,7 @@ def program(pattern):
     # 後半がプログラム。前半は読んだ木
     return [line.rstrip() for line in
             shown.getvalue().split("\n\n")[1].splitlines()]
+# ANCHOR_END: helper
 
 
 # ANCHOR: repeat

@@ -18,7 +18,7 @@ import Data.Text qualified as T
 import Data.Text.Internal.Search (indices)
 import Data.Text.Unsafe (lengthWord8, takeWord8)
 
-import MiniRegex.Cursor (Cursor, jumpTo, rest, step)
+import MiniRegex.Cursor (Cursor, back, jumpTo, onwards, rest, step)
 import MiniRegex.Rules (fitsChar)
 import MiniRegex.Syntax
 -- ANCHOR_END: head
@@ -77,6 +77,11 @@ escape = T.concatMap one
 -- 飛び越えたバイトの中の文字を数える。ただし indices は、重なる場所を
 -- 見つけない。見つけるたびに、1文字先から探し直す
 indexPlaces :: Text -> Cursor -> [Cursor]
+indexPlaces t c
+  -- the empty t starts everywhere, as in textPlaces (indices finds
+  -- nothing for it) / 空の t は、textPlaces と同じく、どこでも始まる
+  -- （indices は、空の t には何も返さない）
+  | T.null t = onwards c
 indexPlaces t c = case indices t ahead of
   []    -> []
   k : _ ->
@@ -102,19 +107,26 @@ starThen x lit c = fst (starThenTries x lit c)
 -- 🍡 The same, and how many times lit was tried.
 -- 同じもの。lit を何回試したかも
 starThenTries :: Atom -> Text -> Cursor -> (Maybe Cursor, Int)
-starThenTries x lit c = giveBack (reverse (eaten c)) 0
+starThenTries x lit c = giveBack most 0
   where
-    -- the cursors after 0, 1, 2 ... x's (the most last)
-    -- x を 0 個・1 個・2 個…食べたあとのしおり（いちばん多いのが最後）
-    eaten d = d : case step d of
-      Just (ch, d') | fitsChar x ch -> eaten d'
-      _                             -> []
-    giveBack [] tries = (Nothing, tries)
-    giveBack (d : ds) tries
-      | worth d = case tryLit d of
-          Just e  -> (Just e, tries + 1)
-          Nothing -> giveBack ds (tries + 1)
-      | otherwise = giveBack ds tries
+    -- take as many x as there are, only counting them: the cursor after
+    -- the last one, and how many
+    -- x をあるだけ食べて、数えるだけ：最後の x のあとのしおりと、その数
+    most = eatAll c 0
+    eatAll :: Cursor -> Int -> (Cursor, Int)
+    eatAll d !n = case step d of
+      Just (ch, d') | fitsChar x ch -> eatAll d' (n + 1)
+      _                             -> (d, n)
+    -- give them back one at a time, with back 1 (nothing else is kept)
+    -- back 1 で、1つずつ返す（ほかには何も覚えない）
+    giveBack (d, n) !tries
+      | worth d, Just e <- tryLit d = (Just e, tries + 1)
+      | n == 0                      = (Nothing, tries')
+      | otherwise = case back 1 d of
+          Just d' -> giveBack (d', n - 1) tries'
+          Nothing -> (Nothing, tries')
+      where
+        tries' = if worth d then tries + 1 else tries
     -- is lit's first character just ahead? (an empty lit: always)
     -- lit の最初の文字が、すぐ先にあるか（lit が空なら、いつでも）
     worth d = case (T.uncons lit, step d) of

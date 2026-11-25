@@ -78,19 +78,24 @@ genPattern = T.pack <$> resize 4 (listOf piece)
 placesOf :: Text -> Text -> [Int]
 placesOf needle = go 0
   where
-    go at t
+    go place t
       | T.null t                 = []
-      | needle `T.isPrefixOf` t  = at : go (at + n) (T.drop n t)
-      | otherwise                = go (at + 1) (T.drop 1 t)
+      | needle `T.isPrefixOf` t  = place : go (place + n) (T.drop n t)
+      | otherwise                = go (place + 1) (T.drop 1 t)
     n = T.length needle
 
--- 📍 A cursor at the start of a text.
--- 文字列の頭に置いたしおり
+-- ANCHOR: lastof
+-- 🔚 The last character of a text (Nothing if it is empty): what the
+--    cursor at the end has before it.
+-- 文字列の最後の文字（空なら Nothing）。終わりのしおりの、すぐ前の文字
 lastOf :: Text -> Maybe Char
 lastOf t
   | T.null t  = Nothing
   | otherwise = Just (T.last t)
+-- ANCHOR_END: lastof
 
+-- 📍 A cursor at the start of a text.
+-- 文字列の頭に置いたしおり
 cursorAtStart :: Text -> Cursor
 cursorAtStart t = maybe (error "no cursor") id (cursorAt t 0)
 
@@ -1449,8 +1454,8 @@ main = hspec $ do
   describe "wrong calls, like PCRE2 10.49 / まちがった呼び出し" $ do
     -- each place and message was checked with pcre2test 10.49
     -- 場所と文は、どれも pcre2test 10.49 で確かめた
-    let wrong p at m = it (T.unpack p) $
-          parsePattern [] p `shouldBe` Left (Invalid at m)
+    let wrong p place m = it (T.unpack p) $
+          parsePattern [] p `shouldBe` Left (Invalid place m)
         e115 = "reference to non-existent subpattern"
         e161 = "subpattern number is too big"
     wrong "(?&nosuch)"     3 e115
@@ -1649,8 +1654,8 @@ main = hspec $ do
   describe "wrong references, like PCRE2 10.49 / まちがった参照" $ do
     -- each place and message was checked with pcre2test 10.49
     -- 場所と文は、どれも pcre2test 10.49 で確かめた
-    let wrong p at m = it (T.unpack p) $
-          parsePattern [] p `shouldBe` Left (Invalid at m)
+    let wrong p place m = it (T.unpack p) $
+          parsePattern [] p `shouldBe` Left (Invalid place m)
         e115 = "reference to non-existent subpattern"
     wrong "(a)\\2"      5 e115
     wrong "\\8"         2 e115
@@ -1734,8 +1739,8 @@ main = hspec $ do
         subs tpl t answer = it (show (tpl, t)) $
           fmap (\x -> replaceTemplate ymd x t) (template ymd tpl)
             `shouldBe` Right answer
-        wrong tpl at m = it (show tpl) $
-          template ymd tpl `shouldBe` Left (Invalid at m)
+        wrong tpl place m = it (show tpl) $
+          template ymd tpl `shouldBe` Left (Invalid place m)
     subs "$m.$y.$$5.$1x.${1}x" "2026-11" "11.2026.$5.2026x.2026x"
     subs "<$01x>"              "2026-11" "<2026x>"
     subs "${0}!"               "2026-11" "2026-11!"
@@ -1963,8 +1968,8 @@ main = hspec $ do
   describe "wrong patterns of this chapter, like PCRE2 10.49 / まちがい" $ do
     -- each place and message was checked with pcre2test 10.49
     -- 場所と文は、どれも pcre2test 10.49 で確かめた
-    let wrong p at m = it (T.unpack p) $
-          parsePattern [] p `shouldBe` Left (Invalid at m)
+    let wrong p place m = it (T.unpack p) $
+          parsePattern [] p `shouldBe` Left (Invalid place m)
     wrong "a(?z)b"        4 "unrecognized character after (? or (?-"  -- 111
     wrong "a(?i)*"        6
       "quantifier does not follow a repeatable item"  -- 109
@@ -2119,8 +2124,8 @@ main = hspec $ do
   describe "wrong looks, like PCRE2 10.49 / まちがった「見る」もの" $ do
     -- each place and message was checked with pcre2test 10.49
     -- 場所と文は、どれも pcre2test 10.49 で確かめた
-    let wrong p at m = it (T.unpack p) $
-          parsePattern [] p `shouldBe` Left (Invalid at m)
+    let wrong p place m = it (T.unpack p) $
+          parsePattern [] p `shouldBe` Left (Invalid place m)
         unlimited = "length of lookbehind assertion is not limited"  -- 125
         tooLong =
           "branch too long in variable-length lookbehind assertion"  -- 200
@@ -2352,8 +2357,8 @@ main = hspec $ do
   describe "wrong patterns, like PCRE2 10.49 / まちがい" $ do
     -- each place and message was checked with pcre2test 10.49
     -- 場所と文は、どれも pcre2test 10.49 で確かめた
-    let wrong p at m = it (T.unpack p) $
-          parsePattern [] p `shouldBe` Left (Invalid at m)
+    let wrong p place m = it (T.unpack p) $
+          parsePattern [] p `shouldBe` Left (Invalid place m)
         e104 = "numbers out of order in {} quantifier"
         e105 = "number too big in {} quantifier"
         e106 = "missing terminating ] for character class"
@@ -2467,9 +2472,12 @@ main = hspec $ do
         `shouldBe` [2, 4]
     prop "finds the same places as Text's search" $
       forAll genText $ \t ->
-        forAll (genText `suchThat` (not . T.null)) $ \needle ->
+        forAll genText $ \needle ->
           let c = cursorAtStart t
           in  indexPlaces needle c === textPlaces needle c
+    it "finds the empty word everywhere, as textPlaces does" $ do
+      map at (indexPlaces "" (cursorAtStart "ab")) `shouldBe` [0, 1, 2]
+      map at (indexPlaces "" (cursorAtStart "")) `shouldBe` [0]
     -- step 3: x*lit, as REPEAT_ONE does it
     -- ステップ3：x*lit を、REPEAT_ONE のやり方で
     prop "finds what the VM finds for ^x*lit" $
@@ -2481,6 +2489,17 @@ main = hspec $ do
             in  fmap at (starThen x lit (cursorAtStart t))
                   === fmap matchEnd (find re t)
     it "tries lit once on a long run of a" $
-      snd (starThenTries (Lit 'a') "b" (cursorAtStart (T.replicate 10000 "a" <> "b")))
+      snd (starThenTries (Lit 'a') "b"
+             (cursorAtStart (T.replicate 10000 "a" <> "b")))
         `shouldBe` 1
+    -- giving back: lit is tried at each place where its first character
+    -- is just ahead, from the most x's down
+    -- 返しながら：lit の最初の文字がすぐ先にある場所ごとに、多いほうから試す
+    it "gives back the x's one at a time" $ do
+      starThenTries (Lit 'a') "ab" (cursorAtStart "aaab")
+        `shouldSatisfy` ((== 1) . snd)
+      fmap at (starThen (Lit 'a') "aab" (cursorAtStart "aaab"))
+        `shouldBe` Just 4
+      starThenTries (Lit 'a') "ax" (cursorAtStart "aaa")
+        `shouldBe` (Nothing, 3)
   -- ANCHOR_END: answers

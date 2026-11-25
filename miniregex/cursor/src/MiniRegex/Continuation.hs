@@ -65,7 +65,7 @@ done c caps = Just (c, caps)
 -- パターンを動かしてから、残りの仕事をする。グループの番号は、
 -- 進みながら付ける。n は、次に開くグループの番号
 run :: Pattern -> Rest -> Rest
-run whole = matcher [] 1 whole
+run top = matcher [] 1 top
   where
     -- 🧭 The matcher, knowing the calls it is in: (group, place, the
     --    groups then), the latest first. A call runs the same matcher
@@ -171,7 +171,7 @@ run whole = matcher [] 1 whole
         -- いつまでも回るので、あきらめる（PCRE2 も、あきらめる）
         atom _ (Call g) k c caps
           | looping   = throw (Looping g (at c))
-          | otherwise = case groupBody g whole of
+          | otherwise = case groupBody g top of
               Just inner ->
                 matcher ((g, at c, caps) : inside) (g + 1) inner
                   (\c' caps' -> k c' (returning caps caps')) c caps
