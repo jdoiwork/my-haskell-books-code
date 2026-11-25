@@ -92,9 +92,13 @@ run = pattern 1
     piece _ KeepOut k c caps = k c (keepOut c caps)
     -- a*+ is (?>a*): repeat greedily, once, and never again
     -- a*+ は (?>a*)：欲ばってくり返すのを1回だけ。やり直さない
-    piece n (Quantified a q) k c caps
+    piece n (Quantified a written) k c caps
       | greed q == Possessive = atomically (repeatAtom q (atom n a)) k c caps
       | otherwise             = repeatAtom q (atom n a) k c caps
+      where
+        -- (?=…)+ goes round once more at most: lookCount in Rules
+        -- (?=…)+ は、多くても、もう1回だけ回る（Rules の lookCount）
+        q = lookCount a written
 -- ANCHOR_END: run
 
     -- ANCHOR: atom

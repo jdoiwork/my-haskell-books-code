@@ -246,13 +246,15 @@ branch = do
   pieces <- many piece
   pure (Branch (concat pieces))
 
--- 🧩 One piece: an anchor, or something to repeat with how many
+-- ANCHOR: piecefn
+-- 🧩 One piece: an anchor, \K, or something to repeat with how many
 --    times. \Q...\E gives some characters at once; the quantifier
 --    after it is for the last one.
--- 部品1つ：アンカーか、くり返すものと回数。\Q...\E は文字をまとめて
+-- 部品1つ：アンカーか \K、くり返すものと回数。\Q...\E は文字をまとめて
 -- くれるので、うしろの量指定子は最後の1文字にかかる
 piece :: Parser [Piece]
 piece = anchorPiece <|> keepPiece <|> settingPiece <|> quantifiedPieces
+-- ANCHOR_END: piecefn
   where
     anchorPiece = do
       a <- anchor
@@ -969,6 +971,7 @@ group = pythonRef <|> do
     keeps _         = False
 -- ANCHOR_END: groupfn
 
+-- ANCHOR: opening
 -- 🏷️ What a ( opens: a group that may keep what it found, an atomic
 --    group, or a look.
 -- ( が開くもの：見つけたものを覚えうるグループ、アトミックグループ、
@@ -978,14 +981,16 @@ data Opening
   | Holds
   | Looks Direction Sense
   deriving Eq
+-- ANCHOR_END: opening
 
 -- ANCHOR: measure
--- 📏 Can a lookbehind be measured? PCRE2 wants a limit for each branch:
---    up to 255 characters for a branch whose length can change, and up
---    to 65535 for a fixed one. What is wrong is told at the end.
--- 後読みの長さを測れるか。PCRE2 は、枝ごとに上限を求める：長さが変わる
--- 枝は 255 文字まで、決まった長さの枝は 65535 文字まで。まちがいは、
--- 読み終えてから言う
+-- 📏 Can a lookbehind be measured? PCRE2 wants a limit for each branch.
+--    When the length of some branch can change, every branch must be up
+--    to 255 characters (a fixed one too); when all are fixed, up to
+--    65535. What is wrong is told at the end.
+-- 後読みの長さを測れるか。PCRE2 は、枝ごとに上限を求める。長さが変わる
+-- 枝が1本でもあれば、どの枝も（決まった長さの枝も）255 文字まで。全部が
+-- 決まった長さなら 65535 文字まで。まちがいは、読み終えてから言う
 measure :: Int -> Pattern -> Parser ()
 measure at (Pattern bs) = case trouble of
   Just e  -> modify' (\r -> r { troubles = troubles r ++ [e] })
@@ -998,13 +1003,13 @@ measure at (Pattern bs) = case trouble of
       | any (\w -> longest w == Nothing) widths =
           Just (Invalid at "length of lookbehind assertion is not limited")
             -- 125
-      | any tooLongToChange widths =
+      | any changes widths && any (\w -> longest w > Just 255) widths =
           Just (Invalid at
             "branch too long in variable-length lookbehind assertion") -- 200
       | any (\w -> longest w > Just 65535) widths =
           Just (Invalid at "lookbehind assertion is too long")  -- 187
       | otherwise = Nothing
-    tooLongToChange (Width s l) = l /= Just s && l > Just 255
+    changes (Width s l) = l /= Just s
 -- ANCHOR_END: measure
 
 -- ANCHOR: kind

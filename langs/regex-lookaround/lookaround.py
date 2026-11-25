@@ -4,9 +4,13 @@
 # MiniRegex のまわりを見る章の Python のコード：" gold" の前の数、
 # 後読みは決まった幅だけ、アトミックグループと所有的な量指定子
 # （3.11 から）、\b
+# ANCHOR: ledger
+# Python: a short ledger, for the comparisons of this chapter
+# Python：この章の比較で使う、短い帳簿
 import re
 
 ledger = "for 300 gold, a herb for 5 silver, price:1200 gold"
+# ANCHOR_END: ledger
 
 # ANCHOR: procedural
 # Python (procedural style): look at each word and the word after it

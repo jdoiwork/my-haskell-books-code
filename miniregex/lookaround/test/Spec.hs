@@ -1190,6 +1190,16 @@ main = hspec $ do
     first "\\d+(?=(gold))" "300gold" (Just ("300" :| ["gold"]))
     first "(?!(a))b\\1?" "b" (Just ("b" :| [""]))
     first "(?=(a))a\\1?" "aa" (Just ("aa" :| ["a"]))
+    -- a look with no upper end goes round once more than it must, at
+    -- most (PCRE2 reads {n,} on a look as {n,n+1}): both matchers
+    -- 上の端のない「見る」ものは、「必ず」より多くても1回だけ回る（PCRE2 は
+    -- 見るものの {n,} を {n,n+1} と読む）。2つのマッチャーの両方で
+    let both p t answer = it (show (p, t)) $ do
+          fmap allGroups (find (surely p) t) `shouldBe` answer
+          fmap allGroups (searchFromList (surely p) t 0) `shouldBe` answer
+    both "^(?=(\\1b|a))+\\1$" "ab" (Just ("ab" :| ["ab"]))
+    both "(?=(\\1b|a)){2,}" "abb" (Just ("" :| ["abb"]))
+    both "(?=(a))+b" "ab" Nothing
     it "checks a word for the vault" $
       map goodPassword ["Lambda2026", "lambda2026", "Lambda-dragon-7", "L2a"]
         `shouldBe` [True, False, False, False]
@@ -1263,6 +1273,10 @@ main = hspec $ do
     wrong "x(?<=x(?<=a+))"         6 unlimited
     wrong "xy(?<=a{1,300})b"       2 tooLong
     wrong "(?<=b{1,300})(?<=a+)"   0 tooLong
+    -- with a branch whose length changes, a fixed branch too must be
+    -- up to 255
+    -- 長さが変わる枝があれば、決まった長さの枝も 255 文字まで
+    wrong "(?<=a{256}|b?)c"        0 tooLong
     wrong "xy(?<=a{65535}b)b"      2
       "lookbehind assertion is too long"  -- 187
     wrong "xyz(?<=\\Ka)bcdefg"    17 bsk
@@ -1275,6 +1289,11 @@ main = hspec $ do
       "quantifier does not follow a repeatable item"  -- 109
     -- PCRE2 takes some back references in a lookbehind; MiniRegex not yet
     -- PCRE2 は、後読みの中の後方参照を受け取ることがある。MiniRegex は、まだ
+    -- all fixed: up to 65535, even when the lengths differ
+    -- 全部が決まった長さなら 65535 文字まで（長さがちがっても）
+    it "takes long fixed branches when no branch changes" $ do
+      fmap matchText (find (surely "(?<=a{256}|b)c") "bc") `shouldBe` Just "c"
+      isMatch (surely "(?<=a{256})c") "c" `shouldBe` False
     it "says not yet to a back reference in a lookbehind" $
       parsePattern [] "(?<=(a)\\1)b"
         `shouldBe` Left (Unsupported 0 "back reference in lookbehind")

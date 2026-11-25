@@ -11,7 +11,11 @@ function same(actual: unknown, expected: unknown): void {
   }
 }
 
+// ANCHOR: ledger
+// TypeScript: a short ledger of prices, with spaces after "price:"
+// TypeScript：「price:」のあとに空白のある、値段の短い帳簿
 const ledger = "price:1200 gold, price: 80 gold, price:   7 gold";
+// ANCHOR_END: ledger
 
 // ANCHOR: behind
 // TypeScript: a lookbehind may be any length, even \s*
@@ -23,13 +27,17 @@ same(ledger.match(/(?<=price:\s*)\d+/g), ["1200", "80", "7"]);
 
 // ANCHOR: right
 // TypeScript: a lookbehind is matched from right to left, so (a|aa)
-//   finds the nearer a (PCRE2 and Perl: aa)
+//   finds the nearer a (PCRE2 and Perl: aa). The branches are still
+//   tried in the order written: (aa|a) finds aa.
 // TypeScript：後読みは右から左へ合わせるので、(a|aa) は近いほうの a を
-//   見つける（PCRE2 と Perl は aa）
+//   見つける（PCRE2 と Perl は aa）。枝は、それでも書いた順に試す：
+//   (aa|a) なら aa
 console.log("aab".match(/(?<=(a|aa))b/)?.[1]);
+console.log("aab".match(/(?<=(aa|a))b/)?.[1]);
 // ANCHOR_END: right
 
 same("aab".match(/(?<=(a|aa))b/)?.[1], "a");
+same("aab".match(/(?<=(aa|a))b/)?.[1], "aa");
 
 // ANCHOR: atomic
 // TypeScript: no (?>...); a lookahead is atomic, and \1 takes what it
