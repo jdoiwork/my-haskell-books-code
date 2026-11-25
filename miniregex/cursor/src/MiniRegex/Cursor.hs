@@ -117,7 +117,11 @@ onwards c = c : maybe [] (onwards . snd) (step c)
 -- ✂️ The characters from one cursor up to a later one: a slice, too.
 -- しおりから、あとのしおりまでの文字。これも切れ端
 taken :: Cursor -> Cursor -> Text
-taken from to = takeWord8 (byte to - byte from) (rest from)
+-- (a later cursor first gives the empty text, as T.take did: no Text of
+-- a length below 0 gets out)
+-- （うしろのしおりを先に渡したら空。T.take と同じ。長さが負の Text は
+-- 出さない）
+taken from to = takeWord8 (max 0 (byte to - byte from)) (rest from)
 
 -- 🦘 A later place in the same text, n characters and k bytes ahead.
 --    The caller makes the promise: the k bytes ahead are n whole

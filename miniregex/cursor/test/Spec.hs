@@ -28,7 +28,8 @@ import MiniRegex.Pike (scanPike)
 import MiniRegex.Prefilter
   (Prefilter (..), Start (..), kmpPlaces, kmpTable, textPlaces)
 import Data.Text.Unsafe (lengthWord8)
-import MiniRegex.Cursor (Cursor, at, back, before, byte, cursorAt, rest, taken)
+import MiniRegex.Cursor
+  (Cursor, at, back, before, byte, cursorAt, rest, stepOver, taken)
 import Data.Foldable (toList)
 import MiniRegex.Examples
 import MiniRegex.Groups (calls, groupCount)
@@ -1216,6 +1217,23 @@ main = hspec $ do
           forAll (chooseInt (i, T.length t)) $ \j ->
             (taken <$> cursorAt t i <*> cursorAt t j)
               === Just (T.take (j - i) (T.drop i t))
+    -- stepOver jumps the characters of what it steps over, and their
+    -- bytes: a text of 日 has three bytes for each character
+    -- stepOver は、飛び越えるものの文字の数とバイトの数だけ飛ぶ：日の
+    -- 文字列は、1文字が3バイト
+    prop "steps over as cursorAt counts" $
+      forAll genText $ \t ->
+        forAll (chooseInt (0, T.length t)) $ \n ->
+          forAll genText $ \p ->
+            (cursorAt t n >>= stepOver p)
+              === case T.stripPrefix p (T.drop n t) of
+                    Just _  -> cursorAt t (n + T.length p)
+                    Nothing -> Nothing
+    it "finds \\1 again in characters of three bytes" $ do
+      fmap matchText (find (surely "(日)\\1x") "日日x")
+        `shouldBe` Just "日日x"
+      fmap matchText (find (surely "(日本)\\1語") "日本日本語")
+        `shouldBe` Just "日本日本語"
     it "counts 日本語 in characters and in bytes" $ do
       fmap byte (cursorAt "日本語" 2) `shouldBe` Just 6
       fmap rest (cursorAt "日本語" 2) `shouldBe` Just "語"
@@ -1240,8 +1258,14 @@ main = hspec $ do
       stepsWith Backtracking "^(\\w+\\s?)+$" (fieldOf 5) `shouldBe` 166401
     it "keeps the marks where a round may take nothing" $
       [ "mark" `T.isInfixOf` listing (program (surely p))
-      | p <- ["a*", "(?:ab)+", "(\\w+\\s?)+", "(a|)*", "(?:a?b?)*", "(?:\\b)*"] ]
-        `shouldBe` [False, False, False, True, True, True]
+      | p <- ["a*", "(?:ab)+", "(\\w+\\s?)+", "(a|)*", "(?:a?b?)*", "(?:\\b)*"
+             -- a call, a back reference and a look may take nothing
+             -- 呼び出し・後方参照・「見る」ものは、何も食べないことがある
+             , "(a|)(?1)*", "(a|)\\1*", "(?:(?=a))*" ] ]
+        `shouldBe` [False, False, False, True, True, True, True, True, True]
+    it "stops a round of a call that took nothing" $
+      fmap (fmap matchText) (findWithin 100000 (surely "(a|)(?1)*b") "b")
+        `shouldBe` Right (Just "b")
     -- the narrowing of the needed characters comes to an end
     -- 必ず要る文字の絞り込みが、終わる
     it "finds the needed characters of a*abc" $
