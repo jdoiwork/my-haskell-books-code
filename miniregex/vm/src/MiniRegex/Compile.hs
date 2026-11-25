@@ -218,9 +218,12 @@ programSize (Pattern bs) =
   where
     branchSize (Branch ps) = sum (map pieceSize ps)
     pieceSize (Quantified a written) =
-      let Quantifier (Count least more) _ = lookCount a written
+      let Quantifier (Count least more) g = lookCount a written
           copies = fromIntegral least + maybe 1 fromIntegral more
-      in  (atomSize a + 2) * max 1 copies + 2
+          -- a*+ is fenced: two more (the fence and the cut)
+          -- a*+ は区切りの中：2つ多い（区切りと、切り捨て）
+          fence = if g == Possessive then 2 else 0
+      in  (atomSize a + 2) * max 1 copies + 2 + fence
     pieceSize _ = 1
     atomSize a = case a of
       Group _ p          -> programSize p + 2

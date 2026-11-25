@@ -767,8 +767,6 @@ main = hspec $ do
                   label "answered" $
                     m === find re t .&&. property (used <= limit)
     -- ANCHOR_END: limits
-    -- a long text: no stack of Haskell's grows with it
-    -- 長い文字列：Haskell のスタックが、それにつれて伸びることはない
     -- a program too big to make is "not yet", before it is made (PCRE2
     -- says error 120 to this one); a big one that fits is made
     -- 作るには大きすぎるプログラムは、作る前に「まだ」（これには PCRE2 も
@@ -783,6 +781,24 @@ main = hspec $ do
       forAll (genTreeRefs [Greedy, Lazy, Possessive] 2) $ \tr ->
         programSize tr
           >= fromIntegral (length (instructions (compileTree tr)))
+    -- a*+ is fenced: the count has room for the fences, too
+    -- a*+ は区切りの中：見積もりは、区切りの命令も数える
+    it "counts the fences of possessive repeats" $ do
+      let Right tr = parsePattern [] "a*+b*+c*+"
+      programSize tr
+        >= fromIntegral (length (instructions (compileTree tr)))
+        `shouldBe` True
+    -- the limit is kept to the step: abc takes 4 steps (3 takes and
+    -- the match), so 3 is not enough and 4 is
+    -- 上限は1ステップまで守る：abc は4ステップ（take 3つと match）なので、
+    -- 3 では足りず、4 なら足りる
+    it "stops just at the limit" $ do
+      fmap (fmap matchText) (findWithin 3 (surely "abc") "abc")
+        `shouldBe` Left (GaveUp 3)
+      fmap (fmap matchText) (findWithin 4 (surely "abc") "abc")
+        `shouldBe` Right (Just "abc")
+    -- a long text: no stack of Haskell's grows with it
+    -- 長い文字列：Haskell のスタックが、それにつれて伸びることはない
     it "goes through 100000 characters" $ do
       let t = T.replicate 50000 "ab" <> "c"
       fmap matchEnd (find (surely "(?:a|b)*c") t) `shouldBe` Just 100001

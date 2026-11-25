@@ -57,13 +57,16 @@ type Parser = ParsecT RegexError Text (State Reading)
 -- 📒 What the parser keeps while it reads: the names of the groups so
 --    far (to find a name used twice), how many groups have opened so
 --    far (for \g{-1}), and what the first reading found out about the
---    whole pattern (Nothing while it is the first reading). From this
---    chapter, the flags in effect here, and whether we are in (?| ... ).
+--    whole pattern (Nothing while it is the first reading). The flags
+--    in effect here, and whether we are in (?| ... ). From the chapter
+--    on looking around, whether we are in a look, whether we saw \K in
+--    a look, and the troubles with lookbehinds (PCRE2 tells them only
+--    after reading it all).
 -- パーサーが読みながら覚えておくもの：ここまでのグループの名前（同じ
 -- 名前が2回出てきたら、わかるように）、ここまでに開いたグループの数
 -- （\g{-1} のため）、1回目の読みでわかった、パターン全体のこと
 -- （1回目の読みのあいだは Nothing）。この場所で効いているフラグと、
--- (?| ... ) の中にいるか。この章から、「見る」ものの中にいるか、
+-- (?| ... ) の中にいるか。まわりを見る章から、「見る」ものの中にいるか、
 -- \K を「見る」ものの中で見たか、後読みの困りごと（PCRE2 は、
 -- 読み終えてから言う）
 data Reading = Reading
