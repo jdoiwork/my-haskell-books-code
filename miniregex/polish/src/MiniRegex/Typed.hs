@@ -1,7 +1,6 @@
 -- ANCHOR: all
 -- ANCHOR: header
 {-# LANGUAGE AllowAmbiguousTypes  #-}
-{-# LANGUAGE RoleAnnotations      #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 -- | Regexes that know their named groups in their type. Made by the
@@ -63,7 +62,7 @@ newtype TypedMatch (gs :: Groups) = TypedMatch MiniRegex.Match
 -- 🔒 The groups in the type are a promise: only [typed|…|] may make one
 --    (the constructors are not exported), and coerce may not change
 --    them (nominal: gs must be the same type, not just the same shape
---    underneath).
+--    underneath; RoleAnnotations is in GHC2024).
 -- 型に書いたグループは約束：作れるのは [typed|…|] だけ（構成子は export
 -- しない）。coerce でも変えられない（nominal：gs は、中身の形が同じ
 -- だけでなく、同じ型でなければならない）

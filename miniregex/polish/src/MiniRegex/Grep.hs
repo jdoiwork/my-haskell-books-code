@@ -154,15 +154,14 @@ grepText view re text
   where
     results = [ (i, line, search line)
               | (i, line) <- zip [1 :: Int ..] (T.lines text) ]
-    -- every match only to print them (-o, or color); to choose a line,
-    -- the first is enough (the rest may not run out of steps it)
-    -- 一致の全部は、書くときだけ（-o か色）。行を選ぶだけなら、最初の1つで
+    -- every match only for -o, which prints them; to choose a line, the
+    -- first is enough (the rest may not run out of steps it)
+    -- 一致の全部は、それを書く -o のときだけ。行を選ぶだけなら、最初の1つで
     -- 足りる（残りを探して、ステップ数が尽きることもない）
     search line
       | needsAll  = findAllWithin defaultLimit re line
       | otherwise = maybe [] pure <$> findWithin defaultLimit re line
-    needsAll = not (viewCount view) && not (viewInvert view)
-               && (viewOnly view || viewColor view)
+    needsAll = viewOnly view && not (viewCount view) && not (viewInvert view)
     stuck   = [ i | (i, _, Left _) <- results ]
     -- the lines that are chosen: matching, or not matching with -v
     -- 選ぶ行：合う行。-v なら、合わない行
@@ -188,8 +187,14 @@ grepText view re text
             colored "32" (T.pack (show k)) <> separator
           _ -> "" ]
     separator = colored "36" ":"
+    -- color paints every match, if they can all be found; if the rest
+    -- runs out of steps, the first one (the line is chosen already)
+    -- 色は、一致を全部塗る。残りでステップ数が尽きたら、最初の1つを（行は
+    -- もう選んである）
     highlight ms line
-      | viewColor view = rebuild ms line
+      | viewColor view =
+          rebuild (either (const ms) id (findAllWithin defaultLimit re line))
+                  line
       | otherwise      = line
     paint = colored "01;31"
     colored code t

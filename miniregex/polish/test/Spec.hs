@@ -3276,6 +3276,10 @@ main = hspec $ do
       printedLines
         (grepText view { viewOnly = True, viewInvert = True } dates text)
         `shouldBe` []
+      -- -o leaves out the empty matches, as GNU grep does
+      -- -o は、空の一致を書かない。GNU grep と同じ
+      grepText view { viewOnly = True } [Q.re|x*|] "axxb"
+        `shouldBe` Report ["xx"] 1 []
     -- the colors of GNU grep
     -- GNU grep と同じ色
     it "paints the matches" $
@@ -3291,6 +3295,10 @@ main = hspec $ do
       grepText view slow line `shouldBe` Report [line] 1 []
       grepText view { viewCount = True } slow line `shouldBe` Report ["1"] 1 []
       grepText view { viewInvert = True } slow line `shouldBe` Report [] 0 []
+      -- color, too: the first match is painted when the rest runs out
+      -- 色を付けても：残りで尽きたら、最初の一致を塗る
+      grepText view { viewColor = True } slow line
+        `shouldBe` Report ["\ESC[01;31ma\ESC[m" <> T.drop 1 line] 1 []
       gaveUpLines (grepText view { viewOnly = True } slow line) `shouldBe` [1]
     -- the command line
     -- コマンドライン

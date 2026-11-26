@@ -20,6 +20,7 @@ import Data.Text.IO qualified as TIO
 import Options.Applicative (execParser)
 import System.Exit (ExitCode (..), exitWith)
 import System.IO (hFlush, hIsTerminalDevice, hPutStrLn, stderr, stdout)
+import GHC.IO.Exception (IOErrorType (ResourceVanished), ioe_type)
 import System.IO.Error (ioeGetErrorString)
 
 import MiniRegex
@@ -69,12 +70,15 @@ nameOf file = T.pack file
 
 -- 📂 One file: read it (as UTF-8; a broken byte becomes U+FFFD), grep
 --    it, print. Right: was a line chosen? Left: trouble, told on
---    stderr (also when the output cannot be written: a full disk, a
---    closed pipe; hFlush makes it show here, not after exit).
+--    stderr. When the output cannot be written, minigrep ends there
+--    (hFlush makes it show here, not after exit): a closed pipe
+--    (| head -1) quietly, with 141 as a grep killed by SIGPIPE; any
+--    other (a full disk) with a word on stderr and 2.
 -- 1つのファイル：読んで（UTF-8 で。壊れたバイトは U+FFFD に）、探して、
 -- 書く。Right は行を選んだか、Left は困ったこと（stderr に書いた）。書き
--- 出せないとき（ディスクがいっぱい、閉じたパイプ）も困ったこと。hFlush で、
--- 終わったあとではなく、ここで気づく
+-- 出せないときは、そこで終わる（hFlush で、終わったあとではなく、ここで
+-- 気づく）：閉じたパイプ（| head -1）なら黙って、SIGPIPE で止まった grep と
+-- 同じ 141 で。ほか（ディスクがいっぱい）なら、stderr に書いて 2 で
 grepFile :: View -> Regex -> FilePath -> IO (Either () Bool)
 grepFile view re file = do
   read' <- try (if file == "-" then B.getContents else B.readFile file)
@@ -88,9 +92,11 @@ grepFile view re file = do
       written <- try (mapM_ TIO.putStrLn (printedLines report)
                         >> hFlush stdout)
       case written of
-        Left (e :: IOException) -> do
-          hPutStrLn stderr ("minigrep: " <> show e)
-          pure (Left ())
+        Left (e :: IOException)
+          | ioe_type e == ResourceVanished -> exitWith (ExitFailure 141)
+          | otherwise -> do
+              hPutStrLn stderr ("minigrep: " <> show e)
+              exitWith (ExitFailure 2)
         Right () -> do
           unless (null (gaveUpLines report)) $
             hPutStrLn stderr ("minigrep: " <> file <> ": gave up on line "

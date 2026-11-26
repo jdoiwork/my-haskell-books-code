@@ -10,7 +10,6 @@
 module MiniRegex.Quote
   ( re
   , typed
-  , trusted
   ) where
 -- ANCHOR_END: header
 
@@ -85,8 +84,10 @@ quoteTyped s = do
       always = alwaysGroups t
       names  = groupNames t
       parts  = [ (name, partOf name n) | (name, n) <- names ]
-      -- a name given to two groups ((?| ... ) and the like): Sometimes
-      -- 2つのグループに付いた名前（(?| ... ) など）は Sometimes
+      -- a name given to two groups: Sometimes (compile turns such a
+      -- pattern away today; this is for the day (?J) comes in)
+      -- 2つのグループに付いた名前は Sometimes（いまは compile が、そういう
+      -- パターンを断る。(?J) を足す日のため）
       partOf name n
         | length (filter ((== name) . fst) names) == 1
         , n `Set.member` always = 'Always
