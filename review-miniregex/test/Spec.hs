@@ -26,7 +26,12 @@ genLine = T.concat <$> listOf (elements pieces)
     pieces =
       [ "21", "11", "2026", "0", "7", "１", "２０２６"
       , "/", "-", " ", "g", "G", "gold", "old"
-      , "Mira", "sold", "for", "herbs", "金貨", "の" ]
+      , "Mira", "sold", "for", "herbs", "金貨", "の"
+      -- whole dates and halves of them: one at a time, the pieces
+      -- above would almost never line up into 21/11/2026
+      -- 日付まるごとと、その半分：上の部品を1つずつつなぐだけでは、
+      -- 21/11/2026 の形には、まず並ばない
+      , "21/11/2026", "21/11/", "/11/2026", "2026-11-21", "21/11/２０２６" ]
 
 newtype Line = Line Text
   deriving (Show)
@@ -85,6 +90,13 @@ main = hspec $ do
         `shouldBe` Map.empty
       totals ["21/11/２０２６ Mira sold 1g"] `shouldBe` Map.empty
       totalsAscii oldPage `shouldBe` Map.fromList [("Mira", 420), ("Ruby", 25)]
+    -- 「売り上げらしいのに読めなかった行は、黙って捨てずに返す」
+    it "gives back the sales it could not read" $
+      unreadSales [ "21/11/2026 Mira sold 300g for healing herbs"
+                  , "21/11/2026 Mira sold 1,200g", "22/11/2026 the cat slept"
+                  , "21/11/2026 Ruby sold 25g" ]
+        `shouldBe` [ "21/11/2026 Mira sold 300g for healing herbs"
+                   , "21/11/2026 Mira sold 1,200g" ]
   -- ANCHOR_END: examples
 
   -- ANCHOR: twice
@@ -96,15 +108,23 @@ main = hspec $ do
     -- 「見つかった反例」
     it "the draft writes gold twice" $
       fixLineDraft (fixLineDraft "0g") `shouldBe` "0 goldold"
+  -- ANCHOR_END: twice
+
+  -- ANCHOR: fixedtests
+  describe "the fixed fix" $ do
     -- 「直した版は、2回直しても1回と同じ」
     prop "fixing twice is fixing once" $ \(Line t) ->
       fixLine (fixLine t) === fixLine t
-    -- 「日付の並びの途中に、新しい日付を作らない」
-    it "makes no new date inside a run of dates" $ do
-      let t = "21/11/21/11/2026"
-      fixLine (fixLine t) `shouldBe` fixLine t
-      fixLineAscii (fixLineAscii t) `shouldBe` fixLineAscii t
-  -- ANCHOR_END: twice
+    -- 「Gold も gold に。gems の g は金貨ではない」
+    it "writes Gold out, and leaves gems alone" $ do
+      fixLine "22/11/2026 Mira sold 300 Gold"
+        `shouldBe` "2026-11-22 Mira sold 300 gold"
+      fixLine "Mira has 300 gems" `shouldBe` "Mira has 300 gems"
+    -- 「日付の並びの一部は、日付ではない」
+    it "leaves a run of dates alone" $ do
+      fixLine "21/11/21/11/2026" `shouldBe` "21/11/21/11/2026"
+      fixLine "21/11/2026/11" `shouldBe` "21/11/2026/11"
+  -- ANCHOR_END: fixedtests
 
   -- ANCHOR: compare
   describe "the real PCRE2" $ modifyMaxSuccess (const 2000) $ do
@@ -116,4 +136,15 @@ main = hspec $ do
     prop "with (?a), the same answer as PCRE2" $ \(Line t) ->
       fixLineAscii t === fixLineAsciiPcre2 t
   -- ANCHOR_END: compare
+
+  -- ANCHOR: asciitests
+  describe "the ASCII way" $ do
+    -- 「ASCII の決まりでも、2回直しても1回と同じ。全角の年は直さない」
+    prop "the ASCII way: fixing twice is fixing once" $ \(Line t) ->
+      fixLineAscii (fixLineAscii t) === fixLineAscii t
+    it "leaves a full-width year alone" $ do
+      fixLineAscii "21/11/２０２６ Mira sold 1g"
+        `shouldBe` "21/11/２０２６ Mira sold 1 gold"
+      fixLineAscii "21/11/21/11/2026" `shouldBe` "21/11/21/11/2026"
+  -- ANCHOR_END: asciitests
 -- ANCHOR_END: all

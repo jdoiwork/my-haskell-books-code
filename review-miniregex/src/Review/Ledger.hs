@@ -28,6 +28,7 @@ module Review.Ledger
   , asciiGold
   , fixLineAscii
   , totalsAscii
+  , unreadSales
   , datePlan
   , goldPlan
   ) where
@@ -209,5 +210,15 @@ fixLineAscii =
 -- ASCII の決まりで、帳簿を合計する。使うのは、これ
 totalsAscii :: [Text] -> Map Text Integer
 totalsAscii = totalsWith fixLineAscii
+
+-- 📋 The lines that look like a sale (" sold ") but could not be read:
+--    totalsAscii leaves them out without a word, so give them back for
+--    a person to look at.
+-- 売り上げらしい（" sold " がある）のに、読めなかった行。totalsAscii は
+-- 黙って飛ばすので、人が見られるように返す
+unreadSales :: [Text] -> [Text]
+unreadSales ls =
+  [ l | l <- ls, " sold " `T.isInfixOf` l
+      , Nothing <- [readEntry (fixLineAscii l)] ]
 -- ANCHOR_END: ascii
 -- ANCHOR_END: all
