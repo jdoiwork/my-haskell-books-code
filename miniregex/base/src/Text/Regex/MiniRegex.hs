@@ -106,14 +106,29 @@ instance RegexLike Regex Text where
   matchAll re t   = map toArray (findAll re t)
   matchCount re t = length (findAll re t)
   matchTest       = isMatch
+  -- the texts are in the Match already: no cutting t from its start
+  -- again for each match (regex-base's own definitions would)
+  -- 文字列は Match の中にある。一致のたびに t を頭から切り直さない
+  -- （regex-base の既定の定義は、そうする）
+  matchOnceText re t = withTexts <$> find re t
+    where
+      withTexts m = ( T.take (matchStart m) t, toTexts m
+                    , T.drop (matchEnd m) t )
+  matchAllText re t = map toTexts (findAll re t)
 
 -- 🧶 Find in a String: the places of a String are characters, too.
--- String の中を探す：String の場所も、文字で数える
+--    The texts come from the Text's answers, unpacked.
+-- String の中を探す：String の場所も、文字で数える。文字列は、Text の
+-- 答えを unpack したもの
 instance RegexLike Regex String where
   matchOnce re  = matchOnce re . T.pack
   matchAll re   = matchAll re . T.pack
   matchCount re = matchCount re . T.pack
   matchTest re  = matchTest re . T.pack
+  matchOnceText re s = unpack3 <$> matchOnceText re (T.pack s)
+    where
+      unpack3 (b, m, a) = (T.unpack b, fmap unpackFst m, T.unpack a)
+  matchAllText re s = map (fmap unpackFst) (matchAllText re (T.pack s))
 -- ANCHOR_END: like
 
 -- ANCHOR: toarray
@@ -128,6 +143,22 @@ toArray m = listArray (0, length places - 1) places
     places = (matchStart m, matchEnd m - matchStart m)
            : map (maybe (-1, 0) offLen) (matchGroups m)
     offLen s = (spanStart s, spanEnd s - spanStart s)
+
+-- 🗂️ The same, with the text of each group beside its place. A group
+--    that took no part is the empty text at (-1, 0).
+-- 同じものに、グループごとの文字列を添えて。使われなかったグループは、
+-- (-1, 0) の空の文字列
+toTexts :: Match -> MatchText Text
+toTexts m = listArray (0, length texts - 1) texts
+  where
+    texts = (matchText m, (matchStart m, matchEnd m - matchStart m))
+          : map (maybe ("", (-1, 0)) withPlace) (matchGroups m)
+    withPlace s = (spanText s, (spanStart s, spanEnd s - spanStart s))
+
+-- 🧶 A text and its place, with the text as a String.
+-- 文字列と場所の組の、文字列を String に
+unpackFst :: (Text, a) -> (String, a)
+unpackFst (x, place) = (T.unpack x, place)
 -- ANCHOR_END: toarray
 
 -- ANCHOR: context

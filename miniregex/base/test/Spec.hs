@@ -55,15 +55,21 @@ import MiniRegex.LazyDFA
 import Data.Maybe (fromMaybe)
 -- ANCHOR_END: dfaimports
 import RegexAnswers
+-- ANCHOR: neighborimports
+import Neighbor qualified
+import NeighborMini qualified
+-- ANCHOR_END: neighborimports
+-- ANCHOR: portableimports
+import MiniRegex.Portable (countGold, datesIn, firstWord, salesIn)
+import Text.Regex.TDFA qualified as TDFA
+-- ANCHOR_END: portableimports
+-- ANCHOR: answersimports
 import RegexBaseAnswers
 import Data.Array (elems, (!))
 import Data.ByteString qualified as B
 import Data.Text.Encoding (encodeUtf8)
-import MiniRegex.Portable (countGold, datesIn, firstWord, salesIn)
 import Text.Regex.MiniRegex qualified as RB
-import Text.Regex.TDFA qualified as TDFA
-import Neighbor qualified
-import NeighborMini qualified
+-- ANCHOR_END: answersimports
 -- ANCHOR_END: imports
 
 -- ANCHOR: gens
@@ -2876,6 +2882,26 @@ main = hspec $ do
       RB.getExecOpts tight `shouldBe` RB.ExecOption 100
       r <- try (evaluate (RB.matchTest tight (fieldOf 5)))
       r `shouldBe` Left (GaveUp 100)
+    -- the texts come from the matches: the same as cutting the text
+    -- 文字列は一致から取る。もとの文字列を切ったものと同じ
+    prop "gives the texts that cutting gives" $
+      forAll genPattern $ \p -> forAll genText $ \t ->
+        case compile p of
+          Left _   -> discard
+          Right re ->
+            let s = T.unpack t
+            in  map (fmap fst) (RB.matchAllText re t)
+                  === map (fmap (`RB.extract` t)) (RB.matchAll re t)
+                .&&. map (fmap fst) (RB.matchAllText re s)
+                  === map (fmap (`RB.extract` s)) (RB.matchAll re s)
+    -- many matches in a long text: no cutting from its start each time
+    -- 長い文字列に一致がたくさん：一致のたびに頭から切り直さない
+    it "gives the texts of many matches in linear time" $ do
+      let s  = concat (replicate 200000 "あa")
+          re = RB.makeRegex ("a" :: String) :: Regex
+          total = sum [length (fst (a ! 0)) | a <- RB.matchAllText re s]
+      done <- timeout 5000000 (evaluate total)
+      done `shouldBe` Just 200000
   -- ANCHOR_END: regexbase
 
   -- ANCHOR: neighbor
@@ -3116,6 +3142,24 @@ main = hspec $ do
       (bs RB.=~ ("[0-9]+" :: String) :: B.ByteString) `shouldBe` "300"
       fmap (\(_, m, _) -> fst (m ! 0)) (RB.matchOnceText re bs)
         `shouldBe` Just "300"
+    -- every place in bytes, as byteOffset counts it
+    -- どの場所も、byteOffset が数えるのと同じバイト
+    prop "counts the bytes as byteOffset does" $
+      forAll genText $ \t ->
+        let re = surely "(a)|b日?"
+            bytes from to = let b = byteOffset t from
+                            in  (b, byteOffset t to - b)
+            spans m = bytes (matchStart m) (matchEnd m)
+              : map (maybe (-1, 0) (\g -> bytes (spanStart g) (spanEnd g)))
+                    (matchGroups m)
+        in  map elems (RB.matchAll re (encodeUtf8 t))
+              === map spans (findAll re t)
+    -- a byte that is not UTF-8: an error, not a match somewhere else
+    -- UTF-8 でないバイト：別の所の一致ではなく、error
+    it "refuses a ByteString that is not UTF-8" $ do
+      let re = RB.makeRegex ("a" :: String) :: Regex
+      evaluate (RB.matchOnce re (B.pack [255, 97, 98, 99]))
+        `shouldThrow` anyErrorCall
     -- step 3: the answers by name, with both engines
     -- ステップ3：名前で選ぶ答えを、2つのエンジンで
     it "chooses the answers by name" $ do
