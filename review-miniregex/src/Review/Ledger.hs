@@ -36,12 +36,12 @@ import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
-import Text.Read (readMaybe)
 
 -- MiniRegex: the easy face, the quasi-quoters and the typed groups
 -- MiniRegex：使いやすい顔、準クォート、型付きのグループ
 import MiniRegex
 import MiniRegex.Quote (re, typed)
+import MiniRegex.Quoted (readInt)
 import MiniRegex.Typed (Part (..), TypedRegex)
 import MiniRegex.Typed qualified as Typed
 -- ANCHOR_END: head
@@ -135,7 +135,7 @@ entryRegex = [typed|(?x)
 readEntry :: Text -> Maybe Entry
 readEntry line = do
   m <- Typed.find entryRegex line
-  g <- readMaybe (T.unpack m.gold)
+  g <- readInt m.gold
   pure (Entry m.date m.who g m.item)
 -- ANCHOR_END: entry
 
