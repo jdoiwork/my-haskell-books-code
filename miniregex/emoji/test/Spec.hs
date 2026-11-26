@@ -3364,6 +3364,52 @@ main = hspec $ do
     it "finds the clusters with \\X" $ do
       map matchText (findAll (surely "\\X") (family <> "🇯🇵👍🏽e\x301"))
         `shouldBe` [family, "🇯🇵", "👍🏽", "e\x301"]
+      -- every matcher that runs \X: the VM, the ST VM, the
+      -- continuations and the list of candidates
+      -- \X を動かすマッチャーの全部：VM・ST の VM・継続・候補のリスト
+      let post = family <> "🇯🇵👍🏽e\x301"
+          firsts re t =
+            [ fmap matchText (fromRight' (fst (searchCountingBy scanVM
+                                               defaultLimit re t 0)))
+            , fmap matchText (fromRight' (fst (searchCountingBy scanVMST
+                                               defaultLimit re t 0)))
+            , fmap matchText (searchFromCont re t 0)
+            , fmap matchText (searchFromList re t 0) ]
+          fromRight' = either (error . show) id
+      firsts (surely "\\X") post `shouldBe` replicate 4 (Just family)
+      firsts (surely "\\X{2}") ("👍🏽" <> family)
+        `shouldBe` replicate 4 (Just ("👍🏽" <> family))
+      firsts (surely "\\X\\X$") "a🇯🇵" `shouldBe` replicate 4 (Just "a🇯🇵")
+      -- DEL is a Control, like the other ASCII controls (a shortcut
+      -- before the tables): an accent after it is a cluster of its own
+      -- DEL も、ほかの ASCII の制御文字と同じ Control（表を引く前の近道）。
+      -- うしろのアクセントは、別のクラスター
+      clusters "\DEL\x301" `shouldBe` ["\DEL", "\x301"]
+      clusters "\t\x301" `shouldBe` ["\t", "\x301"]
+      clusters "~\x301" `shouldBe` ["~\x301"]
+    -- a \X that starts inside a row of regional indicators pairs with
+    -- the ones before it (GB12, GB13; PCRE2 10.49 and Perl do so too)
+    -- 国旗の字の途中から始まる \X は、手前の国旗の字と組になる
+    -- （GB12・GB13。PCRE2 10.49 も Perl も、そうする）
+    it "starts \\X inside a row of flags as PCRE2 does" $ do
+      let flags = "🇯🇵🇫" :: Text
+          first p = fmap matchText (find (surely p) flags)
+      first ".\\X" `shouldBe` Just "🇯🇵"
+      first "(?<=\\x{1F1EF})\\X" `shouldBe` Just "🇵"
+      first "\\X\\z" `shouldBe` Just "🇫"
+      first "^.\\X$" `shouldBe` Nothing
+      first "^\\X\\X$" `shouldBe` Just "🇯🇵🇫"
+    -- going back into \X+: MiniRegex cuts where UAX #29 cuts (the real
+    -- PCRE2 10.49 gives a🇯 and a\x200D👩 here: it looks only at the
+    -- two characters on each side when it steps back)
+    -- \X+ を戻るとき：MiniRegex は UAX #29 の切れ目で戻る（本物の PCRE2
+    -- 10.49 は、ここで a🇯 と a\x200D👩 を返す。戻るときは、両どなりの2文字
+    -- しか見ない）
+    it "steps back into \\X+ where Unicode cuts" $ do
+      fmap matchText (find (surely "\\X+\\p{RI}") "a🇯🇵🇺🇸")
+        `shouldBe` Just "a🇯🇵🇺"
+      fmap matchText (find (surely "\\X+\\x{1F469}") "xa\x200D\x1F469")
+        `shouldBe` Just "xa\x200D\x1F469"
       cases <- breakTests <$> readFile "ucd/GraphemeBreakTest.txt"
       and [ map matchText (findAll (surely "\\X") (T.pack t))
               == clusters (T.pack t)
@@ -3424,6 +3470,8 @@ main = hspec $ do
       fmap (const ()) (compile "[\\X]")
         `shouldBe` Left (Invalid 3 "escape sequence is invalid in character class")
       fmap (const ()) (compile "(?<=\\X)a")
+        `shouldBe` Left (Invalid 0 "length of lookbehind assertion is not limited")
+      fmap (const ()) (compile "(?<=\\X{0})a")
         `shouldBe` Left (Invalid 0 "length of lookbehind assertion is not limited")
       fmap (const ()) (compile "\\p{bc:Arabic_Letter}")
         `shouldBe` Left (Invalid 20 "unknown property after \\P or \\p")

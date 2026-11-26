@@ -64,7 +64,8 @@ pieceWidth (Quantified a q) = Width (s * n) longest'
     Quantifier (Count n more) _ = lookCount a q
     Width s l = atomWidth a
     longest' = case (l, more) of
-      _ | n == 0 && more == Just 0 -> Just 0  -- (?(DEFINE)...) is {0}
+      _ | a == Cluster             -> Nothing -- \X{0} too, as PCRE2
+        | n == 0 && more == Just 0 -> Just 0  -- (?(DEFINE)...) is {0}
       (Just w, Just e) -> Just (w * (n + e))
       _                -> Nothing
 
@@ -82,8 +83,9 @@ atomWidth a = case a of
   Call _      -> Width 0 Nothing
   -- ANCHOR: widthcluster
   -- \X takes at least one character, and has no limit (PCRE2: error
-  -- 125 in a lookbehind)
-  -- \X は少なくとも1文字で、上限がない（PCRE2 でも、後読みの中はエラー 125）
+  -- 125 in a lookbehind, even for \X{0})
+  -- \X は少なくとも1文字で、上限がない（PCRE2 でも、後読みの中はエラー 125。
+  -- 回数が 0 の \X{0} でも）
   Cluster     -> Width 1 Nothing
   -- ANCHOR_END: widthcluster
   NoCase x    -> atomWidth x

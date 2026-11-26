@@ -23,7 +23,7 @@ module MiniRegex.Grapheme
 -- ANCHOR: imports
 import Data.Text (Text)
 
-import MiniRegex.Cursor (Cursor, headOf, step, taken)
+import MiniRegex.Cursor (Cursor, back, before, headOf, step, taken)
 import MiniRegex.Ucd
   ( Conjunct (..), GraphemeBreak (..), conjunct, graphemeBreak
   , isExtendedPictographic )
@@ -115,14 +115,36 @@ clusterEnd :: Cursor -> Maybe Cursor
 clusterEnd = clusterEndBy breaksBefore
 
 -- 🧩 The same, with other rules for where to break (the tests give it
---    the rules of the real PCRE2, to compare with).
+--    the rules of the real PCRE2, to compare with). A regional
+--    indicator pairs with the ones just before the start (GB12, GB13):
+--    in 🇯🇵🇫, a \X that starts at 🇵 is 🇵 alone.
 -- 同じ。ただし、どこで切るかの規則を渡せる（テストが、くらべるために、
--- 本物の PCRE2 の規則を渡す）
+-- 本物の PCRE2 の規則を渡す）。地域指示子は、始まりのすぐ手前のものと
+-- 組になる（GB12・GB13）：🇯🇵🇫 の 🇵 から始めた \X は、🇵 だけ
 clusterEndBy :: (Seen -> Char -> Bool) -> Cursor -> Maybe Cursor
-clusterEndBy breaks cur = case step cur of
+clusterEndBy breaks cur = endFrom breaks (risBefore cur) cur
+
+-- 🔙 How many regional indicators there are just before, in a row.
+-- すぐ手前に、地域指示子がいくつ続いているか
+risBefore :: Cursor -> Int
+risBefore k = case before k of
+  Just c | graphemeBreak c == RegionalIndicator
+    -> 1 + maybe 0 risBefore (back 1 k)
+  _ -> 0
+
+-- 🧩 The walk itself, given the regional indicators before the start
+--    (looked at only when the first character is one).
+-- 歩きそのもの。始まりの手前の地域指示子の数をもらう（最初の文字が
+-- 地域指示子のときだけ見る）
+endFrom :: (Seen -> Char -> Bool) -> Int -> Cursor -> Maybe Cursor
+endFrom breaks risBack cur = case step cur of
   Nothing      -> Nothing
-  Just (c, k)  -> Just (go (firstSeen c) k)
+  Just (c, k)  -> Just (go (startOf c) k)
   where
+    startOf c
+      | graphemeBreak c == RegionalIndicator
+                  = remember (Seen Control NoPict NoConj risBack) c
+      | otherwise = firstSeen c
     go seen k = case step k of
       Just (c, k') | not (breaks seen c) -> go (remember seen c) k'
       _                                  -> k
@@ -134,7 +156,11 @@ clusterEndBy breaks cur = case step cur of
 clusters :: Text -> [Text]
 clusters t = go (headOf t)
   where
-    go k = case clusterEnd k of
+    -- from the end of a cluster, the regional indicators before are
+    -- even: none to count (a long row of flags stays linear)
+    -- クラスターの終わりからなら、手前の地域指示子は偶数。数えなくてよい
+    -- （国旗が長く続いても、線形のまま）
+    go k = case endFrom breaksBefore 0 k of
       Nothing -> []
       Just k' -> taken k k' : go k'
 
@@ -151,6 +177,7 @@ takeClusters :: Int -> Text -> Text
 takeClusters n t = go (max 0 n) (headOf t)
   where
     go 0 k = taken (headOf t) k
-    go i k = maybe (taken (headOf t) k) (go (i - 1)) (clusterEnd k)
+    go i k = maybe (taken (headOf t) k) (go (i - 1))
+                   (endFrom breaksBefore 0 k)
 -- ANCHOR_END: helpers
 -- ANCHOR_END: all
