@@ -89,7 +89,7 @@ import Data.Text qualified as T
 
 import Data.Text.IO qualified as TIO
 
-import MiniRegex
+import MiniRegex hiding (engine)
 import MiniRegex.Candidates (ends)
 import MiniRegex.Compile (compilePlain, listing, showInst)
 import MiniRegex.Cursor (at, cursorAt, headOf)
@@ -97,7 +97,7 @@ import MiniRegex.Engine
   ( Runner, budgetFor, nonEmptyAt, runnerFor, searchCounting
   , searchCountingBy, searchFrom )
 -- ANCHOR: emojiimport
-import MiniRegex.Grapheme (clusterCount, takeClusters)
+import MiniRegex.Grapheme (clusterCount, clusters, takeClusters)
 -- ANCHOR_END: emojiimport
 import MiniRegex.Parser (parsePattern)
 import MiniRegex.Pretty (drawPattern)
@@ -691,14 +691,12 @@ tallyOf n = T.concat [T.pack (show i) <> " Mira\n" | i <- [1 .. n]]
 scanSwitchingAgain :: Runner
 scanSwitchingAgain prog limit accept tries = case tries of
   [] -> (Nothing, NotFound, limit)
-  first : _
-    | budget >= limit -> scanVMST prog limit accept tries
-    | otherwise -> case scanVMST prog budget accept tries of
-        (_, OutOfSteps, _) ->
-          scanPikeST prog (limit - budget) accept tries
-        (o, answer, left) -> (o, answer, limit - budget + left)
+  first : _ -> case scanVMST prog budget accept tries of
+    (_, OutOfSteps, _) ->
+      scanPikeST prog (limit - budget) accept tries
+    (o, answer, left) -> (o, answer, limit - budget + left)
     where
-      budget = budgetFor prog first
+      budget = min (budgetFor prog first) (limit `div` 4)
 -- ANCHOR_END: again
 
 -- ANCHOR: eachplace
@@ -767,13 +765,15 @@ emojiIn property post = map matchText (findAll (surely pattern) post)
 -- ANCHOR: emojiof
 -- 😀 The emoji a person sees: a cluster that starts with a picture or
 --    a regional indicator (the skin tone, the ZWJs and the ️ come with
---    it).
+--    it). Cut first, then look at each head: a search would try every
+--    place, and find a picture inside a cluster, too.
 -- 人が見る絵文字：絵か地域指示子で始まるクラスター（肌の色・ZWJ・
--- 絵文字にする印も、いっしょに付いてくる）
+-- 絵文字にする印も、いっしょに付いてくる）。先に切ってから、それぞれの
+-- 頭を見る。探すと、どの場所からも試すので、クラスターの中の絵も拾う
 emojiOf :: Text -> [Text]
-emojiOf post = map matchText (findAll seen post)
+emojiOf post = filter seen (clusters post)
   where
-    seen = surely "(?=[\\p{ExtPict}\\p{RI}])\\X"
+    seen = isMatch (surely "^[\\p{ExtPict}\\p{RI}]")
 -- ANCHOR_END: emojiof
 
 -- ANCHOR: preview

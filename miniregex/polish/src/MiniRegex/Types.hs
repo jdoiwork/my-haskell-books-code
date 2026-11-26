@@ -47,9 +47,11 @@ data Regex = Regex
   -- ANCHOR_END: prefilterfield
   -- ANCHOR: limitfield
   -- the steps a search may take (defaultLimit, unless regex-base's
-  -- setExecOpts says otherwise; from the chapter on regex-base)
+  -- setExecOpts says otherwise; from the chapter on regex-base). The
+  -- DFA does not count steps: on a long text, only the groups count
   -- 1回の探しものに使ってよいステップ数（ことわりがなければ defaultLimit。
-  -- regex-base の setExecOpts で変えられる。regex-base の章から）
+  -- regex-base の setExecOpts で変えられる。regex-base の章から）。
+  -- DFA はステップ数を数えない。長い文字列では、グループを求める所だけ
   , stepLimit :: Int
   -- ANCHOR_END: limitfield
   }
@@ -142,11 +144,12 @@ data Engine
 
 -- ANCHOR: error
 -- 🚧 A pattern that cannot be compiled, and where (the character
---    position in the pattern). A wrong pattern, and a pattern that is
---    fine but that MiniRegex cannot run yet, are told apart.
+--    position in the pattern). A wrong pattern, and a pattern with
+--    something MiniRegex cannot run yet, are told apart (the second
+--    does not say the pattern is right).
 -- コンパイルできなかったパターンと、その場所（パターンの何文字目か）。
--- まちがったパターンと、正しいけれど MiniRegex がまだ扱えないパターンを
--- 分けておく
+-- まちがったパターンと、MiniRegex がまだ扱えないものを含むパターンを
+-- 分けておく（あとのほうは、パターンが正しいとは言っていない）
 data RegexError
   = Invalid     Int Text
   | Unsupported Int Text
@@ -170,12 +173,14 @@ errorOffset (NotLinear _)     = 0
 -- ANCHOR: gaveup
 -- 🏳️ The VM gave up. GaveUp n: it took n steps and had not finished
 --    (PCRE2's error -47, "match limit exceeded"). Looping g p: in a call
---    of group g at place p, it called g at p again, and would go round
---    for ever (PCRE2's error -52, "nested recursion at the same subject
---    position"). From the chapter on recursion.
+--    of group g at place p, it called g at p again, with the same
+--    groups, and would go round for ever (PCRE2's error -52, "nested
+--    recursion at the same subject position"). From the chapter on
+--    recursion.
 -- VM があきらめた。GaveUp n：n ステップを使っても、終わらなかった（PCRE2 の
 -- error -47「match limit exceeded」）。Looping g p：場所 p で g を
--- 呼んだ中で、また p で g を呼んだ。いつまでも回り続ける（PCRE2 の
+-- 呼んだ中で、また p で、同じグループの値のまま g を呼んだ。いつまでも
+-- 回り続ける（PCRE2 の
 -- error -52「nested recursion at the same subject position」）。
 -- 再帰の章から
 data GaveUp

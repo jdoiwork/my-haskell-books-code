@@ -1,13 +1,16 @@
 -- ANCHOR: all
 -- | The small rules that both matchers share: does one character fit
---   an atom, and does a place fit an anchor. The flags are in the tree
---   now, so the rules no longer need them.
+--   an atom, does a place fit an anchor, and how often a look goes
+--   round. The flags are in the tree now, so the rules no longer need
+--   them.
 -- 2つのマッチャーが使う、小さな決まり：1文字がアトムに合うか、場所が
--- アンカーに合うか。フラグは木の中に入ったので、決まりにはもう要らない
+-- アンカーに合うか、「見る」ものを何回くり返すか。フラグは木の中に
+-- 入ったので、決まりにはもう要らない
 module MiniRegex.Rules
   ( fitsChar
   , inClass
   , holds
+  , lookCount
   , eatAll
   ) where
 
@@ -103,4 +106,19 @@ wordBefore, wordAfter :: Reach -> Cursor -> Bool
 wordBefore r c = maybe False (hasType (Word r)) (before c)
 wordAfter  r c = maybe False (hasType (Word r) . fst) (T.uncons (rest c))
 -- ANCHOR_END: anchor
+
+-- ANCHOR: lookcount
+-- 🔁 A look with no upper end ((?=a)+, (?=a){2,}) goes round once more
+--    than it must, and no more: PCRE2 (from 10.35) reads {n,} on a look
+--    as {n,n+1}. A look eats nothing, but the groups in it may change,
+--    and the next time may read them: ^(?=(\1b|a))+\1$ fits "ab".
+-- 上の端のない「見る」もの（(?=a)+・(?=a){2,}）は、「必ず」の回数より
+-- 1回だけ多く回る。PCRE2（10.35 から）は、見るものの {n,} を {n,n+1} と
+-- 読む。見るものは文字を食べないが、中のグループは変わることがあり、次の
+-- 回がそれを読む：^(?=(\1b|a))+\1$ は "ab" に合う
+lookCount :: Atom -> Quantifier -> Quantifier
+lookCount (Look _ _ _) (Quantifier (Count least Nothing) g) =
+  Quantifier (Count least (Just 1)) g
+lookCount _ q = q
+-- ANCHOR_END: lookcount
 -- ANCHOR_END: all

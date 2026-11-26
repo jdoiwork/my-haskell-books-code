@@ -70,10 +70,15 @@ static void props(int n, char **names) {
 // ANCHOR_END: props
 
 // 🧩 clusters: for each line, start \X at each character, and tell
-//    after how many characters it ends.
-// clusters：行ごとに、各文字から \X を始めて、何文字目で終わるかを言う
+//    after how many characters it ends. The characters before the
+//    start are matched by the pattern ((?s)^.{i}(\X)), not skipped
+//    with an offset: then PCRE2 sees them, as a \X after .  does (it
+//    counts the regional indicators just before, for GB12 and GB13).
+// clusters：行ごとに、各文字から \X を始めて、何文字目で終わるかを言う。
+// 始まりの前の文字は、offset で飛ばさず、パターン（(?s)^.{i}(\X)）で
+// 読む。そうすると PCRE2 は、. のあとの \X と同じく、手前の文字を見る
+// （GB12・GB13 のために、すぐ手前の地域指示子を数える）
 static void clusters(void) {
-  pcre2_code *re = compile("\\X");
   pcre2_match_data *md = pcre2_match_data_create(4, NULL);
   char line[4096];
   while (fgets(line, sizeof line, stdin) != NULL) {
@@ -85,9 +90,12 @@ static void clusters(void) {
     for (size_t b = 0; b < len; b++)
       if (((unsigned char)line[b] & 0xC0) != 0x80) starts[count++] = b;
     for (int i = 0; i < count; i++) {
-      int rc = pcre2_match(re, (PCRE2_SPTR)line, len, starts[i],
-                           PCRE2_ANCHORED, md, NULL);
-      PCRE2_SIZE end = rc >= 0 ? pcre2_get_ovector_pointer(md)[1] : 0;
+      char pattern[64];
+      snprintf(pattern, sizeof pattern, "(?s)^.{%d}(\\X)", i);
+      pcre2_code *re = compile(pattern);
+      int rc = pcre2_match(re, (PCRE2_SPTR)line, len, 0, 0, md, NULL);
+      PCRE2_SIZE end = rc >= 0 ? pcre2_get_ovector_pointer(md)[3] : 0;
+      pcre2_code_free(re);
       int k = i;
       while (k < count && starts[k] < end) k++;
       printf(i == 0 ? "%d" : " %d", k);
@@ -95,7 +103,6 @@ static void clusters(void) {
     printf("\n");
   }
   pcre2_match_data_free(md);
-  pcre2_code_free(re);
 }
 
 int main(int argc, char **argv) {
