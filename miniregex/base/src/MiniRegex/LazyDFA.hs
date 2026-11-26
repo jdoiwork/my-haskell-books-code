@@ -19,6 +19,7 @@ module MiniRegex.LazyDFA
   , dfaFindAll
   , dfaFind
   , stateLimit
+  , othersLimit
   , isStraight
   , dfaCountEnds
   , dfaSpans
@@ -75,16 +76,29 @@ data Dfa = Dfa
 -- 探す（Rust の lazy DFA も、キャッシュが役に立たないと、あきらめる）
 stateLimit :: Int
 stateLimit = 2000
+
+-- 🧺 At most this many moves for the characters past ASCII: a state
+--    is a few, but each new character is a new move, so a text of many
+--    different characters fills the cache without making a state. Past
+--    it, those moves are thrown away and found again (the states and
+--    the table for ASCII stay), as Rust clears its cache.
+-- ASCII の外の文字の移り先は、多くてもこれだけ覚える。状態は少しでも、
+-- 新しい文字ごとに移り先が1つ増えるので、ちがう文字の多い文字列は、状態を
+-- 作らずにキャッシュを埋める。超えたら、その移り先を捨てて、また求める
+-- （状態と ASCII の表は残す）。Rust がキャッシュを消すのと同じ
+othersLimit :: Int
+othersLimit = 100000
 -- ANCHOR_END: types
 
 -- ANCHOR: can
 -- ✅ The DFA runs only programs of take, takeall, split, jmp, open,
 --    close and match, that never match the empty text. (No \b, ^, $:
---    they look at the character before; no \1, no looks, no fences.)
+--    they look at the character before or after; no \1, no looks, no
+--    fences.)
 --    A takeall is the greedy repeat: the compiler makes one only where
 --    that is the same (from the chapter on switching engines).
 -- DFA が動かすのは、take・takeall・split・jmp・open・close・match だけで、
--- 空の文字列に一致しないプログラム。（\b・^・$ は前の文字を見るので
+-- 空の文字列に一致しないプログラム。（\b・^・$ は前や次の文字を見るので
 -- 断る。\1・「見る」もの・区切りも断る。）takeall は欲ばりのくり返し：
 -- コンパイラーは、それと同じになるときにだけ takeall を作る（エンジンを
 -- 乗り換える章から）
@@ -182,6 +196,7 @@ data Machine s = Machine
   , flags   :: STRef s (MU.MVector s Int)  -- 1: match, 2: dead
   , ascii   :: STRef s (MU.MVector s Int)  -- -1: not yet
   , others  :: STRef s (IntMap.IntMap Int)
+  , room    :: STRef s Int                 -- moves others may still take
   , count   :: STRef s Int
   , first   :: STRef s (Maybe Int)         -- the first state, once made
   }
@@ -191,7 +206,8 @@ newMachine p cut =
   Machine p cut <$> newSTRef Map.empty <*> (newSTRef =<< MV.new 64)
                 <*> (newSTRef =<< MU.replicate 64 0)
                 <*> (newSTRef =<< MU.replicate (64 * 128) (-1))
-                <*> newSTRef IntMap.empty <*> newSTRef 0
+                <*> newSTRef IntMap.empty <*> newSTRef othersLimit
+                <*> newSTRef 0
                 <*> newSTRef Nothing
 
 -- 🔢 The number of a state, made if it is new. Nothing when there are
@@ -253,9 +269,20 @@ move m i c
         Just j  -> pure (Just j)
         Nothing -> do
           r <- make
-          mapM_ (modifySTRef' (others m) . IntMap.insert key) r
+          mapM_ (keepMove key) r
           pure r
   where
+    -- keep the move; when others is full, start it again
+    -- 移り先を覚える。others がいっぱいなら、空にしてから
+    keepMove key j = do
+      left <- readSTRef (room m)
+      if left > 0
+        then do
+          modifySTRef' (others m) (IntMap.insert key j)
+          writeSTRef (room m) (left - 1)
+        else do
+          writeSTRef (others m) (IntMap.singleton key j)
+          writeSTRef (room m) (othersLimit - 1)
     p = code m
     make = do
       (ths, starting, _) <- (`MV.read` i) =<< readSTRef (states m)
