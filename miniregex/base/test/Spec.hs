@@ -55,6 +55,10 @@ import MiniRegex.LazyDFA
 import Data.Maybe (fromMaybe)
 -- ANCHOR_END: dfaimports
 import RegexAnswers
+-- ANCHOR: regexbaseimports
+import Data.Array (elems, (!))
+import Text.Regex.MiniRegex qualified as RB
+-- ANCHOR_END: regexbaseimports
 -- ANCHOR: neighborimports
 import Neighbor qualified
 import NeighborMini qualified
@@ -65,10 +69,8 @@ import Text.Regex.TDFA qualified as TDFA
 -- ANCHOR_END: portableimports
 -- ANCHOR: answersimports
 import RegexBaseAnswers
-import Data.Array (elems, (!))
 import Data.ByteString qualified as B
 import Data.Text.Encoding (encodeUtf8)
-import Text.Regex.MiniRegex qualified as RB
 -- ANCHOR_END: answersimports
 -- ANCHOR_END: imports
 
@@ -2882,6 +2884,33 @@ main = hspec $ do
       RB.getExecOpts tight `shouldBe` RB.ExecOption 100
       r <- try (evaluate (RB.matchTest tight (fieldOf 5)))
       r `shouldBe` Left (GaveUp 100)
+      let made = RB.makeRegexOpts RB.defaultCompOpt (RB.ExecOption 100)
+                   ("^(\\w+\\s?)+$" :: String) :: Regex
+      RB.getExecOpts made `shouldBe` RB.ExecOption 100
+      r2 <- try (evaluate (RB.matchTest made (fieldOf 5)))
+      r2 `shouldBe` Left (GaveUp 100)
+    -- the limit holds on every road: all the matches, the race, and
+    -- the search for a non-empty match after an empty one
+    -- 上限は、どの道でも効く：全部の一致、競走、空の一致のあとの探しもの
+    it "keeps the limit on every road" $ do
+      let tight = RB.setExecOpts (RB.ExecOption 100)
+                    (RB.makeRegex ("^(\\w+\\s?)+$" :: String) :: Regex)
+          givesUp :: a -> IO ()
+          givesUp x = do
+            r <- try (evaluate x)
+            either (`shouldBe` GaveUp 100)
+                   (const (expectationFailure "it did not give up")) r
+      givesUp (RB.matchCount tight (fieldOf 5))
+      givesUp (length (RB.matchAll tight (fieldOf 5)))
+      givesUp (length (findAll tight (fieldOf 5)))
+      givesUp (nonEmptyAt tight (fieldOf 5) 0 == Nothing)
+      -- an empty match first, then a run with a back reference
+      -- はじめに空の一致、そのあと後方参照のある探しもの
+      let backRef = RB.setExecOpts (RB.ExecOption 100)
+                      (RB.makeRegex ("x*|^(a+)+\\1?$" :: String) :: Regex)
+      givesUp (length (findAll backRef (T.replicate 20 "a" <> "!")))
+      raced <- try (findRacing tight (fieldOf 5))
+      fmap (const ()) raced `shouldBe` Left (GaveUp 100)
     -- the texts come from the matches: the same as cutting the text
     -- 文字列は一致から取る。もとの文字列を切ったものと同じ
     prop "gives the texts that cutting gives" $
@@ -2894,13 +2923,35 @@ main = hspec $ do
                   === map (fmap (`RB.extract` t)) (RB.matchAll re t)
                 .&&. map (fmap fst) (RB.matchAllText re s)
                   === map (fmap (`RB.extract` s)) (RB.matchAll re s)
+                .&&. map (fmap snd) (RB.matchAllText re t)
+                  === RB.matchAll re t
+                .&&. map (fmap snd) (RB.matchAllText re s)
+                  === RB.matchAll re s
+    -- the answers of the GHCi, with a String
+    -- GHCi の答えを、String で
+    it "gives the same answers with a String" $ do
+      let s = T.unpack line
+          price = "[0-9]+ gold" :: String
+      (s RB.=~ price :: Int) `shouldBe` 2
+      (s RB.=~ price :: (Int, Int)) `shouldBe` (21, 8)
+      (s RB.=~~ price :: Maybe String) `shouldBe` Just "300 gold"
+      (s RB.=~~ ("dragon" :: String) :: Maybe String) `shouldBe` Nothing
+      fmap elems (RB.matchOnce (RB.makeRegex price :: Regex) s)
+        `shouldBe` Just [(21, 8)]
+      let caseless = RB.makeRegexOpts (RB.CompOption [Caseless])
+                       RB.defaultExecOpt ("ruby" :: String) :: Regex
+      RB.matchTest caseless s `shouldBe` True
+      fmap (`RB.matchTest` s)
+        (RB.makeRegexOptsM (RB.CompOption [Caseless]) RB.defaultExecOpt
+           ("ruby" :: String) :: Maybe Regex)
+        `shouldBe` Just True
     -- many matches in a long text: no cutting from its start each time
     -- 長い文字列に一致がたくさん：一致のたびに頭から切り直さない
     it "gives the texts of many matches in linear time" $ do
-      let s  = concat (replicate 200000 "あa")
-          re = RB.makeRegex ("a" :: String) :: Regex
-          total = sum [length (fst (a ! 0)) | a <- RB.matchAllText re s]
-      done <- timeout 5000000 (evaluate total)
+      let s       = concat (replicate 200000 "あa")
+          re      = RB.makeRegex ("a" :: String) :: Regex
+          matched = sum [length (fst (a ! 0)) | a <- RB.matchAllText re s]
+      done <- timeout 5000000 (evaluate matched)
       done `shouldBe` Just 200000
   -- ANCHOR_END: regexbase
 
@@ -2937,6 +2988,20 @@ main = hspec $ do
         `shouldBe` Just "gold"
       firstWord @TDFA.Regex "gold|golden" "a golden scale"
         `shouldBe` Just "golden"
+    -- and for ^ and $: regex-tdfa looks at each line, unless told not
+    -- to; MiniRegex does so with the flag Multiline
+    -- ^ と $ でも：regex-tdfa は、ことわりがなければ行ごとに見る。
+    -- MiniRegex は、フラグ Multiline があれば、そうする
+    it "differs where regex-tdfa looks at each line" $ do
+      let roster = "name: Mira\nname: Ruby" :: Text
+          names  = "^name: [A-Za-z]+$" :: String
+          multi  = RB.makeRegexOpts (RB.CompOption [Multiline])
+                     RB.defaultExecOpt names :: Regex
+      RB.getAllTextMatches (roster RB.=~ names) `shouldBe` ([] :: [Text])
+      RB.getAllTextMatches (roster TDFA.=~ names)
+        `shouldBe` (["name: Mira", "name: Ruby"] :: [Text])
+      RB.getAllTextMatches (RB.match multi roster)
+        `shouldBe` (["name: Mira", "name: Ruby"] :: [Text])
   -- ANCHOR_END: portable
 
   describe "learning from other lands / よその国に学ぶ" $ do

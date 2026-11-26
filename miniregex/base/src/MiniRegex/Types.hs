@@ -47,9 +47,11 @@ data Regex = Regex
   -- ANCHOR_END: prefilterfield
   -- ANCHOR: limitfield
   -- the steps a search may take (defaultLimit, unless regex-base's
-  -- setExecOpts says otherwise; from the chapter on regex-base)
+  -- setExecOpts says otherwise; from the chapter on regex-base). The
+  -- DFA does not count steps: on a long text, only the groups count
   -- 1回の探しものに使ってよいステップ数（ことわりがなければ defaultLimit。
-  -- regex-base の setExecOpts で変えられる。regex-base の章から）
+  -- regex-base の setExecOpts で変えられる。regex-base の章から）。
+  -- DFA はステップ数を数えない。長い文字列では、グループを求める所だけ
   , stepLimit :: Int
   -- ANCHOR_END: limitfield
   }

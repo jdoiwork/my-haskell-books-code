@@ -117,9 +117,12 @@ instance RegexLike Regex Text where
   matchAllText re t = map toTexts (findAll re t)
 
 -- 🧶 Find in a String: the places of a String are characters, too.
---    The texts come from the Text's answers, unpacked.
+--    The texts come from the Text's answers, unpacked. A Char that a
+--    Text cannot hold (a lone surrogate, U+D800 to U+DFFF) is looked
+--    at as U+FFFD, in the text and in the pattern alike.
 -- String の中を探す：String の場所も、文字で数える。文字列は、Text の
--- 答えを unpack したもの
+-- 答えを unpack したもの。Text に入らない文字（ひとりぼっちのサロゲート、
+-- U+D800〜U+DFFF）は、文字列でもパターンでも U+FFFD として探す
 instance RegexLike Regex String where
   matchOnce re  = matchOnce re . T.pack
   matchAll re   = matchAll re . T.pack
