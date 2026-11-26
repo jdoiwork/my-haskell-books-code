@@ -66,7 +66,9 @@ import MiniRegex.LazyDFA
 import Data.Maybe (fromMaybe)
 -- ANCHOR_END: dfaimports
 import RegexAnswers
+-- ANCHOR: answersimports
 import EmojiAnswers
+-- ANCHOR_END: answersimports
 -- ANCHOR: regexbaseimports
 import Data.Array (elems, (!))
 import Text.Regex.MiniRegex qualified as RB
@@ -3375,6 +3377,7 @@ main = hspec $ do
       ins <- T.lines <$> TIO.readFile "pcre2/clusters.in"
       outs <- lines <$> readFile "pcre2/clusters.out"
       length ins `shouldBe` 3000
+      length outs `shouldBe` length ins
       [ t | (t, o) <- zip ins outs, endsBy pcre2Breaks t /= o ] `shouldBe` []
       length [ t | (t, o) <- zip ins outs, endsBy breaksBefore t /= o ]
         `shouldBe` 400
@@ -3393,6 +3396,17 @@ main = hspec $ do
       T.take 2 (family <> "🇯🇵") `shouldBe` "👨\x200D"
       takeClusters 1 (family <> "🇯🇵") `shouldBe` family
       takeClusters 9 "🇯🇵" `shouldBe` "🇯🇵"
+      map (`takeClusters` "abc") [-1, 0, 2, 9] `shouldBe` ["", "", "ab", "abc"]
+      preview (-1) "abc" `shouldBe` "…"
+    -- the emoji a person sees: whole clusters that start with a picture,
+    -- not a picture inside a cluster (U+0600 is Prepend: GB9b)
+    -- 人が見る絵文字：絵で始まるクラスターを丸ごと。クラスターの中の絵は
+    -- 取らない（U+0600 は Prepend。GB9b）
+    it "finds the emoji a person sees" $ do
+      map emojiOf board
+        `shouldBe` [["👍🏽"], [family, "🇯🇵"], ["☀\xFE0F"]]
+      clusters "\x600👍🏽" `shouldBe` ["\x600👍🏽"]
+      emojiOf "\x600👍🏽" `shouldBe` []
     -- \X runs on the backtracking VM only: it takes a cluster at once
     -- \X は、バックトラックの VM でだけ動く。クラスターを一度に食べるから
     it "runs \\X on the backtracking VM, and \\p{Emoji} anywhere" $ do
@@ -3445,6 +3459,11 @@ main = hspec $ do
       T.reverse "🇯🇵👍🏽" `shouldBe` "🏽👍🇵🇯"
       reverseClusters "🇯🇵👍🏽" `shouldBe` "👍🏽🇯🇵"
       reverseClusters ("a" <> family <> "b") `shouldBe` ("b" <> family <> "a")
+      -- the pieces keep their order, but new neighbours may pair up:
+      -- 🇯🇵🇫 turned around is 🇫🇯 (Fiji) and a lone 🇵 (GB12, GB13)
+      -- 断片の中の順番は保つが、となりどうしが新しく組になることがある：
+      -- 🇯🇵🇫 を逆さにすると、🇫🇯（フィジー）と、ひとりの 🇵
+      clusters (reverseClusters "🇯🇵🇫") `shouldBe` ["🇫🇯", "🇵"]
     -- step 3: the keycaps, and not the plain 7
     -- ステップ3：キーキャップ。ただの 7 は取らない
     it "finds the keycaps too" $

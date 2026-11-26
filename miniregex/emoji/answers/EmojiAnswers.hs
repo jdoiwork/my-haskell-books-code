@@ -12,7 +12,7 @@ module EmojiAnswers
 import Data.Text (Text)
 import Data.Text qualified as T
 
-import MiniRegex (Match (..), findAll)
+import MiniRegex (isMatch)
 import MiniRegex.Examples (surely)
 import MiniRegex.Grapheme (clusters)
 -- ANCHOR_END: head
@@ -32,9 +32,9 @@ reverseClusters = T.concat . reverse . clusters
 -- ステップ3：人が見る絵文字と、キーキャップ（#️⃣ は #、絵文字にする印
 -- U+FE0F、キーキャップ U+20E3）
 emojiWithKeys :: Text -> [Text]
-emojiWithKeys post = map matchText (findAll seen post)
+emojiWithKeys post = filter seen (clusters post)
   where
-    seen = surely
-      "(?=[\\p{ExtPict}\\p{RI}]|[0-9#*]\\x{FE0F}?\\x{20E3})\\X"
+    seen = isMatch
+      (surely "^(?:[\\p{ExtPict}\\p{RI}]|[0-9#*]\\x{FE0F}?\\x{20E3})")
 -- ANCHOR_END: keys
 -- ANCHOR_END: all

@@ -143,10 +143,12 @@ clusters t = go (headOf t)
 clusterCount :: Text -> Int
 clusterCount = length . clusters
 
--- ✂️ The first n clusters: never cuts a family or a flag in half.
--- 最初の n 個のクラスター。家族や国旗を半分に切らない
+-- ✂️ The first n clusters: never cuts a family or a flag in half
+--    (none for n of 0 or less, as T.take).
+-- 最初の n 個のクラスター。家族や国旗を半分に切らない（n が 0 以下なら
+-- 空。T.take と同じ）
 takeClusters :: Int -> Text -> Text
-takeClusters n t = go n (headOf t)
+takeClusters n t = go (max 0 n) (headOf t)
   where
     go 0 k = taken (headOf t) k
     go i k = maybe (taken (headOf t) k) (go (i - 1)) (clusterEnd k)
