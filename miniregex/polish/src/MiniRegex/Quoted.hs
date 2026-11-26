@@ -10,6 +10,7 @@ module MiniRegex.Quoted
   , saleRegex
   , salesOf
   , Sale (..)
+  , readInt
   , datesTyped
   , saleTyped
   , salesOfTyped
@@ -63,7 +64,18 @@ salesOf line =
   [ Sale w g (named "item" m)
   | m <- findAll saleRegex line
   , Just w <- [named "who" m]
-  , Just g <- [readMaybe . T.unpack =<< named "gold" m] ]
+  , Just g <- [readInt =<< named "gold" m] ]
+
+-- 🔢 Digits as an Int, or Nothing when they do not fit (readMaybe at Int
+--    would wrap 9223372036854775808 round to a minus number).
+-- 数字の並びを Int に。収まらなければ Nothing（Int の readMaybe だと、
+-- 9223372036854775808 が回りこんで、負の数になる）
+readInt :: Text -> Maybe Int
+readInt t = do
+  n <- readMaybe (T.unpack t) :: Maybe Integer
+  if n >= toInteger (minBound :: Int) && n <= toInteger (maxBound :: Int)
+    then Just (fromInteger n)
+    else Nothing
 -- ANCHOR_END: sales
 
 -- ANCHOR: typed
@@ -91,6 +103,6 @@ salesOfTyped :: Text -> [Sale]
 salesOfTyped line =
   [ Sale m.who g m.item
   | m <- Typed.findAll saleTyped line
-  , Just g <- [readMaybe (T.unpack m.gold)] ]
+  , Just g <- [readInt m.gold] ]
 -- ANCHOR_END: salestyped
 -- ANCHOR_END: all

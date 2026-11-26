@@ -17,20 +17,29 @@ import GHC.Records (HasField)
 import Language.Haskell.TH (Exp, Q)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Language.Haskell.TH.Syntax (lift)
-import Text.Read (readMaybe)
 
 import MiniRegex
+import MiniRegex.Parser (parsePattern)
+import MiniRegex.Pretty (render)
 import MiniRegex.Quote (re)
+import MiniRegex.Quoted (readInt)
 import MiniRegex.Typed (TypedMatch)
 -- ANCHOR_END: head
 
 -- ANCHOR: whole
 -- 📏 Step 1: -x, the whole line. The pattern goes in a group that
---    keeps nothing, so that a | inside stays inside.
+--    keeps nothing, so that a | inside stays inside. It is read and
+--    written back first: a \Q with no \E, or a # comment under (?x),
+--    would swallow the ) put after it. A wrong pattern is left as it
+--    is, for compile to tell.
 -- ステップ1：-x、行の全体。パターンを、何も覚えないグループに入れる
--- （中の | が、外へもれないように）
+-- （中の | が、外へもれないように）。先に読んで書き戻す：\E のない \Q や、
+-- (?x) の # のコメントは、うしろに付けた ) を飲みこんでしまう。まちがった
+-- パターンは、compile が知らせるように、そのまま返す
 wholeLine :: Text -> Text
-wholeLine p = "^(?:" <> p <> ")$"
+wholeLine p = case parsePattern [] p of
+  Left _     -> p
+  Right tree -> "^(?:" <> render tree <> ")$"
 -- ANCHOR_END: whole
 
 -- ANCHOR: rewith
@@ -62,6 +71,6 @@ nocase = reWith [Caseless]
 -- ステップ3：年を数で。year が必ず使われる、どの型付きの正規表現でも
 yearNumber :: HasField "year" (TypedMatch gs) Text
            => TypedMatch gs -> Maybe Int
-yearNumber m = readMaybe (T.unpack m.year)
+yearNumber m = readInt m.year
 -- ANCHOR_END: year
 -- ANCHOR_END: all

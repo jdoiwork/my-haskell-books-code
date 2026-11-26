@@ -19,7 +19,7 @@ import Data.Text.Encoding (decodeUtf8Lenient)
 import Data.Text.IO qualified as TIO
 import Options.Applicative (execParser)
 import System.Exit (ExitCode (..), exitWith)
-import System.IO (hIsTerminalDevice, hPutStrLn, stderr, stdout)
+import System.IO (hFlush, hIsTerminalDevice, hPutStrLn, stderr, stdout)
 import System.IO.Error (ioeGetErrorString)
 
 import MiniRegex
@@ -69,9 +69,12 @@ nameOf file = T.pack file
 
 -- 📂 One file: read it (as UTF-8; a broken byte becomes U+FFFD), grep
 --    it, print. Right: was a line chosen? Left: trouble, told on
---    stderr.
+--    stderr (also when the output cannot be written: a full disk, a
+--    closed pipe; hFlush makes it show here, not after exit).
 -- 1つのファイル：読んで（UTF-8 で。壊れたバイトは U+FFFD に）、探して、
--- 書く。Right は行を選んだか、Left は困ったこと（stderr に書いた）
+-- 書く。Right は行を選んだか、Left は困ったこと（stderr に書いた）。書き
+-- 出せないとき（ディスクがいっぱい、閉じたパイプ）も困ったこと。hFlush で、
+-- 終わったあとではなく、ここで気づく
 grepFile :: View -> Regex -> FilePath -> IO (Either () Bool)
 grepFile view re file = do
   read' <- try (if file == "-" then B.getContents else B.readFile file)
@@ -82,12 +85,18 @@ grepFile view re file = do
       pure (Left ())
     Right bytes -> do
       let report = grepText view re (decodeUtf8Lenient bytes)
-      mapM_ TIO.putStrLn (printedLines report)
-      unless (null (gaveUpLines report)) $
-        hPutStrLn stderr ("minigrep: " <> file <> ": gave up on line "
-                          <> show (gaveUpLines report))
-      pure $ if null (gaveUpLines report)
-        then Right (chosenCount report > 0)
-        else Left ()
+      written <- try (mapM_ TIO.putStrLn (printedLines report)
+                        >> hFlush stdout)
+      case written of
+        Left (e :: IOException) -> do
+          hPutStrLn stderr ("minigrep: " <> show e)
+          pure (Left ())
+        Right () -> do
+          unless (null (gaveUpLines report)) $
+            hPutStrLn stderr ("minigrep: " <> file <> ": gave up on line "
+                              <> show (gaveUpLines report))
+          pure $ if null (gaveUpLines report)
+            then Right (chosenCount report > 0)
+            else Left ()
 -- ANCHOR_END: main
 -- ANCHOR_END: all

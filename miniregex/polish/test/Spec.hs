@@ -3199,6 +3199,15 @@ main = hspec $ do
       salesOf "Mira sold 300 gold for herbs, Ruby sold 25 gold"
         `shouldBe` [ Sale "Mira" 300 (Just "herbs")
                    , Sale "Ruby" 25 Nothing ]
+    -- digits that do not fit in an Int are not a sale (readMaybe would
+    -- wrap them round to a minus number)
+    -- Int に収まらない数字は、売り上げにしない（readMaybe だと、回りこんで
+    -- 負の数になる）
+    it "turns away gold that does not fit in an Int" $ do
+      readInt "9223372036854775807" `shouldBe` Just maxBound
+      readInt "9223372036854775808" `shouldBe` Nothing
+      salesOf "Mira sold 9223372036854775808 gold" `shouldBe` []
+      salesOfTyped "Mira sold 9223372036854775808 gold" `shouldBe` []
 
   describe "the typed groups / 型付きのグループ" $ do
     -- m.year is a Text, m.day a Maybe Text
@@ -3272,6 +3281,17 @@ main = hspec $ do
     it "paints the matches" $
       printedLines (grepText view { viewColor = True } dates "on 2026-11.")
         `shouldBe` ["on \ESC[01;31m2026-11\ESC[m."]
+    -- to choose a line, the first match is enough: the rest of the
+    -- line may run out of steps, and the line is still chosen
+    -- 行を選ぶには、最初の一致で足りる：行の残りでステップ数が尽きても、
+    -- その行は選ぶ
+    it "chooses a line by its first match" $ do
+      let slow = [Q.re|a|(?:(b+)\1)+c|]
+          line = "a" <> T.replicate 40 "b"
+      grepText view slow line `shouldBe` Report [line] 1 []
+      grepText view { viewCount = True } slow line `shouldBe` Report ["1"] 1 []
+      grepText view { viewInvert = True } slow line `shouldBe` Report [] 0 []
+      gaveUpLines (grepText view { viewOnly = True } slow line) `shouldBe` [1]
     -- the command line
     -- コマンドライン
     it "reads the command line" $ do
@@ -3657,6 +3677,13 @@ main = hspec $ do
       let r = either (error . show) id (compile (wholeLine "gold|silver"))
       map (isMatch r) ["gold", "silver", "gold coin", "old silver"]
         `shouldBe` [True, True, False, False]
+      -- a \Q with no \E, and a comment under (?x), keep their )
+      -- \E のない \Q と、(?x) のコメントも、) を飲みこまない
+      let whole p = either (error . show) id (compile (wholeLine p))
+      map (isMatch (whole "gold\\Q")) ["gold", "goldextra"]
+        `shouldBe` [True, False]
+      map (isMatch (whole "(?x)gold#comment")) ["gold", "goldextra"]
+        `shouldBe` [True, False]
     -- step 2: the quasi-quoter with flags
     -- ステップ2：フラグつきの準クォート
     it "reads the flags" $ do
@@ -3670,4 +3697,7 @@ main = hspec $ do
       let slashed = [Q.typed|(?<day>\d\d)/(?<month>\d\d)/(?<year>\d{4})|]
       fmap yearNumber (Typed.find slashed "on 21/11/2026")
         `shouldBe` Just (Just 2026)
+      let big = [Q.typed|(?<year>\d+)|]
+      fmap yearNumber (Typed.find big "9223372036854775808")
+        `shouldBe` Just Nothing
   -- ANCHOR_END: answers

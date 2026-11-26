@@ -1,6 +1,7 @@
 -- ANCHOR: all
 -- ANCHOR: header
 {-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE RoleAnnotations      #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 -- | Regexes that know their named groups in their type. Made by the
@@ -14,8 +15,9 @@
 module MiniRegex.Typed
   ( Part (..)
   , Groups
-  , TypedRegex (..)
-  , TypedMatch (..)
+  , TypedRegex
+  , TypedMatch
+  , unsafeTyped
   , Lookup
   , FieldOf
   , Group
@@ -57,6 +59,21 @@ newtype TypedRegex (gs :: Groups) = TypedRegex MiniRegex.Regex
 -- そういう正規表現の一致。自分のフィールドを持たないので、HasField で
 -- 好きなフィールドを付けられる
 newtype TypedMatch (gs :: Groups) = TypedMatch MiniRegex.Match
+
+-- 🔒 The groups in the type are a promise: only [typed|…|] may make one
+--    (the constructors are not exported), and coerce may not change
+--    them (nominal: gs must be the same type, not just the same shape
+--    underneath).
+-- 型に書いたグループは約束：作れるのは [typed|…|] だけ（構成子は export
+-- しない）。coerce でも変えられない（nominal：gs は、中身の形が同じ
+-- だけでなく、同じ型でなければならない）
+type role TypedRegex nominal
+type role TypedMatch nominal
+
+-- ⚠️ For the quasi-quoter only: the groups are trusted, not checked.
+-- 準クォートのためだけのもの。グループは確かめずに信じる
+unsafeTyped :: MiniRegex.Regex -> TypedRegex gs
+unsafeTyped = TypedRegex
 -- ANCHOR_END: types
 
 -- ANCHOR: family

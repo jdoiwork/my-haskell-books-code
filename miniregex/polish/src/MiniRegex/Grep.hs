@@ -152,8 +152,17 @@ grepText view re text
   | viewCount view = Report [prefix Nothing <> T.pack (show n)] n stuck
   | otherwise      = Report (concat printed) n stuck
   where
-    results = [ (i, line, findAllWithin defaultLimit re line)
+    results = [ (i, line, search line)
               | (i, line) <- zip [1 :: Int ..] (T.lines text) ]
+    -- every match only to print them (-o, or color); to choose a line,
+    -- the first is enough (the rest may not run out of steps it)
+    -- 一致の全部は、書くときだけ（-o か色）。行を選ぶだけなら、最初の1つで
+    -- 足りる（残りを探して、ステップ数が尽きることもない）
+    search line
+      | needsAll  = findAllWithin defaultLimit re line
+      | otherwise = maybe [] pure <$> findWithin defaultLimit re line
+    needsAll = not (viewCount view) && not (viewInvert view)
+               && (viewOnly view || viewColor view)
     stuck   = [ i | (i, _, Left _) <- results ]
     -- the lines that are chosen: matching, or not matching with -v
     -- 選ぶ行：合う行。-v なら、合わない行

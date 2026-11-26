@@ -24,7 +24,7 @@ import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import MiniRegex (Regex, compile, explain)
 import MiniRegex.Groups (alwaysGroups, groupNames)
 import MiniRegex.Types (tree)
-import MiniRegex.Typed (Part (..), TypedRegex (..))
+import MiniRegex.Typed (Part (..), TypedRegex, unsafeTyped)
 -- ANCHOR_END: imports
 
 -- ANCHOR: re
@@ -91,7 +91,7 @@ quoteTyped s = do
         | length (filter ((== name) . fst) names) == 1
         , n `Set.member` always = 'Always
         | otherwise             = 'Sometimes
-  [| TypedRegex (trusted s) :: TypedRegex $(pure (groupsType parts)) |]
+  [| unsafeTyped (trusted s) :: TypedRegex $(pure (groupsType parts)) |]
 
 -- 📇 [("year", 'Always)] as the type '[ '("year", 'Always) ].
 -- [("year", 'Always)] を、型 '[ '("year", 'Always) ] に
