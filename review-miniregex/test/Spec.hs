@@ -44,7 +44,7 @@ instance Arbitrary Line where
 fixLinePcre2 :: Text -> Text
 fixLinePcre2 =
   Pcre2.gsub (source goldRegex) goldPlan
-    . Pcre2.gsub (source oldDate) datePlan
+    . Pcre2.gsub (source oneDate) datePlan
 
 fixLineAsciiPcre2 :: Text -> Text
 fixLineAsciiPcre2 =
@@ -52,8 +52,10 @@ fixLineAsciiPcre2 =
     . Pcre2.gsub (source asciiDate) datePlan
 -- ANCHOR_END: pcre2
 
+-- ANCHOR: main
 main :: IO ()
 main = hspec $ do
+  -- ANCHOR_END: main
   -- ANCHOR: examples
   describe "the old ledger" $ do
     -- 「古い日付を、新しい書き方に」
@@ -72,6 +74,17 @@ main = hspec $ do
     it "loses a line with the draft" $
       totalsWith fixLineDraft oldPage
         `shouldBe` Map.fromList [("Mira", 300), ("Ruby", 25)]
+    -- 「Int に収まる2行を足しても、あふれない」
+    it "adds up past the end of Int" $
+      totals [ "2026-11-21 Mira sold 9223372036854775807 gold"
+             , "2026-11-21 Mira sold 1 gold" ]
+        `shouldBe` Map.fromList [("Mira", 9223372036854775808)]
+    -- 「帳簿の数は ASCII：全角の数字の行は、読まない」
+    it "reads the numbers in ASCII only" $ do
+      totalsAscii ["21/11/２０２６ Mira sold 1g", "２０２６-11-21 Mira sold 1 gold"]
+        `shouldBe` Map.empty
+      totals ["21/11/２０２６ Mira sold 1g"] `shouldBe` Map.empty
+      totalsAscii oldPage `shouldBe` Map.fromList [("Mira", 420), ("Ruby", 25)]
   -- ANCHOR_END: examples
 
   -- ANCHOR: twice
@@ -86,6 +99,11 @@ main = hspec $ do
     -- 「直した版は、2回直しても1回と同じ」
     prop "fixing twice is fixing once" $ \(Line t) ->
       fixLine (fixLine t) === fixLine t
+    -- 「日付の並びの途中に、新しい日付を作らない」
+    it "makes no new date inside a run of dates" $ do
+      let t = "21/11/21/11/2026"
+      fixLine (fixLine t) `shouldBe` fixLine t
+      fixLineAscii (fixLineAscii t) `shouldBe` fixLineAscii t
   -- ANCHOR_END: twice
 
   -- ANCHOR: compare

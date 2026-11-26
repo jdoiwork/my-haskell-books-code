@@ -21,11 +21,13 @@ module Review.Ledger
   , totals
     -- * Step 3 / ステップ3
   , goldRegex
+  , oneDate
   , fixLine
     -- * Step 4 / ステップ4
   , asciiDate
   , asciiGold
   , fixLineAscii
+  , totalsAscii
   , datePlan
   , goldPlan
   ) where
@@ -116,17 +118,19 @@ data Entry = Entry
 -- 🏷️ A fixed line: 2026-11-21 Mira sold 300 gold for herbs.
 --    The date, who and gold are always there; the item is not.
 --    With (?x), spaces and new lines in the pattern are not read, so
---    a space to find is written "\ ".
+--    a space to find is written "\ ". The ledger writes its numbers
+--    in ASCII: [0-9] (\d takes full-width digits, too); names stay \w.
 -- 直した1行：2026-11-21 Mira sold 300 gold for herbs。日付・人・金貨は
 -- いつもあり、品物はないこともある。(?x) を付けると、パターンの中の
--- 空白と改行は読まれないので、探す空白は「\ 」と書く
+-- 空白と改行は読まれないので、探す空白は「\ 」と書く。帳簿の数は ASCII
+-- なので、数は [0-9]（\d は全角の数字にも合う）。名前は \w のまま
 entryRegex
   :: TypedRegex '[ '("date", 'Always), '("who", 'Always)
                  , '("gold", 'Always), '("item", 'Sometimes) ]
 entryRegex = [typed|(?x)
-  ^ (?<date> \d{4}-\d{2}-\d{2} )
+  ^ (?<date> [0-9]{4}-[0-9]{2}-[0-9]{2} )
   \  (?<who> \w+ ) \ sold
-  \  (?<gold> \d+ ) \ gold
+  \  (?<gold> [0-9]+ ) \ gold
   (?: \ for \ (?<item> \w+ ) )? $
   |]
 
@@ -141,12 +145,14 @@ readEntry line = do
 
 -- ANCHOR: totals
 -- ➕ Fix every line with fix, read it, and add up the gold of each
---    person. A line that cannot be read is left out.
--- どの行も fix で直して読み、人ごとに金貨を足す。読めない行は数えない
-totalsWith :: (Text -> Text) -> [Text] -> Map Text Int
+--    person. A line that cannot be read is left out. The sums are
+--    Integers: two lines that each fit in an Int may not, added up.
+-- どの行も fix で直して読み、人ごとに金貨を足す。読めない行は数えない。
+-- 合計は Integer：1行ずつは Int に収まっても、足すと収まらないことがある
+totalsWith :: (Text -> Text) -> [Text] -> Map Text Integer
 totalsWith fix ls =
   Map.fromListWith (+)
-    [ (e.who, e.gold) | Just e <- map (readEntry . fix) ls ]
+    [ (e.who, toInteger e.gold) | Just e <- map (readEntry . fix) ls ]
 -- ANCHOR_END: totals
 
 -- ANCHOR: fixed
@@ -157,15 +163,26 @@ totalsWith fix ls =
 goldRegex :: Regex
 goldRegex = [re|(?i)(\d+) ?g(?:old)?\b|]
 
+-- 📅 The date again: not a piece of a longer run of digits, / and -.
+--    21/11/21/11/2026 is not a date; fixed once, its tail would be
+--    21/11/2026-11-21, and a new date would show up at its head.
+-- 日付も、もう一度：数字・/・- の長い並びの一部なら、日付ではない。
+-- 21/11/21/11/2026 は日付ではない。うしろだけ直すと 21/11/2026-11-21 に
+-- なり、頭に新しい日付が現れてしまう
+oneDate :: Regex
+oneDate =
+  [re|(?<![\d/-])(?<day>\d{2})/(?<month>\d{2})/(?<year>\d{4})(?![\d/-])|]
+
 -- 🧹 Fix a line: the dates, then the gold.
 -- 1行を直す：日付、それから金貨
 fixLine :: Text -> Text
 fixLine =
-  replaceAllTemplate goldRegex (templateOf goldRegex goldPlan) . fixDates
+  replaceAllTemplate goldRegex (templateOf goldRegex goldPlan)
+    . replaceAllTemplate oneDate (templateOf oneDate datePlan)
 
 -- ➕ The totals, with the fixed fix.
 -- 直した版で、合計を
-totals :: [Text] -> Map Text Int
+totals :: [Text] -> Map Text Integer
 totals = totalsWith fixLine
 -- ANCHOR_END: fixed
 
@@ -175,7 +192,8 @@ totals = totalsWith fixLine
 -- 同じ2つのパターンに (?a)：\d・\w・\b は ASCII だけ。帳簿の数は
 -- ASCII で書く決まり
 asciiDate :: Regex
-asciiDate = [re|(?a)(?<day>\d{2})/(?<month>\d{2})/(?<year>\d{4})|]
+asciiDate =
+  [re|(?a)(?<![\d/-])(?<day>\d{2})/(?<month>\d{2})/(?<year>\d{4})(?![\d/-])|]
 
 asciiGold :: Regex
 asciiGold = [re|(?a)(?i)(\d+) ?g(?:old)?\b|]
@@ -186,5 +204,10 @@ fixLineAscii :: Text -> Text
 fixLineAscii =
   replaceAllTemplate asciiGold (templateOf asciiGold goldPlan)
     . replaceAllTemplate asciiDate (templateOf asciiDate datePlan)
+
+-- ➕ The totals of the ledger, the ASCII way: the call to use.
+-- ASCII の決まりで、帳簿を合計する。使うのは、これ
+totalsAscii :: [Text] -> Map Text Integer
+totalsAscii = totalsWith fixLineAscii
 -- ANCHOR_END: ascii
 -- ANCHOR_END: all
