@@ -62,9 +62,11 @@ ends p c = pattern 1 p (c, noCaps)
     piece _ KeepOut (cur, caps) = [(cur, keepOut cur caps)]
     -- a*+: only the first candidate of a* (the longest)
     -- a*+：a* の候補の先頭（いちばん長いもの）だけ
-    piece n (Quantified a q) here
+    piece n (Quantified a written) here
       | greed q == Possessive = take 1 (repeatAtom q (atom n a) here)
       | otherwise             = repeatAtom q (atom n a) here
+      where
+        q = lookCount a written
 
     -- One character, a whole pattern for a group (writing down what it
     -- found), or the text a group found before.

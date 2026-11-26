@@ -2,10 +2,14 @@
 -- ANCHOR: header
 -- | The jobs of the record room, written once against the classes of
 --   regex-base. The engine is a type: datesIn @TDFA.Regex runs them
---   with regex-tdfa, datesIn @MiniRegex.Regex with MiniRegex.
+--   with regex-tdfa, datesIn @MiniRegex.Regex with MiniRegex. The
+--   instances of an engine are seen only where its module is imported
+--   (MiniRegex's are orphans, in Text.Regex.MiniRegex).
 -- 記録室の仕事を、regex-base のクラスだけを使って1度だけ書く。
 -- エンジンは型で選ぶ：datesIn @TDFA.Regex なら regex-tdfa で、
--- datesIn @MiniRegex.Regex なら MiniRegex で動く
+-- datesIn @MiniRegex.Regex なら MiniRegex で動く。エンジンのインスタンスは、
+-- そのモジュールを import した所でだけ見える（MiniRegex のものは孤児で、
+-- Text.Regex.MiniRegex にある）
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module MiniRegex.Portable
   ( Backend

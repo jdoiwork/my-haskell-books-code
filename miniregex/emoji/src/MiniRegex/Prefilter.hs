@@ -126,10 +126,20 @@ noPrefilter = Prefilter Anywhere [] ByText
 startOf :: Program -> Start
 startOf prog
   | T.length prefix >= 2         = Prefix prefix
-  | Just (ls, t) <- innerOf prog = Inner ls t
+  | not (any isRef (instructions prog))
+  , Just (ls, t) <- innerOf prog = Inner ls t
   | otherwise                    = firstAtoms prog
   where
     prefix = literalPrefix prog
+    -- a back reference makes a later start in the run worth trying:
+    -- (\w+)@\1 does not match ab@b from a, but does from b, so only the
+    -- left end of the run is not enough
+    -- 後方参照があると、Run の中の右の始まりにも試す値打ちが出る：(\w+)@\1 は
+    -- ab@b に、a からは合わないが、b からは合う。Run の左の端だけでは足りない
+    isRef i = case i of
+      Ref _       -> True
+      RefNoCase _ -> True
+      _           -> False
 
 -- 🔤 The characters every match starts with: follow the program from
 --    0 while it takes plain characters (the instructions that take no
@@ -196,7 +206,10 @@ innerOf prog = leads (skip 0) []
 literalsOf :: Pattern -> Maybe [Text]
 literalsOf (Pattern bs) = do
   ws <- concat <$> traverse texts (NE.toList bs)
-  if length ws <= 64 && not (any T.null ws) then Just ws else Nothing
+  -- count up to 65 only: (?i) with 24 a's would be 2^24 texts
+  -- 数えるのは 65 個まで：a が 24 個の (?i) は 2 の 24 乗個になる
+  if length (take 65 ws) <= 64 && not (any T.null ws) then Just ws
+                                                      else Nothing
   where
     texts (Branch ps) = map T.pack . sequence <$> traverse piece ps
     piece (Quantified a q) | q == once = case a of
@@ -262,16 +275,23 @@ firstAtoms prog = case walk [0] IntSet.empty [] False of
 --    instruction, what every way
 --    from it takes: at a split, only what both ways take. The loops
 --    make it go round, so start from "anything" (Nothing: no way to a
---    match is known yet) and narrow down until nothing changes.
+--    match is known yet) and narrow down until nothing changes. Each
+--    round makes every answer again, so a long program takes many
+--    rounds of long lists: above neededLimit instructions, say
+--    nothing (fewer is safe).
 -- 0 番から match までの、どの道でも食べる、ただの文字。並べ替えて
 -- 持つ（測って比べる章から。食べる順に持つと、同じ文字が順番だけ
 -- ちがうのを「変わった」と見て、絞り込みが終わらないことがあった）。
 -- 命令ごとに「そこからのどの道でも食べるもの」を求める。split では、
 -- 両方の道が食べるものだけ。輪があるので、「何でも」（Nothing：match
 -- へ行く道が、まだ見つかっていない）から始めて、変わらなくなるまで
--- 絞る
+-- 絞る。回るたびに全部の答えを作り直すので、長いプログラムでは、長い
+-- リストを何回も作る。neededLimit を超える命令の数なら、何も言わない
+-- （少なめに言うのは安全）
 neededChars :: Program -> [Char]
-neededChars prog = fromMaybe [] (settle start0 ! 0)
+neededChars prog
+  | hi - lo + 1 > neededLimit = []
+  | otherwise                 = fromMaybe [] (settle start0 ! 0)
   where
     (lo, hi) = bounds prog
     start0   = listArray (lo, hi) (replicate (hi - lo + 1) Nothing)
@@ -314,6 +334,13 @@ neededChars prog = fromMaybe [] (settle start0 ! 0)
       | x `elem` ys = x : common xs (delete x ys)
       | otherwise   = common xs ys
     -- ANCHOR_END: common
+
+-- 📏 Up to how many instructions to look for the needed characters
+--    ((?:a|b){1000}c, 3,000 instructions, took 11 seconds).
+-- 必ず要る文字を、命令がいくつまでのプログラムで調べるか
+-- （3,000 命令の (?:a|b){1000}c は 11 秒かかった）
+neededLimit :: Int
+neededLimit = 1000
 -- ANCHOR_END: needed
 
 -- ANCHOR: places
@@ -335,6 +362,9 @@ places pf c
         | Just cs <- plainChars as' -> charPlaces cs c
         | otherwise -> filter (startsWithOneOf as') (onwards c)
       Inner ls t    -> stepBackFrom c ls (textPlaces t c)
+      -- one text: Text's own search, as for a Prefix
+      -- 文字列が1つなら、Prefix と同じく Text の検索で
+      Literals [w]  -> textPlaces w c
       Literals ws
         | finder pf == EachText -> eachTextPlaces (nub ws) c
         | otherwise -> charPlaces (nub (mapMaybe firstChar ws)) c
@@ -418,6 +448,9 @@ eachTextPlaces ws c = foldr merge [] [textPlaces w c | w <- ws]
 -- t が始まる場所を、Text の検索（breakOn）で。次の検索は、1文字先から。
 -- t は、自分と重なることがあるから
 textPlaces :: Text -> Cursor -> [Cursor]
+textPlaces t c
+  -- the empty t starts everywhere / 空の t は、どこでも始まる
+  | T.null t = onwards c
 textPlaces t c = case T.breakOn t (rest c) of
   (_, found) | T.null found -> []
   (skipped, _) ->
@@ -450,8 +483,10 @@ kmpTable t = table
 -- 合っているかを持ち回る。t が始まるしおりは、終わるしおりより
 -- m − 1 文字前なので、しおりと状態を m − 1 ずらして並べて歩く
 kmpPlaces :: Text -> Cursor -> [Cursor]
-kmpPlaces t c =
-  [ d | (d, k) <- zip cursors (drop (m - 1) states), k == m ]
+kmpPlaces t c
+  -- the empty t starts everywhere / 空の t は、どこでも始まる
+  | T.null t  = onwards c
+  | otherwise = [ d | (d, k) <- zip cursors (drop (m - 1) states), k == m ]
   where
     m       = T.length t
     p       = listArray (0, m - 1) (T.unpack t) :: Array Int Char
