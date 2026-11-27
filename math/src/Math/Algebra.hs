@@ -18,14 +18,16 @@ import qualified Data.Set as Set
 -- ANCHOR_END: imports
 
 -- ANCHOR: summary
--- 📊 A summary of response times that can be combined: how many,
---    the total, the smallest and the largest.
--- 合わせられる、応答時間のまとめ：個数、合計、いちばん小さい値と大きい値
+-- 📊 A summary of response times (in whole milliseconds) that can be
+--    combined: how many, the total, the smallest and the largest.
+--    Whole numbers, so adding them up never rounds (Double would).
+-- 合わせられる、応答時間（ミリ秒の整数）のまとめ：個数、合計、
+-- いちばん小さい値と大きい値。整数なので、足しても丸めない
 data Summary = Summary
   { count   :: Int
-  , total   :: Double
-  , fastest :: Double
-  , slowest :: Double
+  , total   :: Int
+  , fastest :: Int
+  , slowest :: Int
   }
   deriving (Show, Eq)
 
@@ -42,39 +44,48 @@ instance Semigroup Summary where
 -- 🫙 The summary of nothing: it changes nothing when combined.
 -- 何もないもののまとめ：合わせても、何も変えない
 instance Monoid Summary where
-  mempty = Summary 0 0 (1 / 0) (-1 / 0)
+  mempty = Summary 0 0 maxBound minBound
 
 -- 📏 The summary of one response time.
 -- 応答時間1つのまとめ
-summarize :: Double -> Summary
+summarize :: Int -> Summary
 summarize t = Summary 1 t t t
 
--- ⚖️ The mean, from a summary.
--- まとめから、平均を出す
-meanOf :: Summary -> Double
-meanOf s = total s / fromIntegral (count s)
+-- ⚖️ The mean, from a summary. Nothing for the summary of nothing.
+-- まとめから、平均を出す。何もないもののまとめには、平均がない
+meanOf :: Summary -> Maybe Double
+meanOf s
+  | count s == 0 = Nothing
+  | otherwise    = Just (fromIntegral (total s) / fromIntegral (count s))
 -- ANCHOR_END: summary
 
 -- ANCHOR: chunks
 -- ✂️ Cut a list into pieces of n (like the logs of several servers).
--- リストを n 個ずつに切る（何台ものサーバーのログのように）
+--    n must be 1 or more: with 0, splitAt would cut off nothing forever.
+-- リストを n 個ずつに切る（何台ものサーバーのログのように）。
+-- n は 1 以上（0 だと、splitAt が何も切り取らずに、いつまでも続く）
 chunksOf :: Int -> [a] -> [[a]]
-chunksOf _ [] = []
-chunksOf n xs = let (front, rest) = splitAt n xs in front : chunksOf n rest
+chunksOf n xs
+  | n <= 0    = error "chunksOf: n must be 1 or more"
+  | otherwise = go xs
+  where
+    go [] = []
+    go ys = let (front, rest) = splitAt n ys in front : go rest
 
 -- 🧩 Summarize each piece on its own, then combine the summaries.
 --    Because <> is associative, this is the same as summarizing it all.
 -- かたまりごとに別々にまとめてから、まとめどうしを合わせる。
 -- <> が結合法則を守るので、全部を一度にまとめたのと同じになる
-summarizeInChunks :: Int -> [Double] -> Summary
+summarizeInChunks :: Int -> [Int] -> Summary
 summarizeInChunks n times =
   mconcat [ foldMap summarize piece | piece <- chunksOf n times ]
 
--- ❌ What not to do: the mean of the means of the pieces.
--- やってはいけないこと：かたまりごとの平均の、平均
-meanOfMeans :: Int -> [Double] -> Double
+-- ❌ What not to do: the mean of the means of the pieces
+--    (times must not be empty).
+-- やってはいけないこと：かたまりごとの平均の、平均（times は空でない）
+meanOfMeans :: Int -> [Int] -> Double
 meanOfMeans n times =
-  let means = [ sum piece / fromIntegral (length piece)
+  let means = [ fromIntegral (sum piece) / fromIntegral (length piece)
               | piece <- chunksOf n times ]
   in  sum means / fromIntegral (length means)
 -- ANCHOR_END: chunks

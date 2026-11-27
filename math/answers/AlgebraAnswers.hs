@@ -4,8 +4,9 @@
 module AlgebraAnswers
   ( Tally (..)
   , tally
-  , Top3 (..)
+  , Top3
   , top3
+  , getTop3
   ) where
 
 import Data.List (sortBy)
@@ -32,7 +33,10 @@ tally text = Tally (Map.fromListWith (+) [ (w, 1) | w <- words text ])
 
 -- ANCHOR: top3
 -- 🏆 Step 3: the three best scores. Combining keeps only three.
--- ステップ3：上位3つの得点。合わせても、3つだけ残す
+--    The list is always best first, and three or fewer. The constructor
+--    Top3 is not exported, so nobody can break that from outside.
+-- ステップ3：上位3つの得点。合わせても、3つだけ残す。リストは、いつも
+-- 大きい順で、3つ以下。構成子 Top3 は外に出さないので、外から崩せない
 newtype Top3 = Top3 [Int]
   deriving (Show, Eq)
 
@@ -44,5 +48,8 @@ instance Monoid Top3 where
 
 top3 :: Int -> Top3
 top3 score = Top3 [score]
+
+getTop3 :: Top3 -> [Int]
+getTop3 (Top3 scores) = scores
 -- ANCHOR_END: top3
 -- ANCHOR_END: all

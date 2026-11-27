@@ -5,11 +5,10 @@ function check(ok: boolean, what: string): void {
   if (!ok) throw new Error(`failed: ${what}`);
 }
 
-const servers = [[10, 20], [30, 400], [15]];
-
 // ANCHOR: functional
 // TypeScript (functional style)
 // TypeScript（関数型スタイル）
+const servers = [[10, 20], [30, 400], [15]];   // the logs of three servers
 type Summary = { count: number; total: number };
 const empty: Summary = { count: 0, total: 0 };
 const combine = (a: Summary, b: Summary): Summary => ({
