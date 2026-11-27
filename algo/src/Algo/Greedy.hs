@@ -26,7 +26,9 @@ import qualified Data.Map.Strict as Map
 
 -- ANCHOR: quest
 -- 📅 A quest takes the hours from start to end (end not included).
--- 依頼は、start 時から end 時まで（end は含まない）
+--    Every quest takes at least one hour: start < end.
+-- 依頼は、start 時から end 時まで（end は含まない）。
+-- どの依頼も1時間以上かかる：start < end
 data Quest = Quest { title :: String, start :: Int, end :: Int }
   deriving (Show, Eq)
 
@@ -69,8 +71,9 @@ mostQuestsBy key qs = reverse (foldl takeIfFree [] (sortOn key qs))
 
 -- ANCHOR: coins
 -- 📜 The spec: the fewest coins that pay exactly (Nothing if impossible).
+--    Every coin is 1 G or more, and the amount is 0 or more.
 -- 仕様：ちょうど払うのに要る、いちばん少ない硬貨の枚数
--- （払えなければ Nothing）
+-- （払えなければ Nothing）。硬貨はどれも 1 G 以上、金額は 0 以上
 fewestCoinsSpec :: [Int] -> Int -> Maybe Int
 fewestCoinsSpec coins amount = go amount
   where
@@ -131,8 +134,10 @@ encode :: Huffman -> String -> String
 encode tree text = concatMap (codes tree Map.!) text
 
 -- 🔓 Follow the bits from the root; at a leaf, write its letter and start
---    again from the root.
--- 根からビットをたどる。葉に着いたら文字を書き、また根から
+--    again from the root. The bits must come from encode with the same
+--    tree: broken bits are not checked.
+-- 根からビットをたどる。葉に着いたら文字を書き、また根から。
+-- ビットは、同じ木の encode が作ったもの。壊れたビットは確かめない
 decode :: Huffman -> String -> String
 decode (Leaf c) bits = map (const c) bits
 decode tree bits = go tree bits

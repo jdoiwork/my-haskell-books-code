@@ -55,7 +55,17 @@ spec = describe "Algo.Greedy" $ do
     forAllShrink (chooseInt (0, 20)) shrink $ \a ->
       greedyCoins [1, 3, 4] a === fewestCoinsSpec [1, 3, 4] a
   -- ANCHOR_END: coinProps
+  -- トレーニングのステップ2：1・10・25 だと、貪欲はまちがう
+  -- ANCHOR: coinAnswer
+  it "greedy coins with 1, 10, 25 can be wrong" $ property $ expectFailure $
+    forAllShrink (chooseInt (0, 40)) shrink $ \a ->
+      greedyCoins [1, 10, 25] a === fewestCoinsSpec [1, 10, 25] a
+  -- ANCHOR_END: coinAnswer
   -- ハフマン符号：符号にして戻すと、もとの文
   it "decode undoes encode" $ property $
     forAll (listOf1 (elements "goblinsme ")) $ \text ->
       let tree = huffman text in decode tree (encode tree text) === text
+  -- よく出る文字ほど短い：a が 8 回なら 1 ビット、b・c は 2 ビットで、
+  -- 全部で 12 ビット（回数を数えずに作った木なら、もっと長い）
+  it "frequent letters get short codes" $
+    length (encode (huffman "aaaaaaaabc") "aaaaaaaabc") `shouldBe` 12
