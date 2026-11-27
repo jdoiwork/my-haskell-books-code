@@ -147,12 +147,14 @@ msortHylo = hylo mergeAlg split
 
 -- ANCHOR: fact
 -- 🔢 Unfold n, n-1, ..., 1; fold them with (*). The list is never built.
--- n, n-1, ..., 1 と広げて、(*) で畳む。リストは作られない
-countdown :: Int -> ListF Int Int
+--    Integer, so 21! does not overflow. n must be 0 or more.
+-- n, n-1, ..., 1 と広げて、(*) で畳む。リストは作られない。
+-- 21! もあふれないように Integer。n は 0 以上
+countdown :: Integer -> ListF Integer Integer
 countdown 0 = NilF
 countdown n = ConsF n (n - 1)
 
-factorial :: Int -> Int
+factorial :: Integer -> Integer
 factorial = hylo productAlg countdown
   where
     productAlg NilF        = 1

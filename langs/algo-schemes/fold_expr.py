@@ -1,8 +1,13 @@
 # Folding an expression tree, for the chapter "Recursion schemes".
 # 式の木を畳む。「再帰スキーム」の章
+# ANCHOR: procedural
+# Python (procedural style: each function walks the tree itself)
+# Python（手続き型スタイル：関数ごとに、自分で木をたどる）
 from dataclasses import dataclass
 
 
+# The three shapes of an expression: a number, an addition, a product
+# 式の3つの形：数、足し算、掛け算
 @dataclass
 class Lit:
     n: int
@@ -20,12 +25,10 @@ class Mul:
     b: object
 
 
+# 2 * (3 + 4)
 two_times = Mul(Lit(2), Add(Lit(3), Lit(4)))
 
 
-# ANCHOR: procedural
-# Python (procedural style: each function walks the tree itself)
-# Python（手続き型スタイル：関数ごとに、自分で木をたどる）
 def evaluate(e):
     match e:
         case Lit(n):

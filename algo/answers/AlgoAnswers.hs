@@ -190,7 +190,7 @@ depthAlg (MulF a b) = 1 + max a b
 --    as a hylo: unfold the sequence, fold by counting.
 -- 「再帰スキーム」ステップ3：コラッツの数列が 1 になるまでの歩数を hylo で。
 -- 数列を広げて、数えて畳む
-collatzSteps :: Int -> Int
+collatzSteps :: Integer -> Int
 collatzSteps = hylo count next
   where
     next 1 = NilF
