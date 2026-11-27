@@ -60,8 +60,8 @@ main = hspec $ do
         `shouldBe` Twice
           (UTCTime (fromGregorian 2026 11 1) (5.5 * 3600))
           (UTCTime (fromGregorian 2026 11 1) (6.5 * 3600))
-    -- 「東京の時計は、どの時刻も1回だけ」
-    it "shows every time once in Tokyo" $
+    -- 「いまの東京には夏時間がないので、2026年3月8日の2時半も1回だけ」
+    it "shows 2:30 on 2026-03-08 once in Tokyo" $
       readWallClock Tokyo (wall 2026 3 8 2 30)
         `shouldBe` Once (UTCTime (fromGregorian 2026 3 7) (17.5 * 3600))
     -- 「夏時間の終わりをまたぐと、次の日の同じ時刻は 25 時間後」
@@ -101,4 +101,10 @@ main = hspec $ do
       map (todHour . timeToTimeOfDay . utctDayTime)
           (dailyMeetings NewYork (fromGregorian 2026 10 31) 3 (TimeOfDay 9 0 0))
         `shouldBe` [13, 14, 14]
+    -- 「ステップ3：飛ばされた時刻の日は会議をしない。2回ある日は1回目」
+    it "step 3: skips a skipped time, and takes the first of two" $ do
+      dailyMeetings NewYork (fromGregorian 2026 3 8) 1 (TimeOfDay 2 30 0)
+        `shouldBe` []
+      dailyMeetings NewYork (fromGregorian 2026 11 1) 1 (TimeOfDay 1 30 0)
+        `shouldBe` [UTCTime (fromGregorian 2026 11 1) (5.5 * 3600)]
 -- ANCHOR_END: all

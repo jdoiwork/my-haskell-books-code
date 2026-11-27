@@ -43,8 +43,8 @@ assert walls == [
 ]
 
 # ANCHOR: mixed
-# Python (naive and aware cannot be compared: an error at run time)
-# Python（naive と aware はくらべられない。動かしたときのエラー）
+# Python (naive and aware cannot be ordered: an error at run time)
+# Python（naive と aware は前後をくらべられない。動かしたときのエラー）
 try:
     datetime(2026, 11, 12, 21, 0) < posted
 except TypeError as error:
@@ -52,6 +52,9 @@ except TypeError as error:
 # ANCHOR_END: mixed
 
 assert message.startswith("can't compare offset-naive and offset-aware")
+# == does not stop: it just says False
+# == は止まらず、False と答えるだけ
+assert (datetime(2026, 11, 12, 21, 0) == posted) is False
 
 # ANCHOR: iso
 # Python (ISO 8601: write and read back)
