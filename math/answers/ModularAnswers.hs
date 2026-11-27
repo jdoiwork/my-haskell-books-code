@@ -14,7 +14,7 @@ data Weekday = Mon | Tue | Wed | Thu | Fri | Sat | Sun
   deriving (Show, Eq, Enum, Bounded)
 
 weekdayAfter :: Weekday -> Int -> Weekday
-weekdayAfter day n = toEnum ((fromEnum day + n) `mod` 7)
+weekdayAfter day n = toEnum ((fromEnum day + n `mod` 7) `mod` 7)
 -- ANCHOR_END: weekday
 
 -- ANCHOR: isbn

@@ -4,7 +4,8 @@
 // ANCHOR: procedural
 // Rust
 fn pow_mod(mut base: u64, mut exp: u64, m: u64) -> u64 {
-    let mut acc = 1u64;
+    // 1 % m, so that m = 1 gives 0 / m が 1 なら 0 になるように 1 % m
+    let mut acc = 1u64 % m;
     base %= m;
     while exp > 0 {
         if exp % 2 == 1 {
@@ -24,5 +25,6 @@ fn main() {
     assert_eq!(pow_mod(65, 17, 3233), 2790);
     assert_eq!(pow_mod(2790, 2753, 3233), 65);
     assert_eq!((-5i32).rem_euclid(24), 19);
+    assert_eq!(pow_mod(262, 0, 1), 0);
     println!("ok");
 }
