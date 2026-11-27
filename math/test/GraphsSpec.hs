@@ -15,12 +15,11 @@ import Math.Graphs
 -- 町 A〜F のあいだの、長さ 1〜9 のでたらめな道
 genRoads :: Gen Roads
 genRoads = do
-  edges <- listOf ((,,) <$> town <*> town <*> choose (1, 9))
-  pure (Map.fromListWith (++)
-          (concat [ [(a, [(b, h)]), (b, [(a, h)])]
-                  | (a, b, h) <- edges, a /= b ]))
+  edges <- listOf ((,,) <$> town <*> town <*> hoursGen)
+  pure (twoWay [ (a, b, h) | (a, b, h) <- edges, a /= b ])
   where
-    town = elements (map (: []) "ABCDEF")
+    town     = elements (map (: []) "ABCDEF")
+    hoursGen = choose (1, 9) `suchThatMap` hours
 
 -- 🐢 The slow way: try every order of the towns as a path.
 -- 遅い方法：町の並べ方を全部、道として試す
@@ -41,7 +40,7 @@ bruteForce roads start goal
     cost (a : b : rest) =
       case [ h | (t, h) <- Map.findWithDefault [] a roads, t == b ] of
         [] -> Nothing
-        hs -> (toInteger (minimum hs) +) <$> cost (b : rest)
+        hs -> (toInteger (getHours (minimum hs)) +) <$> cost (b : rest)
     cost _ = Just 0
 -- ANCHOR_END: helpers
 
@@ -78,11 +77,13 @@ spec = do
   -- ANCHOR_END: spec
   -- とても長い道があっても、合計の時間はあふれない
   it "dijkstra does not overflow" $ do
-    let roads = Map.fromList
-          [ ("S", [("A", 1), ("B", 3)])
-          , ("A", [("S", 1), ("B", maxBound)])
-          , ("B", [("A", maxBound), ("S", 3)]) ]
-    Map.lookup "B" (dijkstra roads "S") `shouldBe` Just 3
+    let roads = roadsFrom [("S", "A", 1), ("A", "B", maxBound), ("S", "B", 3)]
+    fmap (Map.lookup "B" . (`dijkstra` "S")) roads `shouldBe` Just (Just 3)
+  -- 1 時間に満たない道は作れない
+  it "a road takes 1 hour or more" $ do
+    map hours [0, -1] `shouldBe` [Nothing, Nothing]
+    fmap getHours (hours 1) `shouldBe` Just 1
+    roadsFrom [("A", "B", 2), ("B", "C", 0)] `shouldBe` Nothing
   -- 同じ2つの町のあいだに道が何本あっても、本数の表は同じ
   it "hops with many roads between two towns" $
     hops (fromRoads (replicate 3000 ("A", "B"))) "A"

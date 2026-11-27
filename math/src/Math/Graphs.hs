@@ -9,7 +9,12 @@ module Math.Graphs
   , hops
   , topoSort
   , skillTree
+  , Hours
+  , hours
+  , getHours
   , Roads
+  , twoWay
+  , roadsFrom
   , roadMap
   , dijkstra
   ) where
@@ -126,20 +131,52 @@ topoSort needs = go Set.empty allSkills
               pure (ready ++ rest)
 -- ANCHOR_END: topo
 
--- ANCHOR: dijkstra
--- 🛣️ Roads with lengths (in hours, 0 or more), both ways.
--- 長さ（時間。0 以上）の付いた道。両方向
-type Roads = Map String [(String, Int)]
+-- ANCHOR: roads
+-- ⏱️ The hours a road takes: 1 or more. The constructor Hours is not
+--    exported, so outside this module the only way to make one is
+--    hours, which says Nothing for 0 or less.
+-- 道にかかる時間：1 時間以上。構成子 Hours は外に出さないので、
+-- モジュールの外で作るには hours を通すしかない（0 以下は Nothing）
+newtype Hours = Hours Int
+  deriving (Eq, Ord, Show)
 
-roadMap :: Roads
-roadMap = Map.fromListWith (++)
-  (concat [ [(a, [(b, h)]), (b, [(a, h)])] | (a, b, h) <- roads ])
+hours :: Int -> Maybe Hours
+hours n
+  | n >= 1    = Just (Hours n)
+  | otherwise = Nothing
+
+getHours :: Hours -> Int
+getHours (Hours n) = n
+
+-- 🛣️ Roads with the hours they take, both ways.
+-- かかる時間の付いた道。両方向
+type Roads = Map String [(String, Hours)]
+
+-- 🔁 Add each road in both directions.
+-- どの道も、行きと帰りの両方を足す
+twoWay :: [(String, String, Hours)] -> Roads
+twoWay roads =
+  Map.fromListWith (++)
+    (concat [ [(a, [(b, h)]), (b, [(a, h)])] | (a, b, h) <- roads ])
+
+-- 🧾 Roads from plain numbers: Nothing if any road is under 1 hour.
+-- ただの数から道を作る：1 時間に満たない道があれば Nothing
+roadsFrom :: [(String, String, Int)] -> Maybe Roads
+roadsFrom roads = twoWay <$> traverse check roads
   where
-    roads = [ ("Start", "River", 2), ("Start", "Forest", 7)
-            , ("River", "Forest", 3), ("Forest", "Castle", 4)
-            , ("River", "Mountain", 6), ("Mountain", "Castle", 2)
-            , ("Island", "Lighthouse", 1) ]
+    check (a, b, n) = (\h -> (a, b, h)) <$> hours n
 
+-- 🗺️ Inside this module we may use Hours directly.
+-- このモジュールの中では、Hours を直接使える
+roadMap :: Roads
+roadMap = twoWay
+  [ ("Start", "River", Hours 2), ("Start", "Forest", Hours 7)
+  , ("River", "Forest", Hours 3), ("Forest", "Castle", Hours 4)
+  , ("River", "Mountain", Hours 6), ("Mountain", "Castle", Hours 2)
+  , ("Island", "Lighthouse", Hours 1) ]
+-- ANCHOR_END: roads
+
+-- ANCHOR: dijkstra
 -- 🏁 Dijkstra: always settle the nearest town not yet settled.
 --    A Set of (hours, town) is our priority queue: its minimum is next.
 -- ダイクストラ法：まだ決まっていない町のうち、いちばん近い町を決める。
@@ -154,7 +191,7 @@ dijkstra roads start = go Map.empty (Set.singleton (0, start))
         | town `Map.member` done -> go done rest
         | otherwise ->
             let done'  = Map.insert town d done
-                next   = [ (d + toInteger h, t)
+                next   = [ (d + toInteger (getHours h), t)
                          | (t, h) <- Map.findWithDefault [] town roads
                          , not (t `Map.member` done') ]
             in  go done' (foldr Set.insert rest next)

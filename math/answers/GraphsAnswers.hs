@@ -27,12 +27,12 @@ islands graph = go (Map.keys graph)
 -- ANCHOR: route
 -- 🧭 Step 3: the towns on a fastest route. Walk back from the goal:
 --    a town before it is one whose distance + road == goal's distance.
---    Every road is 1 hour or more, so the distance gets smaller at each
---    step back, and the walk stops (a 0-hour road could go back and forth).
+--    Every road is 1 hour or more (Hours), so the distance gets smaller
+--    at each step back, and the walk stops.
 -- ステップ3：いちばん早い道の町。ゴールから逆にたどる：
 -- 1つ前の町は「その町までの時間 + 道の時間 == ゴールまでの時間」の町。
--- 道はどれも 1 時間以上なので、1つ戻るたびに時間が減り、いつか止まる
--- （0 時間の道があると、同じ2つの町を行き来することがある）
+-- 道はどれも 1 時間以上（Hours）なので、1つ戻るたびに時間が減り、
+-- いつか止まる
 route :: Roads -> String -> String -> Maybe [String]
 route roads start goal = do
   let dist = dijkstra roads start
@@ -45,8 +45,8 @@ route roads start goal = do
       | otherwise =
           let here = Map.lookup town dist
               prev = [ t | (t, h) <- Map.findWithDefault [] town roads
-                         , let before = fmap (subtract (toInteger h)) here
-                         , Map.lookup t dist == before ]
+                         , let road = toInteger (getHours h)
+                         , Map.lookup t dist == fmap (subtract road) here ]
           in  case prev of
                 (t : _) -> town : back dist t
                 []      -> [town]
