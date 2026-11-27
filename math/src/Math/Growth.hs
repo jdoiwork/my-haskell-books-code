@@ -31,7 +31,9 @@ halvings n
 -- ANCHOR: guesses
 -- 🎯 The guessing game: the number is in [lo, hi]; always guess the
 --    middle. The list of guesses until we hit the target.
--- 数当てゲーム：答えは lo〜hi のどこか。いつも真ん中を言う
+--    lo + hi is added in Integer, so it does not overflow at the edges.
+-- 数当てゲーム：答えは lo〜hi のどこか。いつも真ん中を言う。
+-- lo + hi は、Int の端でもあふれないように、Integer で足す
 guesses :: Int -> Int -> Int -> [Int]
 guesses lo hi target
   | lo > hi        = []
@@ -39,7 +41,7 @@ guesses lo hi target
   | mid < target   = mid : guesses (mid + 1) hi target
   | otherwise      = mid : guesses lo (mid - 1) target
   where
-    mid = (lo + hi) `div` 2
+    mid = fromInteger ((toInteger lo + toInteger hi) `div` 2)
 -- ANCHOR_END: guesses
 
 -- ANCHOR: sorts
