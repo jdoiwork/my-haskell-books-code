@@ -1,14 +1,12 @@
 # Counting and chance of the chapter "Counting and probability", in Python.
 # 「数え上げと確率」の章の数え上げと確率を、Python で
-import itertools
-import math
-import random
-from fractions import Fraction
 
 # ANCHOR: procedural
 # Python (procedural style: try it many times)
 # Python（手続き型スタイル：何度も試す）
-random.seed(42)
+import random
+
+random.seed(618)
 total = 0
 for trial in range(10000):
     pulls = 1
@@ -22,6 +20,10 @@ assert 95 < average < 105, average
 # ANCHOR: functional
 # Python (functional style: count exactly)
 # Python（関数型スタイル：ちょうど数える）
+import itertools
+import math
+from fractions import Fraction
+
 heroes = ["Lambda", "Python", "Rust", "TS"]
 teams = list(itertools.combinations(heroes, 2))   # 6 teams
 ways = math.comb(52, 5)                            # 2598960
