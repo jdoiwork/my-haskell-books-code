@@ -39,9 +39,13 @@ showLeftCareless :: NominalDiffTime -> String
 showLeftCareless left = formatTime defaultTimeLocale "%h:%M:%S" left
 
 -- 🕰️ "26:05:07": %h is all the hours; %0M and %0S pad with 0.
--- %h は時間の合計。%0M と %0S は 0 で埋める
+--    Past the limit, one minus sign in front: "-0:01:01".
+-- %h は時間の合計。%0M と %0S は 0 で埋める。
+-- 期限を過ぎたら、マイナスは頭に1つだけ
 showLeft :: NominalDiffTime -> String
-showLeft left = formatTime defaultTimeLocale "%h:%0M:%0S" left
+showLeft left
+  | left < 0  = "-" <> showLeft (negate left)
+  | otherwise = formatTime defaultTimeLocale "%h:%0M:%0S" left
 -- ANCHOR_END: showLeft
 
 -- ANCHOR: calendarSpan

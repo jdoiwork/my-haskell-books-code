@@ -46,23 +46,10 @@ main = hspec $ do
     -- 「くり返し足すと、日がずれる」
     it "drifts when added again and again" $
       payDaysDrift !! 2 `shouldBe` day 3 28
-  -- ANCHOR_END: spec
     -- 「土日の締め切りは、月曜日にずらす」
     it "moves a due day on a weekend to Monday" $
       onBoardDay (fromGregorian 2026 11 21)
         `shouldBe` fromGregorian 2026 11 23
-
-  -- 「時間の長さ」
-  describe "lengths of time" $ do
-    -- 「残り時間は、分と秒を 0 で埋めて見せる」
-    it "shows the time left with padded minutes and seconds" $
-      showLeft (26 * 3600 + 5 * 60 + 7) `shouldBe` "26:05:07"
-    -- 「1月31日から1か月と10日」
-    it "adds one month and ten days to the 31st of January" $
-      termEnds (day 1 31) `shouldBe` day 3 10
-    -- 「何か月と何日たったか」
-    it "tells how long a member has served" $
-      servedFor (day 3 15) (day 1 31) `shouldBe` CalendarDiffDays 1 15
 
   -- 「書式」
   describe "formats" $ do
@@ -72,10 +59,15 @@ main = hspec $ do
       property $ forAll moments $ \moment ->
         fromWire (toWire moment) === Just moment
     -- ANCHOR_END: roundtrip
+  -- ANCHOR_END: spec
     -- 「同じ 11/12/2026 が、支部によって別の日になる」
     it "reads 11/12/2026 as two different days" $ do
       fromNewYork "11/12/2026" `shouldBe` Just (fromGregorian 2026 11 12)
       fromLondon "11/12/2026" `shouldBe` Just (fromGregorian 2026 12 11)
+    -- 「2月28日は読めて、2月30日は読めない」
+    it "reads 02/28 but not 02/30" $ do
+      fromNewYork "02/28/2026" `shouldBe` Just (fromGregorian 2026 2 28)
+      fromNewYork "02/30/2026" `shouldBe` Nothing
     -- 「読めても、意味の通らない締め切りは断る」
     it "refuses a due day that can be read but makes no sense" $ do
       let today = fromGregorian 2026 11 13
@@ -85,6 +77,34 @@ main = hspec $ do
         `shouldBe` Left "already past: -0001-01-01"
       dueDayFrom today "2026-02-30"
         `shouldBe` Left "not a day: \"2026-02-30\""
+    -- 「1年後は、暦の上の同じ日まで（2月29日をまたいでも）」
+    it "takes one year on the calendar, over a 29th of February" $ do
+      let today = fromGregorian 2027 3 1
+      dueDayFrom today "2028-03-01"
+        `shouldBe` Right (fromGregorian 2028 3 1)
+      dueDayFrom today "2028-03-02"
+        `shouldBe` Left "too far away: 2028-03-02"
+    -- 「9999 年の終わりまで書いて読める」
+    it "writes and reads the last moment of 9999" $ do
+      let lastDay = UTCTime (fromGregorian 9999 12 31) 86399
+      toWire lastDay `shouldBe` "9999-12-31T23:59:59Z"
+      fromWire (toWire lastDay) `shouldBe` Just lastDay
+
+  -- 「時間の長さ」
+  describe "lengths of time" $ do
+    -- 「残り時間は、分と秒を 0 で埋めて見せる」
+    it "shows the time left with padded minutes and seconds" $
+      showLeft (26 * 3600 + 5 * 60 + 7) `shouldBe` "26:05:07"
+    -- 「期限を過ぎたら、マイナスは頭に1つだけ」
+    it "shows one minus sign past the limit" $ do
+      showLeft (-61) `shouldBe` "-0:01:01"
+      showLeft (-1) `shouldBe` "-0:00:01"
+    -- 「1月31日から1か月と10日」
+    it "adds one month and ten days to the 31st of January" $
+      termEnds (day 1 31) `shouldBe` day 3 10
+    -- 「何か月と何日たったか」
+    it "tells how long a member has served" $
+      servedFor (day 3 15) (day 1 31) `shouldBe` CalendarDiffDays 1 15
 
   -- 「トレーニングの解答」
   describe "the answers" $ do
@@ -109,4 +129,9 @@ main = hspec $ do
       remaining (26 * 3600 + 5 * 60) `shouldBe` "あと1日2時間5分"
       remaining 30 `shouldBe` "あと0日0時間1分"
       remaining 0 `shouldBe` "締め切りを過ぎた"
+    -- 「ステップ4：1分ちょうどと、その前後（ピコ秒の端数も切り上げる）」
+    it "step 4: rounds up even a picosecond" $ do
+      remaining 60 `shouldBe` "あと0日0時間1分"
+      remaining (60 + 1e-12) `shouldBe` "あと0日0時間2分"
+      remaining 1e-12 `shouldBe` "あと0日0時間1分"
 -- ANCHOR_END: all

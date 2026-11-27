@@ -70,7 +70,11 @@ remaining :: NominalDiffTime -> String
 remaining left
   | left <= 0 = "締め切りを過ぎた"
   | otherwise =
-      let minutes       = ceiling (left / 60) :: Integer
+      -- toRational keeps every picosecond: NominalDiffTime / 60 would
+      -- cut the fraction below a picosecond.
+      -- toRational でピコ秒まで残す（NominalDiffTime のまま 60 で割ると、
+      -- ピコ秒より細かい端数が消える）
+      let minutes       = ceiling (toRational left / 60) :: Integer
           (days, rest)  = minutes `divMod` (24 * 60)
           (hours, mins) = rest `divMod` 60
       in "あと" <> show days <> "日" <> show hours <> "時間"

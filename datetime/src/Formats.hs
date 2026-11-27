@@ -9,7 +9,7 @@ import Data.Time
   , LocalTime
   , TimeLocale (..)
   , UTCTime
-  , addDays
+  , addGregorianYearsClip
   , defaultTimeLocale
   , formatTime
   , parseTimeM
@@ -19,13 +19,14 @@ import Data.Time.Format.ISO8601 (iso8601ParseM, iso8601Show)
 
 -- ANCHOR: iso
 -- 🌐 The format for the borders (files, JSON, databases): ISO 8601.
---    "2026-11-13T09:00:00Z"
--- 境目（ファイル、JSON、データベース）の書式：ISO 8601
+--    "2026-11-13T09:00:00Z". Years 0000 to 9999 only (four digits).
+-- 境目（ファイル、JSON、データベース）の書式：ISO 8601。
+-- 書けるのは 0000 年から 9999 年まで（4桁の年）
 toWire :: UTCTime -> String
 toWire moment = iso8601Show moment
 
--- 🔍 Read it back. A broken string is Nothing.
--- 読み戻す。壊れた文字なら Nothing
+-- 🔍 Read it back (the Z form). A broken string is Nothing.
+-- 読み戻す（末尾が Z の形）。壊れた文字なら Nothing
 fromWire :: String -> Maybe UTCTime
 fromWire text = iso8601ParseM text
 -- ANCHOR_END: iso
@@ -69,15 +70,18 @@ fromLondon text = parseTimeM False defaultTimeLocale "%d/%m/%Y" text
 
 -- ANCHOR: gate
 -- 🚧 A due day must be read, and also make sense:
---    from today to one year later.
--- 締め切りの日は、読めるだけでなく、意味が通ること：今日から1年後まで
+--    from today to the same day one year later, on the calendar.
+-- 締め切りの日は、読めるだけでなく、意味が通ること：
+-- 今日から、暦の上で1年後の同じ日まで
 dueDayFrom :: Day -> String -> Either String Day
 dueDayFrom today text =
   case iso8601ParseM text of
     Nothing -> Left ("not a day: " <> show text)
     Just due
       | due < today             -> Left ("already past: " <> show due)
-      | due > addDays 365 today -> Left ("too far away: " <> show due)
+      | due > oneYearLater      -> Left ("too far away: " <> show due)
       | otherwise               -> Right due
+  where
+    oneYearLater = addGregorianYearsClip 1 today
 -- ANCHOR_END: gate
 -- ANCHOR_END: all

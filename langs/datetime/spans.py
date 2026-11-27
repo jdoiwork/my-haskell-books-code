@@ -1,13 +1,14 @@
 # The Python code in the "dates and times" chapter.
 # 日付と時刻の章の Python のコード
 import calendar
-from datetime import date, datetime, timedelta
-
-posted = datetime(2026, 11, 13, 9, 0)
+from datetime import date
 
 # ANCHOR: timedelta
 # Python (a timedelta: a length of time, in days and seconds)
 # Python（timedelta：日と秒で数える、時間の長さ）
+from datetime import datetime, timedelta
+
+posted = datetime(2026, 11, 13, 9, 0)
 limit = posted + timedelta(hours=72)         # 2026-11-16 09:00
 left = limit - (posted + timedelta(hours=45, minutes=54, seconds=53))
 shown = str(left)                            # "1 day, 2:05:07"
