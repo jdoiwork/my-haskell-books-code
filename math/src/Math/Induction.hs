@@ -15,8 +15,8 @@ module Math.Induction
   ) where
 
 -- ANCHOR: sum
--- 🪜 1 + 2 + ... + n, one stair at a time.
--- 1 から n までの和を、1段ずつ
+-- 🪜 1 + 2 + ... + n, one stair at a time (n is 0 or more).
+-- 1 から n までの和を、1段ずつ（n は 0 以上）
 sumTo :: Integer -> Integer
 sumTo 0 = 0
 sumTo n = n + sumTo (n - 1)
@@ -47,9 +47,10 @@ deadEnds (Fork l r) = deadEnds l + deadEnds r
 -- ANCHOR: power
 -- 💪 x ^ n by squaring. The loop keeps one promise (the invariant):
 --      acc * b ^ e == x ^ n
---    and e gets smaller every turn, so the loop stops.
+--    and e gets smaller every turn, so the loop stops (n is 0 or more).
 -- 2乗をくり返す、速いべき乗。ループは1つの約束（不変条件）を守る：
 --   acc * b ^ e == x ^ n 。e は毎回小さくなるので、ループは止まる
+--   （n は 0 以上）
 power :: Integer -> Int -> Integer
 power x n = go 1 x n
   where
@@ -69,10 +70,10 @@ powerDraft x n = go 1 x n
 -- ANCHOR_END: power
 
 -- ANCHOR: collatz
--- 🌀 Halve it if even, else 3n + 1, until 1. Does it always stop?
---    Nobody knows (but it has stopped for every number tried).
--- 偶数なら半分、奇数なら 3n + 1。1 になるまで。いつも止まる？
--- 誰も知らない（試した数では、全部止まった）
+-- 🌀 Halve it if even, else 3n + 1, until 1. Does it always stop for a
+--    positive n? Nobody knows (but it has stopped for every one tried).
+-- 偶数なら半分、奇数なら 3n + 1。1 になるまで。正の整数なら、いつも
+-- 止まる？ 誰も知らない（試した数では、全部止まった）
 collatzSteps :: Integer -> Int
 collatzSteps 1 = 0
 collatzSteps n

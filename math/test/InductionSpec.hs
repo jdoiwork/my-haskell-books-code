@@ -6,8 +6,10 @@ import Test.QuickCheck
 import InductionAnswers
 import Math.Induction
 
--- 🎲 A random dungeon map with at most n forks.
--- 分かれ道が n 個までの、でたらめな地図
+-- 🎲 A random dungeon map. n is halved for each side, to keep it shallow
+--    (it is not an exact limit on the number of forks).
+-- でたらめな地図。左右に n を半分ずつ渡して、深くなりすぎないようにする
+-- （分かれ道の数の、ぴったりの上限ではない）
 genRoom :: Int -> Gen Room
 genRoom 0 = pure DeadEnd
 genRoom n = frequency
@@ -42,8 +44,21 @@ spec = do
 
   -- 「トレーニング」
   describe "answers" $ do
+    -- ANCHOR: oddsTest
+    -- 最初の n 個の奇数の和は n の2乗（n は 0 以上）
     it "the first n odd numbers add up to n squared" $
       forAll (choose (0, 1000)) $ \n -> sumOdds n == n * n
+    -- ANCHOR_END: oddsTest
+    -- ANCHOR: deepestTest
+    -- 行き止まりは 2 ^ deepest 個まで。2 ^ 63 は Int からあふれるので、
+    -- 両辺を Integer にしてくらべる
     it "a map has at most 2 ^ deepest dead ends" $
       forAll (sized genRoom) $ \room ->
-        deadEnds room <= 2 ^ deepest room
+        toInteger (deadEnds room) <= (2 :: Integer) ^ deepest room
+    -- 片側だけ 63 段の地図：行き止まりは 64 個、2 ^ 63 よりずっと少ない
+    it "a map deep on one side only" $ do
+      let room = iterate (Fork DeadEnd) DeadEnd !! 63
+      (deepest room, deadEnds room) `shouldBe` (63, 64)
+      toInteger (deadEnds room) <= (2 :: Integer) ^ deepest room
+        `shouldBe` True
+    -- ANCHOR_END: deepestTest
