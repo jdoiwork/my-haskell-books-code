@@ -36,16 +36,20 @@ swapAt i j xs =
 
 -- ANCHOR: shuffles
 -- 🙈 The naive shuffle: for every position i (0, 1, ..., n-1),
---    swap it with ANY position. The choices say which.
--- 素朴なシャッフル：どの位置 i も、どこかの位置と入れかえる
+--    swap it with ANY position. The choices say which: n numbers,
+--    each from 0 to n-1.
+-- 素朴なシャッフル：どの位置 i も、どこかの位置と入れかえる。
+-- 選び方は n 個の数で、どれも 0〜n-1
 naiveWith :: [Int] -> [a] -> [a]
 naiveWith choices xs =
   foldl (\ys (i, j) -> swapAt i j ys) xs (zip [0 ..] choices)
 
 -- 🃏 Fisher-Yates: for i = n-1 down to 1, swap position i with a
---    position from 0 to i (never one already settled).
+--    position from 0 to i (never one already settled). The choices are
+--    n-1 numbers: the one for position i is from 0 to i.
 -- フィッシャー－イェーツ：i = n-1 から 1 まで、0〜i の位置と入れかえる
--- （もう決まった位置とは入れかえない）
+-- （もう決まった位置とは入れかえない）。選び方は n-1 個の数で、
+-- 位置 i のための数は 0〜i
 fisherYatesWith :: [Int] -> [a] -> [a]
 fisherYatesWith choices xs =
   foldl (\ys (i, j) -> swapAt i j ys) xs
@@ -100,14 +104,19 @@ randomChoices (top : rest) gen =
   in  (c : cs, gen2)
 
 -- 🔁 Shuffle [1..n] many times with random choices (Monte Carlo).
---    `tops` gives the largest choice at each step.
--- ランダムな選び方で、何度もシャッフルする（モンテカルロ法）
+--    `tops` gives the largest choice at each step. The tally is
+--    evaluated at every trial (!acc), so it does not pile up.
+--    0 or fewer trials make an empty tally.
+-- ランダムな選び方で、何度もシャッフルする（モンテカルロ法）。
+-- 集計は毎回計算する（!acc）ので、計算の予約が積み上がらない。
+-- 試行が 0 回以下なら、空の集計
 simulate :: ([Int] -> [Int] -> [Int]) -> [Int] -> Int -> Int -> Int -> Tally
 simulate shuffle tops n trials seed = go trials (mkStdGen seed) mempty
   where
-    go 0 _   acc = acc
-    go k gen acc =
-      let (cs, gen') = randomChoices tops gen
-      in  go (k - 1) gen' (acc <> tallyOf (shuffle cs [1 .. n]))
+    go k gen !acc
+      | k <= 0    = acc
+      | otherwise =
+          let (cs, gen') = randomChoices tops gen
+          in  go (k - 1) gen' (acc <> tallyOf (shuffle cs [1 .. n]))
 -- ANCHOR_END: simulate
 -- ANCHOR_END: all
