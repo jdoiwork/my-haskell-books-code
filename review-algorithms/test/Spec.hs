@@ -1,9 +1,11 @@
+-- ANCHOR: head
 module Main (main) where
 
 import Test.Hspec
 import Test.QuickCheck
 
 import Review.Quests
+-- ANCHOR_END: head
 
 -- ANCHOR: gen
 -- 🎲 A few quests on a short day, so they overlap often.
@@ -17,7 +19,7 @@ genQuests = do
       s <- chooseInt (0, 12)
       len <- chooseInt (1, 5)
       r <- chooseInt (1, 20)
-      pure (Quest "q" s (s + len) r)
+      pure (Quest "q" s (s + len) (toInteger r))
 
 -- ✂️ Shrink by dropping quests.
 -- 依頼を減らして縮める
@@ -25,8 +27,29 @@ shrinkQuests :: [Quest] -> [[Quest]]
 shrinkQuests = shrinkList (const [])
 -- ANCHOR_END: gen
 
+-- ANCHOR: main
 main :: IO ()
 main = hspec $ do
+  describe "properties" $ do
+    -- ANCHOR_END: main
+    -- ANCHOR: propGreedy
+    -- 貪欲法は、報酬では負けることがある（失敗するのが正解）
+    it "greedy can lose (expected to fail)" $ expectFailure $
+      withNumTests 2000 $ forAllShrink genQuests shrinkQuests $ \qs ->
+        greedyReward qs === bestRewardSpec qs
+    -- ANCHOR_END: propGreedy
+    -- ANCHOR: propSlow
+    -- 遅い DP は、仕様と同じ
+    it "bestRewardSlow == bestRewardSpec" $
+      forAllShrink genQuests shrinkQuests $ \qs ->
+        bestRewardSlow qs === bestRewardSpec qs
+    -- ANCHOR_END: propSlow
+    -- ANCHOR: propFast
+    -- 二分探索の DP も、仕様と同じ
+    it "bestReward == bestRewardSpec" $
+      forAllShrink genQuests shrinkQuests $ \qs ->
+        bestReward qs === bestRewardSpec qs
+    -- ANCHOR_END: propFast
   describe "the board" $ do
     -- 例の掲示板
     it "spec, slow DP and DP agree on the example" $ do
@@ -36,18 +59,14 @@ main = hspec $ do
     -- 貪欲法は、例の掲示板で足りない
     it "greedy falls short" $
       greedyReward board `shouldBe` 60
-  -- ANCHOR: props
-  describe "properties" $ do
-    -- 貪欲法は、報酬では負けることがある（失敗するのが正解）
-    it "greedy can lose (expected to fail)" $ expectFailure $
-      withNumTests 2000 $ forAllShrink genQuests shrinkQuests $ \qs ->
-        greedyReward qs === bestRewardSpec qs
-    -- 遅い DP は、仕様と同じ
-    it "bestRewardSlow == bestRewardSpec" $
-      forAllShrink genQuests shrinkQuests $ \qs ->
-        bestRewardSlow qs === bestRewardSpec qs
-    -- 二分探索の DP も、仕様と同じ
-    it "bestReward == bestRewardSpec" $
-      forAllShrink genQuests shrinkQuests $ \qs ->
-        bestReward qs === bestRewardSpec qs
-  -- ANCHOR_END: props
+    -- 終わるのと同時に始まる依頼も受けられる（橋の番は7時に終わり、
+    -- オオカミ狩りは7時に始まる）
+    it "a quest may start just when another ends" $
+      compatible (board !! 1) (board !! 4) `shouldBe` True
+    -- 報酬の合計が Int の上限を超えても、あふれない
+    it "rewards do not overflow" $ do
+      let big = toInteger (maxBound :: Int)
+          qs  = [Quest "a" 0 1 (big - 1), Quest "b" 0 1 (big - 2),
+                 Quest "c" 1 2 2]
+      bestRewardSpec qs `shouldBe` big + 1
+      bestReward qs `shouldBe` big + 1
