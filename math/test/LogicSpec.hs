@@ -69,6 +69,15 @@ spec = do
   it "only a thief gets in without a key" $
     forAll genNoKey $ \h ->
       pickedLock h ==> job h == Thief
+  -- 鍵の決まりと、鍵なしで入れた人を、場合ごとに（そうでないときの答えも）
+  it "the key rule and the picked lock, case by case" $ do
+    map keyRuleOk [ Hero 9 True Warrior, Hero 10 True Warrior
+                  , Hero 9 False Warrior, Hero 15 False Warrior ]
+      `shouldBe` [False, True, True, True]
+    map pickedLock [ Hero 9 False Thief, Hero 9 False Mage
+                   , Hero 10 False Thief, Hero 10 False Mage
+                   , Hero 10 True Thief ]
+      `shouldBe` [False, False, True, False, False]
   -- Bool の (<=) は、implies と同じ決まり
   it "implies is (<=) on Bool" $
     sameForAll implies (<=) `shouldBe` True
@@ -84,3 +93,15 @@ spec = do
                    , ("Python", Set.fromList ["heal"])
                    , ("Rust",   Set.fromList ["fire", "shield"]) ]
       essentialMembers needed party `shouldBe` ["Python"]
+    -- 同じ名前の回復役が2人なら、どちらも1人で抜けられる
+    it "essentialMembers takes out one member at a time" $ do
+      let needed = Set.fromList ["heal"]
+          party  = [ ("A", Set.fromList ["heal"])
+                   , ("A", Set.fromList ["heal"]) ]
+      essentialMembers needed party `shouldBe` []
+    -- 外す前から足りないスキルは、その人のせいにしない
+    it "essentialMembers ignores skills missing from the start" $ do
+      let needed = Set.fromList ["fire", "heal"]
+          party  = [ ("A", Set.empty)
+                   , ("B", Set.fromList ["heal"]) ]
+      essentialMembers needed party `shouldBe` ["B"]

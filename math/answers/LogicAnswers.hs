@@ -7,7 +7,6 @@ module LogicAnswers
   ) where
 
 import Data.Set (Set)
-import qualified Data.Set as Set
 
 import Math.Logic
 
@@ -19,15 +18,20 @@ xor' a b = (a || b) && not (a && b)
 -- ANCHOR_END: xor
 
 -- ANCHOR: essential
--- 🌟 Step 3: the members the party cannot do without: take one out,
---    and some needed skill goes missing.
--- ステップ3：いないと困る人。その人を外すと、要るスキルが欠ける
+-- 🌟 Step 3: the members the party cannot do without: take one out
+--    (by place, not by name), and a needed skill goes missing that was
+--    not missing before.
+-- ステップ3：いないと困る人。その人を（名前ではなく、並びの場所で）
+-- 1人だけ外すと、外す前には足りていた、要るスキルが欠ける
 essentialMembers :: Set Skill -> [(String, Set Skill)] -> [String]
 essentialMembers needed party =
   [ name
-  | (name, _) <- party
-  , let others = [ skills | (other, skills) <- party, other /= name ]
-  , not (Set.null (missingSkills needed others))
+  | (i, (name, _)) <- numbered
+  , let others = [ skills | (j, (_, skills)) <- numbered, j /= i ]
+  , missingSkills needed others /= missingBefore
   ]
+  where
+    numbered      = zip [0 :: Int ..] party
+    missingBefore = missingSkills needed (map snd party)
 -- ANCHOR_END: essential
 -- ANCHOR_END: all
