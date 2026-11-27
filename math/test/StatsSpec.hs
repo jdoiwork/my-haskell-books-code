@@ -29,10 +29,17 @@ spec = do
   it "shifting the data does not change the spread" $
     forAll genData $ \xs -> forAll (choose (-100, 100)) $ \c ->
       near (stdDev (map (+ c) xs)) (stdDev xs)
+  -- 中央値とパーセンタイルの、決まった答え
+  it "the median and percentiles of small examples" $ do
+    median [1, 3, 2] `shouldBe` 2
+    median [0, 10] `shouldBe` 5
+    percentile 50 [0, 10] `shouldBe` 0
+    percentile 7 [1 .. 100] `shouldBe` 7
+    percentile 99 [1 .. 100] `shouldBe` 99
   -- パーセンタイルは、p が大きいほど大きい（か同じ）
   it "a higher percentile is never smaller" $
-    forAll genData $ \xs -> forAll (choose (1, 99)) $ \p ->
-      percentile p xs <= percentile (p + 1) xs
+    forAll genData $ \xs -> forAll (choose (1, 99 :: Int)) $ \p ->
+      percentile (fromIntegral p) xs <= percentile (fromIntegral p + 1) xs
   -- まっすぐ一緒に増えるなら +1、逆なら -1
   it "a straight line has correlation 1 or -1" $
     forAll (vectorOf 20 (choose (-100, 100))) $ \xs ->

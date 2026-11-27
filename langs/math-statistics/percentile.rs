@@ -8,7 +8,9 @@ fn percentile(p: f64, xs: &[f64]) -> f64 {
     // f64 is not Ord (NaN), so sort with total_cmp.
     // f64 は Ord ではない（NaN がある）ので、total_cmp で並べる
     sorted.sort_by(|a, b| a.total_cmp(b));
-    let rank = (p / 100.0 * sorted.len() as f64).ceil() as usize;
+    // Multiply first, then divide: 7 / 100 * 100 is 7.000000000000001.
+    // 先に掛けてから割る（7 / 100 * 100 は 7.000000000000001 になる）
+    let rank = (p * sorted.len() as f64 / 100.0).ceil() as usize;
     sorted[rank.max(1) - 1]
 }
 // ANCHOR_END: percentile
@@ -18,5 +20,6 @@ fn main() {
     assert_eq!(percentile(90.0, &times), 90.0);
     assert_eq!(percentile(99.0, &times), 99.0);
     assert_eq!(percentile(1.0, &times), 1.0);
+    assert_eq!(percentile(7.0, &times), 7.0);
     println!("ok");
 }

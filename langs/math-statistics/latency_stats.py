@@ -1,15 +1,12 @@
 # The statistics of the chapter "Basic statistics", in Python.
 # 「統計の基本」の章の統計を、Python で
-import math
-import statistics
-
-import numpy as np
-
-gold = [30, 45, 50, 52, 60, 65, 70, 80, 90, 120, 100000]
 
 # ANCHOR: procedural
 # Python (procedural style)
 # Python（手続き型スタイル）
+import math
+
+gold = [30, 45, 50, 52, 60, 65, 70, 80, 90, 120, 100000]
 total = 0
 for g in gold:
     total += g
@@ -25,10 +22,14 @@ assert abs(deviation - 28728.95694861496) < 1e-6
 # ANCHOR: functional
 # Python (functional style: the statistics module)
 # Python（関数型スタイル：statistics モジュール）
+import statistics
+
+import numpy as np
+
 middle = statistics.median(gold)          # 65
 spread = statistics.pstdev(gold)          # the same as above / 上と同じ
 times = list(range(1, 101))               # 1, 2, ..., 100 ms
-p90_nearest = sorted(times)[math.ceil(0.90 * len(times)) - 1]   # 90
+p90_nearest = sorted(times)[math.ceil(90 * len(times) / 100) - 1]  # 90
 p90_quantiles = statistics.quantiles(times, n=10)[-1]           # 90.9
 p90_numpy = float(np.percentile(times, 90))                     # 90.1
 # ANCHOR_END: functional

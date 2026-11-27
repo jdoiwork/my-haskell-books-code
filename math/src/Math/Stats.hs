@@ -23,8 +23,8 @@ import System.Random (mkStdGen, uniformR)
 -- ANCHOR_END: imports
 
 -- ANCHOR: center
--- ⚖️ The mean: add them up, divide by how many.
--- 平均：全部足して、個数で割る
+-- ⚖️ The mean: add them up, divide by how many (of at least one value).
+-- 平均：全部足して、個数で割る（値は1つ以上）
 mean :: [Double] -> Double
 mean xs = sum xs / fromIntegral (length xs)
 
@@ -59,12 +59,14 @@ stdDev xs = sqrt (variance xs)
 -- ANCHOR: percentile
 -- 📊 The p-th percentile (nearest rank): the smallest value that is
 --    at least p% of the data. percentile 99 = "99% are this or less".
--- p パーセンタイル：データの p% が、その値以下になる、いちばん小さな値
-percentile :: Double -> [Double] -> Double
+--    p is a Rational (0 < p <= 100), so 7% of 100 is exactly 7.
+-- p パーセンタイル：データの p% が、その値以下になる、いちばん小さな値。
+-- p は分数（0 < p <= 100）なので、100 個の 7% は、ちょうど 7
+percentile :: Rational -> [Double] -> Double
 percentile p xs =
   let sorted = sort xs
       n      = length xs
-      rank   = ceiling (p / 100 * fromIntegral n) :: Int
+      rank   = ceiling (p * fromIntegral n / 100) :: Int
   in  sorted !! max 0 (rank - 1)
 -- ANCHOR_END: percentile
 
@@ -91,14 +93,18 @@ showHistogram width per counts =
 -- ANCHOR: correlation
 -- 🔗 The correlation: +1 when two things rise together, -1 when one
 --    falls as the other rises, near 0 when there is no straight link.
+--    The two lists are pairs, so they must be the same length.
 -- 相関係数：一緒に増えるなら +1、片方が増えると減るなら -1、
--- まっすぐな関係がなければ 0 に近い
+-- まっすぐな関係がなければ 0 に近い。2つのリストは組なので、同じ長さ
 correlation :: [Double] -> [Double] -> Double
-correlation xs ys =
-  let mx  = mean xs
-      my  = mean ys
-      cov = mean (zipWith (\x y -> (x - mx) * (y - my)) xs ys)
-  in  cov / (stdDev xs * stdDev ys)
+correlation xs ys
+  | length xs /= length ys =
+      error "correlation: the two lists must be the same length"
+  | otherwise =
+      let mx  = mean xs
+          my  = mean ys
+          cov = mean (zipWith (\x y -> (x - mx) * (y - my)) xs ys)
+      in  cov / (stdDev xs * stdDev ys)
 -- ANCHOR_END: correlation
 
 -- ANCHOR: data
@@ -122,9 +128,11 @@ latencies = go (10000 :: Int) (mkStdGen 7)
       in  (if u < 0.02 then slow else fast) : go (k - 1) gen3
 
 -- 🗺️ A trip to the dungeon: how deep, potions bought, times defeated.
---    Deeper trips need more potions AND bring more defeats.
+--    Deeper trips need more potions AND bring more defeats. The counts
+--    are whole numbers, 0 or more (kept as Double for the statistics).
 -- ダンジョンへの冒険：深さ、買ったポーション、負けた回数。
--- 深いほど、ポーションも、負けも増える
+-- 深いほど、ポーションも、負けも増える。数は 0 以上の整数
+-- （統計の計算のために Double で持つ）
 data Trip = Trip
   { depth    :: Double
   , potions  :: Double
@@ -138,9 +146,11 @@ trips = go (500 :: Int) (mkStdGen 11)
     go 0 _   = []
     go k gen =
       let (d, gen1)  = uniformR (1, 10 :: Int) gen
-          (n1, gen2) = uniformR (-2, 2) gen1
-          (n2, gen3) = uniformR (-2, 2) gen2
-          dd         = fromIntegral d
-      in  Trip dd (3 * dd + n1) (dd / 2 + n2) : go (k - 1) gen3
+          (n1, gen2) = uniformR (-2, 2 :: Int) gen1
+          (n2, gen3) = uniformR (0, 2 :: Int) gen2
+          bought     = 3 * d + n1
+          lost       = d `div` 2 + n2
+      in  Trip (fromIntegral d) (fromIntegral bought) (fromIntegral lost)
+            : go (k - 1) gen3
 -- ANCHOR_END: data
 -- ANCHOR_END: all
