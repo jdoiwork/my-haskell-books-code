@@ -6,6 +6,7 @@ module Main (main) where
 
 import GHC.Clock (getMonotonicTime)
 import System.Environment (getArgs)
+import System.Exit (die)
 import Text.Printf (printf)
 
 import Algo.Divide
@@ -30,15 +31,20 @@ main = do
 -- 🎟️ Push n numbers into a queue, then pop them all.
 -- キューに n 個並べてから、全部取り出す
 purely :: String -> String -> IO ()
-purely version size = do
-  let n = read size :: Int
-  t0 <- getMonotonicTime
-  let total = if version == "slow"
-        then sum (drainSlow (foldl (flip slowPush) slowEmpty [1 .. n]))
-        else sum (drain (queueFromList [1 .. n]))
-  printf "%s: sum %d" version total
-  t1 <- getMonotonicTime
-  printf " (%.3f s)\n" (t1 - t0)
+purely version size
+  -- A typo must not measure the other version.
+  -- 打ちまちがいで、別の版を測らないように
+  | version `notElem` ["slow", "fast"] =
+      die ("purely: slow or fast, not " ++ version)
+  | otherwise = do
+      let n = read size :: Int
+      t0 <- getMonotonicTime
+      let total = if version == "slow"
+            then sum (drainSlow (foldl (flip slowPush) slowEmpty [1 .. n]))
+            else sum (drain (queueFromList [1 .. n]))
+      printf "%s: sum %d" version total
+      t1 <- getMonotonicTime
+      printf " (%.3f s)\n" (t1 - t0)
   where
     drainSlow q = maybe [] (\(x, q') -> x : drainSlow q') (slowPop q)
 

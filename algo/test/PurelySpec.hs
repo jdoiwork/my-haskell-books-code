@@ -74,7 +74,7 @@ spec = describe "Algo.Purely" $ do
   -- 入れても取っても、左偏ヒープのまま
   it "stays leftist" $ property $ \xs n ->
     let h = heapFromList (xs :: [Int])
-        shrunk = iterate (maybe Empty snd . deleteMin) h !! (abs n `mod` 5)
+        shrunk = iterate (maybe emptyHeap snd . deleteMin) h !! (abs n `mod` 5)
     in leftist h .&&. leftist shrunk
   -- 合わせたヒープの最小値
   it "merge keeps the minimum" $ property $ \xs ys ->

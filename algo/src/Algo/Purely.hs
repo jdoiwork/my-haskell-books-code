@@ -18,7 +18,7 @@ module Algo.Purely
   , drain
   , queueInvariant
     -- * A leftist heap
-  , Heap (..)
+  , Heap
   , emptyHeap
   , rank
   , merge
@@ -36,9 +36,11 @@ import Data.List (unfoldr)
 
 -- ANCHOR: slow
 -- 🐢 A queue as one list: the front of the line is the head.
---    Pushing walks to the end of the list, so it is O(n).
+--    Each push adds an (++) to walk through later, so n pushes and
+--    n pops take O(n^2) in all.
 -- 1つのリストのキュー：先頭が列の先頭。
--- 後ろに並ぶたびに、リストの終わりまで歩くので O(n)
+-- 並ぶたびに、あとでたどる (++) が1つ積み重なるので、
+-- n 個並べて全部取り出すと、合わせて O(n^2)
 newtype SlowQueue a = SlowQueue [a]
   deriving Show
 
@@ -107,9 +109,10 @@ queueInvariant _               = True
 -- ANCHOR: heap
 -- 🏔️ A leftist heap: the smallest value sits at the top, and the left
 --    child's rank (the length of the rightmost path) is never smaller
---    than the right child's.
+--    than the right child's. The values need a total order (no NaN).
 -- 左偏ヒープ：いちばん小さい値がてっぺんにあり、左の子のランク
--- （右端をたどる道の長さ）は、右の子のランクより小さくならない
+-- （右端をたどる道の長さ）は、右の子のランクより小さくならない。
+-- 値は全順序であること（NaN は入れない）
 data Heap a = Empty | Node Int a (Heap a) (Heap a)
   deriving Show
 
@@ -156,12 +159,14 @@ findMin (Node _ x _ _) = Just x
 deleteMin :: Ord a => Heap a -> Maybe (a, Heap a)
 deleteMin Empty                 = Nothing
 deleteMin (Node _ x left right) = Just (x, merge left right)
+
+-- 📥 Insert everything.
+-- 全部入れる
+heapFromList :: Ord a => [a] -> Heap a
+heapFromList = foldr insertHeap emptyHeap
 -- ANCHOR_END: heapOps
 
 -- ANCHOR: heapSort
-heapFromList :: Ord a => [a] -> Heap a
-heapFromList = foldr insertHeap emptyHeap
-
 -- 🔢 Take the smallest, again and again.
 -- いちばん小さいものを、くり返し取り出す
 heapSort :: Ord a => [a] -> [a]

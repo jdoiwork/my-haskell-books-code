@@ -1,11 +1,12 @@
 # Queues, for the chapter "Building purely functional data structures".
 # キュー。「純粋なデータ構造を作る」の章
-from collections import deque
 
 
 # ANCHOR: procedural
 # Python (procedural style: change the list in place)
 # Python（手続き型スタイル：リストをその場で書き換える）
+from collections import deque
+
 line = []
 for name in ["slime", "goblin", "dragon"]:
     line.append(name)
@@ -65,4 +66,7 @@ q2 = push("z", q0)
 assert drain(q1) == ["a", "b", "c"]
 assert drain(q2) == ["a", "b", "z"]
 assert drain(q0) == ["a", "b"]
+# The tuples are never changed: the old and new versions share the cells
+# タプルは書き換えられない。古い版と新しい版が、同じマスを共有する
+assert q1[0] is q0[0] and q2[0] is q0[0]
 print("ok")
