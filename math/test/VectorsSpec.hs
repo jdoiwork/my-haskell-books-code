@@ -1,10 +1,13 @@
 module VectorsSpec (spec) where
 
+-- ANCHOR: imports
+import Control.Exception (evaluate)
 import Test.Hspec
 import Test.QuickCheck hiding (scale)
 
 import Math.Vectors
 import VectorsAnswers
+-- ANCHOR_END: imports
 
 -- ANCHOR: gens
 -- 🎲 Small whole numbers, so the products are exact.
@@ -21,6 +24,9 @@ genVector = vectorOf 2 (choose (-9, 9))
 spec :: Spec
 spec = do
   -- ANCHOR: spec
+  -- 左へ 90 度：(3, 1) は (-1, 3) へ（右へ回すまちがいを見つける）
+  it "rotate90 turns to the left" $
+    apply rotate90 [3, 1] `shouldBe` ([-1, 3] :: Vector Int)
   -- 行列を順に当てるのは、先に掛けた行列を当てるのと同じ
   it "(A B) v == A (B v)" $
     forAll genMatrix $ \a -> forAll genMatrix $ \b -> forAll genVector $ \v ->
@@ -47,7 +53,12 @@ spec = do
   describe "answers" $ do
     it "the distance from (0,0) to (3,4) is 5" $
       distance [0, 0] [3, 4] `shouldBe` 5
+    it "the nearest to the dragon is the golem, the farthest the slime" $
+      nearest "Dragon"
+        `shouldBe` ["Golem", "Wizard", "Goblin", "Fairy", "Slime"]
     it "fibByMatrix agrees with the list of Fibonacci numbers" $
       map fibByMatrix [0 .. 30] `shouldBe` take 31 fibs
+    it "fibByMatrix stops on a negative n" $
+      evaluate (fibByMatrix (-1)) `shouldThrow` anyErrorCall
   where
     fibs = 0 : 1 : zipWith (+) fibs (drop 1 fibs) :: [Integer]

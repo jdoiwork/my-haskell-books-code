@@ -25,7 +25,11 @@ import Data.Ord (comparing)
 
 -- ANCHOR: vector
 -- ➡️ A vector: a list of numbers, like [attack, defense, speed, magic].
--- ベクトル：数のリスト。たとえば [攻撃, 防御, 素早さ, 魔力]
+--    Two vectors used together must be the same length (zipWith does
+--    not check it: it stops at the shorter one).
+-- ベクトル：数のリスト。たとえば [攻撃, 防御, 素早さ, 魔力]。
+-- 一緒に使う2つのベクトルは、同じ長さとする（zipWith は確かめずに、
+-- 短いほうで止まる）
 type Vector a = [a]
 
 -- ➕ Add two vectors, number by number.
@@ -52,8 +56,9 @@ norm v = sqrt (dot v v)
 
 -- 🧭 How much two vectors point the same way: 1 = same direction,
 --    0 = unrelated (at a right angle). The lengths do not matter.
+--    Neither may be the zero vector (it has no direction: NaN).
 -- 2つのベクトルが、どれだけ同じ向きか：1 は同じ向き、0 は無関係（直角）。
--- 長さは関係ない
+-- 長さは関係ない。ゼロベクトルには向きがないので使えない（NaN になる）
 cosine :: Vector Double -> Vector Double -> Double
 cosine u v = dot u v / (norm u * norm v)
 -- ANCHOR_END: dot
@@ -83,8 +88,10 @@ mostSimilar name = do
 -- ANCHOR_END: monsters
 
 -- ANCHOR: matrix
--- 🔲 A matrix: a list of rows.
--- 行列：行のリスト
+-- 🔲 A matrix: a list of rows, all the same length. In mmul a b and
+--    apply a v, the rows of a are as long as b has rows (or v is long).
+-- 行列：行のリスト。どの行も同じ長さとする。mmul a b と apply a v では、
+-- a の行の長さが、b の行の数（v の長さ）と同じとする
 type Matrix a = [[a]]
 
 -- ✖️ Matrix times matrix: row by column, dot products.
