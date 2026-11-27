@@ -26,6 +26,10 @@ spec = describe "Algo.Dp" $ do
         maximum [ sum (map value pick)
                 | pick <- subsequences treasures
                 , sum (map weight pick) <= w ]
+  -- 価値の合計が Int の上限を超えても、あふれない
+  it "knapsack values do not overflow" $ do
+    let big = toInteger (maxBound :: Int)
+    knapsack [Item "a" 1 big, Item "b" 1 1] 2 `shouldBe` big + 1
   -- トレーニングの解答
   it "lcsLength" $ do
     lcsLength "goblin" "gobiln" `shouldBe` 5

@@ -1,7 +1,5 @@
 # Ways to pay, for the chapter "Dynamic programming".
 # 払い方の数。「動的計画法」の章
-from functools import lru_cache
-
 COINS = [1, 5, 10, 25]
 
 
@@ -20,6 +18,9 @@ def ways(coins, amount):
 # ANCHOR: functional
 # Python (functional style: the spec's recursion, remembered by lru_cache)
 # Python（関数型スタイル：仕様の再帰を、lru_cache に覚えてもらう）
+from functools import lru_cache
+
+
 def ways_memo(coins, amount):
     @lru_cache(maxsize=None)
     def go(k, a):
@@ -35,4 +36,15 @@ def ways_memo(coins, amount):
 assert ways(COINS, 100) == ways_memo(tuple(COINS), 100) == 242
 for a in range(60):
     assert ways(COINS, a) == ways_memo(tuple(COINS), a)
+# lru_cache does not make the recursion shallower: 1000 G goes past
+# the default recursion limit (1000), while the loop version is fine.
+# lru_cache は再帰を浅くしない。1000 G は再帰の上限（既定は 1000）を超える。
+# ループの版なら大丈夫
+COINS50 = [1, 5, 10, 25, 50]
+assert ways(COINS50, 1000) == 801451
+try:
+    ways_memo(tuple(COINS50), 1000)
+    raise AssertionError("expected RecursionError")
+except RecursionError:
+    pass
 print("ok")

@@ -102,9 +102,10 @@ editDistance s t = d 0 0
 -- ANCHOR_END: edit
 
 -- ANCHOR: knapsack
--- 💎 A treasure: its weight and its value.
--- 宝：重さと価値
-data Item = Item { itemName :: String, weight :: Int, value :: Int }
+-- 💎 A treasure: its weight and its value. Values are Integer, so the
+--    sum of the values never overflows.
+-- 宝：重さと価値。価値は、足してもあふれないように Integer
+data Item = Item { itemName :: String, weight :: Int, value :: Integer }
   deriving (Show, Eq)
 
 treasures :: [Item]
@@ -116,7 +117,7 @@ treasures =
 --    treasures: leave treasure k, or take it if it fits.
 -- 最初の k 個の宝で、容量 w の袋に入る最大の価値：
 -- k 番目を置いていくか、入るなら持っていくか
-knapsack :: [Item] -> Int -> Int
+knapsack :: [Item] -> Int -> Integer
 knapsack items capacity = best (length items) capacity
   where
     n     = length items
