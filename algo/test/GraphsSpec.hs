@@ -7,7 +7,7 @@ import Test.Hspec
 import Test.QuickCheck
 
 import Algo.Graphs
-import AlgoAnswers (islands)
+import AlgoAnswers (findCompressed, islands)
 
 -- 📜 The spec of the distance: try longer and longer walks.
 -- 距離の仕様：歩く数を1歩ずつ増やして、着けるかを試す
@@ -47,8 +47,12 @@ spec = describe "Algo.Graphs" $ do
         connects rs =
           let uf = foldl (\u r -> union u (from r) (to r)) emptyUF rs
           in  Set.size (Set.map (find uf) towns) == 1
-        cheapest = minimum [ sum (map cost rs) | rs <- subsequences roads
-                                               , connects rs ]
+        -- Spanning trees only: n - 1 roads that join every town.
+        -- 全域木だけ：町の数 − 1 本で、全部の町をつなぐもの
+        trees    = [ rs | rs <- subsequences roads
+                            , length rs == Set.size towns - 1
+                            , connects rs ]
+        cheapest = minimum [ sum (map cost rs) | rs <- trees ]
     sum (map cost (kruskal roads)) `shouldBe` cheapest
   -- ユニオン・ファインド：つないだものは同じグループで、
   -- つながっていないものは、別のグループ
@@ -70,14 +74,25 @@ spec = describe "Algo.Graphs" $ do
   -- 依頼の輪を見つける
   it "finds the cycle" $
     map sort (cycles questBoard) `shouldBe` [["ask-sage", "find-tome"]]
+  -- 輪があれば、順番はない（自分を待つ1件だけでも）
+  it "gives no order when there is a cycle" $ do
+    questOrder questBoard `shouldBe` Nothing
+    questOrder [Quest "a" ["a"]] `shouldBe` Nothing
   -- 輪がなければ、順番が決まる
   it "orders quests without a cycle" $
     questOrder (filter ((/= "ask-sage") . quest) questBoard')
       `shouldBe` Just ["sell-gems", "pay-smith", "get-sword", "find-tome",
                        "learn-fire", "slay-dragon"]
   -- トレーニングの解答：島の数
-  it "islands" $
+  it "islands" $ do
     islands ["##..#", "#...#", "..#..", ".....", "##.##"] `shouldBe` 5
+    islands [replicate 300 '#'] `shouldBe` 1
+  -- トレーニングの解答：経路圧縮。a → b → c をたどると、a も c の直下に
+  it "findCompressed" $ do
+    let uf = Map.fromList [("a", "b"), ("b", "c")]
+    findCompressed uf "a"
+      `shouldBe` ("c", Map.fromList [("a", "c"), ("b", "c")])
+    Map.lookup "a" uf `shouldBe` Just "b"
   where
     questBoard' = [ if quest q == "find-tome" then q { needs = [] } else q
                   | q <- questBoard ]

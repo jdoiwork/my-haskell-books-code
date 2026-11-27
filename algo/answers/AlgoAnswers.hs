@@ -10,6 +10,7 @@ module AlgoAnswers
   , lcsLength
   , gridPaths
   , islands
+  , findCompressed
   , longestRun
   , depthAlg
   , collatzSteps
@@ -25,6 +26,7 @@ import qualified Data.Map.Strict as Map
 import Data.Ord (Down (..), comparing)
 import qualified Data.Set as Set
 
+import Algo.Graphs (UnionFind)
 import Algo.Purely (Queue, heapSort, pop)
 import Algo.Schemes (ExprF (..), ListF (..), hylo)
 import Algo.Strings (Trie (..), runLength)
@@ -146,14 +148,34 @@ islands rows = go land 0
       Nothing   -> n
       Just cell ->
         go (left `Set.difference` flood (Set.singleton cell)) (n + 1)
-    flood seen =
-      let next = Set.fromList [ (r + dr, c + dc)
-                              | (r, c) <- Set.toList seen
-                              , (dr, dc) <- [(1, 0), (-1, 0), (0, 1), (0, -1)]
-                              , (r + dr, c + dc) `Set.member` land ]
-                   `Set.union` seen
-      in  if next == seen then seen else flood next
+    -- Spread only from the cells painted last time (the frontier).
+    -- 前の回に塗ったマス（前線）からだけ広げる
+    flood start = grow start start
+    grow seen frontier
+      | Set.null frontier = seen
+      | otherwise =
+          let next = Set.fromList
+                       [ cell
+                       | (r, c) <- Set.toList frontier
+                       , (dr, dc) <- [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                       , let cell = (r + dr, c + dc)
+                       , cell `Set.member` land
+                       , not (cell `Set.member` seen) ]
+          in  grow (seen `Set.union` next) next
 -- ANCHOR_END: islands
+
+-- ANCHOR: compress
+-- 🗜️ "Graphs" step 3: find with path compression. Answer the leader,
+--    and a new table where every town on the way points to it.
+-- 「グラフ」ステップ3：経路圧縮つきの find。代表と、たどった町を
+-- 全部、代表の直下につなぎ直した新しい表を返す
+findCompressed :: UnionFind -> String -> (String, UnionFind)
+findCompressed uf town = case Map.lookup town uf of
+  Just parent | parent /= town ->
+    let (leader, uf') = findCompressed uf parent
+    in  (leader, Map.insert town leader uf')
+  _ -> (town, uf)
+-- ANCHOR_END: compress
 -- ANCHOR: longestRun
 -- 🧱 "Strings" step 2: the longest run of one letter (the first, on a tie).
 -- 「文字列」ステップ2：同じ文字のいちばん長い並び（同じ長さなら先のもの）

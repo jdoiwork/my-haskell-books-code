@@ -1,7 +1,5 @@
 # Kruskal's algorithm with union-find, for the chapter "Graph algorithms".
 # ユニオン・ファインドでクラスカル法。「グラフのアルゴリズム」の章
-from functools import reduce
-
 roads = [("Haskelia", "Pyland", 7), ("Haskelia", "Rustburg", 5),
          ("Pyland", "Rustburg", 8), ("Pyland", "Tsville", 9),
          ("Rustburg", "Tsville", 7), ("Rustburg", "Rubyport", 6),
@@ -32,9 +30,15 @@ def kruskal(rs):
 # ANCHOR: functional
 # Python (functional style: reduce, with a new parent dict each time)
 # Python（関数型スタイル：reduce で、毎回新しい親の辞書を作る）
+from functools import reduce
+
+
 def find_in(parent, town):
-    return town if parent.get(town, town) == town \
-        else find_in(parent, parent[town])
+    # Walk up with a loop: the dict itself is never changed
+    # ループで親をたどる。辞書そのものは書き換えない
+    while parent.get(town, town) != town:
+        town = parent[town]
+    return town
 
 
 def kruskal_f(rs):
@@ -51,4 +55,9 @@ def kruskal_f(rs):
 
 assert sum(c for _, _, c in kruskal(roads)) == 25
 assert kruskal(roads) == kruskal_f(roads)
+# A long chain of parents: no RecursionError, even past 1000 steps
+# 親の長い列：1000 段を超えても、RecursionError にならない
+chain = [(str(i), str(i + 1), i) for i in range(1010)]
+chain.append(("0", "1010", 1010))
+assert len(kruskal(chain)) == len(kruskal_f(chain)) == 1010
 print("ok")

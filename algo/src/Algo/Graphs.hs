@@ -110,7 +110,7 @@ union uf a b = Map.insert (find uf a) (find uf b) uf
 -- クラスカル法：安い道から。まだつながっていない2つのグループを
 -- つなぐ道だけを作る
 kruskal :: [Road] -> [Road]
-kruskal rs = reverse (snd (foldl build (emptyUF, []) (sortOn cost rs)))
+kruskal rs = reverse (snd (foldl' build (emptyUF, []) (sortOn cost rs)))
   where
     build (uf, built) road
       | find uf (from road) == find uf (to road) = (uf, built)
@@ -118,8 +118,10 @@ kruskal rs = reverse (snd (foldl build (emptyUF, []) (sortOn cost rs)))
 -- ANCHOR_END: kruskal
 
 -- ANCHOR: scc
--- 📜 A quest, and the quests that must be done before it.
--- 依頼と、その前に終わらせておく依頼
+-- 📜 A quest, and the quests that must be done before it. Every name
+--    is used once, and every name in needs is on the board.
+-- 依頼と、その前に終わらせておく依頼。名前は重ならず、
+-- needs に書く名前は、どれも掲示板にある
 data Quest = Quest { quest :: String, needs :: [String] }
   deriving (Show, Eq)
 
