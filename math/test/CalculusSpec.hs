@@ -1,10 +1,12 @@
 module CalculusSpec (spec) where
 
+-- ANCHOR: imports
 import Test.Hspec
 import Test.QuickCheck
 
 import CalculusAnswers
 import Math.Calculus
+-- ANCHOR_END: imports
 
 -- ANCHOR: near
 -- 📏 Close enough, within the given tolerance?
@@ -16,6 +18,9 @@ near tolerance a b = abs (a - b) < tolerance
 spec :: Spec
 spec = do
   -- ANCHOR: spec
+  -- x^2 の 3 から 4 までの傾きは、(16 - 9) / 1 = 7
+  it "slope measures from x to x + h" $
+    slope (\x -> x * x) 3 1 `shouldBe` 7
   -- 3次式の傾きは、公式 3x^2 + 2 と同じ
   it "the slope of x^3 + 2x is 3x^2 + 2" $
     forAll (choose (-10, 10)) $ \x ->
