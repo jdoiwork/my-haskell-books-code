@@ -1,11 +1,13 @@
 # The fast inverse square root of the chapter "Numbers", in Python.
 # 「数の正体」の章の高速逆平方根を、Python で
 import math
-import struct
 
 
 # ANCHOR: functional
 # Python
+import struct
+
+
 def fast_inv_sqrt(x):
     # Pack the float into 4 bytes, and read them as an unsigned int.
     # float を4バイトに詰めて、符号なし整数として読む

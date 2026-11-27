@@ -24,8 +24,9 @@ import GHC.Float (castFloatToWord32, castWord32ToFloat)
 -- ANCHOR: digits
 -- 🔢 The digits of n in a base, from the top: toDigits 2 6 == [1, 1, 0].
 --    Divide by the base again and again; the remainders are the digits.
+--    The base is 2 or more, and n is 0 or more.
 -- n を base 進数で書いたときの桁（上の桁から）。
--- base で割り続けると、余りが桁になる
+-- base で割り続けると、余りが桁になる。base は 2 以上、n は 0 以上
 toDigits :: Int -> Int -> [Int]
 toDigits base n
   | n < base  = [n]
@@ -34,7 +35,8 @@ toDigits base n
       in  toDigits base rest ++ [digit]
 
 -- 🔢 Back from digits: fromDigits 2 [1, 1, 0] == 6.
--- 桁から数に戻す
+--    Each digit is from 0 to base - 1, and the number fits in an Int.
+-- 桁から数に戻す。どの桁も 0 から base - 1 まで、答えは Int に入る大きさ
 fromDigits :: Int -> [Int] -> Int
 fromDigits base digits = go 0 digits
   where
@@ -78,11 +80,13 @@ hasStatus which s = testBit s which
 -- ANCHOR_END: status
 
 -- ANCHOR: money
--- 🧾 Add 10% tax to a price in cents, rounding half up, with Int only:
---    withTax 105 == 116 (115.5 rounds up).
--- 値段（セント）に 10% の税を足し、四捨五入する。Int だけで計算する
-withTax :: Int -> Int
-withTax cents = (cents * 110 + 50) `div` 100
+-- 🧾 Add 10% tax to a price in cents, rounding half up, with whole
+--    numbers only: withTax 105 == 116 (115.5 rounds up).
+--    Widen to Integer first, so cents * 110 never overflows.
+-- 値段（セント）に 10% の税を足し、四捨五入する。整数だけで計算する。
+-- cents * 110 があふれないように、先に Integer に広げる
+withTax :: Int -> Integer
+withTax cents = (toInteger cents * 110 + 50) `div` 100
 -- ANCHOR_END: money
 
 -- ANCHOR: fastInvSqrt

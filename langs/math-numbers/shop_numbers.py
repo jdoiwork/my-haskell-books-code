@@ -1,9 +1,9 @@
 # The numbers of the chapter "What numbers really are", in Python.
 # 「数の正体」の章の数を、Python で
-from decimal import Decimal
-
 # ANCHOR: numbers
 # Python
+from decimal import Decimal
+
 big = 2 ** 100                 # int never overflows / int はあふれない
 almost = 0.1 + 0.2             # 0.30000000000000004
 floor_div = -7 // 2            # -4  (like div)
