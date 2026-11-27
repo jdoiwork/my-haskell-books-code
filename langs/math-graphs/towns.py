@@ -6,7 +6,8 @@ from graphlib import CycleError, TopologicalSorter
 
 roads = [("Start", "River", 2), ("Start", "Forest", 7),
          ("River", "Forest", 3), ("Forest", "Castle", 4),
-         ("River", "Mountain", 6), ("Mountain", "Castle", 2)]
+         ("River", "Mountain", 6), ("Mountain", "Castle", 2),
+         ("Island", "Lighthouse", 1)]
 graph = {}
 for a, b, h in roads:
     graph.setdefault(a, []).append((b, h))

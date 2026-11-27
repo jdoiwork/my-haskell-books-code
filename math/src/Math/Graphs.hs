@@ -47,9 +47,11 @@ townMap = fromRoads
 
 -- ANCHOR: dfs
 -- 🧭 Depth-first: go as far as you can, then come back (with a set of
---    towns already visited, so we never walk in circles).
+--    towns already visited, so we never walk in circles). Each turn,
+--    either a new town is visited, or the waiting list gets shorter.
 -- 深さ優先：行けるところまで進み、戻る（訪れた町の集合を持つので、
--- 同じところをぐるぐる回らない）
+-- 同じところをぐるぐる回らない）。毎回、新しい町を訪れるか、
+-- 待ちリストが1つ短くなる
 reachable :: Graph -> String -> Set String
 reachable graph start = go Set.empty [start]
   where
@@ -64,18 +66,23 @@ reachable graph start = go Set.empty [start]
 -- ANCHOR: bfs
 -- 🌊 Breadth-first: visit the towns 1 road away, then 2 roads away, ...
 --    The first time we reach a town is by the fewest roads.
+--    Each next town is checked against the table updated so far, so a
+--    town with several roads to it joins the queue only once.
 -- 幅優先：道1本の町、次に道2本の町、と広げていく。
--- 初めて着いたときが、いちばん少ない本数
+-- 初めて着いたときが、いちばん少ない本数。となりの町を1つ見るたびに
+-- 表を更新するので、道が何本もある町も、列に入るのは1回だけ
 hops :: Graph -> String -> Map String Int
 hops graph start = go (Map.singleton start 0) (Seq.singleton start)
   where
     go seen Empty = seen
     go seen (town :<| queue) =
-      let d     = seen Map.! town
-          fresh = [ t | t <- Map.findWithDefault [] town graph
-                      , not (t `Map.member` seen) ]
-          seen' = foldr (\t -> Map.insert t (d + 1)) seen fresh
-      in  go seen' (foldl (|>) queue fresh)
+      let d = seen Map.! town
+          visit (s, q) t
+            | t `Map.member` s = (s, q)
+            | otherwise        = (Map.insert t (d + 1) s, q |> t)
+          (seen', queue') =
+            foldl visit (seen, queue) (Map.findWithDefault [] town graph)
+      in  go seen' queue'
 -- ANCHOR_END: bfs
 
 -- ANCHOR: topo
@@ -93,13 +100,19 @@ skillTree = Map.fromList
 
 -- 🪜 An order to learn everything: a skill comes after all it needs.
 --    Repeatedly take the skills whose needs are all learned.
---    Left gives the skills stuck in a cycle.
+--    A skill only named as a need counts too (it needs nothing).
+--    If there is a cycle, Left gives every skill it blocked: the skills
+--    in the cycle, and the skills that need them.
 -- 全部を覚える順番：どのスキルも、要るものの後に来る。
 -- 要るものを全部覚えたスキルを、くり返し取り出す。
--- 輪になって進めないときは、残ったスキルを Left で返す
+-- 要るものの欄にだけ出てくるスキルも並べる（何も要らないスキル）。
+-- 輪があれば、そのせいで覚えられなかったスキル（輪の中のスキルと、
+-- それを要るスキル）を全部 Left で返す
 topoSort :: Map String [String] -> Either [String] [String]
-topoSort needs = go Set.empty (Map.keys needs)
+topoSort needs = go Set.empty allSkills
   where
+    allSkills =
+      Set.toList (Set.fromList (Map.keys needs ++ concat (Map.elems needs)))
     go _       []      = Right []
     go learned waiting =
       let ready = [ s | s <- waiting
@@ -114,8 +127,8 @@ topoSort needs = go Set.empty (Map.keys needs)
 -- ANCHOR_END: topo
 
 -- ANCHOR: dijkstra
--- 🛣️ Roads with lengths (in hours), both ways.
--- 長さ（時間）の付いた道。両方向
+-- 🛣️ Roads with lengths (in hours, 0 or more), both ways.
+-- 長さ（時間。0 以上）の付いた道。両方向
 type Roads = Map String [(String, Int)]
 
 roadMap :: Roads
@@ -124,13 +137,15 @@ roadMap = Map.fromListWith (++)
   where
     roads = [ ("Start", "River", 2), ("Start", "Forest", 7)
             , ("River", "Forest", 3), ("Forest", "Castle", 4)
-            , ("River", "Mountain", 6), ("Mountain", "Castle", 2) ]
+            , ("River", "Mountain", 6), ("Mountain", "Castle", 2)
+            , ("Island", "Lighthouse", 1) ]
 
 -- 🏁 Dijkstra: always settle the nearest town not yet settled.
 --    A Set of (hours, town) is our priority queue: its minimum is next.
 -- ダイクストラ法：まだ決まっていない町のうち、いちばん近い町を決める。
--- (時間, 町) の Set を優先度つきの列に使う。最小のものが次
-dijkstra :: Roads -> String -> Map String Int
+-- (時間, 町) の Set を優先度つきの列に使う。最小のものが次。
+-- 合計の時間は、あふれない Integer で足す
+dijkstra :: Roads -> String -> Map String Integer
 dijkstra roads start = go Map.empty (Set.singleton (0, start))
   where
     go done frontier = case Set.minView frontier of
@@ -139,7 +154,7 @@ dijkstra roads start = go Map.empty (Set.singleton (0, start))
         | town `Map.member` done -> go done rest
         | otherwise ->
             let done'  = Map.insert town d done
-                next   = [ (d + h, t)
+                next   = [ (d + toInteger h, t)
                          | (t, h) <- Map.findWithDefault [] town roads
                          , not (t `Map.member` done') ]
             in  go done' (foldr Set.insert rest next)

@@ -1,12 +1,14 @@
 module GraphsSpec (spec) where
 
-import Data.List (elemIndex, permutations)
+-- ANCHOR: imports
+import Data.List (elemIndex, permutations, sort)
 import qualified Data.Map.Strict as Map
 import Test.Hspec
 import Test.QuickCheck
 
 import GraphsAnswers
 import Math.Graphs
+-- ANCHOR_END: imports
 
 -- ANCHOR: helpers
 -- 🎲 Random roads among towns "A".."F", with lengths 1..9.
@@ -22,7 +24,7 @@ genRoads = do
 
 -- 🐢 The slow way: try every order of the towns as a path.
 -- 遅い方法：町の並べ方を全部、道として試す
-bruteForce :: Roads -> String -> String -> Maybe Int
+bruteForce :: Roads -> String -> String -> Maybe Integer
 bruteForce roads start goal
   | start == goal = Just 0
   | otherwise =
@@ -39,31 +41,52 @@ bruteForce roads start goal
     cost (a : b : rest) =
       case [ h | (t, h) <- Map.findWithDefault [] a roads, t == b ] of
         [] -> Nothing
-        hs -> (minimum hs +) <$> cost (b : rest)
+        hs -> (toInteger (minimum hs) +) <$> cost (b : rest)
     cost _ = Just 0
 -- ANCHOR_END: helpers
 
 spec :: Spec
 spec = do
   -- ANCHOR: spec
-  -- 覚える順番では、どのスキルも、要るスキルより後に来る
+  -- 幅優先：Mountain と Castle は道2本（列の前に足すと、3本になる）
+  it "hops counts the fewest roads" $
+    hops townMap "Start" `shouldBe` Map.fromList
+      [ ("Start", 0), ("River", 1), ("Forest", 1)
+      , ("Mountain", 2), ("Castle", 2) ]
+  -- 覚える順番：どのスキルも1回ずつ、要るスキルより後に来る
   it "topoSort puts every skill after the skills it needs" $
     case topoSort skillTree of
       Left stuck  -> expectationFailure (show stuck)
-      Right order ->
+      Right order -> do
+        sort order `shouldBe` Map.keys skillTree
         and [ elemIndex need order < elemIndex skill order
             | (skill, needs) <- Map.toList skillTree, need <- needs ]
           `shouldBe` True
-  -- 輪になったスキルは、覚えられない
+  -- 要るものの欄にだけ出てくるスキルも並べる
+  it "topoSort keeps skills that are only needed" $
+    topoSort (Map.fromList [("fire", ["magic basics"])])
+      `shouldBe` Right ["magic basics", "fire"]
+  -- 輪になったスキルと、それを要るスキルは、覚えられない
   it "topoSort finds a cycle" $
-    topoSort (Map.fromList [("a", ["b"]), ("b", ["a"]), ("c", [])])
-      `shouldBe` Left ["a", "b"]
+    topoSort (Map.fromList [("a", ["b"]), ("b", ["a"]), ("c", ["a"])])
+      `shouldBe` Left ["a", "b", "c"]
   -- ダイクストラ法は、全部の道を試すのと同じ答え
   it "dijkstra agrees with trying every path" $
     forAll genRoads $ \roads ->
       and [ Map.lookup goal (dijkstra roads "A") == bruteForce roads "A" goal
           | goal <- Map.keys roads, "A" `Map.member` roads ]
   -- ANCHOR_END: spec
+  -- とても長い道があっても、合計の時間はあふれない
+  it "dijkstra does not overflow" $ do
+    let roads = Map.fromList
+          [ ("S", [("A", 1), ("B", 3)])
+          , ("A", [("S", 1), ("B", maxBound)])
+          , ("B", [("A", maxBound), ("S", 3)]) ]
+    Map.lookup "B" (dijkstra roads "S") `shouldBe` Just 3
+  -- 同じ2つの町のあいだに道が何本あっても、本数の表は同じ
+  it "hops with many roads between two towns" $
+    hops (fromRoads (replicate 3000 ("A", "B"))) "A"
+      `shouldBe` Map.fromList [("A", 0), ("B", 1)]
 
   -- 「トレーニング」
   describe "answers" $ do
@@ -74,3 +97,6 @@ spec = do
     it "the fastest route to the castle" $
       route roadMap "Start" "Castle"
         `shouldBe` Just ["Start", "River", "Forest", "Castle"]
+    it "the island has its own road" $
+      route roadMap "Island" "Lighthouse"
+        `shouldBe` Just ["Island", "Lighthouse"]
